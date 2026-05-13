@@ -13,12 +13,7 @@ app.set("trust proxy", 1);
 
 
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://production-system-lyz1jphp5-sumanthsalian11s-projects.vercel.app"
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
