@@ -1,0 +1,404 @@
+/* ============================= */
+/* PAGE / DASHBOARD CONTAINER */
+/* ============================= */
+.dashboard-container {
+  max-width: 1023px;
+  margin: 0 auto;
+  padding: 32px;
+  background: linear-gradient(120deg, #ecedf0, #e5e1e7);
+  min-height: 100vh;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  color: #1f2937;
+  border: 2px solid #000;
+  border-radius: 20px
+}
+.truncate {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.expanded {
+  max-width: 220px;
+  white-space: normal;
+  word-break: break-word;
+  cursor: pointer;
+}
+/* Title */
+.dashboard-container h2 {
+  font-size: 28px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #0f172a;
+  letter-spacing: 0.3px;
+  border: "2px solid #000"
+}
+
+/* ============================= */
+/* PREMIUM TOOLBAR */
+/* ============================= */
+/* ============================= */
+/* PREMIUM TOOLBAR */
+/* ============================= */
+.premium-toolbar {
+  background: #ffffffcc;
+  backdrop-filter: blur(6px);
+  padding: 14px 18px;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  margin-bottom: 18px;
+  overflow-x: auto; /* ✅ Prevent page overflow */
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: nowrap; /* ✅ Force single line */
+  min-width: max-content; /* ✅ Keep everything inside */
+}
+
+/* LEFT ACTION BUTTONS */
+.toolbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* RIGHT FILTER AREA */
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Inputs & Select */
+.toolbar-filters input,
+.toolbar-filters select {
+  height: 38px;
+  min-width: 130px; /* Slightly reduced */
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+/* WO number search */
+.toolbar-filters input[type="text"] {
+  width: 130px;
+  border-color: black;
+}
+
+.premium-date {
+  width: 120px;
+}
+
+.premium-select {
+  width: 160px;
+  cursor: pointer;
+  border-color: black;
+}
+
+/* Clear button */
+.clear-btn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: none;
+  background: #ef4444;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.clear-btn:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* ============================= */
+/* BUTTONS */
+/* ============================= */
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: #fff;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(37,99,235,0.35);
+}
+
+.btn-secondary {
+  background: #1f5dda;
+  color: white;
+}
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
+.btn-success {
+  background: #16a34a;
+  color: white;
+}
+.btn-success:hover {
+  background: #15803d;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+
+/* ============================= */
+/* TABLE CONTAINER */
+/* ============================= */
+.scrollable-table-container {
+  max-height: 450px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+
+/* ============================= */
+/* TABLE STYLING */
+/* ============================= */
+.table-modern,
+.planned-workorders-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 800px;
+  background-color: white;
+}
+
+.table-modern th,
+.table-modern td,
+.planned-workorders-table th,
+.planned-workorders-table td {
+  border: 1px solid #000;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.table-modern th,
+.planned-workorders-table th {
+  background: linear-gradient(135deg, #1f2937, #111827);
+  color: rgb(249, 248, 248);
+  font-weight: 500;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.table-modern tr:hover,
+.planned-workorders-table tr:hover {
+  background-color: #ef98b527;
+}
+
+/* ============================= */
+/* FORM CARD */
+/* ============================= */
+.form-card {
+  background: rgba(255,255,255,0.9);
+  backdrop-filter: blur(8px);
+  padding: 26px;
+  border-radius: 12px;
+  margin-top: 20px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* ============================= */
+/* BADGES */
+/* ============================= */
+.badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge.received {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.badge.planned {
+  background: #bbf7d0;
+  color: #065f46;
+}
+
+/* ============================= */
+/* RESPONSIVE */
+/* ============================= */
+@media (max-width: 1100px) {
+  .toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .toolbar-filters {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 20px;
+  }
+
+  h2 {
+    font-size: 22px;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* ============================= */
+/* TRUNCATE / EXPAND CELLS */
+/* ============================= */
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  cursor: pointer;
+}
+
+.expanded {
+  white-space: normal;
+  max-width: 400px;
+  background-color: #f0f8ff;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+/* =================================
+   MPI WORK ORDER PRINT LAYOUT
+   A4 Fit + Page Border
+================================= */
+
+
+.mpi-page {
+  width: 210mm;
+  height: 297mm;
+  padding: 10mm;
+  box-sizing: border-box;
+  background: white;
+}
+
+.mpi-inner {
+  width: 100%;
+  height: 100%;
+  border: 2px solid black;
+  padding: 10mm;
+  box-sizing: border-box;
+}
+
+/* HEADER */
+.mpi-header {
+  text-align: center;
+  border-bottom: 2px solid #000;
+  padding-bottom: 6px;
+}
+
+.mpi-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.mpi-doc-line {
+  margin-top: 6px;
+  font-weight: bold;
+}
+
+.mpi-doc-id {
+  border-bottom: 1px solid #000;
+  padding-bottom: 4px;
+}
+
+.mpi-section-title {
+  margin-top: 10px;
+  font-weight: bold;
+}
+
+/* TABLES */
+.mpi-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  table-layout: fixed;
+}
+
+.mpi-table th,
+.mpi-table td {
+  border: 1px solid #000;
+  padding: 5px;
+  word-wrap: break-word;
+}
+
+.mpi-table th {
+  background: #f2f2f2;
+}
+
+.mpi-remarks-box {
+  border-bottom: 1px solid #000;
+  height: 40px;
+  margin-top: 5px;
+}
+
+.mpi-signature {
+  margin-top: 18px;
+  line-height: 1.6;
+}
+
+/* prevent overflow */
+.mpi-page * {
+  max-width: 100%;
+}
+
+/* PRINT SETTINGS */
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+  }
+}

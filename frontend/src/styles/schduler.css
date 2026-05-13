@@ -1,0 +1,47 @@
+/* ===== GANTT HEADER ===== */
+
+.gantt_grid_head_cell,
+.gantt_scale_cell {
+  background: #1f2937 !important;
+  color: white !important;
+  font-weight: 600;
+  border-color: #374151 !important;
+}
+
+/* ===== MACHINE ROW ===== */
+
+.machine-row .gantt_task_content {
+  background: #111827 !important;
+  color: white !important;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+/* ===== NORMAL TASK ===== */
+
+.normal-task .gantt_task_content {
+  border-radius: 10px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+/* ===== BLOCK TASK ===== */
+
+.block-task .gantt_task_content {
+  background: #dc2626 !important;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+/* ===== GRID ===== */
+
+.gantt_grid_data .gantt_row,
+.gantt_task_row {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* ===== TODAY COLUMN ===== */
+
+.gantt_today {
+  background: rgba(59,130,246,0.08) !important;
+}
