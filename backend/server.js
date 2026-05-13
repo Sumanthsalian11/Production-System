@@ -38,7 +38,7 @@ app.use("/uploads", express.static("uploads"));
 
 // Work Order routes
 app.use("/api/workorders", require("./routes/workOrderRoutes"));
-const productionRealRoutes = require("./routes/productionreal");
+const productionRealRoutes = require("./routes/productionReal");
 app.use("/api/production-real", productionRealRoutes);
 
 // Customer Order routes
