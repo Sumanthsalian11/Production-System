@@ -168,7 +168,7 @@ function InternalLogin() {
             {/* CENTERED HEADER: LOGO -> WELCOME BACK -> SIGN IN INTO YOUR ACCOUNT */}
             <div className="mpi-lgn-header">
               <div className="mpi-lgn-card-brand">
-                <img src={`${BASE}Logo.png`} alt="MPI" />
+              <img src={`${BASE}Logo.png`} alt="MPI" />
               </div>
               <h1 className="mpi-lgn-title">Welcome back</h1>
               <p className="mpi-lgn-subtitle">Sign in into your account</p>
