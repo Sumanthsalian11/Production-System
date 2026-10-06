@@ -1,0 +1,331 @@
+/* ==========================================================================
+   AI CHAT WIDGET - RGB LIGHTING & ANIMATED GLASSMORPHISM STYLESHEET
+   ========================================================================== */
+
+/* Keyframe Animations */
+@keyframes cwPanelEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(28px);
+    filter: blur(10px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.015) translateY(-4px);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px);
+  }
+}
+
+@keyframes cwMsgSlideInUser {
+  0% {
+    opacity: 0;
+    transform: translateX(20px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes cwMsgSlideInModel {
+  0% {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes cwPulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes cwDotWave {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+@keyframes cwBadgePulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 7px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes cwTooltipFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Continuous RGB Rainbow Light Motion */
+@keyframes cwRgbFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes cwSparkleRotate {
+  0% {
+    transform: rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 2px rgba(37, 99, 235, 0.3));
+  }
+  50% {
+    transform: rotate(18deg) scale(1.12);
+    filter: drop-shadow(0 0 10px rgba(37, 99, 235, 0.7));
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+    filter: drop-shadow(0 0 2px rgba(37, 99, 235, 0.3));
+  }
+}
+
+/* Custom Scrollbar */
+.cw-messages-container::-webkit-scrollbar {
+  width: 5px;
+}
+.cw-messages-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cw-messages-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 99px;
+}
+.cw-messages-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.65);
+}
+
+/* ==========================================================================
+   RGB LIGHTING BORDER & NEON GLOW WRAPPERS
+   ========================================================================== */
+
+/* Outer RGB Border Wrap for Main Chat Panel */
+.cw-rgb-panel-wrapper {
+  position: relative;
+  border-radius: 24px;
+  padding: 2.5px;
+  background: linear-gradient(
+    115deg,
+    #ff0055,
+    #7a00ff,
+    #00e5ff,
+    #00ff66,
+    #ffaa00,
+    #ff0055
+  );
+  background-size: 300% 300%;
+  animation: cwRgbFlow 6s ease infinite;
+  box-shadow: 0 24px 70px -10px rgba(15, 23, 42, 0.35);
+  transition: all 0.3s ease;
+}
+
+/* RGB Glowing Halo Effect behind Chat Panel */
+.cw-rgb-panel-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 26px;
+  background: inherit;
+  background-size: inherit;
+  animation: inherit;
+  filter: blur(14px);
+  opacity: 0.55;
+  z-index: -1;
+  transition: all 0.35s ease;
+}
+
+.cw-rgb-panel-wrapper:hover::before {
+  opacity: 0.9;
+  filter: blur(22px);
+}
+
+/* Outer RGB Light Wrap for Floating Trigger Button */
+.cw-rgb-trigger-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22px;
+  padding: 2.5px;
+  background: linear-gradient(
+    115deg,
+    #ff0055,
+    #7a00ff,
+    #00e5ff,
+    #00ff66,
+    #ffaa00,
+    #ff0055
+  );
+  background-size: 300% 300%;
+  animation: cwRgbFlow 5s ease infinite;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cw-rgb-trigger-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 24px;
+  background: inherit;
+  background-size: inherit;
+  animation: inherit;
+  filter: blur(10px);
+  opacity: 0.65;
+  z-index: -1;
+  transition: all 0.35s ease;
+}
+
+.cw-rgb-trigger-wrapper:hover {
+  transform: scale(1.09) translateY(-3px);
+}
+
+.cw-rgb-trigger-wrapper:hover::before {
+  opacity: 1;
+  filter: blur(18px);
+}
+
+.cw-rgb-trigger-wrapper:active {
+  transform: scale(0.95);
+}
+
+/* RGB Light Border for Tooltip */
+.cw-rgb-tooltip-wrapper {
+  position: relative;
+  border-radius: 20px;
+  padding: 2px;
+  background: linear-gradient(
+    115deg,
+    #ff0055,
+    #7a00ff,
+    #00e5ff,
+    #ff0055
+  );
+  background-size: 250% 250%;
+  animation: cwRgbFlow 5s ease infinite;
+}
+
+/* Interactive Animations */
+.cw-panel-animated {
+  animation: cwPanelEntrance 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: bottom right;
+}
+
+.cw-msg-user {
+  animation: cwMsgSlideInUser 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.cw-msg-model {
+  animation: cwMsgSlideInModel 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.cw-status-dot-pulse {
+  animation: cwPulseRing 2s infinite;
+}
+
+.cw-dot-1 {
+  animation: cwDotWave 1.2s infinite 0s ease-in-out;
+}
+.cw-dot-2 {
+  animation: cwDotWave 1.2s infinite 0.2s ease-in-out;
+}
+.cw-dot-3 {
+  animation: cwDotWave 1.2s infinite 0.4s ease-in-out;
+}
+
+.cw-tooltip-float {
+  animation: cwTooltipFloat 4s ease-in-out infinite, cwMsgSlideInUser 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cw-badge-pulse {
+  animation: cwBadgePulse 2.4s infinite ease-in-out;
+}
+
+.cw-shimmer-header {
+  background-size: 200% 200% !important;
+  animation: cwRgbFlow 8s ease infinite;
+}
+
+.cw-sparkle-icon {
+  animation: cwSparkleRotate 3.5s ease-in-out infinite;
+}
+
+.cw-suggestion-btn {
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cw-suggestion-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: #3b82f6 !important;
+  color: #1d4ed8 !important;
+  background: #eff6ff !important;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.3), 0 6px 14px -3px rgba(37, 99, 235, 0.18) !important;
+}
+.cw-suggestion-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.cw-icon-btn {
+  transition: all 0.22s ease;
+}
+.cw-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.24) !important;
+  transform: rotate(90deg) scale(1.08);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+.cw-icon-btn:active {
+  transform: rotate(90deg) scale(0.95);
+}
+
+.cw-send-btn {
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cw-send-btn:not(:disabled):hover {
+  transform: scale(1.06) translateY(-1px);
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%) !important;
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.5), 0 10px 20px rgba(37, 99, 235, 0.4) !important;
+}
+.cw-send-btn:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+.cw-input-shell {
+  transition: all 0.22s ease;
+}
+.cw-input-shell:focus-within {
+  border-color: #8b5cf6 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2) !important;
+}
