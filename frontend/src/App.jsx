@@ -15,6 +15,7 @@ import BillingCountReport from "./pages/BillingCountReport";
 import InternalLogin from "./pages/InternalLogin";
 import InternalRegister from "./pages/InternalRegister";
 import ManualBoxPage from "./pages/ManualBoxPage";
+import CertificateNumbering from "./pages/Certificatenumbering";
 
 /* DASHBOARDS */
 import AdminDashboard from "./pages/AdminDashboard";
@@ -129,6 +130,14 @@ function App() {
             }
           />
 
+<Route
+  path="/certificate-numbering"
+  element={
+    <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+      <CertificateNumbering />
+    </ProtectedRoute>
+  }
+/>
           <Route
   path="/welcome-board"
   element={<ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}><WelcomeBoardGenerator /></ProtectedRoute>}

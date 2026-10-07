@@ -45,7 +45,7 @@ const APP_CATEGORIES = [
     color: "#059669",
     bgLight: "#ecfdf5",
     borderGlow: "#a7f3d0",
-    routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard","/calibration","/new-inspection"]
+    routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard","/calibration","/new-inspection","/certificate-numbering"]
   },
   {
     title: "Dispatch & Logistics",

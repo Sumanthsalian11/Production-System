@@ -34,6 +34,7 @@ const menuItems = [
   { to: "/receiving-inspection", icon: "bi-card-checklist", label: "Quality Control", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/production-portal", icon: "bi-gear-fill", label: "Overall Summary", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/click-report", icon: "bi-graph-up", label: "Click Report", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
+  { to: "/certificate-numbering", icon: "bi-file-earmark-text", label: "Certificate Numbering", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
 ];
 
 // Returns the modules a given role (e.g. "PLANNER", case-insensitive) can access

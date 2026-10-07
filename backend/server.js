@@ -103,6 +103,7 @@ app.use("/api/calibration", require("./routes/Calibrationroutes"));
 const clickReportRoutes = require("./routes/Clickreport");
 app.use("/api/click-report", clickReportRoutes);
 app.use("/api/master/gst", require("./routes/gstMaster"));
+app.use("/api/numbering-jobs", require("./routes/Numberingjobs"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
