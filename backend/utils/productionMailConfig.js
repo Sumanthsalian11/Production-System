@@ -1,13 +1,13 @@
 module.exports = {
   TO: [
     "19220avinash@gmail.com",
-    //  "chethan.rao@mpimanipal.info",
+    //  "chethan.rao@mpimanipal.com",
   ],
   CC: [
     "sumanthsalian11@gmail.com",
     "akashkunder1020@gmail.com",
      "19220avinash@gmail.com",
-//    "chethan.rao@mpimanipal.info",
+//    "chethan.rao@mpimanipal.com",
 //     "s.tantry@manipalgroup.info",
 // "ranjan.naik@manipalgroup.info",    
 // "shashank.p@manipalgroup.info",

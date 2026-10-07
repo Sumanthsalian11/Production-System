@@ -58,10 +58,9 @@ cron.schedule("0 10 * * *", async () => {
 
     const dateStr = yDay.toLocaleDateString("en-GB").replace(/\//g, ".");
 
-    // only send when there are entries for production date = yesterday
+    // no entries for production date = yesterday: still send the mail (every row shows "No entry made")
     if (!entries.length) {
-      console.log(`⚠️ No Perso entries with production date ${dateStr} - mail not sent.`);
-      return;
+      console.log(`⚠️ No Perso entries with production date ${dateStr} - sending "No entry made" mail.`);
     }
 
     // ================= CONSOLIDATE BY MACHINE + PRINTER =================
@@ -600,13 +599,15 @@ cron.schedule("0 10 * * *", async () => {
       cc: ccList,
       subject: `PERSO PRODUCTION REPORT ${dateStr}.`,
       html: htmlSummary,
-      attachments: [
-        {
-          filename: `Perso_Production_Detailed_${dateStr}.xlsx`,
-          content: excelBuffer,
-          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        },
-      ],
+      attachments: entries.length
+        ? [
+            {
+              filename: `Perso_Production_Detailed_${dateStr}.xlsx`,
+              content: excelBuffer,
+              contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            },
+          ]
+        : [],
     });
 
     console.log(

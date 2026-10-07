@@ -6,7 +6,7 @@ module.exports = {
   CC: [
 "sumanthsalian11@gmail.com",
     "akashkunder1020@gmail.com",
-
+//    "chethan.rao@mpimanipal.com",
 //  "vishwanath.rao@mpimanipal.com",
 // "s.tantry@manipalgroup.info",
 // "ranjan.naik@manipalgroup.info",    
