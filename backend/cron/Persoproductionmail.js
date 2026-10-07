@@ -40,7 +40,7 @@ const escapeHtml = (v) =>
 
 // Runs daily at 10:00 AM and reports entries whose PRODUCTION DATE is yesterday
 // (TEST: change "0 10 * * *" to a time 2 minutes ahead, restart Node, then change it back)
-cron.schedule("0 10 * * *", async () => {
+cron.schedule("21 15 * * *", async () => {
   try {
     // only entries whose PRODUCTION DATE is yesterday (not when they were saved)
     const yDay = new Date();
@@ -59,6 +59,12 @@ cron.schedule("0 10 * * *", async () => {
     const dateStr = yDay.toLocaleDateString("en-GB").replace(/\//g, ".");
 
     // no entries for production date = yesterday: still send the mail (every row shows "No entry made")
+    const htmlNoEntry = `
+      <div style="font-family:Arial,sans-serif;font-size:14px;">
+        <p><b>No Perso production entry was made for production date ${dateStr}.</b></p>
+        <p>No machine production, idle, breakdown or maintenance records were entered in this period.</p>
+      </div>`;
+
     if (!entries.length) {
       console.log(`⚠️ No Perso entries with production date ${dateStr} - sending "No entry made" mail.`);
     }
@@ -598,7 +604,7 @@ cron.schedule("0 10 * * *", async () => {
       to: recipients,
       cc: ccList,
       subject: `PERSO PRODUCTION REPORT ${dateStr}.`,
-      html: htmlSummary,
+      html: entries.length ? htmlSummary : htmlNoEntry,
       attachments: entries.length
         ? [
             {
