@@ -35,17 +35,24 @@ const risoGroup = (t) => {
 // Recalculate one machine entry on the server (same formulas as the Ricoh sheet / Riso sheet)
 function calcEntry(e = {}) {
   let a3Imp = 0, a3Bill = 0, a4RowImp = 0, a4RowBill = 0, totalImp = 0, totalW = 0, hasTotal = false;
+  const otherMap = {}; // NEW: other paper sizes (billed separately)
 
   const rows = (e.rows || []).map((r) => {
     const start = n(r.start), end = n(r.end), wastage = n(r.wastage);
     const impression = r.end === "" || r.end == null ? 0 : Math.abs(start - end); // |start - end|
     const inputType = String(r.inputType || "").trim(); // paper size name from master, or "Total"
     const x = inputType.toUpperCase();
-    const g = !x ? null : x === "A3" ? "A3" : x === "TOTAL" ? "Total" : "A4"; // other sizes bill at A4 rate
+    // CHANGED: other sizes are now "Other" (billed at their own rate) instead of A4
+    const g = !x ? null : x === "A3" ? "A3" : x === "TOTAL" ? "Total" : x === "A4" ? "A4" : "Other";
     if (g === "A3") { a3Imp += impression; a3Bill += afterWastage(impression, wastage); }
     else if (g === "A4") { a4RowImp += impression; a4RowBill += afterWastage(impression, wastage); }
     else if (g === "Total") { if (!hasTotal) totalW = wastage; hasTotal = true; totalImp += impression; }
-    return { inputType, start, end, wastage, impression };
+    else if (g === "Other") {
+      const o = otherMap[inputType] || (otherMap[inputType] = { name: inputType, imp: 0, bill: 0, w: wastage, rate: n(r.rate) });
+      o.imp += impression;
+      o.bill += afterWastage(impression, wastage);
+    }
+    return { inputType, start, end, wastage, impression, ...(g === "Other" ? { rate: n(r.rate) } : {}) };
   });
 
   // RISO: Excel grouping (A3 + Non Std(L), A4 + Non Std(S)); no wastage for Riso
@@ -66,12 +73,18 @@ function calcEntry(e = {}) {
   const derivedA4 = hasTotal ? totalImp - a3Imp : 0;
   const a4Imp = riso ? rA4Imp : a4RowImp + derivedA4;
   const a4Bill = riso ? a4Imp : a4RowBill + (hasTotal ? afterWastage(derivedA4, totalW) : 0);
-  const totalClick = a4Imp + a3Imp * 2; // A4 + A3 x 2 (Riso: Excel "Overall total")
+
+  // NEW: other sizes with their own rate (not for Riso)
+  const others = riso ? [] : Object.values(otherMap).map((o) => ({ ...o, amount: r2(o.bill * o.rate) }));
+  const otherImp = others.reduce((s, o) => s + o.imp, 0);
+  const otherAmount = others.reduce((s, o) => s + o.amount, 0);
+
+  const totalClick = a4Imp + a3Imp * 2 + otherImp; // A4 + A3 x 2 + other sizes (Riso: Excel "Overall total")
 
   const a4Rate = n(e.a4Rate), a3Rate = n(e.a3Rate);
   const a3Amount = a3Bill * a3Rate;
   const a4Amount = a4Bill * a4Rate;
-  const totalAmount = a3Amount + a4Amount;
+  const totalAmount = a3Amount + a4Amount + otherAmount; // CHANGED: + otherAmount
   const discount = n(e.discount);
   const discountAmount = (totalAmount * discount) / 100;
   const taxable = totalAmount - discountAmount;
@@ -114,6 +127,30 @@ const taxOf = (r, name) => {
   if (t) return { rate: t.rate, amount: t.amount || 0 };
   if (name === "GST" && !(r.taxes || []).length && r.gst) return { rate: r.gst, amount: r.gstAmount || 0 };
   return null;
+};
+
+// NEW: other paper sizes (MICR / Non MICR ...) of a saved record, for the Excel export
+const otherOf = (r) => {
+  const empty = { size: "", imp: 0, bill: 0, rate: "", amount: 0 };
+  if (isRiso(r.machine)) return empty;
+  const m = {};
+  (r.rows || []).forEach((x) => {
+    const name = String(x.inputType || "").trim();
+    const u = name.toUpperCase();
+    if (!u || u === "A3" || u === "A4" || u === "TOTAL") return;
+    const o = m[name] || (m[name] = { name, imp: 0, bill: 0, rate: n(x.rate) });
+    o.imp += n(x.impression);
+    o.bill += afterWastage(n(x.impression), n(x.wastage));
+  });
+  const list = Object.values(m).map((o) => ({ ...o, amount: r2(o.bill * o.rate) }));
+  if (!list.length) return empty;
+  return {
+    size: list.map((o) => o.name).join(" / "),
+    imp: list.reduce((t, o) => t + o.imp, 0),
+    bill: list.reduce((t, o) => t + o.bill, 0),
+    rate: list.map((o) => o.rate).join(" / "),
+    amount: list.reduce((t, o) => t + o.amount, 0),
+  };
 };
 
 const checkId = (req, res) => {
@@ -207,6 +244,7 @@ router.get("/export", async (req, res) => {
     const head = [
       "Month", "Machine", "Printer name", "A3 impression", "A4 impression", "Total click",
       "A3 after wastage", "A4 after wastage", "A4 rate", "A3 rate", "A3 amount", "A4 amount",
+      "Other size", "Other impression", "Other after wastage", "Other rate", "Other amount",
       "Total amount", "Discount %", "Discount amount",
       ...TAX_NAMES.flatMap((t) => [`${t} rate %`, `${t} amount`]),
       "Total amount with GST",
@@ -223,13 +261,17 @@ router.get("/export", async (req, res) => {
       a3Amount: 0, a4Amount: 0, totalAmount: 0, discountAmount: 0, totalWithGst: 0,
     };
     const taxTot = { GST: 0, SGST: 0, CGST: 0, IGST: 0 };
+    const otTot = { imp: 0, bill: 0, amt: 0 }; // NEW: other sizes totals
 
     const cursor = ClickReportEntry.find(q).sort(SORT).limit(EXPORT_LIMIT).lean().cursor();
     for await (const r of cursor) {
       Object.keys(tot).forEach((k) => { tot[k] += r[k] || 0; });
+      const oc = otherOf(r); // NEW
+      otTot.imp += oc.imp; otTot.bill += oc.bill; otTot.amt += oc.amount;
       ws1.addRow([
         r.month, r.machine, r.printer, r.a3Impression, r.a4Impression, r.totalClick,
         r.a3Billable, r.a4Billable, r.a4Rate, r.a3Rate, r.a3Amount, r.a4Amount,
+        oc.size, oc.imp, oc.bill, oc.rate, oc.amount,
         r.totalAmount, r.discount, r.discountAmount,
         ...TAX_NAMES.flatMap((t) => {
           const x = taxOf(r, t);
@@ -246,7 +288,8 @@ router.get("/export", async (req, res) => {
     ws1.addRow([
       "Total", "", "", tot.a3Impression, tot.a4Impression, tot.totalClick,
       tot.a3Billable, tot.a4Billable, "", "",
-      tot.a3Amount, tot.a4Amount, tot.totalAmount, "", tot.discountAmount,
+      tot.a3Amount, tot.a4Amount, "", otTot.imp, otTot.bill, "", otTot.amt,
+      tot.totalAmount, "", tot.discountAmount,
       ...TAX_NAMES.flatMap((t) => ["", taxTot[t]]),
       tot.totalWithGst,
     ]).commit();

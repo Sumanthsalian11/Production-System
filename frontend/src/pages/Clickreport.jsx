@@ -34,7 +34,7 @@ const rowGrid = {
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
 };
 const inputTileLbl = { fontSize: "11px", fontWeight: 700, color: "#4a6f8c", textTransform: "uppercase", letterSpacing: "0.4px" };
-const TABLE_COLS = 26; // number of columns in the saved-records table
+const TABLE_COLS = 31; // number of columns in the saved-records table
 const PAGE_SIZES = [25, 50, 100, 200];
 const EXPORT_LIMIT = 200000; // must match the server's EXPORT_LIMIT
 
@@ -126,12 +126,17 @@ const taxOf = (r, n) => {
 const newRow = (inputType = "") => ({ id: nextId(), inputType, start: "", end: "", wastage: "" });
 const newEntry = () => ({
   id: nextId(), machine: "", printer: "", rows: [newRow()],
-  a4Rate: "", a3Rate: "", discount: 0, gst: "", taxes: {},
+  a4Rate: "", a3Rate: "", discount: 0, gst: "", taxes: {}, otherRates: {}, // CHANGED: + otherRates
 });
 const fromRecord = (r) => ({
   id: nextId(), machine: r.machine, printer: r.printer,
   a4Rate: r.a4Rate || "", a3Rate: r.a3Rate || "", discount: r.discount, gst: r.gst,
   taxes: Object.fromEntries((r.taxes || []).map((t) => [t.name, t.rate])),
+  otherRates: Object.fromEntries(
+    (r.rows || [])
+      .filter((x) => isOtherType(x.inputType) && x.rate != null && x.rate !== "")
+      .map((x) => [String(x.inputType).trim(), x.rate])
+  ), // NEW: rate is read back from the reading row
   rows: r.rows.length
     ? r.rows.map((x) => ({ id: nextId(), inputType: x.inputType, start: x.start, end: x.end, wastage: x.wastage }))
     : [newRow()],
@@ -141,6 +146,11 @@ const fromRecord = (r) => ({
 const typeGroup = (t) => {
   const x = String(t || "").trim().toUpperCase();
   return !x ? null : x === "A3" ? "A3" : x === "TOTAL" ? "Total" : "A4";
+};
+// NEW: any paper size other than A3 / A4 / Total
+const isOtherType = (t) => {
+  const x = String(t || "").trim().toUpperCase();
+  return !!x && x !== "A3" && x !== "A4" && x !== "TOTAL";
 };
 const roundUp = (v) => {
   const x = +v.toFixed(6);
@@ -181,7 +191,7 @@ const risoCalc = (e) => {
     : (taxable * num(e.gst)) / 100;
   return {
     a3Imp, a4Imp, a3Bill, a4Bill, totalClick, a3Amount, a4Amount, total,
-    discountAmt, gstAmt, taxAmt, totalWithGst: taxable + gstAmt,
+    discountAmt, gstAmt, taxAmt, totalWithGst: taxable + gstAmt, others: [],
   };
 };
 
@@ -189,10 +199,18 @@ const entryCalc = (e) => {
   if (isRiso(e.machine)) return risoCalc(e);
 
   let a3Imp = 0, a3Bill = 0, a4RowImp = 0, a4W = null, hasA4Row = false, totalImp = 0, totalW = null, hasTotal = false;
+  const otherMap = {}; // NEW
   e.rows.forEach((r) => {
     const g = typeGroup(r.inputType);
     if (!g) return;
     const { impression } = rowCalc(r);
+    if (isOtherType(r.inputType)) { // NEW: other paper sizes are billed separately
+      const name = String(r.inputType).trim();
+      const o = otherMap[name] || (otherMap[name] = { name, imp: 0, bill: 0, w: r.wastage });
+      o.imp += impression;
+      o.bill += afterWastage(impression, r.wastage);
+      return;
+    }
     if (g === "A3") { a3Imp += impression; a3Bill += afterWastage(impression, r.wastage); }
     else if (g === "A4") { a4RowImp += impression; hasA4Row = true; if (a4W === null) a4W = r.wastage; }
     else { hasTotal = true; totalImp += impression; if (totalW === null) totalW = r.wastage; }
@@ -202,10 +220,20 @@ const entryCalc = (e) => {
   const a4Bill = hasA4Row
     ? afterWastage(a4Imp, a4W)
     : (hasTotal ? afterWastage(a4Imp, totalW) : 0);
-  const totalClick = a4Imp + a3Imp * 2;
+
+  // NEW: other sizes with their own rate
+  const others = Object.values(otherMap).map((o) => ({
+    ...o,
+    rate: num((e.otherRates || {})[o.name]),
+    amount: o.bill * num((e.otherRates || {})[o.name]),
+  }));
+  const otherImp = others.reduce((s, o) => s + o.imp, 0);
+  const otherAmount = others.reduce((s, o) => s + o.amount, 0);
+
+  const totalClick = a4Imp + a3Imp * 2 + otherImp; // CHANGED (+ otherImp)
   const a3Amount = a3Bill * num(e.a3Rate);
   const a4Amount = a4Bill * num(e.a4Rate);
-  const total = a3Amount + a4Amount;
+  const total = a3Amount + a4Amount + otherAmount; // CHANGED (+ otherAmount)
   const discountAmt = (total * num(e.discount)) / 100;
   const taxable = total - discountAmt;
   const taxAmt = {};
@@ -215,7 +243,7 @@ const entryCalc = (e) => {
   const gstAmt = Object.keys(taxAmt).length
     ? Object.values(taxAmt).reduce((s, v) => s + v, 0)
     : (taxable * num(e.gst)) / 100;
-  return { a3Imp, a4Imp, a3Bill, a4Bill, totalClick, a3Amount, a4Amount, total, discountAmt, gstAmt, taxAmt, totalWithGst: taxable + gstAmt };
+  return { a3Imp, a4Imp, a3Bill, a4Bill, totalClick, a3Amount, a4Amount, total, discountAmt, gstAmt, taxAmt, totalWithGst: taxable + gstAmt, others }; // NEW: others
 };
 
 export default function ClickReport() {
@@ -350,6 +378,7 @@ export default function ClickReport() {
     const s = {
       a3Impression: 0, a4Impression: 0, totalClick: 0, a3Billable: 0, a4Billable: 0,
       a3Amount: 0, a4Amount: 0, totalAmount: 0, discountAmount: 0, totalWithGst: 0,
+      otherImpression: 0, otherBillable: 0, otherAmount: 0, // NEW
     };
     records.forEach((r) => {
       const c = entryCalc(fromRecord({ ...r, rows: r.rows || [] }));
@@ -363,6 +392,12 @@ export default function ClickReport() {
       s.totalAmount += r2(c.total);
       s.discountAmount += r2(c.discountAmt);
       s.totalWithGst += r2(c.totalWithGst);
+      // NEW: other paper sizes
+      (c.others || []).forEach((o) => {
+        s.otherImpression += o.imp;
+        s.otherBillable += r2(o.bill);
+        s.otherAmount += r2(o.amount);
+      });
     });
     return s;
   }, [records]);
@@ -411,7 +446,12 @@ export default function ClickReport() {
           r.id === rowId ? { ...r, inputType: type, ...(ps ? { wastage: ps.wastage ?? 0 } : {}) } : r
         );
         const rateKey = group === "A3" ? "a3Rate" : "a4Rate";
-        const fillRate = ps && Number(ps.rate) > 0 ? { [rateKey]: ps.rate } : {};
+        // CHANGED: other sizes put their master rate in otherRates (does not overwrite the A4 rate)
+        const fillRate = ps && Number(ps.rate) > 0
+          ? (isOtherType(type)
+              ? { otherRates: { ...(e.otherRates || {}), [String(type).trim()]: ps.rate } }
+              : { [rateKey]: ps.rate })
+          : {};
         return { ...e, rows, ...fillRate };
       })
     );
@@ -479,6 +519,12 @@ export default function ClickReport() {
   const toPayload = (e) => ({
     ...e,
     taxes: Object.keys(e.taxes || {}).map((k) => ({ name: k, rate: num(e.taxes[k]) })),
+    // NEW: the rate of an "other" paper size is saved on its own row
+    rows: e.rows.map((r) =>
+      isOtherType(r.inputType)
+        ? { ...r, rate: num((e.otherRates || {})[String(r.inputType).trim()]) }
+        : r
+    ),
   });
 
   const saveReport = async () => {
@@ -560,7 +606,7 @@ export default function ClickReport() {
       // build rows with the SAME calculation the table uses
       const r2 = (v) => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
       const join = (rows, fn) => rows.map(fn).join(" / ");
-      const sum = { a3Imp: 0, a4Imp: 0, click: 0, a3Bill: 0, a4Bill: 0, a3Amt: 0, a4Amt: 0, total: 0, disc: 0, withGst: 0 };
+      const sum = { a3Imp: 0, a4Imp: 0, click: 0, a3Bill: 0, a4Bill: 0, a3Amt: 0, a4Amt: 0, total: 0, disc: 0, withGst: 0, otImp: 0, otBill: 0, otAmt: 0 };
 
       const data = all.map((r) => {
         const rows = r.rows || [];
@@ -569,6 +615,12 @@ export default function ClickReport() {
         sum.a3Bill += r2(c.a3Bill); sum.a4Bill += r2(c.a4Bill);
         sum.a3Amt += r2(c.a3Amount); sum.a4Amt += r2(c.a4Amount);
         sum.total += r2(c.total); sum.disc += r2(c.discountAmt); sum.withGst += r2(c.totalWithGst);
+        // NEW: other paper sizes
+        const oth = c.others || [];
+        const otImp = oth.reduce((t, o) => t + o.imp, 0);
+        const otBill = oth.reduce((t, o) => t + r2(o.bill), 0);
+        const otAmt = oth.reduce((t, o) => t + r2(o.amount), 0);
+        sum.otImp += otImp; sum.otBill += otBill; sum.otAmt += otAmt;
 
         const row = {
           "Month": r.month,
@@ -588,6 +640,11 @@ export default function ClickReport() {
           "A4 Rate": num(r.a4Rate),
           "A3 Amount": r2(c.a3Amount),
           "A4 Amount": r2(c.a4Amount),
+          "Other Size": oth.map((o) => o.name).join(" / "),
+          "Other Impression": otImp,
+          "Other After Wastage": r2(otBill),
+          "Other Rate": oth.map((o) => o.rate).join(" / "),
+          "Other Amount": r2(otAmt),
           "Total Amount": r2(c.total),
           "Disc %": num(r.discount),
           "Disc Amount": r2(c.discountAmt),
@@ -610,6 +667,9 @@ export default function ClickReport() {
       totals["A4 After Wastage"] = r2(sum.a4Bill);
       totals["A3 Amount"] = r2(sum.a3Amt);
       totals["A4 Amount"] = r2(sum.a4Amt);
+      totals["Other Impression"] = sum.otImp;
+      totals["Other After Wastage"] = r2(sum.otBill);
+      totals["Other Amount"] = r2(sum.otAmt);
       totals["Total Amount"] = r2(sum.total);
       totals["Disc Amount"] = r2(sum.disc);
       totals["Total + GST"] = r2(sum.withGst);
@@ -1207,6 +1267,36 @@ export default function ClickReport() {
                     </div>
                   </div>
 
+                  {/* NEW: Other paper sizes (from master) */}
+                  {(c.others || []).map((o) => (
+                    <div style={rowWrap} key={o.name}>
+                      <div style={{ ...rowBadge, fontSize: o.name.length > 4 ? "9px" : "11px", wordBreak: "break-all", textAlign: "center", padding: "0 2px" }}>
+                        {o.name}
+                      </div>
+                      <div style={rowGrid}>
+                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #0284c7" }}>
+                          <span className="kpi-tile-label">Impression</span>
+                          <span className="kpi-tile-value">{fmt(o.imp)}</span>
+                          <span className="kpi-tile-sub">Billable: {money(o.bill)} (Wastage {num(o.w)}%)</span>
+                        </div>
+                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
+                          <span style={inputTileLbl}>Rate (₹)</span>
+                          <input
+                            type="number" min="0" step="0.001" placeholder="0.00"
+                            className="input-3d" style={{ height: "38px", marginTop: "4px" }}
+                            value={(e.otherRates || {})[o.name] ?? ""}
+                            onChange={(ev) => updateEntry(e.id, { otherRates: { ...(e.otherRates || {}), [o.name]: ev.target.value } })}
+                          />
+                        </div>
+                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #f59e0b" }}>
+                          <span className="kpi-tile-label">Amount</span>
+                          <span className="kpi-tile-value">₹ {money(o.amount)}</span>
+                          <span className="kpi-tile-sub">{money(o.bill)} × {num((e.otherRates || {})[o.name])}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
                   {/* Total */}
                   <div style={rowWrap}>
                     <div style={rowBadge}>Total</div>
@@ -1419,6 +1509,11 @@ export default function ClickReport() {
                   <th className="r">A4 Rate</th>
                   <th className="r">A3 Amount</th>
                   <th className="r">A4 Amount</th>
+                  <th>Other Size</th>
+                  <th className="r">Other Impression</th>
+                  <th className="r">Other After Wastage</th>
+                  <th className="r">Other Rate</th>
+                  <th className="r">Other Amount</th>
                   <th className="r">Total Amount</th>
                   <th className="r">Disc %</th>
                   <th className="r">Disc Amount</th>
@@ -1465,6 +1560,11 @@ export default function ClickReport() {
                     <td />
                     <td className="r">{money(summary.a3Amount)}</td>
                     <td className="r">{money(summary.a4Amount)}</td>
+                    <td />
+                    <td className="r">{fmt(summary.otherImpression)}</td>
+                    <td className="r">{money(summary.otherBillable)}</td>
+                    <td />
+                    <td className="r">{money(summary.otherAmount)}</td>
                     <td className="r">{money(summary.totalAmount)}</td>
                     <td />
                     <td className="r">{money(summary.discountAmount)}</td>
@@ -1516,6 +1616,11 @@ function FragmentRow({ r, onEdit, onDelete }) {
       {rows.length ? rows.map((x, i) => <div key={i}>{fn(x)}</div>) : "—"}
     </td>
   );
+  const otherCell = (fn, align) => (
+    <td className={align === "r" ? "r" : ""}>
+      {(c.others || []).length ? c.others.map((o) => <div key={o.name}>{fn(o)}</div>) : <span style={{ color: "#8fb0c8" }}>—</span>}
+    </td>
+  );
   return (
     <tr>
       <td style={{ fontWeight: 700 }}>
@@ -1537,6 +1642,12 @@ function FragmentRow({ r, onEdit, onDelete }) {
       <td className="r">{r.a4Rate}</td>
       <td className="r">{money(c.a3Amount)}</td>
       <td className="r">{money(c.a4Amount)}</td>
+      {/* NEW: other paper sizes (e.g. MICR / Non MICR) */}
+      {otherCell((o) => o.name)}
+      {otherCell((o) => fmt(o.imp), "r")}
+      {otherCell((o) => money(o.bill), "r")}
+      {otherCell((o) => o.rate, "r")}
+      {otherCell((o) => money(o.amount), "r")}
       <td className="r" style={{ fontWeight: 700 }}>{money(c.total)}</td>
       <td className="r">{r.discount}</td>
       <td className="r">{money(c.discountAmt)}</td>

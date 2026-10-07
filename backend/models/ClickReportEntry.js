@@ -7,6 +7,7 @@ const rowSchema = new mongoose.Schema(
     end: { type: Number, default: 0 },
     wastage: { type: Number, default: 0 }, // deduction %
     impression: { type: Number, default: 0 }, // |start - end|
+        rate: Number,
   },
   { _id: false }
 );
