@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API = import.meta.env.VITE_API_URL;
 
 const FONT_LINK =
   "https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&family=Montserrat:wght@400;700&family=Lato:wght@400;700&family=Poppins:wght@400;700&family=Source+Sans+3:wght@400;700&display=swap";
@@ -492,7 +492,8 @@ const CSS = `
   --field:rgba(255,255,255,.85);--accent:#0f7f96;--accent-ink:#fff;
   --head:rgba(255,255,255,.7);--ghost:rgba(15,127,150,.1);
   --err:#b3261e;--ok:#17715a;--canvas-bg:rgba(255,255,255,.35);
-  display:grid;grid-template-columns:392px 1fr;gap:14px;align-items:start;color:var(--ink);
+  display:grid;grid-template-columns:392px minmax(0,1fr);gap:14px;align-items:start;color:var(--ink);
+  width:100%;max-width:100%;
   font:13px/1.35 "Figtree",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
@@ -535,7 +536,7 @@ const CSS = `
 .cn-stage{padding:12px;display:flex;flex-direction:column;gap:8px;min-height:calc(100vh - 120px)}
 .cn-stage-top{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted)}
 .cn-canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--canvas-bg);border:1px dashed var(--line);padding:12px;min-height:0;overflow:auto}
-.cn-canvas-wrap canvas{display:block;max-width:100%;max-height:calc(100vh - 200px);height:auto;box-shadow:0 8px 30px rgba(10,70,90,.25);background:#fff;touch-action:none}
+.cn-canvas-wrap canvas{display:block;max-width:100%;max-height:calc(100vh - 160px);height:auto;box-shadow:0 8px 30px rgba(10,70,90,.25);background:#fff;touch-action:none}
 @media (max-width:900px){
   .cn-root{grid-template-columns:1fr}
   .cn-panel{position:static}
