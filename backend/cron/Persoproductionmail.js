@@ -40,7 +40,7 @@ const escapeHtml = (v) =>
 
 // Runs daily at 10:00 AM and reports entries whose PRODUCTION DATE is yesterday
 // (TEST: change "0 10 * * *" to a time 2 minutes ahead, restart Node, then change it back)
-cron.schedule("21 15 * * *", async () => {
+cron.schedule("0 10 * * *", async () => {
   try {
     // only entries whose PRODUCTION DATE is yesterday (not when they were saved)
     const yDay = new Date();
