@@ -105,6 +105,31 @@ function Field({ span, label, children }) {
   );
 }
 
+/* ---------- centre number + barcode on the artwork ---------- */
+async function centerLayout(f, W, H) {
+  const p = P(f);
+  const u = p.dpi / 25.4;
+  const px = (p.pt * p.dpi) / 72;
+  try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
+
+  const val = pad(isFinite(p.from) ? p.from : 1, p.digits);
+  const ctx = document.createElement("canvas").getContext("2d");
+  ctx.font = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
+  const tw = (p.word ? ctx.measureText(p.word + " ").width : 0) + ctx.measureText(val).width;
+  const th = px * 1.2;
+
+  const bar = p.bar ? makeBarcode(val, p) : null;
+  const bw = bar ? bar.width : 0, bh = bar ? bar.height : 0;
+  const gap = bar ? 2 * u : 0;
+
+  const top = Math.max(0, (H - (th + gap + bh)) / 2);
+  const r1 = (v) => String(Math.round((Math.max(0, v) / u) * 10) / 10);
+  return {
+    nx: r1((W - tw) / 2), ny: r1(top),
+    bx: r1((W - bw) / 2), by: r1(top + th + gap),
+  };
+}
+
 export default function CertificateNumbering() {
   const [f, setF] = useState(DEFAULTS);
   const [fonts, setFonts] = useState(BASE_FONTS);
@@ -136,6 +161,12 @@ export default function CertificateNumbering() {
     l.href = FONT_LINK;
     document.head.appendChild(l);
     return () => { document.head.removeChild(l); };
+  }, []);
+
+  /* centre by default on first load */
+  useEffect(() => {
+    centerLayout(DEFAULTS, S.w, S.h).then((c) => setF((o) => ({ ...o, ...c })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* next free number for the series */
@@ -232,20 +263,20 @@ export default function CertificateNumbering() {
     const file = e.target.files[0];
     if (!file) return;
     const url = URL.createObjectURL(file), img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       S.img = img; S.w = img.naturalWidth; S.h = img.naturalHeight;
       setDims({ w: S.w, h: S.h });
       setArtName(`${file.name} · ${S.w}×${S.h}px`);
       const dpi = P(fRef.current).dpi;
       const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
       const r1 = (v) => String(Math.round(v * 10) / 10);
-      setF((o) => ({
-        ...o,
-        nx: r1(wmm * 0.6), ny: r1(hmm * 0.05),
+      const next = {
+        ...fRef.current,
         pt: String(Math.max(4, Math.round(hmm * 0.07 * 2.835))),
-        bx: r1(wmm * 0.6), by: r1(hmm * 0.2),
         bw: r1(wmm * 0.3), bh: r1(hmm * 0.1),
-      }));
+      };
+      const c = await centerLayout(next, S.w, S.h);
+      setF({ ...next, ...c });
       say("");
     };
     img.onerror = () => say("Could not read that image. Use PNG, JPG or WebP.", "err");
@@ -439,6 +470,14 @@ export default function CertificateNumbering() {
           <div className="cn-actions">
             <button className="cn-btn" type="button" disabled={running} onClick={() => generate("pdf")}>Download PDF</button>
             <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>Download images (ZIP)</button>
+            <button
+              className="cn-btn ghost"
+              type="button"
+              disabled={running}
+              onClick={async () => { const c = await centerLayout(f, S.w, S.h); setF((o) => ({ ...o, ...c })); }}
+            >
+              Center
+            </button>
             {running && <button className="cn-btn ghost stop" type="button" onClick={() => { stopFlag.current = true; }}>Stop</button>}
           </div>
           <div className="cn-bar" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
