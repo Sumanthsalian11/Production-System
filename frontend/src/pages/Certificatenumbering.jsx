@@ -4,6 +4,7 @@ import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
+import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -94,6 +95,40 @@ function getQR(S, val, p) {
   const c = makeQR(val, p);
   S.bc.set(key, c);
   return c;
+}
+
+/* ---------- artwork helpers ---------- */
+const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
+const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
+const loadImg = (blob) =>
+  new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => res(img);
+    img.onerror = () => rej(new Error("Could not read that image. Use PNG, JPG, WebP or PDF."));
+    img.src = url;
+  });
+
+/* first page of a PDF -> PNG blob, rendered so that 1 page-mm = 1 artwork-mm at the returned dpi */
+async function rasterPdf(file, dpi) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const page = await pdf.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(dpi / 72, 7000 / Math.max(base.width, base.height));
+  const vp = page.getViewport({ scale });
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(vp.width);
+  cv.height = Math.round(vp.height);
+  const cx = cv.getContext("2d");
+  cx.fillStyle = "#fff";
+  cx.fillRect(0, 0, cv.width, cv.height);
+  await page.render({ canvasContext: cx, viewport: vp }).promise;
+  let blob = await toBlob(cv, "image/png");
+  if (!blob || blob.size > MAX_ART) blob = await toBlob(cv, "image/jpeg", 0.92);
+  const pages = pdf.numPages;
+  try { await pdf.destroy(); } catch { /* ignore */ }
+  return { blob, dpi: Math.round(scale * 72), pages };
 }
 
 /* ---------- render one certificate (row = Excel row for this certificate, if any) ---------- */
@@ -211,9 +246,13 @@ export default function CertificateNumbering() {
   const [sheet, setSheet] = useState(null);   // { name, headers, count }
   const [cols, setCols] = useState([]);       // one entry per Excel header
   const [pv, setPv] = useState("1");          // preview row (1-based)
+  const [tpls, setTpls] = useState([]);       // saved templates [{ _id, name }]
+  const [tplId, setTplId] = useState("");
+  const [tplName, setTplName] = useState("");
+  const [tplBusy, setTplBusy] = useState(false);
 
   const cvRef = useRef(null);
-  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [] }).current;
+  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, tplCols: new Map() }).current;
   const drag = useRef(null);
   const stopFlag = useRef(false);
   const fRef = useRef(f);
@@ -350,29 +389,173 @@ export default function CertificateNumbering() {
   };
 
   /* ---------- uploads ---------- */
-  const onArt = (e) => {
+  const setArtImage = (img, blob, label) => {
+    S.img = img; S.blob = blob; S.w = img.naturalWidth; S.h = img.naturalHeight;
+    setDims({ w: S.w, h: S.h });
+    setArtName(`${label} · ${S.w}×${S.h}px`);
+  };
+  const clearArt = () => {
+    S.img = null; S.blob = null; S.w = 2480; S.h = 1754;
+    setDims({ w: S.w, h: S.h });
+    setArtName("None — blank A4 landscape");
+  };
+
+  /* image (PNG/JPG/WebP) or PDF (first page) */
+  const onArt = async (e) => {
     const file = e.target.files[0];
+    e.target.value = "";
     if (!file) return;
-    const url = URL.createObjectURL(file), img = new Image();
-    img.onload = async () => {
-      S.img = img; S.w = img.naturalWidth; S.h = img.naturalHeight;
-      setDims({ w: S.w, h: S.h });
-      setArtName(`${file.name} · ${S.w}×${S.h}px`);
-      const dpi = P(fRef.current).dpi;
+    try {
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      let blob = file, label = file.name, dpiFix = null;
+      if (isPdf) {
+        say("Reading PDF…");
+        const r = await rasterPdf(file, P(fRef.current).dpi);
+        blob = r.blob; dpiFix = r.dpi;
+        label = r.pages > 1 ? `${file.name} (page 1 of ${r.pages})` : file.name;
+      }
+      const img = await loadImg(blob);
+      setArtImage(img, blob, label);
+      const o = dpiFix ? { ...fRef.current, dpi: String(dpiFix) } : fRef.current;
+      const dpi = P(o).dpi;
       const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
       const qs = Math.round(Math.min(wmm, hmm) * 0.12);
       const next = {
-        ...fRef.current,
+        ...o,
         pt: String(Math.max(4, Math.round(hmm * 0.07 * 2.835))),
         bw: r1(wmm * 0.3), bh: r1(hmm * 0.1),
         qs: String(qs), qx: r1(wmm - qs - wmm * 0.03), qy: r1(hmm - qs - hmm * 0.04),
       };
       const c = await centerLayout(next, S.w, S.h);
       setF({ ...next, ...c });
-      say("");
-    };
-    img.onerror = () => say("Could not read that image. Use PNG, JPG or WebP.", "err");
-    img.src = url;
+      say(isPdf && dpiFix && dpiFix !== P(fRef.current).dpi ? `PDF read. Artwork DPI set to ${dpiFix} so millimetres stay exact.` : "");
+    } catch (err) {
+      say(err.message || "Could not read that file.", "err");
+    }
+  };
+
+  /* ---------- templates (saved on the server, picked from a dropdown) ---------- */
+  const authOnly = () => { const h = authHeaders(); delete h["Content-Type"]; return h; };
+  const COL_KEYS = ["header", "on", "label", "pt", "color", "lc", "x", "y"];
+  const pickCol = (c) => Object.fromEntries(COL_KEYS.map((k) => [k, c[k]]));
+  const withTpl = (c, t) => ({
+    ...c, on: !!t.on, label: !!t.label, pt: String(t.pt), color: t.color,
+    lc: t.lc || t.color, x: String(t.x), y: String(t.y),
+  });
+
+  const loadTpls = async () => {
+    try {
+      const r = await fetch(`${API}/api/numbering-templates`, { headers: authHeaders() });
+      const d = await r.json();
+      if (r.ok) setTpls(d);
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { loadTpls(); }, []);
+
+  const applyTemplate = async (id) => {
+    setTplId(id);
+    if (!id) return;
+    try {
+      say("Loading template…");
+      const r = await fetch(`${API}/api/numbering-templates/${id}`, { headers: authHeaders() });
+      const t = await r.json();
+      if (!r.ok) throw new Error(t.message || "Could not load that template.");
+
+      if (t.hasArt) {
+        const ar = await fetch(`${API}/api/numbering-templates/${id}/art`, { headers: authOnly() });
+        if (!ar.ok) throw new Error("Could not load the template artwork.");
+        const blob = await ar.blob();
+        setArtImage(await loadImg(blob), blob, t.artName || "Template artwork");
+      } else {
+        clearArt();
+      }
+
+      /* Excel field styling: kept by header name, applied now and to any Excel uploaded later */
+      S.tplCols = new Map((t.cols || []).map((c) => [c.header, c]));
+      setCols((cs) => cs.map((c) => (S.tplCols.has(c.header) ? withTpl(c, S.tplCols.get(c.header)) : c)));
+
+      /* everything except the number range */
+      setF((o) => {
+        const n = { ...DEFAULTS, ...t.settings, from: o.from, to: o.to };
+        if (S.rows.length) {
+          const hs = Object.keys(S.rows[0]);
+          if (n.benc !== SERIAL && !hs.includes(n.benc)) n.benc = SERIAL;
+          if (n.qenc !== SERIAL && !hs.includes(n.qenc)) n.qenc = SERIAL;
+        }
+        return n;
+      });
+      setTplName(t.name);
+      say(`Template "${t.name}" loaded.`, "ok");
+    } catch (err) {
+      say(err.message || "Could not load that template.", "err");
+    }
+  };
+
+  const saveTemplate = async () => {
+    const name = tplName.trim();
+    if (!name) { say("Type a template name first.", "err"); return; }
+    const same = tpls.find((t) => t.name.toLowerCase() === name.toLowerCase());
+    if (same && !window.confirm(`A template named "${same.name}" already exists. Replace it?`)) return;
+    setTplBusy(true);
+    try {
+      let art = S.blob;
+      if (S.img && art && art.size > MAX_ART) {
+        const cv = document.createElement("canvas");
+        cv.width = S.w; cv.height = S.h;
+        cv.getContext("2d").drawImage(S.img, 0, 0);
+        art = await toBlob(cv, "image/jpeg", 0.9);
+      }
+      if (S.img && (!art || art.size > MAX_ART)) throw new Error("Artwork is too large to save (limit 14 MB).");
+
+      const { from, to, ...settings } = fRef.current;
+      const live = colsRef.current.length ? colsRef.current.map(pickCol) : [...S.tplCols.values()];
+      const res = await fetch(`${API}/api/numbering-templates`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          name, settings, cols: live, createdBy: whoAmI(),
+          artName: S.img ? artName.replace(/\s·\s\d+×\d+px$/, "") : "", artW: S.w, artH: S.h, clearArt: !S.img,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || "Could not save the template.");
+
+      if (S.img && art) {
+        const ar = await fetch(`${API}/api/numbering-templates/${d._id}/art`, {
+          method: "PUT",
+          headers: { ...authOnly(), "Content-Type": art.type || "image/png" },
+          body: art,
+        });
+        if (!ar.ok) throw new Error("Saved the settings but the artwork upload failed.");
+      }
+      live.forEach((c) => S.tplCols.set(c.header, c));
+      await loadTpls();
+      setTplId(d._id);
+      setTplName(d.name);
+      say(`Template "${d.name}" saved.`, "ok");
+    } catch (err) {
+      say(err.message || "Could not save the template.", "err");
+    } finally {
+      setTplBusy(false);
+    }
+  };
+
+  const deleteTemplate = async () => {
+    const t = tpls.find((q) => q._id === tplId);
+    if (!t || !window.confirm(`Delete template "${t.name}"?`)) return;
+    setTplBusy(true);
+    try {
+      const r = await fetch(`${API}/api/numbering-templates/${t._id}`, { method: "DELETE", headers: authHeaders() });
+      if (!r.ok) throw new Error("Could not delete the template.");
+      setTplId("");
+      setTplName("");
+      await loadTpls();
+      say(`Template "${t.name}" deleted.`, "ok");
+    } catch (err) {
+      say(err.message || "Could not delete the template.", "err");
+    } finally {
+      setTplBusy(false);
+    }
   };
 
   /* Excel: row 1 = headers, every next row = one certificate (first row ↔ "From") */
@@ -403,15 +586,22 @@ export default function CertificateNumbering() {
       const step = pt * 0.3528 * 1.7;
       S.rows = rows;
       setSheet({ name: file.name, headers, count: rows.length });
-      setCols(headers.map((h, i) => ({
-        id: `c${i}`, header: h, on: i < 3, label: false, pt: String(pt), color: "#222222", lc: "#222222",
-        x: r1(wmm * 0.05), y: r1(hmm * 0.08 + i * step),
-      })));
+      setCols(headers.map((h, i) => {
+        const base = {
+          id: `c${i}`, header: h, on: i < 3, label: false, pt: String(pt), color: "#222222", lc: "#222222",
+          x: r1(wmm * 0.05), y: r1(hmm * 0.08 + i * step),
+        };
+        const t = S.tplCols.get(h);   // styling from the loaded template, if this header is in it
+        return t ? withTpl(base, t) : base;
+      }));
       setPv("1");
       setSel("c0");
       const from = parseInt(o.from, 10);
       const start = Number.isInteger(from) && from >= 0 ? from : 1;
-      setF((q) => ({ ...q, from: String(start), to: String(start + rows.length - 1), benc: SERIAL, qenc: SERIAL }));
+      setF((q) => ({
+        ...q, from: String(start), to: String(start + rows.length - 1),
+        benc: headers.includes(q.benc) ? q.benc : SERIAL, qenc: headers.includes(q.qenc) ? q.qenc : SERIAL,
+      }));
       say(`Loaded ${rows.length.toLocaleString()} rows · ${headers.length} columns. Range set to match.`, "ok");
     } catch (err) {
       say("Could not read that Excel file: " + (err.message || err), "err");
@@ -549,13 +739,30 @@ export default function CertificateNumbering() {
         </div>
 
         <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+          <div className="cn-cap">Template</div>
+          <div className="cn-row">
+            <Field span={6} label="Saved templates">
+              <select value={tplId} onChange={(e) => applyTemplate(e.target.value)} disabled={tplBusy}>
+                <option value="">{tpls.length ? "— choose to load —" : "— none saved yet —"}</option>
+                {tpls.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+              </select>
+            </Field>
+            <Field span={6} label="Template name">
+              <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Cheque A4" />
+            </Field>
+            <div className="cn-actions">
+              <button className="cn-btn" type="button" onClick={saveTemplate} disabled={tplBusy}>{tplBusy ? "Working…" : "Save template"}</button>
+              <button className="cn-btn ghost" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}>Delete</button>
+            </div>
+          </div>
+
           <div className="cn-cap">Artwork</div>
           <div className="cn-row">
             <label className="cn-f cn-s5">
-              <span>Base artwork (PNG / JPG / WebP)</span>
+              <span>Base artwork (PNG / JPG / WebP / PDF)</span>
               <span className="cn-pick">
-                <input type="file" accept="image/*" hidden onChange={onArt} />
-                <span className="cn-btn ghost">Choose image</span>
+                <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onArt} />
+                <span className="cn-btn ghost">Choose image / PDF</span>
                 <em>{artName}</em>
               </span>
             </label>
@@ -753,6 +960,8 @@ const CSS = `
   font:600 12.5px/1 inherit;font-family:inherit;border:1px solid transparent;cursor:pointer;white-space:nowrap;background:var(--accent);color:var(--accent-ink)}
 .cn-btn:disabled{opacity:.5;cursor:not-allowed}
 .cn-btn.ghost{background:var(--ghost);color:var(--ghost-ink);border-color:var(--line)}
+.cn-actions{grid-column:1/-1;display:flex;gap:8px}
+.cn-btn:disabled{opacity:.55;cursor:default}
 .cn-pick{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0}
 .cn-pick em{font-style:normal;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn-info{font-size:12px;color:var(--muted)}
