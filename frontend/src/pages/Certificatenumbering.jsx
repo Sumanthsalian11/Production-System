@@ -19,7 +19,7 @@ const BASE_FONTS = [
 const SERIAL = "__serial";
 
 const DEFAULTS = {
-  dpi: "300", series: "default",
+  dpi: "300", series: "default", noArt: false, // ← NEW (noArt)
   word: "S. No:", wc: "#222222", nc: "#f58220",
   from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
@@ -41,6 +41,7 @@ const P = (f) => ({
   bar: f.bar, bw: Math.max(5, num(f.bw)), bh: Math.max(2, num(f.bh)), qz: f.qz,
   bx: num(f.bx), by: num(f.by), benc: f.benc,
   qr: f.qr, qs: Math.max(8, num(f.qs)), qx: num(f.qx), qy: num(f.qy), qenc: f.qenc,
+  noArt: f.noArt, // ← NEW
   dpi: Math.max(36, parseInt(f.dpi, 10) || 300),
   per: Math.max(1, parseInt(f.per, 10) || 500),
 });
@@ -138,7 +139,8 @@ function render(S, ctx, n, s, p, preview, row) {
   ctx.scale(s, s);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, S.w, S.h);
-  if (S.img) ctx.drawImage(S.img, 0, 0, S.w, S.h);
+  // the preview always shows the artwork (for positioning); the output leaves it out when ticked  // ← NEW
+  if (S.img && (preview || !p.noArt)) ctx.drawImage(S.img, 0, 0, S.w, S.h);
 
   ctx.textBaseline = "top";
   ctx.font = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
@@ -768,6 +770,11 @@ export default function CertificateNumbering() {
             </label>
             <Field span={2} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
             <Field span={5} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
+            {/* NEW: remove background image checkbox */}
+            <label className="cn-f cn-chk cn-s12">
+              <input type="checkbox" checked={f.noArt} onChange={set("noArt")} />
+              <span>Remove background image when generating</span>
+            </label>
           </div>
 
           <div className="cn-cap">Numbering</div>
@@ -882,6 +889,7 @@ export default function CertificateNumbering() {
         <div className="cn-stage-top">
           <span>
             {summary}
+            {f.noArt && " · background image will not be printed"}
             {nextFree != null && ` · next free in "${f.series.trim()}": ${pad(nextFree, p.digits)}`}
           </span>
           <span>Drag the number, barcode, QR or Excel fields to move · arrow keys nudge (Shift = 5 mm)</span>
