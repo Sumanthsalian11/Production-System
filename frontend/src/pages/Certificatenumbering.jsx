@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
+import QRCode from "qrcode";
+import * as XLSX from "xlsx";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -13,17 +15,21 @@ const BASE_FONTS = [
   "Roboto", "Open Sans", "Montserrat", "Lato", "Poppins", "Source Sans 3",
 ];
 
+const SERIAL = "__serial";
+
 const DEFAULTS = {
   dpi: "300", series: "default",
   word: "S. No:", wc: "#222222", nc: "#f58220",
   from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
-  bar: true, bw: "50", bh: "10", qz: true, bx: "196", by: "24",
+  bar: true, bw: "50", bh: "10", qz: true, bx: "196", by: "24", benc: SERIAL,
+  qr: true, qs: "25", qx: "262", qy: "175", qenc: SERIAL,
   per: "500",
 };
 
 const pad = (n, d) => String(n).padStart(d, "0");
 const num = (v, d = 0) => { const x = parseFloat(v); return isFinite(x) ? x : d; };
+const r1 = (v) => String(Math.round(v * 10) / 10);
 
 const P = (f) => ({
   word: f.word, wc: f.wc, nc: f.nc,
@@ -32,7 +38,8 @@ const P = (f) => ({
   family: f.font, bold: f.bold, pt: num(f.pt) || 12,
   nx: num(f.nx), ny: num(f.ny),
   bar: f.bar, bw: Math.max(5, num(f.bw)), bh: Math.max(2, num(f.bh)), qz: f.qz,
-  bx: num(f.bx), by: num(f.by),
+  bx: num(f.bx), by: num(f.by), benc: f.benc,
+  qr: f.qr, qs: Math.max(8, num(f.qs)), qx: num(f.qx), qy: num(f.qy), qenc: f.qenc,
   dpi: Math.max(36, parseInt(f.dpi, 10) || 300),
   per: Math.max(1, parseInt(f.per, 10) || 500),
 });
@@ -54,7 +61,7 @@ function makeBarcode(val, p) {
   return c;
 }
 function getBarcode(S, val, p) {
-  const key = [val, p.bw, p.bh, p.qz, p.dpi].join("|");
+  const key = ["bc", val, p.bw, p.bh, p.qz, p.dpi].join("|");
   if (S.bc.has(key)) return S.bc.get(key);
   if (S.bc.size > 40) S.bc.clear();
   const c = makeBarcode(val, p);
@@ -62,8 +69,35 @@ function getBarcode(S, val, p) {
   return c;
 }
 
-/* ---------- render one certificate ---------- */
-function render(S, ctx, n, s, p, preview) {
+/* ---------- QR code (always on a white tile with a 4-module quiet zone) ---------- */
+function makeQR(val, p) {
+  const qr = QRCode.create(val, { errorCorrectionLevel: "M" });
+  const n = qr.modules.size, m = 4, total = n + 2 * m;
+  const cell = Math.max(1, Math.floor((p.qs * (p.dpi / 25.4)) / total));
+  const c = document.createElement("canvas");
+  c.width = c.height = cell * total;
+  const x = c.getContext("2d");
+  x.fillStyle = "#ffffff";
+  x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = "#000000";
+  for (let r = 0; r < n; r++) {
+    for (let k = 0; k < n; k++) {
+      if (qr.modules.get(r, k)) x.fillRect((k + m) * cell, (r + m) * cell, cell, cell);
+    }
+  }
+  return c;
+}
+function getQR(S, val, p) {
+  const key = ["qr", val, p.qs, p.dpi].join("|");
+  if (S.bc.has(key)) return S.bc.get(key);
+  if (S.bc.size > 40) S.bc.clear();
+  const c = makeQR(val, p);
+  S.bc.set(key, c);
+  return c;
+}
+
+/* ---------- render one certificate (row = Excel row for this certificate, if any) ---------- */
+function render(S, ctx, n, s, p, preview, row) {
   const u = p.dpi / 25.4, px = (p.pt * p.dpi) / 72, val = pad(n, p.digits);
   ctx.save();
   ctx.scale(s, s);
@@ -85,16 +119,50 @@ function render(S, ctx, n, s, p, preview) {
   const w = off + ctx.measureText(val).width;
   if (preview) S.box.num = { x, y, w, h: px * 1.2 };
 
+  /* Excel columns */
+  for (const c of S.cols) {
+    if (!c.on) continue;
+    const cpx = ((num(c.pt) || 12) * p.dpi) / 72;
+    const cx = num(c.x) * u, cy = num(c.y) * u;
+    const value = String(row ? row[c.header] ?? "" : "");
+    const name = c.label ? c.header + ": " : "";
+    ctx.font = `${p.bold ? 700 : 400} ${cpx}px "${p.family}", sans-serif`;
+    let tw = 0;
+    if (name) {
+      ctx.fillStyle = c.lc || c.color;
+      ctx.fillText(name, cx, cy);
+      tw = ctx.measureText(name).width;
+    }
+    ctx.fillStyle = c.color;
+    ctx.fillText(value, cx + tw, cy);
+    tw += ctx.measureText(value).width;
+    if (preview) S.box[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2 };
+  }
+
+  /* what the barcode / QR encode: serial number or an Excel column */
+  const enc = (key, ascii) => {
+    const v = key === SERIAL || !row ? val : String(row[key] ?? "").trim();
+    if (!v || (ascii && !/^[ -~]+$/.test(v))) return val;
+    return v;
+  };
+  const safe = (fn, v) => { try { return fn(v); } catch { return fn(val); } };
+
   if (p.bar) {
-    const c = preview ? getBarcode(S, val, p) : makeBarcode(val, p);
+    const c = safe((v) => (preview ? getBarcode(S, v, p) : makeBarcode(v, p)), enc(p.benc, true));
     ctx.imageSmoothingEnabled = s < 1;
     ctx.drawImage(c, p.bx * u, p.by * u);
     if (preview) S.box.bar = { x: p.bx * u, y: p.by * u, w: c.width, h: c.height };
-  } else if (preview) S.box.bar = null;
+  }
+  if (p.qr) {
+    const c = safe((v) => (preview ? getQR(S, v, p) : makeQR(v, p)), enc(p.qenc, false));
+    ctx.imageSmoothingEnabled = s < 1;
+    ctx.drawImage(c, p.qx * u, p.qy * u);
+    if (preview) S.box.qr = { x: p.qx * u, y: p.qy * u, w: c.width, h: c.height };
+  }
   ctx.restore();
 }
 
-const POS_KEYS = { num: ["nx", "ny"], bar: ["bx", "by"] };
+const POS_KEYS = { num: ["nx", "ny"], bar: ["bx", "by"], qr: ["qx", "qy"] };
 
 function Field({ span, label, children }) {
   return (
@@ -123,10 +191,10 @@ async function centerLayout(f, W, H) {
   const gap = bar ? 2 * u : 0;
 
   const top = Math.max(0, (H - (th + gap + bh)) / 2);
-  const r1 = (v) => String(Math.round((Math.max(0, v) / u) * 10) / 10);
+  const rr = (v) => String(Math.round((Math.max(0, v) / u) * 10) / 10);
   return {
-    nx: r1((W - tw) / 2), ny: r1(top),
-    bx: r1((W - bw) / 2), by: r1(top + th + gap),
+    nx: rr((W - tw) / 2), ny: rr(top),
+    bx: rr((W - bw) / 2), by: rr(top + th + gap),
   };
 }
 
@@ -140,17 +208,27 @@ export default function CertificateNumbering() {
   const [progress, setProgress] = useState(0);
   const [running, setRunning] = useState(false);
   const [nextFree, setNextFree] = useState(null);
+  const [sheet, setSheet] = useState(null);   // { name, headers, count }
+  const [cols, setCols] = useState([]);       // one entry per Excel header
+  const [pv, setPv] = useState("1");          // preview row (1-based)
 
   const cvRef = useRef(null);
-  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null }, bc: new Map() }).current;
+  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [] }).current;
   const drag = useRef(null);
   const stopFlag = useRef(false);
   const fRef = useRef(f);
   fRef.current = f;
+  const colsRef = useRef(cols);
+  colsRef.current = cols;
+  S.cols = cols;
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setF((o) => ({ ...o, [k]: v }));
+  };
+  const setCol = (id, k) => (e) => {
+    const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setCols((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
   };
   const say = (msg, cls = "") => setStatus({ msg, cls });
 
@@ -196,7 +274,10 @@ export default function CertificateNumbering() {
       cv.width = Math.round(S.w * s);
       cv.height = Math.round(S.h * s);
       const ctx = cv.getContext("2d");
-      render(S, ctx, isFinite(p.from) ? p.from : 1, s, p, true);
+      const idx = Math.min(Math.max((parseInt(pv, 10) || 1) - 1, 0), Math.max(0, S.rows.length - 1));
+      const n = (isFinite(p.from) ? p.from : 1) + idx;
+      S.box = { num: null, bar: null, qr: null };
+      render(S, ctx, n, s, p, true, S.rows[idx]);
       ctx.save();
       ctx.scale(s, s);
       if (!S.img) {
@@ -216,7 +297,7 @@ export default function CertificateNumbering() {
       ctx.restore();
     })();
     return () => { dead = true; };
-  }, [f, dims, sel, fonts, S]);
+  }, [f, cols, sheet, pv, dims, sel, fonts, S]);
 
   /* ---------- move variable matter ---------- */
   const toArt = (e) => {
@@ -225,15 +306,25 @@ export default function CertificateNumbering() {
   };
   const hit = (pt) => {
     const m = S.w * 0.008;
-    for (const k of ["bar", "num"]) {
+    for (const k of Object.keys(S.box).reverse()) {
       const b = S.box[k];
       if (b && pt.x >= b.x - m && pt.x <= b.x + b.w + m && pt.y >= b.y - m && pt.y <= b.y + b.h + m) return k;
     }
     return null;
   };
   const setPos = (k, xmm, ymm) => {
-    const [kx, ky] = POS_KEYS[k];
-    setF((o) => ({ ...o, [kx]: String(Math.round(xmm * 10) / 10), [ky]: String(Math.round(ymm * 10) / 10) }));
+    const sx = String(Math.round(xmm * 10) / 10), sy = String(Math.round(ymm * 10) / 10);
+    if (POS_KEYS[k]) {
+      const [kx, ky] = POS_KEYS[k];
+      setF((o) => ({ ...o, [kx]: sx, [ky]: sy }));
+    } else {
+      setCols((cs) => cs.map((c) => (c.id === k ? { ...c, x: sx, y: sy } : c)));
+    }
+  };
+  const getPos = (k) => {
+    if (POS_KEYS[k]) { const [kx, ky] = POS_KEYS[k]; return [num(fRef.current[kx]), num(fRef.current[ky])]; }
+    const c = colsRef.current.find((q) => q.id === k);
+    return c ? [num(c.x), num(c.y)] : [0, 0];
   };
   const onDown = (e) => {
     const pt = toArt(e), k = hit(pt);
@@ -254,8 +345,8 @@ export default function CertificateNumbering() {
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (!d || !S.box[sel]) return;
     e.preventDefault();
-    const step = e.shiftKey ? 5 : 0.5, [kx, ky] = POS_KEYS[sel];
-    setPos(sel, num(fRef.current[kx]) + d[0] * step, num(fRef.current[ky]) + d[1] * step);
+    const step = e.shiftKey ? 5 : 0.5, [cx, cy] = getPos(sel);
+    setPos(sel, cx + d[0] * step, cy + d[1] * step);
   };
 
   /* ---------- uploads ---------- */
@@ -269,11 +360,12 @@ export default function CertificateNumbering() {
       setArtName(`${file.name} · ${S.w}×${S.h}px`);
       const dpi = P(fRef.current).dpi;
       const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
-      const r1 = (v) => String(Math.round(v * 10) / 10);
+      const qs = Math.round(Math.min(wmm, hmm) * 0.12);
       const next = {
         ...fRef.current,
         pt: String(Math.max(4, Math.round(hmm * 0.07 * 2.835))),
         bw: r1(wmm * 0.3), bh: r1(hmm * 0.1),
+        qs: String(qs), qx: r1(wmm - qs - wmm * 0.03), qy: r1(hmm - qs - hmm * 0.04),
       };
       const c = await centerLayout(next, S.w, S.h);
       setF({ ...next, ...c });
@@ -281,6 +373,58 @@ export default function CertificateNumbering() {
     };
     img.onerror = () => say("Could not read that image. Use PNG, JPG or WebP.", "err");
     img.src = url;
+  };
+
+  /* Excel: row 1 = headers, every next row = one certificate (first row ↔ "From") */
+  const onSheet = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
+      if (aoa.length < 2) throw new Error("the first sheet needs a header row and at least one data row.");
+
+      const seen = {};
+      const headers = aoa[0].map((h, i) => {
+        let name = String(h).trim() || `Column ${i + 1}`;
+        if (seen[name]) { seen[name] += 1; name = `${name} (${seen[name]})`; } else seen[name] = 1;
+        return name;
+      });
+      const rows = aoa.slice(1)
+        .map((r) => Object.fromEntries(headers.map((h, i) => [h, String(r[i] ?? "").trim()])))
+        .filter((r) => headers.some((h) => r[h] !== ""));
+      if (!rows.length) throw new Error("no data rows found under the header row.");
+
+      const o = fRef.current, dpi = P(o).dpi;
+      const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
+      const pt = Math.max(4, Math.round(num(o.pt) * 0.75));
+      const step = pt * 0.3528 * 1.7;
+      S.rows = rows;
+      setSheet({ name: file.name, headers, count: rows.length });
+      setCols(headers.map((h, i) => ({
+        id: `c${i}`, header: h, on: i < 3, label: false, pt: String(pt), color: "#222222", lc: "#222222",
+        x: r1(wmm * 0.05), y: r1(hmm * 0.08 + i * step),
+      })));
+      setPv("1");
+      setSel("c0");
+      const from = parseInt(o.from, 10);
+      const start = Number.isInteger(from) && from >= 0 ? from : 1;
+      setF((q) => ({ ...q, from: String(start), to: String(start + rows.length - 1), benc: SERIAL, qenc: SERIAL }));
+      say(`Loaded ${rows.length.toLocaleString()} rows · ${headers.length} columns. Range set to match.`, "ok");
+    } catch (err) {
+      say("Could not read that Excel file: " + (err.message || err), "err");
+    }
+  };
+  const removeSheet = () => {
+    S.rows = [];
+    setSheet(null);
+    setCols([]);
+    setPv("1");
+    setSel("num");
+    setF((q) => ({ ...q, benc: SERIAL, qenc: SERIAL }));
+    say("");
   };
 
   /* ---------- generate ---------- */
@@ -319,6 +463,9 @@ export default function CertificateNumbering() {
       say(`"To" needs ${String(p.to).length} digits. Raise Digits to match.`, "err"); return;
     }
     const total = p.to - p.from + 1;
+    if (sheet && total > S.rows.length) {
+      say(`Range has ${total.toLocaleString()} certificates but the Excel has only ${S.rows.length.toLocaleString()} rows. Lower "To" or add rows.`, "err"); return;
+    }
     try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
 
     setRunning(true);
@@ -349,7 +496,7 @@ export default function CertificateNumbering() {
         else zip = new JSZip();
 
         for (let n = a; n <= b && !stopFlag.current; n++) {
-          render(S, ctx, n, 1, p, false);
+          render(S, ctx, n, 1, p, false, S.rows[n - p.from]);
           if (pdf) {
             if (n > a) pdf.addPage([wpt, hpt], orient);
             pdf.addImage(off.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, wpt, hpt, "", "FAST");
@@ -378,8 +525,15 @@ export default function CertificateNumbering() {
   const p = P(f);
   const okRange = Number.isInteger(p.from) && Number.isInteger(p.to) && p.to >= p.from;
   const summary = okRange
-    ? `${(p.to - p.from + 1).toLocaleString()} certificates · ${pad(p.from, p.digits)} to ${pad(p.to, p.digits)} · ${dims.w}×${dims.h}px`
+    ? `${(p.to - p.from + 1).toLocaleString()} certificates · ${pad(p.from, p.digits)} to ${pad(p.to, p.digits)} · ${dims.w}×${dims.h}px${sheet ? ` · Excel ${sheet.count.toLocaleString()} rows` : ""}`
     : "Enter a valid From / To range";
+
+  const encOptions = (
+    <>
+      <option value={SERIAL}>Serial number</option>
+      {sheet && sheet.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+    </>
+  );
 
   return (
     <div className="cn-root">
@@ -390,7 +544,7 @@ export default function CertificateNumbering() {
           <div className="cn-logo" aria-hidden="true">No.</div>
           <div>
             <h1>Certificate numbering</h1>
-            <p>Serial numbers and Code 128 on your artwork</p>
+            <p>Serial numbers, Excel data, Code 128 and QR on your artwork</p>
           </div>
         </div>
 
@@ -406,7 +560,7 @@ export default function CertificateNumbering() {
               </span>
             </label>
             <Field span={2} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
-            <Field span={5} label="Series (numbers never repeat within it)"><input type="text" value={f.series} onChange={set("series")} /></Field>
+            <Field span={5} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
           </div>
 
           <div className="cn-cap">Numbering</div>
@@ -446,8 +600,58 @@ export default function CertificateNumbering() {
           <div className="cn-row">
             <Field span={3} label="Barcode X (mm)"><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Field>
             <Field span={3} label="Barcode Y (mm)"><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Field>
+            <Field span={6} label="Barcode encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
+          </div>
+
+          <div className="cn-cap">QR code</div>
+          <div className="cn-row">
+            <label className="cn-f cn-chk cn-s3"><input type="checkbox" checked={f.qr} onChange={set("qr")} /><span>QR code</span></label>
+            <Field span={3} label="Size (mm)"><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Field>
+            <Field span={3} label="QR X (mm)"><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Field>
+            <Field span={3} label="QR Y (mm)"><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Field>
+          </div>
+          <div className="cn-row">
+            <Field span={6} label="QR encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
             <Field span={6} label="Pages per output file"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
           </div>
+
+          <div className="cn-cap">Excel data</div>
+          <div className="cn-row">
+            <label className="cn-f cn-s8">
+              <span>Excel file (.xlsx / .xls / .csv) · row 1 = headers</span>
+              <span className="cn-pick">
+                <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
+                <span className="cn-btn ghost">Choose Excel</span>
+                <em>{sheet ? `${sheet.name} · ${sheet.count.toLocaleString()} rows` : "None"}</em>
+              </span>
+            </label>
+            <Field span={4} label="Preview row">
+              <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} />
+            </Field>
+          </div>
+          {sheet && (
+            <>
+              <div className="cn-info">First data row prints on the "From" number, the next row on the next number, and so on. Tick the columns to print, then drag them on the preview.</div>
+              {cols.map((c) => (
+                <div key={c.id} className={`cn-col${c.on ? "" : " off"}`} onFocus={() => setSel(c.id)}>
+                  <div className="cn-row">
+                    <label className="cn-f cn-chk cn-s8"><input type="checkbox" checked={c.on} onChange={setCol(c.id, "on")} /><span title={c.header}>{c.header}</span></label>
+                    <label className="cn-f cn-chk cn-s4"><input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} /><span>Show name</span></label>
+                  </div>
+                  <div className="cn-row">
+                    <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
+                    <Field span={4} label="Value colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
+                    <Field span={4} label="Name colour"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
+                  </div>
+                  <div className="cn-row">
+                    <Field span={6} label="X (mm)"><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Field>
+                    <Field span={6} label="Y (mm)"><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Field>
+                  </div>
+                </div>
+              ))}
+              <button className="cn-btn ghost" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}>Remove Excel</button>
+            </>
+          )}
 
           <div className="cn-actions">
             <button className="cn-btn" type="button" disabled={running} onClick={() => generate("pdf")}>Download PDF</button>
@@ -473,13 +677,13 @@ export default function CertificateNumbering() {
             {summary}
             {nextFree != null && ` · next free in "${f.series.trim()}": ${pad(nextFree, p.digits)}`}
           </span>
-          <span>Drag the number or barcode to move · arrow keys nudge (Shift = 5 mm)</span>
+          <span>Drag the number, barcode, QR or Excel fields to move · arrow keys nudge (Shift = 5 mm)</span>
         </div>
         <div className="cn-canvas-wrap">
           <canvas
             ref={cvRef}
             tabIndex={0}
-            aria-label="Certificate preview. Drag to move the number or barcode."
+            aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields."
             onPointerDown={onDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
@@ -540,16 +744,21 @@ const CSS = `
 .cn-root input[type=text],.cn-root input[type=number],.cn-root select{
   width:100%;height:30px;padding:0 8px;font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
 .cn-root input[type=color]{width:100%;height:30px;padding:2px;background:var(--field);border:1px solid var(--line);border-radius:8px;cursor:pointer}
+.cn-root input:disabled{opacity:.55;cursor:not-allowed}
 .cn-root input:focus-visible,.cn-root select:focus-visible,.cn-root button:focus-visible,.cn-root canvas:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .cn-f.cn-chk{flex-direction:row;align-items:center;gap:6px;height:30px;cursor:pointer}
 .cn-f.cn-chk span{font-size:12.5px;font-weight:600;color:var(--ink)}
-.cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0}
+.cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0;flex:0 0 auto}
 .cn-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:8px;
   font:600 12.5px/1 inherit;font-family:inherit;border:1px solid transparent;cursor:pointer;white-space:nowrap;background:var(--accent);color:var(--accent-ink)}
 .cn-btn:disabled{opacity:.5;cursor:not-allowed}
 .cn-btn.ghost{background:var(--ghost);color:var(--ghost-ink);border-color:var(--line)}
 .cn-pick{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0}
 .cn-pick em{font-style:normal;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-info{font-size:12px;color:var(--muted)}
+.cn-col{display:flex;flex-direction:column;gap:6px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.55)}
+.cn-col.off{opacity:.7}
+.cn-col .cn-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:2px}
 .cn-actions .cn-btn{flex:1 1 auto;height:34px;min-width:0}
 .cn-actions .stop{flex:0 0 auto}
