@@ -19,7 +19,7 @@ const BASE_FONTS = [
 const SERIAL = "__serial";
 
 const DEFAULTS = {
-  dpi: "300", series: "default", noArt: false, // ← NEW (noArt)
+  dpi: "300", series: "default", noArt: false,
   word: "S. No:", wc: "#222222", nc: "#f58220",
   from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
@@ -41,7 +41,7 @@ const P = (f) => ({
   bar: f.bar, bw: Math.max(5, num(f.bw)), bh: Math.max(2, num(f.bh)), qz: f.qz,
   bx: num(f.bx), by: num(f.by), benc: f.benc,
   qr: f.qr, qs: Math.max(8, num(f.qs)), qx: num(f.qx), qy: num(f.qy), qenc: f.qenc,
-  noArt: f.noArt, // ← NEW
+  noArt: f.noArt,
   dpi: Math.max(36, parseInt(f.dpi, 10) || 300),
   per: Math.max(1, parseInt(f.per, 10) || 500),
 });
@@ -139,7 +139,7 @@ function render(S, ctx, n, s, p, preview, row) {
   ctx.scale(s, s);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, S.w, S.h);
-  // the preview always shows the artwork (for positioning); the output leaves it out when ticked  // ← NEW
+  // the preview always shows the artwork (for positioning); the output leaves it out when ticked
   if (S.img && (preview || !p.noArt)) ctx.drawImage(S.img, 0, 0, S.w, S.h);
 
   ctx.textBaseline = "top";
@@ -199,6 +199,61 @@ function render(S, ctx, n, s, p, preview, row) {
   ctx.restore();
 }
 
+/* ---------- distance guides from the page edges (shown on double-click) ---------- */
+function drawMeasure(ctx, S, b, u, k, s) {
+  const fs = 13 / (k * s);   // label text ≈ 13 px on screen
+  const lw = 1.6 / (k * s);
+  const L = b.x / u, T = b.y / u, R = (S.w - b.x - b.w) / u, B = (S.h - b.y - b.h) / u;
+  const mm = (v) => `${(Math.round(v * 10) / 10).toFixed(1)} mm`;
+  const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+
+  const line = (x1, y1, x2, y2, color, dash) => {
+    const tk = fs * 0.5;
+    ctx.setLineDash(dash ? [9 / (k * s), 6 / (k * s)] : []);
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    if (y1 === y2) {
+      ctx.moveTo(x1, y1 - tk); ctx.lineTo(x1, y1 + tk);
+      ctx.moveTo(x2, y2 - tk); ctx.lineTo(x2, y2 + tk);
+    } else {
+      ctx.moveTo(x1 - tk, y1); ctx.lineTo(x1 + tk, y1);
+      ctx.moveTo(x2 - tk, y2); ctx.lineTo(x2 + tk, y2);
+    }
+    ctx.stroke();
+  };
+
+  const tag = (text, x, y, bg, fg) => {
+    ctx.setLineDash([]);
+    ctx.font = `700 ${fs}px Figtree, Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(text).width + fs, h = fs * 1.7;
+    const tx = Math.min(Math.max(x, w / 2 + 2), S.w - w / 2 - 2);
+    const ty = Math.min(Math.max(y, h / 2 + 2), S.h - h / 2 - 2);
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(tx - w / 2, ty - h / 2, w, h, h / 3);
+    else ctx.rect(tx - w / 2, ty - h / 2, w, h);
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.fillText(text, tx, ty);
+  };
+
+  // right / bottom (secondary)
+  line(b.x + b.w, cy, S.w, cy, "#5b7a85", true);
+  line(cx, b.y + b.h, cx, S.h, "#5b7a85", true);
+  // X (left edge -> field) and Y (top edge -> field)
+  line(0, cy, b.x, cy, "#d9480f");
+  line(cx, 0, cx, b.y, "#d9480f");
+
+  tag(mm(R), (b.x + b.w + S.w) / 2, cy - fs * 1.4, "#e6eef1", "#27434d");
+  tag(mm(B), cx + fs * 3.2, (b.y + b.h + S.h) / 2, "#e6eef1", "#27434d");
+  tag(`X ${mm(L)}`, b.x / 2, cy - fs * 1.4, "#d9480f", "#ffffff");
+  tag(`Y ${mm(T)}`, cx + fs * 3.2, b.y / 2, "#d9480f", "#ffffff");
+}
+
 const POS_KEYS = { num: ["nx", "ny"], bar: ["bx", "by"], qr: ["qx", "qy"] };
 
 function Field({ span, label, children }) {
@@ -252,6 +307,7 @@ export default function CertificateNumbering() {
   const [tplId, setTplId] = useState("");
   const [tplName, setTplName] = useState("");
   const [tplBusy, setTplBusy] = useState(false);
+  const [measure, setMeasure] = useState(null);   // field whose edge distances are shown
 
   const cvRef = useRef(null);
   const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, tplCols: new Map() }).current;
@@ -335,10 +391,16 @@ export default function CertificateNumbering() {
         ctx.strokeStyle = "#0f7f96";
         ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
       }
+      const mb = measure ? S.box[measure] : null;
+      if (mb) {
+        const rect = cv.getBoundingClientRect();
+        const k = rect.width && cv.width ? rect.width / cv.width : 1;   // how much the canvas is shrunk on screen
+        drawMeasure(ctx, S, mb, p.dpi / 25.4, k, s);
+      }
       ctx.restore();
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, sel, fonts, S]);
+  }, [f, cols, sheet, pv, dims, sel, measure, fonts, S]);
 
   /* ---------- move variable matter ---------- */
   const toArt = (e) => {
@@ -369,7 +431,7 @@ export default function CertificateNumbering() {
   };
   const onDown = (e) => {
     const pt = toArt(e), k = hit(pt);
-    if (!k) return;
+    if (!k) { setMeasure(null); return; }
     setSel(k);
     drag.current = { k, dx: pt.x - S.box[k].x, dy: pt.y - S.box[k].y };
     cvRef.current.setPointerCapture(e.pointerId);
@@ -382,7 +444,12 @@ export default function CertificateNumbering() {
     setPos(drag.current.k, (pt.x - drag.current.dx) / u, (pt.y - drag.current.dy) / u);
   };
   const onUp = () => { drag.current = null; };
+  const onDbl = (e) => {
+    const k = hit(toArt(e));
+    if (k) { setSel(k); setMeasure(k); } else setMeasure(null);
+  };
   const onKey = (e) => {
+    if (e.key === "Escape") { setMeasure(null); return; }
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (!d || !S.box[sel]) return;
     e.preventDefault();
@@ -615,6 +682,7 @@ export default function CertificateNumbering() {
     setCols([]);
     setPv("1");
     setSel("num");
+    setMeasure(null);
     setF((q) => ({ ...q, benc: SERIAL, qenc: SERIAL }));
     say("");
   };
@@ -770,7 +838,6 @@ export default function CertificateNumbering() {
             </label>
             <Field span={2} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
             <Field span={5} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
-            {/* NEW: remove background image checkbox */}
             <label className="cn-f cn-chk cn-s12">
               <input type="checkbox" checked={f.noArt} onChange={set("noArt")} />
               <span>Remove background image when generating</span>
@@ -892,17 +959,18 @@ export default function CertificateNumbering() {
             {f.noArt && " · background image will not be printed"}
             {nextFree != null && ` · next free in "${f.series.trim()}": ${pad(nextFree, p.digits)}`}
           </span>
-          <span>Drag the number, barcode, QR or Excel fields to move · arrow keys nudge (Shift = 5 mm)</span>
+          <span>Drag the number, barcode, QR or Excel fields to move · double-click one to see its distance from the page edges (Esc hides) · arrow keys nudge (Shift = 5 mm)</span>
         </div>
         <div className="cn-canvas-wrap">
           <canvas
             ref={cvRef}
             tabIndex={0}
-            aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields."
+            aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields. Double-click a field to show its distance from the page edges."
             onPointerDown={onDown}
             onPointerMove={onMove}
             onPointerUp={onUp}
             onPointerCancel={onUp}
+            onDoubleClick={onDbl}
             onKeyDown={onKey}
           />
         </div>
