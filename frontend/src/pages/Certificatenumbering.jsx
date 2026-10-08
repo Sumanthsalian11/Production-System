@@ -265,6 +265,43 @@ function Field({ span, label, children }) {
   );
 }
 
+/* ---------- view-only helpers (module level so inputs never remount while typing) ---------- */
+function Switch({ checked, onChange, children, span = 12 }) {
+  return (
+    <label className={`cn-f cn-sw cn-s${span}`}>
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      <i aria-hidden="true" />
+      <span>{children}</span>
+    </label>
+  );
+}
+function Mm({ children }) {
+  return <div className="cn-mm">{children}</div>;
+}
+
+const ICONS = {
+  doc: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M9 13h6 M9 17h4",
+  tpl: "M3 4h18v6H3z M3 14h8v6H3z M15 14h6v6h-6z",
+  art: "M3 5h18v14H3z M3 16l5-5 4 4 3-3 6 6 M9 9h.01",
+  hash: "M5 9h14 M5 15h14 M10 4L8 20 M16 4l-2 16",
+  type: "M4 7V5h16v2 M12 5v14 M9 19h6",
+  bar: "M4 5v14 M7 5v14 M11 5v14 M14 5v14 M18 5v14 M20 5v14",
+  qr: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h2v2h-2z M18 18h2v2h-2z M14 18h2 M18 14h2",
+  xls: "M4 4h16v16H4z M4 10h16 M4 15h16 M10 4v16",
+  save: "M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6",
+  trash: "M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13",
+  center: "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0",
+  down: "M12 4v11 M7 11l5 5 5-5 M5 20h14",
+  stop: "M7 7h10v10H7z",
+};
+function Ic({ n }) {
+  return (
+    <svg className="cn-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICONS[n]} />
+    </svg>
+  );
+}
+
 /* ---------- centre number + barcode on the artwork ---------- */
 async function centerLayout(f, W, H) {
   const p = P(f);
@@ -784,197 +821,312 @@ export default function CertificateNumbering() {
   /* ---------- view ---------- */
   const p = P(f);
   const okRange = Number.isInteger(p.from) && Number.isInteger(p.to) && p.to >= p.from;
-  const summary = okRange
-    ? `${(p.to - p.from + 1).toLocaleString()} certificates · ${pad(p.from, p.digits)} to ${pad(p.to, p.digits)} · ${dims.w}×${dims.h}px${sheet ? ` · Excel ${sheet.count.toLocaleString()} rows` : ""}`
-    : "Enter a valid From / To range";
+  const count = okRange ? p.to - p.from + 1 : 0;
+  const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
+  const selCol = cols.find((c) => c.id === sel);
+  const selName = sel === "num" ? "NUMBER" : sel === "bar" ? "BARCODE" : sel === "qr" ? "QR" : selCol ? selCol.header.toUpperCase() : "";
+  const tplCurrent = tpls.find((t) => t._id === tplId);
+  const onCenter = async () => { const c = await centerLayout(f, S.w, S.h); setF((o) => ({ ...o, ...c })); };
 
   const encOptions = (
     <>
       <option value={SERIAL}>Serial number</option>
-      {sheet && sheet.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+      {sheet && sheet.headers.map((h) => <option key={h} value={h}>Excel column: {h}</option>)}
     </>
   );
+
+  const props = (() => {
+    if (sel === "num") return (
+      <div className="cn-row">
+        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
+        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
+        <Field span={6} label="Font size (pt)"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
+        <Field span={3} label="Word"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
+        <Field span={3} label="Number"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
+      </div>
+    );
+    if (sel === "bar") return f.bar ? (
+      <div className="cn-row">
+        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
+        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
+        <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
+        <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
+      </div>
+    ) : <div className="cn-info">Barcode is switched off. Turn it on in the Barcode section.</div>;
+    if (sel === "qr") return f.qr ? (
+      <div className="cn-row">
+        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
+        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
+        <Field span={12} label="Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
+      </div>
+    ) : <div className="cn-info">QR code is switched off. Turn it on in the QR Code section.</div>;
+    if (selCol) return (
+      <div className="cn-row">
+        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={selCol.x} onChange={setCol(selCol.id, "x")} /></Mm></Field>
+        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={selCol.y} onChange={setCol(selCol.id, "y")} /></Mm></Field>
+        <Field span={6} label="Size (pt)"><input type="number" min="1" step="0.5" value={selCol.pt} onChange={setCol(selCol.id, "pt")} /></Field>
+        <Field span={6} label="Value colour"><input type="color" value={selCol.color} onChange={setCol(selCol.id, "color")} /></Field>
+      </div>
+    );
+    return null;
+  })();
 
   return (
     <div className="cn-root">
       <style>{CSS}</style>
 
-      <section className="cn-glass cn-panel">
-        <div className="cn-head">
-          <div className="cn-logo" aria-hidden="true">No.</div>
+      {/* ---------- header ---------- */}
+      <header className="cn-top">
+        <div className="cn-brand">
+          <div className="cn-logo"><Ic n="doc" /></div>
           <div>
-            <h1>Certificate numbering</h1>
-            <p>Serial numbers, Excel data, Code 128 and QR on your artwork</p>
+            <h1>Certificate Numbering</h1>
+            <p>Design, number and generate certificates</p>
           </div>
         </div>
+        <div className="cn-chips">
+          <span className="cn-chip"><b>Series</b>{f.series.trim() || "default"}</span>
+          {nextFree != null && <span className="cn-chip acc"><b>Next available</b>{pad(nextFree, p.digits)}</span>}
+          <span className="cn-chip"><b>Template</b>{tplCurrent ? tplCurrent.name : "Unsaved"}</span>
+          {running && <span className="cn-chip run"><b>Generating</b>{Math.round(progress)}%</span>}
+        </div>
+      </header>
 
-        <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-          <div className="cn-cap">Template</div>
-          <div className="cn-row">
-            <Field span={6} label="Saved templates">
-              <select value={tplId} onChange={(e) => applyTemplate(e.target.value)} disabled={tplBusy}>
-                <option value="">{tpls.length ? "— choose to load —" : "— none saved yet —"}</option>
-                {tpls.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
-              </select>
-            </Field>
-            <Field span={6} label="Template name">
-              <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Cheque A4" />
-            </Field>
-            <div className="cn-actions">
-              <button className="cn-btn" type="button" onClick={saveTemplate} disabled={tplBusy}>{tplBusy ? "Working…" : "Save template"}</button>
-              <button className="cn-btn ghost" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}>Delete</button>
-            </div>
-          </div>
+      <div className="cn-work">
+        {/* ---------- left: configuration ---------- */}
+        <aside className="cn-side">
+          <div className="cn-steps"><span>Configure</span><i />Design<i />Preview<i />Generate</div>
+          <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
 
-          <div className="cn-cap">Artwork</div>
-          <div className="cn-row">
-            <label className="cn-f cn-s5">
-              <span>Base artwork (PNG / JPG / WebP / PDF)</span>
-              <span className="cn-pick">
-                <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onArt} />
-                <span className="cn-btn ghost">Choose image / PDF</span>
-                <em>{artName}</em>
-              </span>
-            </label>
-            <Field span={2} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
-            <Field span={5} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
-            <label className="cn-f cn-chk cn-s12">
-              <input type="checkbox" checked={f.noArt} onChange={set("noArt")} />
-              <span>Remove background image when generating</span>
-            </label>
-          </div>
-
-          <div className="cn-cap">Numbering</div>
-          <div className="cn-row">
-            <Field span={6} label="Static word"><input type="text" value={f.word} onChange={set("word")} /></Field>
-            <Field span={3} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
-            <Field span={3} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
-          </div>
-          <div className="cn-row">
-            <Field span={4} label="From *"><input type="number" min="0" value={f.from} onChange={set("from")} /></Field>
-            <Field span={4} label="To *"><input type="number" min="0" value={f.to} onChange={set("to")} /></Field>
-            <Field span={4} label="Digits (zero-pad)"><input type="number" min="1" max="20" value={f.digits} onChange={set("digits")} /></Field>
-          </div>
-
-          <div className="cn-cap">Text</div>
-          <div className="cn-row">
-            <Field span={12} label="Font name *">
-              <select value={f.font} onChange={set("font")}>
-                {fonts.map((n) => <option key={n}>{n}</option>)}
-              </select>
-            </Field>
-          </div>
-          <div className="cn-row">
-            <Field span={3} label="Font size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
-            <label className="cn-f cn-chk cn-s3"><input type="checkbox" checked={f.bold} onChange={set("bold")} /><span>Bold</span></label>
-            <Field span={3} label="Number X (mm)"><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Field>
-            <Field span={3} label="Number Y (mm)"><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Field>
-          </div>
-
-          <div className="cn-cap">Barcode</div>
-          <div className="cn-row">
-            <label className="cn-f cn-chk cn-s3"><input type="checkbox" checked={f.bar} onChange={set("bar")} /><span>Code 128</span></label>
-            <Field span={3} label="Width (mm)"><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Field>
-            <Field span={3} label="Height (mm)"><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Field>
-            <label className="cn-f cn-chk cn-s3"><input type="checkbox" checked={f.qz} onChange={set("qz")} /><span>Quiet zone</span></label>
-          </div>
-          <div className="cn-row">
-            <Field span={3} label="Barcode X (mm)"><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Field>
-            <Field span={3} label="Barcode Y (mm)"><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Field>
-            <Field span={6} label="Barcode encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
-          </div>
-
-          <div className="cn-cap">QR code</div>
-          <div className="cn-row">
-            <label className="cn-f cn-chk cn-s3"><input type="checkbox" checked={f.qr} onChange={set("qr")} /><span>QR code</span></label>
-            <Field span={3} label="Size (mm)"><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Field>
-            <Field span={3} label="QR X (mm)"><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Field>
-            <Field span={3} label="QR Y (mm)"><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Field>
-          </div>
-          <div className="cn-row">
-            <Field span={6} label="QR encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
-            <Field span={6} label="Pages per output file"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
-          </div>
-
-          <div className="cn-cap">Excel data</div>
-          <div className="cn-row">
-            <label className="cn-f cn-s8">
-              <span>Excel file (.xlsx / .xls / .csv) · row 1 = headers</span>
-              <span className="cn-pick">
-                <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
-                <span className="cn-btn ghost">Choose Excel</span>
-                <em>{sheet ? `${sheet.name} · ${sheet.count.toLocaleString()} rows` : "None"}</em>
-              </span>
-            </label>
-            <Field span={4} label="Preview row">
-              <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} />
-            </Field>
-          </div>
-          {sheet && (
-            <>
-              <div className="cn-info">First data row prints on the "From" number, the next row on the next number, and so on. Tick the columns to print, then drag them on the preview.</div>
-              {cols.map((c) => (
-                <div key={c.id} className={`cn-col${c.on ? "" : " off"}`} onFocus={() => setSel(c.id)}>
-                  <div className="cn-row">
-                    <label className="cn-f cn-chk cn-s8"><input type="checkbox" checked={c.on} onChange={setCol(c.id, "on")} /><span title={c.header}>{c.header}</span></label>
-                    <label className="cn-f cn-chk cn-s4"><input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} /><span>Show name</span></label>
-                  </div>
-                  <div className="cn-row">
-                    <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
-                    <Field span={4} label="Value colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
-                    <Field span={4} label="Name colour"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
-                  </div>
-                  <div className="cn-row">
-                    <Field span={6} label="X (mm)"><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Field>
-                    <Field span={6} label="Y (mm)"><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Field>
+            <details className="cn-sec" open>
+              <summary><Ic n="tpl" /><em>01</em>Template</summary>
+              <div className="cn-body">
+                <div className="cn-row">
+                  <Field span={12} label="Saved templates">
+                    <select value={tplId} onChange={(e) => applyTemplate(e.target.value)} disabled={tplBusy}>
+                      <option value="">{tpls.length ? "— choose to load —" : "— none saved yet —"}</option>
+                      {tpls.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+                    </select>
+                  </Field>
+                  <Field span={12} label="Template name">
+                    <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Cheque A4" />
+                  </Field>
+                  <div className="cn-actions">
+                    <button className="cn-btn ghost" type="button" onClick={saveTemplate} disabled={tplBusy}><Ic n="save" />{tplBusy ? "Working…" : "Save template"}</button>
+                    <button className="cn-btn ghost danger" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}><Ic n="trash" />Delete</button>
                   </div>
                 </div>
-              ))}
-              <button className="cn-btn ghost" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}>Remove Excel</button>
-            </>
-          )}
+              </div>
+            </details>
 
-          <div className="cn-actions">
-            <button className="cn-btn" type="button" disabled={running} onClick={() => generate("pdf")}>Download PDF</button>
-            <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>Download images (ZIP)</button>
-            <button
-              className="cn-btn ghost"
-              type="button"
-              disabled={running}
-              onClick={async () => { const c = await centerLayout(f, S.w, S.h); setF((o) => ({ ...o, ...c })); }}
-            >
-              Center
-            </button>
-            {running && <button className="cn-btn ghost stop" type="button" onClick={() => { stopFlag.current = true; }}>Stop</button>}
+            <details className="cn-sec" open>
+              <summary><Ic n="art" /><em>02</em>Artwork</summary>
+              <div className="cn-body">
+                <label className="cn-drop">
+                  <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onArt} />
+                  <Ic n="art" />
+                  <strong>Artwork</strong>
+                  <small>Upload PNG, JPG, WebP or PDF</small>
+                  <span className="cn-btn">Choose Artwork</span>
+                </label>
+                <div className="cn-file"><b>{artName}</b><span>DPI {f.dpi}</span></div>
+                <div className="cn-row">
+                  <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
+                  <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
+                  <Switch checked={f.noArt} onChange={set("noArt")}>Remove background image when generating</Switch>
+                </div>
+              </div>
+            </details>
+
+            <details className="cn-sec" open>
+              <summary><Ic n="hash" /><em>03</em>Numbering</summary>
+              <div className="cn-body">
+                <div className="cn-range">
+                  <strong>{rangeTxt}</strong>
+                  <span>{count.toLocaleString()} certificates</span>
+                  {nextFree != null && <span className="cn-next">Next available <b>{pad(nextFree, p.digits)}</b></span>}
+                </div>
+                <div className="cn-row">
+                  <Field span={12} label="Static word"><input type="text" value={f.word} onChange={set("word")} /></Field>
+                  <Field span={4} label="From *"><input type="number" min="0" value={f.from} onChange={set("from")} /></Field>
+                  <Field span={4} label="To *"><input type="number" min="0" value={f.to} onChange={set("to")} /></Field>
+                  <Field span={4} label="Digits"><input type="number" min="1" max="20" value={f.digits} onChange={set("digits")} /></Field>
+                </div>
+              </div>
+            </details>
+
+            <details className="cn-sec">
+              <summary><Ic n="type" /><em>04</em>Text</summary>
+              <div className="cn-body">
+                <div className="cn-row">
+                  <Field span={12} label="Font name *">
+                    <select value={f.font} onChange={set("font")}>
+                      {fonts.map((n) => <option key={n}>{n}</option>)}
+                    </select>
+                  </Field>
+                  <Field span={6} label="Font size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
+                  <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
+                  <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
+                  <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
+                  <Field span={6} label="Number X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
+                  <Field span={6} label="Number Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
+                </div>
+                <div className="cn-info">Position is measured in millimetres.</div>
+              </div>
+            </details>
+
+            <details className="cn-sec">
+              <summary><Ic n="bar" /><em>05</em>Code 128 Barcode</summary>
+              <div className="cn-body">
+                <Switch checked={f.bar} onChange={set("bar")}>Barcode {f.bar ? "ON" : "OFF"}</Switch>
+                {f.bar && (
+                  <div className="cn-row">
+                    <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
+                    <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
+                    <Switch checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
+                    <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
+                    <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
+                    <Field span={12} label="Encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
+                  </div>
+                )}
+                <div className="cn-info">Barcode and QR can encode the serial number or an Excel column.</div>
+              </div>
+            </details>
+
+            <details className="cn-sec">
+              <summary><Ic n="qr" /><em>06</em>QR Code</summary>
+              <div className="cn-body">
+                <Switch checked={f.qr} onChange={set("qr")}>QR code {f.qr ? "ON" : "OFF"}</Switch>
+                {f.qr && (
+                  <div className="cn-row">
+                    <Field span={4} label="Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
+                    <Field span={4} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
+                    <Field span={4} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
+                    <Field span={12} label="Encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
+                  </div>
+                )}
+                <div className="cn-row">
+                  <Field span={12} label="Pages per output file"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
+                </div>
+              </div>
+            </details>
+
+            <details className="cn-sec" open={!!sheet}>
+              <summary><Ic n="xls" /><em>07</em>Excel Data{sheet && <span className="cn-pill">{sheet.count.toLocaleString()} rows</span>}</summary>
+              <div className="cn-body">
+                <label className="cn-drop">
+                  <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
+                  <Ic n="xls" />
+                  <strong>Excel Data</strong>
+                  <small>Upload an Excel file to print customer/order data onto each certificate.</small>
+                  <span className="cn-btn">Choose Excel</span>
+                </label>
+                <div className="cn-file">
+                  <b>{sheet ? sheet.name : "None"}</b>
+                  {sheet && <span>{sheet.count.toLocaleString()} rows · {sheet.headers.length} columns</span>}
+                </div>
+                <div className="cn-info">Excel rows are matched sequentially with certificate numbers (first data row = "From"). Row 1 must contain headers.</div>
+                {sheet && (
+                  <>
+                    {cols.map((c) => (
+                      <details key={c.id} className={`cn-col${c.on ? "" : " off"}`} onFocus={() => setSel(c.id)}>
+                        <summary>
+                          <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" checked={c.on} onChange={setCol(c.id, "on")} />
+                            <span title={c.header}>{c.header}</span>
+                          </label>
+                          <label className="cn-f cn-chk cn-mini" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} />
+                            <span>Show name</span>
+                          </label>
+                        </summary>
+                        <div className="cn-row">
+                          <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
+                          <Field span={4} label="Value colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
+                          <Field span={4} label="Name colour"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
+                          <Field span={6} label="X"><Mm><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Mm></Field>
+                          <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Mm></Field>
+                        </div>
+                      </details>
+                    ))}
+                    <button className="cn-btn ghost danger" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}><Ic n="trash" />Remove Excel</button>
+                  </>
+                )}
+              </div>
+            </details>
+          </form>
+        </aside>
+
+        {/* ---------- centre: canvas ---------- */}
+        <section className="cn-stage">
+          <div className="cn-tool">
+            <strong>Preview</strong>
+            <span className="cn-rowsel">
+              Row
+              <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} aria-label="Preview row" />
+              of {sheet ? sheet.count.toLocaleString() : 1}
+            </span>
+            <span className="cn-dim">{dims.w}×{dims.h}px</span>
+            <span className="cn-grow" />
+            {selName && <span className="cn-badge">{selName}</span>}
+            <button className="cn-btn ghost sm" type="button" disabled={running} onClick={onCenter}><Ic n="center" />Center</button>
+          </div>
+          <div className="cn-canvas-wrap">
+            <canvas
+              ref={cvRef}
+              tabIndex={0}
+              aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields. Double-click a field to show its distance from the page edges."
+              onPointerDown={onDown}
+              onPointerMove={onMove}
+              onPointerUp={onUp}
+              onPointerCancel={onUp}
+              onDoubleClick={onDbl}
+              onKeyDown={onKey}
+            />
+          </div>
+          <div className="cn-hints">
+            <span>Drag elements directly on the artwork.</span>
+            <span>Double-click an element to measure its distance from the page edges (Esc hides).</span>
+            <span>Arrow keys nudge (Shift = 5 mm).</span>
+            {f.noArt && <span className="warn">Background image will not be printed.</span>}
+          </div>
+        </section>
+
+        {/* ---------- right: selected element ---------- */}
+        <aside className="cn-props">
+          <div className="cn-props-h">Selected element</div>
+          <div className="cn-props-n">{selName || "—"}</div>
+          {props}
+          {measure && (
+            <div className="cn-meas">
+              <b>Measuring</b>
+              <span>X: {r1(getPos(measure)[0])} mm</span>
+              <span>Y: {r1(getPos(measure)[1])} mm</span>
+              <small>Distances to all four page edges are drawn on the artwork. Press Esc to hide.</small>
+            </div>
+          )}
+          <div className="cn-info">Position is measured in millimetres from the top-left corner of the page.</div>
+        </aside>
+      </div>
+
+      {/* ---------- generation bar ---------- */}
+      <footer className="cn-gen">
+        <div className="cn-gen-info">
+          <div className="cn-gen-stats">
+            <b>{count.toLocaleString()} certificates</b>
+            <span>{okRange ? `${pad(p.from, p.digits)} – ${pad(p.to, p.digits)}` : "Enter a valid range"}</span>
+            {sheet && <span>Excel: {sheet.count.toLocaleString()} rows</span>}
           </div>
           <div className="cn-bar" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
-          <div className={`cn-status ${status.cls}`} role="status" aria-live="polite">{status.msg}</div>
-        </form>
-      </section>
-
-      <section className="cn-glass cn-stage">
-        <div className="cn-stage-top">
-          <span>
-            {summary}
-            {f.noArt && " · background image will not be printed"}
-            {nextFree != null && ` · next free in "${f.series.trim()}": ${pad(nextFree, p.digits)}`}
-          </span>
-          <span>Drag the number, barcode, QR or Excel fields to move · double-click one to see its distance from the page edges (Esc hides) · arrow keys nudge (Shift = 5 mm)</span>
+          <div className={`cn-status ${status.cls}`} role="status" aria-live="polite">{status.cls === "ok" && status.msg.startsWith("Done") ? "✓ " : ""}{status.msg}</div>
         </div>
-        <div className="cn-canvas-wrap">
-          <canvas
-            ref={cvRef}
-            tabIndex={0}
-            aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields. Double-click a field to show its distance from the page edges."
-            onPointerDown={onDown}
-            onPointerMove={onMove}
-            onPointerUp={onUp}
-            onPointerCancel={onUp}
-            onDoubleClick={onDbl}
-            onKeyDown={onKey}
-          />
+        <div className="cn-gen-btns">
+          <button className="cn-btn" type="button" disabled={running} onClick={() => generate("pdf")}><Ic n="down" />Download PDF</button>
+          <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>Download Images (ZIP)</button>
+          <button className="cn-btn ghost" type="button" disabled={running} onClick={onCenter}><Ic n="center" />Center</button>
+          {running && <button className="cn-btn stop" type="button" onClick={() => { stopFlag.current = true; }}><Ic n="stop" />Stop</button>}
         </div>
-      </section>
+      </footer>
     </div>
   );
 }
@@ -995,83 +1147,169 @@ function whoAmI() {
 
 const CSS = `
 .cn-root{
-  --glass:rgba(255,255,255,.78);--glass-b:rgba(255,255,255,.95);
-  --ink:#0b2b33;--muted:#2f5560;--label:#0b2b33;--line:rgba(16,52,61,.26);
-  --field:rgba(255,255,255,.95);--accent:#0f7f96;--accent-ink:#fff;
-  --head:rgba(255,255,255,.85);--ghost:rgba(15,127,150,.12);--ghost-ink:#0a5f72;
-  --err:#b3261e;--ok:#17715a;--canvas-bg:rgba(255,255,255,.35);
-  --cn-h:calc(100dvh - 28px);
-  display:grid;grid-template-columns:clamp(300px,30vw,420px) minmax(0,1fr);gap:14px;align-items:stretch;height:var(--cn-h);color:var(--ink);
-  width:100%;max-width:100%;
-  font:13px/1.35 "Figtree",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --bg:#f4f6f8;--surface:#fff;--ink:#0b2b33;--muted:#5b7580;--line:#dde4e8;--line2:#c9d3d9;
+  --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#17715a;
+  --shadow:0 1px 2px rgba(11,43,51,.06),0 4px 14px rgba(11,43,51,.06);
+  display:flex;flex-direction:column;height:calc(100dvh - 28px);min-height:520px;width:100%;max-width:100%;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  font:13px/1.4 "Figtree","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
-.cn-glass{background:var(--glass);border:1px solid var(--glass-b);border-radius:16px;
-  -webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);
-  box-shadow:0 6px 24px rgba(20,90,110,.10)}
-.cn-panel{display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.cn-panel form{flex:1;min-height:0;overflow-y:auto}
-.cn-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--head);border-bottom:1px solid var(--glass-b)}
-.cn-logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--accent);
-  background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(190,235,246,.7));border:1px solid var(--glass-b);box-shadow:0 2px 8px rgba(20,90,110,.14)}
-.cn-head h1{margin:0;font-size:15px;font-weight:700;color:var(--ink)}
-.cn-head p{margin:0;font-size:12px;color:var(--muted)}
-.cn-root form{padding:10px 14px 14px;display:flex;flex-direction:column;gap:9px}
-.cn-cap{font-size:12.5px;font-weight:700;color:var(--ink);margin:2px 0 -2px;display:flex;align-items:center;gap:8px;letter-spacing:.02em}
-.cn-cap::after{content:"";flex:1;height:1px;background:var(--line)}
-.cn-row{display:grid;grid-template-columns:repeat(12,1fr);gap:7px;align-items:end}
+.cn-ic{flex:0 0 auto}
+
+/* header */
+.cn-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cn-brand{display:flex;align-items:center;gap:10px}
+.cn-logo{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;background:var(--accent)}
+.cn-brand h1{margin:0;font-size:15px;font-weight:700;line-height:1.2}
+.cn-brand p{margin:0;font-size:12px;color:var(--muted)}
+.cn-chips{display:flex;gap:6px;flex-wrap:wrap}
+.cn-chip{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:12px;font-weight:600}
+.cn-chip b{font-weight:500;color:var(--muted)}
+.cn-chip.acc{background:var(--accent-soft);border-color:#b9dce4;color:var(--accent-d)}
+.cn-chip.run{background:#fff4e0;border-color:#f2d9a6;color:#8a5a00}
+
+/* workspace */
+.cn-work{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr) 250px;gap:12px;padding:12px}
+.cn-side,.cn-stage,.cn-props{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-height:0;min-width:0}
+.cn-side{display:flex;flex-direction:column;overflow:hidden}
+.cn-steps{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--muted)}
+.cn-steps span{color:var(--accent-d)}
+.cn-steps i{flex:1;height:1px;background:var(--line2);min-width:8px}
+.cn-side form{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px}
+
+/* sections */
+.cn-sec{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.cn-sec>summary,.cn-col>summary{list-style:none;cursor:pointer}
+.cn-sec>summary::-webkit-details-marker,.cn-col>summary::-webkit-details-marker{display:none}
+.cn-sec>summary{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;font-weight:700;position:relative}
+.cn-sec>summary em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:1px 5px}
+.cn-sec>summary::after{content:"";margin-left:auto;width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.cn-sec[open]>summary::after{transform:rotate(-135deg)}
+.cn-sec[open]>summary{border-bottom:1px solid var(--line)}
+.cn-sec>summary:focus-visible,.cn-col>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
+.cn-pill{margin-left:6px;font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 8px}
+.cn-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:10px}
+
+/* fields */
+.cn-row{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;align-items:end}
 .cn-s2{grid-column:span 2}.cn-s3{grid-column:span 3}.cn-s4{grid-column:span 4}.cn-s5{grid-column:span 5}.cn-s6{grid-column:span 6}.cn-s8{grid-column:span 8}.cn-s12{grid-column:span 12}
 .cn-f{display:flex;flex-direction:column;gap:3px;min-width:0}
-.cn-f>span{font-size:12px;font-weight:600;color:var(--label);line-height:1.25}
-.cn-f>span.cn-pick{font-weight:400;color:var(--ink)}
-.cn-root input[type=text],.cn-root input[type=number],.cn-root select{
-  width:100%;height:30px;padding:0 8px;font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
-.cn-root input[type=color]{width:100%;height:30px;padding:2px;background:var(--field);border:1px solid var(--line);border-radius:8px;cursor:pointer}
-.cn-root input:disabled{opacity:.55;cursor:not-allowed}
+.cn-f>span:first-child{font-size:11.5px;font-weight:600;color:var(--muted)}
+.cn-root input[type=text],.cn-root input[type=number],.cn-root select{width:100%;height:30px;padding:0 8px;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:8px}
+.cn-root input[type=color]{width:100%;height:30px;padding:2px;background:#fff;border:1px solid var(--line2);border-radius:8px;cursor:pointer}
+.cn-root input:disabled{opacity:.5;cursor:not-allowed}
 .cn-root input:focus-visible,.cn-root select:focus-visible,.cn-root button:focus-visible,.cn-root canvas:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.cn-mm{position:relative}
+.cn-mm input{padding-right:30px!important}
+.cn-mm::after{content:"mm";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none}
 .cn-f.cn-chk{flex-direction:row;align-items:center;gap:6px;height:30px;cursor:pointer}
 .cn-f.cn-chk span{font-size:12.5px;font-weight:600;color:var(--ink)}
-.cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0;flex:0 0 auto}
-.cn-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:8px;
-  font:600 12.5px/1 inherit;font-family:inherit;border:1px solid transparent;cursor:pointer;white-space:nowrap;background:var(--accent);color:var(--accent-ink)}
+.cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0}
+.cn-info{font-size:11.5px;color:var(--muted)}
+
+/* switch */
+.cn-sw{flex-direction:row;align-items:center;gap:8px;height:30px;cursor:pointer;position:relative}
+.cn-sw input{position:absolute;opacity:0;width:36px;height:20px;margin:0;cursor:pointer}
+.cn-sw i{flex:0 0 auto;width:36px;height:20px;border-radius:999px;background:var(--line2);position:relative;transition:background .15s}
+.cn-sw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+.cn-sw input:checked+i{background:var(--accent)}
+.cn-sw input:checked+i::after{transform:translateX(16px)}
+.cn-sw input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
+.cn-sw>span{font-size:12.5px;font-weight:600}
+
+/* buttons */
+.cn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;font:600 12.5px/1 inherit;font-family:inherit;border:1px solid var(--accent);cursor:pointer;white-space:nowrap;background:var(--accent);color:#fff}
+.cn-btn:hover:not(:disabled){background:var(--accent-d)}
 .cn-btn:disabled{opacity:.5;cursor:not-allowed}
-.cn-btn.ghost{background:var(--ghost);color:var(--ghost-ink);border-color:var(--line)}
+.cn-btn.ghost{background:#fff;color:var(--accent-d);border-color:var(--line2)}
+.cn-btn.ghost:hover:not(:disabled){background:var(--accent-soft)}
+.cn-btn.danger{color:var(--err)}
+.cn-btn.stop{background:var(--err);border-color:var(--err);color:#fff}
+.cn-btn.sm{height:28px;padding:0 10px}
 .cn-actions{grid-column:1/-1;display:flex;gap:8px}
-.cn-btn:disabled{opacity:.55;cursor:default}
-.cn-pick{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0}
-.cn-pick em{font-style:normal;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cn-info{font-size:12px;color:var(--muted)}
-.cn-col{display:flex;flex-direction:column;gap:6px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.55)}
-.cn-col.off{opacity:.7}
-.cn-col .cn-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cn-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:2px}
-.cn-actions .cn-btn{flex:1 1 auto;height:34px;min-width:0}
-.cn-actions .stop{flex:0 0 auto}
-.cn-bar{height:5px;border-radius:5px;background:var(--line);overflow:hidden}
+.cn-actions .cn-btn{flex:1}
+
+/* upload cards */
+.cn-drop{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:14px 10px;border:1.5px dashed var(--line2);border-radius:10px;background:var(--bg);cursor:pointer;color:var(--muted)}
+.cn-drop:hover{border-color:var(--accent);background:var(--accent-soft)}
+.cn-drop .cn-ic{width:24px;height:24px;color:var(--accent)}
+.cn-drop strong{color:var(--ink);font-size:13px}
+.cn-drop small{font-size:11.5px}
+.cn-drop .cn-btn{margin-top:4px;pointer-events:none}
+.cn-file{display:flex;flex-direction:column;gap:1px;font-size:12px;color:var(--muted);min-width:0}
+.cn-file b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-range{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;background:var(--accent-soft);border:1px solid #b9dce4}
+.cn-range strong{font-size:15px;font-variant-numeric:tabular-nums;color:var(--accent-d)}
+.cn-range span{font-size:12px;color:var(--muted)}
+.cn-next b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* excel column accordion */
+.cn-col{border:1px solid var(--line);border-radius:8px;background:#fff}
+.cn-col.off{opacity:.75}
+.cn-col>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px}
+.cn-col>summary .cn-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
+.cn-col .cn-mini span{font-weight:500;color:var(--muted);font-size:12px}
+.cn-col[open]>summary{border-bottom:1px solid var(--line)}
+.cn-col>.cn-row{padding:8px 10px 10px}
+
+/* stage */
+.cn-stage{display:flex;flex-direction:column;overflow:hidden}
+.cn-tool{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.cn-tool strong{font-size:13px}
+.cn-grow{flex:1}
+.cn-rowsel{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.cn-rowsel input{width:62px!important;height:26px!important}
+.cn-dim{font-size:12px;color:var(--muted)}
+.cn-badge{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--accent-d);background:var(--accent-soft);border:1px solid #b9dce4;border-radius:6px;padding:2px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-canvas-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;
+  background-color:#eef1f4;background-image:radial-gradient(#cfd8de 1px,transparent 1px);background-size:18px 18px}
+.cn-canvas-wrap canvas{display:block;max-width:100%;max-height:100%;height:auto;background:#fff;box-shadow:0 2px 4px rgba(11,43,51,.12),0 14px 36px rgba(11,43,51,.22);touch-action:none}
+.cn-hints{display:flex;flex-wrap:wrap;gap:2px 16px;padding:7px 12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.cn-hints .warn{color:#8a5a00;font-weight:600}
+
+/* right panel */
+.cn-props{padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.cn-props-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cn-props-n{font-size:14px;font-weight:700;overflow-wrap:anywhere}
+.cn-meas{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:#fff4ee;border:1px solid #f3cdb9;font-size:12px}
+.cn-meas b{color:#d9480f}
+.cn-meas small{color:var(--muted);margin-top:4px}
+
+/* generation bar */
+.cn-gen{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 16px;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(11,43,51,.05)}
+.cn-gen-info{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:5px}
+.cn-gen-stats{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:baseline;font-size:12px;color:var(--muted)}
+.cn-gen-stats b{color:var(--ink);font-size:13px}
+.cn-bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden}
 .cn-bar i{display:block;height:100%;background:var(--accent);transition:width .15s}
 .cn-status{font-size:12px;color:var(--muted);min-height:16px}
-.cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok)}
-.cn-stage{padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0;overflow:hidden}
-.cn-stage-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12.5px;font-weight:500;color:var(--muted)}
-.cn-stage-top>span{min-width:0;overflow-wrap:anywhere}
-.cn-canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--canvas-bg);border:1px dashed var(--line);padding:12px;min-height:0;overflow:auto}
-.cn-canvas-wrap canvas{display:block;max-width:100%;max-height:calc(100vh - 160px);height:auto;box-shadow:0 8px 30px rgba(10,70,90,.25);background:#fff;touch-action:none}
-@media (max-height:700px){
-  .cn-panel{position:static}
+.cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
+.cn-gen-btns{display:flex;gap:8px;flex-wrap:wrap}
+.cn-gen-btns .cn-btn{height:36px}
+
+/* tablet */
+@media (max-width:1180px){
+  .cn-work{grid-template-columns:320px minmax(0,1fr)}
+  .cn-props{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:flex-start;overflow:visible}
+  .cn-props>.cn-row{flex:1 1 260px}
 }
+/* mobile */
 @media (max-width:900px){
-  .cn-root{grid-template-columns:1fr}
-  .cn-panel{position:static}
-  .cn-stage{min-height:0}
+  .cn-root{height:auto;overflow:visible}
+  .cn-work{display:flex;flex-direction:column}
+  .cn-side{overflow:visible}
+  .cn-side form{overflow:visible}
+  .cn-stage{order:-1}
+  .cn-canvas-wrap{padding:10px;min-height:240px}
   .cn-canvas-wrap canvas{max-height:none}
+  .cn-gen{position:sticky;bottom:0;z-index:5}
+  .cn-gen-btns{width:100%}
+  .cn-gen-btns .cn-btn{flex:1 1 100%}
 }
 @media (max-width:480px){
-  .cn-root{gap:10px}
-  .cn-root form{padding:10px}
   .cn-row{grid-template-columns:repeat(6,1fr)}
   .cn-s2,.cn-s3,.cn-s4{grid-column:span 3}
   .cn-s5,.cn-s6,.cn-s8,.cn-s12{grid-column:span 6}
-  .cn-stage{padding:8px}
-  .cn-canvas-wrap{padding:6px}
 }
 `;
