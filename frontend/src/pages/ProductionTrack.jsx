@@ -2288,7 +2288,101 @@ function ProductionRealDashboard() {
         .pd-close:hover { background: #d6effc; }
         @media (max-width: 900px) { .pd-left { display: none; } .pd-right { padding: 14px; } .pd-modal { max-height: 96vh; border-radius: 24px; } }
 
-        /* ---------- Filters ---------- */
+        /* ===== ENTRY FORM: FULL SCREEN + LARGER UI ===== */
+.production-dashboard-page .pd-overlay { padding: 0; background: #f7fcff; }
+.production-dashboard-page .pd-modal {
+  max-width: none; width: 100vw; height: 100vh; max-height: 100vh;
+  border-radius: 0; border: none; box-shadow: none;
+}
+.production-dashboard-page .pd-right { padding: 18px 32px 20px 16px; }
+.production-dashboard-page .pd-close { top: 14px; right: 20px; width: 42px; height: 42px; font-size: 16px; }
+
+.production-dashboard-page .pd-left { flex: 0 0 20%; margin: 12px 0 12px 12px; padding: 20px; }
+.production-dashboard-page .pd-left-label { font-size: 14px; }
+.production-dashboard-page .pd-left-pill { font-size: 12px; padding: 4px 12px; }
+.production-dashboard-page .pd-left-emblem { width: 84px; height: 84px; font-size: 36px; }
+.production-dashboard-page .pd-left-center h2 { font-size: 30px; }
+.production-dashboard-page .pd-left-center p { font-size: 14px; }
+.production-dashboard-page .pd-left-stat-list { font-size: 13px; }
+.production-dashboard-page .pd-left-stat-list b { font-size: 16px; }
+.production-dashboard-page .gl-donut { width: 68px; height: 68px; }
+.production-dashboard-page .gl-donut-inner { width: 50px; height: 50px; }
+.production-dashboard-page .gl-donut-inner b { font-size: 0.8rem; }
+.production-dashboard-page .pd-left-avatar { width: 42px; height: 42px; font-size: 20px; }
+.production-dashboard-page .pd-left-bottom b { font-size: 14px; }
+.production-dashboard-page .pd-left-bottom small { font-size: 12px; }
+
+.production-dashboard-page .gl-title { font-size: 1.7rem; }
+.production-dashboard-page .gl-pill { font-size: 13px; padding: 4px 16px; }
+.production-dashboard-page .gl-group { font-size: 14px; margin-bottom: 8px; }
+.production-dashboard-page .gl-group .pd-ico { width: 18px; height: 18px; }
+.production-dashboard-page .gl-inner { margin-top: 12px; padding: 12px 16px 14px; }
+
+.production-dashboard-page .pd-modal .form-label { font-size: 14px; margin-bottom: 4px; }
+.production-dashboard-page .pd-modal .form-label .pd-ico { width: 16px; height: 16px; }
+.production-dashboard-page .pd-modal .form-control,
+.production-dashboard-page .pd-modal .form-select,
+.production-dashboard-page .pd-modal textarea {
+  min-height: 44px; padding: 6px 12px; font-size: 1rem; border-radius: 12px;
+}
+.production-dashboard-page .pd-modal .form-select { padding-right: 32px; }
+.production-dashboard-page .pd-modal textarea { min-height: 84px; height: 84px; }
+
+.production-dashboard-page .pd-modal .pd-tile { padding: 8px 12px; }
+.production-dashboard-page .pd-modal .pd-tile-label { font-size: 0.75rem; margin-bottom: 4px; }
+.production-dashboard-page .pd-modal .pd-tile-label .pd-ico { width: 14px; height: 14px; padding: 5px; }
+.production-dashboard-page .pd-modal .pd-tile-value { font-size: 1rem; min-height: 20px; }
+
+.production-dashboard-page .pd-modal .gl-btn { min-height: 52px; font-size: 1.15rem; padding: 10px 18px; }
+
+@media (max-height: 800px) {
+  .production-dashboard-page .pd-modal .form-control,
+  .production-dashboard-page .pd-modal .form-select { min-height: 38px; font-size: 0.92rem; }
+  .production-dashboard-page .pd-modal textarea { min-height: 60px; height: 60px; }
+  .production-dashboard-page .gl-inner { margin-top: 8px; padding: 9px 14px 11px; }
+  .production-dashboard-page .pd-modal .form-label { font-size: 13px; }
+  .production-dashboard-page .pd-modal .pd-tile-value { font-size: 0.92rem; }
+}
+@media (max-width: 900px) {
+  .production-dashboard-page .pd-right { padding: 14px; }
+}
+
+/* ===== WORK ORDER SUMMARY: COLOURED TILES ===== */
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+1) .pd-tile { background: linear-gradient(180deg, #f6f1ff 0%, #e6dcfd 100%); border-color: #d3c4f7; }
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+2) .pd-tile { background: linear-gradient(180deg, #fff6e3 0%, #ffe6bd 100%); border-color: #f5d194; }
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+3) .pd-tile { background: linear-gradient(180deg, #e9fbf2 0%, #c9f0dd 100%); border-color: #a8e2c5; }
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+4) .pd-tile { background: linear-gradient(180deg, #eaf6ff 0%, #cfe9fb 100%); border-color: #a9d6f3; }
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+5) .pd-tile { background: linear-gradient(180deg, #fff0f4 0%, #ffdbe6 100%); border-color: #f5b9cc; }
+.production-dashboard-page .pd-modal .row > div:nth-child(6n+6) .pd-tile { background: linear-gradient(180deg, #fffbe0 0%, #f8f0b0 100%); border-color: #ecdf84; }
+.production-dashboard-page .pd-modal .pd-tile { box-shadow: 0 4px 10px rgba(40,120,170,0.12), inset 0 1px 0 rgba(255,255,255,0.9); }
+.production-dashboard-page .pd-modal .pd-tile-value { color: #04243a; font-weight: 800; }
+
+/* ===== WORK ORDER SUMMARY: ONE UNIFORM COLOUR ===== */
+.production-dashboard-page .pd-modal .pd-right .gl-inner .row > div .pd-tile {
+  background: linear-gradient(180deg, #f4fbff 0%, #d9effc 100%);
+  border-color: #a9d9f2;
+}
+.production-dashboard-page .pd-modal .pd-right .gl-inner .row > div .pd-tile-label .pd-ico {
+  background: linear-gradient(145deg, #e0f3ff, #9fd6f7);
+  color: #0a6fb8;
+}
+
+/* ===== WORK ORDER SUMMARY: COMPACT ===== */
+.production-dashboard-page .pd-modal .gl-inner.first { padding: 8px 12px 10px; }
+.production-dashboard-page .pd-modal .gl-inner.first .gl-group { font-size: 13px; margin-bottom: 5px; }
+.production-dashboard-page .pd-modal .gl-inner.first .gl-group .pd-ico { width: 15px; height: 15px; }
+.production-dashboard-page .pd-modal .gl-inner.first .row.g-2 { --bs-gutter-x: 0.45rem; --bs-gutter-y: 0.35rem; }
+
+.production-dashboard-page .pd-modal .gl-inner.first .pd-tile { padding: 4px 10px; border-radius: 12px; }
+.production-dashboard-page .pd-modal .gl-inner.first .pd-tile-label { font-size: 0.66rem; margin-bottom: 1px; }
+.production-dashboard-page .pd-modal .gl-inner.first .pd-tile-label .pd-ico { width: 11px; height: 11px; padding: 4px; margin-right: 6px; border-radius: 8px; }
+.production-dashboard-page .pd-modal .gl-inner.first .pd-tile-value { font-size: 0.9rem; min-height: 16px; line-height: 1.2; }
+
+.production-dashboard-page .pd-modal .gl-inner.first .pd-tile .form-select {
+  min-height: 30px; padding: 2px 28px 2px 10px; font-size: 0.88rem; margin-top: 1px !important;
+}
+
+/* ---------- Filters ---------- */
         .production-dashboard-page .pd-filter .form-label { margin-bottom: 3px; overflow: hidden; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; display: block; }
         .production-dashboard-page .pd-filter .form-control,
         .production-dashboard-page .pd-filter .form-select { min-height: 32px; padding: 4px 10px; font-size: 0.8rem; }
