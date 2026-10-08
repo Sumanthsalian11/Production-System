@@ -38,12 +38,7 @@ router.post("/reserve", async (req, res) => {
     const same = await NumberingJob.findOne({ series, from, to });
     if (same) return res.json({ ok: true, reprint: true, job: same });
 
-    const clash = await NumberingJob.findOne({ series, from: { $lte: to }, to: { $gte: from } }).lean();
-    if (clash)
-      return res.status(409).json({
-        message: `Range overlaps ${pad(clash.from, clash.digits)}–${pad(clash.to, clash.digits)} already issued for "${series}".`,
-        conflict: clash,
-      });
+
 
     const job = await NumberingJob.create({
       series, from, to, digits,
