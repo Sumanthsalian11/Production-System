@@ -2169,7 +2169,7 @@ function ProductionRealDashboard() {
           border: 1px solid #cfe8f6; background: rgba(255,255,255,0.72);
           box-shadow: inset 0 1px 0 #fff, 0 4px 12px rgba(40,120,170,0.08);
         }
-        .production-dashboard-page .gl-inner.first { margin-top: 0; }
+        .production-dashboard-page .gl-inner.first { margin-top:10px; }
         .production-dashboard-page .gl-group {
           display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: #0a4f8c;
           font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
@@ -2687,12 +2687,8 @@ function ProductionRealDashboard() {
               {/* PRODUCTION FORM */}
               <form ref={formRef} onSubmit={handleSubmit}>
 
-                  <div className="gl-inner">
-                    <div className="gl-group">
-                      <FiCalendar className="pd-ico" />
-                      <span>Schedule and machine</span>
-                    </div>
-                    <div className="row g-2 align-items-end">
+                  <div className="gl-inner mt-4">
+                    <div className="row g-3 align-items-end">
 
                       <div className="col-6 col-md-4 col-xl-2">
                         <label className="form-label"><FieldIcon name="Production Date" />Production Date</label>
@@ -2773,11 +2769,8 @@ function ProductionRealDashboard() {
                   </div>
 
                   <div className="gl-inner">
-                    <div className="gl-group">
-                      <FiActivity className="pd-ico" />
-                      <span>Shift, status and output</span>
-                    </div>
-                    <div className="row g-2">
+            
+                    <div className="row g-3">
                       <div className="col-6 col-md-4 col-xl-2">
                         <label className="form-label"><FieldIcon name="Shift" />Shift</label>
                         <select
