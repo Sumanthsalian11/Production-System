@@ -16,7 +16,7 @@ const BASE_FONTS = [
 const DEFAULTS = {
   dpi: "300", series: "default",
   word: "S. No:", wc: "#222222", nc: "#f58220",
-  from: "123456", to: "123555", digits: "6",
+  from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
   bar: true, bw: "50", bh: "10", qz: true, bx: "196", by: "24",
   per: "500",
@@ -132,7 +132,7 @@ async function centerLayout(f, W, H) {
 
 export default function CertificateNumbering() {
   const [f, setF] = useState(DEFAULTS);
-  const [fonts, setFonts] = useState(BASE_FONTS);
+  const [fonts] = useState(BASE_FONTS);
   const [dims, setDims] = useState({ w: 2480, h: 1754 });
   const [sel, setSel] = useState("num");
   const [artName, setArtName] = useState("None — blank A4 landscape");
@@ -282,18 +282,6 @@ export default function CertificateNumbering() {
     img.onerror = () => say("Could not read that image. Use PNG, JPG or WebP.", "err");
     img.src = url;
   };
-  const onFont = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const name = file.name.replace(/\.[^.]+$/, "");
-    try {
-      const face = new FontFace(name, await file.arrayBuffer());
-      await face.load();
-      document.fonts.add(face);
-      setFonts((l) => (l.includes(name) ? l : [...l, name]));
-      setF((o) => ({ ...o, font: name }));
-    } catch { say("Could not load that font file.", "err"); }
-  };
 
   /* ---------- generate ---------- */
   const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -435,17 +423,11 @@ export default function CertificateNumbering() {
 
           <div className="cn-cap">Text</div>
           <div className="cn-row">
-            <Field span={8} label="Font name *">
+            <Field span={12} label="Font name *">
               <select value={f.font} onChange={set("font")}>
                 {fonts.map((n) => <option key={n}>{n}</option>)}
               </select>
             </Field>
-            <label className="cn-f cn-s4">
-              <span>&nbsp;</span>
-              <span className="cn-btn ghost" style={{ cursor: "pointer" }}>
-                <input type="file" accept=".ttf,.otf,.woff,.woff2" hidden onChange={onFont} />Add font file
-              </span>
-            </label>
           </div>
           <div className="cn-row">
             <Field span={3} label="Font size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
@@ -526,10 +508,10 @@ function whoAmI() {
 
 const CSS = `
 .cn-root{
-  --glass:rgba(255,255,255,.58);--glass-b:rgba(255,255,255,.9);
-  --ink:#10343d;--muted:#4d7480;--line:rgba(16,52,61,.16);
-  --field:rgba(255,255,255,.85);--accent:#0f7f96;--accent-ink:#fff;
-  --head:rgba(255,255,255,.7);--ghost:rgba(15,127,150,.1);
+  --glass:rgba(255,255,255,.78);--glass-b:rgba(255,255,255,.95);
+  --ink:#0b2b33;--muted:#2f5560;--label:#0b2b33;--line:rgba(16,52,61,.26);
+  --field:rgba(255,255,255,.95);--accent:#0f7f96;--accent-ink:#fff;
+  --head:rgba(255,255,255,.85);--ghost:rgba(15,127,150,.12);--ghost-ink:#0a5f72;
   --err:#b3261e;--ok:#17715a;--canvas-bg:rgba(255,255,255,.35);
   --cn-h:calc(100dvh - 28px);
   display:grid;grid-template-columns:clamp(300px,30vw,420px) minmax(0,1fr);gap:14px;align-items:stretch;height:var(--cn-h);color:var(--ink);
@@ -545,28 +527,29 @@ const CSS = `
 .cn-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--head);border-bottom:1px solid var(--glass-b)}
 .cn-logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-weight:700;font-size:12px;color:var(--accent);
   background:linear-gradient(145deg,rgba(255,255,255,.95),rgba(190,235,246,.7));border:1px solid var(--glass-b);box-shadow:0 2px 8px rgba(20,90,110,.14)}
-.cn-head h1{margin:0;font-size:15px;font-weight:700}
-.cn-head p{margin:0;font-size:11.5px;color:var(--muted)}
+.cn-head h1{margin:0;font-size:15px;font-weight:700;color:var(--ink)}
+.cn-head p{margin:0;font-size:12px;color:var(--muted)}
 .cn-root form{padding:10px 14px 14px;display:flex;flex-direction:column;gap:9px}
-.cn-cap{font-size:11.5px;font-weight:700;color:var(--muted);margin:2px 0 -2px;display:flex;align-items:center;gap:8px}
+.cn-cap{font-size:12.5px;font-weight:700;color:var(--ink);margin:2px 0 -2px;display:flex;align-items:center;gap:8px;letter-spacing:.02em}
 .cn-cap::after{content:"";flex:1;height:1px;background:var(--line)}
 .cn-row{display:grid;grid-template-columns:repeat(12,1fr);gap:7px;align-items:end}
-.cn-s2{grid-column:span 2}.cn-s3{grid-column:span 3}.cn-s4{grid-column:span 4}.cn-s5{grid-column:span 5}.cn-s6{grid-column:span 6}.cn-s8{grid-column:span 8}
+.cn-s2{grid-column:span 2}.cn-s3{grid-column:span 3}.cn-s4{grid-column:span 4}.cn-s5{grid-column:span 5}.cn-s6{grid-column:span 6}.cn-s8{grid-column:span 8}.cn-s12{grid-column:span 12}
 .cn-f{display:flex;flex-direction:column;gap:3px;min-width:0}
-.cn-f>span{font-size:11px;color:var(--muted)}
+.cn-f>span{font-size:12px;font-weight:600;color:var(--label);line-height:1.25}
+.cn-f>span.cn-pick{font-weight:400;color:var(--ink)}
 .cn-root input[type=text],.cn-root input[type=number],.cn-root select{
   width:100%;height:30px;padding:0 8px;font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px}
 .cn-root input[type=color]{width:100%;height:30px;padding:2px;background:var(--field);border:1px solid var(--line);border-radius:8px;cursor:pointer}
 .cn-root input:focus-visible,.cn-root select:focus-visible,.cn-root button:focus-visible,.cn-root canvas:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .cn-f.cn-chk{flex-direction:row;align-items:center;gap:6px;height:30px;cursor:pointer}
-.cn-f.cn-chk span{font-size:12.5px;color:var(--ink)}
+.cn-f.cn-chk span{font-size:12.5px;font-weight:600;color:var(--ink)}
 .cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0}
 .cn-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:8px;
   font:600 12.5px/1 inherit;font-family:inherit;border:1px solid transparent;cursor:pointer;white-space:nowrap;background:var(--accent);color:var(--accent-ink)}
 .cn-btn:disabled{opacity:.5;cursor:not-allowed}
-.cn-btn.ghost{background:var(--ghost);color:var(--accent);border-color:var(--line)}
+.cn-btn.ghost{background:var(--ghost);color:var(--ghost-ink);border-color:var(--line)}
 .cn-pick{display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0}
-.cn-pick em{font-style:normal;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-pick em{font-style:normal;font-weight:400;color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cn-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:2px}
 .cn-actions .cn-btn{flex:1 1 auto;height:34px;min-width:0}
 .cn-actions .stop{flex:0 0 auto}
@@ -575,7 +558,7 @@ const CSS = `
 .cn-status{font-size:12px;color:var(--muted);min-height:16px}
 .cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok)}
 .cn-stage{padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0;overflow:hidden}
-.cn-stage-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12px;color:var(--muted)}
+.cn-stage-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12.5px;font-weight:500;color:var(--muted)}
 .cn-stage-top>span{min-width:0;overflow-wrap:anywhere}
 .cn-canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--canvas-bg);border:1px dashed var(--line);padding:12px;min-height:0;overflow:auto}
 .cn-canvas-wrap canvas{display:block;max-width:100%;max-height:calc(100vh - 160px);height:auto;box-shadow:0 8px 30px rgba(10,70,90,.25);background:#fff;touch-action:none}
@@ -593,7 +576,7 @@ const CSS = `
   .cn-root form{padding:10px}
   .cn-row{grid-template-columns:repeat(6,1fr)}
   .cn-s2,.cn-s3,.cn-s4{grid-column:span 3}
-  .cn-s5,.cn-s6,.cn-s8{grid-column:span 6}
+  .cn-s5,.cn-s6,.cn-s8,.cn-s12{grid-column:span 6}
   .cn-stage{padding:8px}
   .cn-canvas-wrap{padding:6px}
 }
