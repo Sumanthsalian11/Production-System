@@ -1817,7 +1817,22 @@ function PlannerDashboard() {
           startY: y,
           head: [["Activity", "Machine", "Inches/Slit", "Pages", "Component", "Paper Code", "Description", "GSM", "Paper Qty(KG/Sheets)", "Imp Front", "Imp Back", "Total Imp"]],
           body: combinedBody.length ? combinedBody : [["-", "-", "-", "-", "-", "-", "-", "No Materials", "-", "-", "-", "-", "-"]],
-          styles: { ...plainStyle.styles, fontSize: 6.5 }
+          styles: { ...plainStyle.styles, fontSize: 6.5 },
+          didParseCell: function (data) {
+            if (data.section !== "body") return;
+
+            // Paper Code (5) and GSM (7) -> bigger and bold
+            if (data.column.index === 5 || data.column.index === 7) {
+              data.cell.styles.fontSize = 8.5;
+              data.cell.styles.fontStyle = "bold";
+            }
+
+            // Paper Qty (8) -> biggest
+            if (data.column.index === 8) {
+              data.cell.styles.fontSize = 10.5;
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
         });
 
         y = doc.lastAutoTable.finalY + 8;
