@@ -245,7 +245,7 @@ function InternalLogin() {
               <span>© 2026 Manipal Payment and Identity Solutions</span>
               <span className="mpi-lgn-version">
                 <FaTag />
-                V1.1.4
+                V1.1.5
               </span>
             </div>
           </div>
