@@ -265,7 +265,7 @@ function Field({ span, label, children }) {
   );
 }
 
-/* ---------- view-only helpers (module level so inputs never remount while typing) ---------- */
+/* ---------- view-only helpers ---------- */
 function Switch({ checked, onChange, children, span = 12 }) {
   return (
     <label className={`cn-f cn-sw cn-s${span}`}>
@@ -293,11 +293,19 @@ const ICONS = {
   center: "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0",
   down: "M12 4v11 M7 11l5 5 5-5 M5 20h14",
   stop: "M7 7h10v10H7z",
+  sidebar: "M4 4h16v16H4z M9 4v16",
+  panelRight: "M4 4h16v16H4z M15 4v16",
+  expand: "M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7",
+  shrink: "M4 14h6v6 M20 10h-6V4 M14 10l7-7 M10 14l-7 7",
+  plus: "M12 5v14 M5 12h14",
+  minus: "M5 12h14",
+  fit: "M3 9V5a2 2 0 0 1 2-2h4 M21 9V5a2 2 0 0 0-2-2h-4 M3 15v4a2 2 0 0 0 2 2h4 M21 15v4a2 2 0 0 1-2 2h-4",
 };
+
 function Ic({ n }) {
   return (
-    <svg className="cn-ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={ICONS[n]} />
+    <svg className="cn-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICONS[n] || "M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0"} />
     </svg>
   );
 }
@@ -345,6 +353,11 @@ export default function CertificateNumbering() {
   const [tplName, setTplName] = useState("");
   const [tplBusy, setTplBusy] = useState(false);
   const [measure, setMeasure] = useState(null);   // field whose edge distances are shown
+
+  /* Layout toggles & Zoom to maximize preview window */
+  const [sideOpen, setSideOpen] = useState(true);
+  const [propsOpen, setPropsOpen] = useState(true);
+  const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
 
   const cvRef = useRef(null);
   const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, tplCols: new Map() }).current;
@@ -404,7 +417,8 @@ export default function CertificateNumbering() {
       if (dead) return;
       const cv = cvRef.current;
       if (!cv) return;
-      const s = Math.min(1, 1400 / S.w);
+      // High-resolution preview render
+      const s = Math.min(1, 2048 / S.w);
       cv.width = Math.round(S.w * s);
       cv.height = Math.round(S.h * s);
       const ctx = cv.getContext("2d");
@@ -431,7 +445,7 @@ export default function CertificateNumbering() {
       const mb = measure ? S.box[measure] : null;
       if (mb) {
         const rect = cv.getBoundingClientRect();
-        const k = rect.width && cv.width ? rect.width / cv.width : 1;   // how much the canvas is shrunk on screen
+        const k = rect.width && cv.width ? rect.width / cv.width : 1;
         drawMeasure(ctx, S, mb, p.dpi / 25.4, k, s);
       }
       ctx.restore();
@@ -470,6 +484,7 @@ export default function CertificateNumbering() {
     const pt = toArt(e), k = hit(pt);
     if (!k) { setMeasure(null); return; }
     setSel(k);
+    if (!propsOpen) setPropsOpen(true);
     drag.current = { k, dx: pt.x - S.box[k].x, dy: pt.y - S.box[k].y };
     cvRef.current.setPointerCapture(e.pointerId);
     cvRef.current.focus();
@@ -697,7 +712,7 @@ export default function CertificateNumbering() {
           id: `c${i}`, header: h, on: i < 3, label: false, pt: String(pt), color: "#222222", lc: "#222222",
           x: r1(wmm * 0.05), y: r1(hmm * 0.08 + i * step),
         };
-        const t = S.tplCols.get(h);   // styling from the loaded template, if this header is in it
+        const t = S.tplCols.get(h);
         return t ? withTpl(base, t) : base;
       }));
       setPv("1");
@@ -824,9 +839,23 @@ export default function CertificateNumbering() {
   const count = okRange ? p.to - p.from + 1 : 0;
   const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
   const selCol = cols.find((c) => c.id === sel);
-  const selName = sel === "num" ? "NUMBER" : sel === "bar" ? "BARCODE" : sel === "qr" ? "QR" : selCol ? selCol.header.toUpperCase() : "";
-  const tplCurrent = tpls.find((t) => t._id === tplId);
+  const selName = sel === "num" ? "Number" : sel === "bar" ? "Barcode" : sel === "qr" ? "QR Code" : selCol ? selCol.header : "";
   const onCenter = async () => { const c = await centerLayout(f, S.w, S.h); setF((o) => ({ ...o, ...c })); };
+
+  /* zoom control helpers */
+  const zoomIn = () => setZoom((z) => (z === "fit" ? 110 : Math.min(250, z + 15)));
+  const zoomOut = () => setZoom((z) => (z === "fit" ? 85 : Math.max(30, z - 15)));
+  const zoomFit = () => setZoom("fit");
+  const isMaximized = !sideOpen && !propsOpen;
+  const toggleMaximize = () => {
+    if (isMaximized) {
+      setSideOpen(true);
+      setPropsOpen(true);
+    } else {
+      setSideOpen(false);
+      setPropsOpen(false);
+    }
+  };
 
   const encOptions = (
     <>
@@ -838,66 +867,62 @@ export default function CertificateNumbering() {
   const props = (() => {
     if (sel === "num") return (
       <div className="cn-row">
-        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
-        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
+        <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
+        <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
         <Field span={6} label="Font size (pt)"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
-        <Field span={3} label="Word"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
-        <Field span={3} label="Number"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
+        <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
+        <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
+        <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
       </div>
     );
     if (sel === "bar") return f.bar ? (
       <div className="cn-row">
-        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
-        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
+        <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
+        <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
         <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
         <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
+        <Switch span={12} checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
       </div>
-    ) : <div className="cn-info">Barcode is switched off. Turn it on in the Barcode section.</div>;
+    ) : <div className="cn-info">Barcode is currently OFF. Turn it on in the Barcode section.</div>;
     if (sel === "qr") return f.qr ? (
       <div className="cn-row">
-        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
-        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
-        <Field span={12} label="Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
+        <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
+        <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
+        <Field span={12} label="Tile Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
       </div>
-    ) : <div className="cn-info">QR code is switched off. Turn it on in the QR Code section.</div>;
+    ) : <div className="cn-info">QR code is currently OFF. Turn it on in the QR Code section.</div>;
     if (selCol) return (
       <div className="cn-row">
-        <Field span={6} label="X"><Mm><input type="number" step="0.5" value={selCol.x} onChange={setCol(selCol.id, "x")} /></Mm></Field>
-        <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={selCol.y} onChange={setCol(selCol.id, "y")} /></Mm></Field>
+        <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={selCol.x} onChange={setCol(selCol.id, "x")} /></Mm></Field>
+        <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={selCol.y} onChange={setCol(selCol.id, "y")} /></Mm></Field>
         <Field span={6} label="Size (pt)"><input type="number" min="1" step="0.5" value={selCol.pt} onChange={setCol(selCol.id, "pt")} /></Field>
         <Field span={6} label="Value colour"><input type="color" value={selCol.color} onChange={setCol(selCol.id, "color")} /></Field>
+        <Switch span={12} checked={selCol.label} onChange={setCol(selCol.id, "label")}>Show column header prefix</Switch>
       </div>
     );
-    return null;
+    return <div className="cn-info">Click any element on the certificate to inspect and adjust its properties.</div>;
   })();
 
   return (
     <div className="cn-root">
       <style>{CSS}</style>
 
-      {/* ---------- header ---------- */}
-      <header className="cn-top">
-        <div className="cn-brand">
-          <div className="cn-logo"><Ic n="doc" /></div>
-          <div>
-            <h1>Certificate Numbering</h1>
-            <p>Design, number and generate certificates</p>
+      {/* workspace grid: dynamically expands preview canvas */}
+      <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`}>
+        
+        {/* ---------- left: configuration sidebar ---------- */}
+        <aside className="cn-side" aria-label="Settings and controls">
+          <div className="cn-panel-header">
+            <div className="cn-panel-title">
+              <Ic n="tpl" />
+              <span>Configuration</span>
+            </div>
+            <button className="cn-icon-btn" type="button" title="Collapse sidebar" onClick={() => setSideOpen(false)}>
+              <Ic n="sidebar" />
+            </button>
           </div>
-        </div>
-        <div className="cn-chips">
-          <span className="cn-chip"><b>Series</b>{f.series.trim() || "default"}</span>
-          {nextFree != null && <span className="cn-chip acc"><b>Next available</b>{pad(nextFree, p.digits)}</span>}
-          <span className="cn-chip"><b>Template</b>{tplCurrent ? tplCurrent.name : "Unsaved"}</span>
-          {running && <span className="cn-chip run"><b>Generating</b>{Math.round(progress)}%</span>}
-        </div>
-      </header>
 
-      <div className="cn-work">
-        {/* ---------- left: configuration ---------- */}
-        <aside className="cn-side">
-          <div className="cn-steps"><span>Configure</span><i />Design<i />Preview<i />Generate</div>
           <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-
             <details className="cn-sec" open>
               <summary><Ic n="tpl" /><em>01</em>Template</summary>
               <div className="cn-body">
@@ -909,10 +934,10 @@ export default function CertificateNumbering() {
                     </select>
                   </Field>
                   <Field span={12} label="Template name">
-                    <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Cheque A4" />
+                    <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Certificate A4" />
                   </Field>
                   <div className="cn-actions">
-                    <button className="cn-btn ghost" type="button" onClick={saveTemplate} disabled={tplBusy}><Ic n="save" />{tplBusy ? "Working…" : "Save template"}</button>
+                    <button className="cn-btn ghost" type="button" onClick={saveTemplate} disabled={tplBusy}><Ic n="save" />{tplBusy ? "Working…" : "Save"}</button>
                     <button className="cn-btn ghost danger" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}><Ic n="trash" />Delete</button>
                   </div>
                 </div>
@@ -926,14 +951,14 @@ export default function CertificateNumbering() {
                   <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onArt} />
                   <Ic n="art" />
                   <strong>Artwork</strong>
-                  <small>Upload PNG, JPG, WebP or PDF</small>
-                  <span className="cn-btn">Choose Artwork</span>
+                  <small>PNG, JPG, WebP or PDF</small>
+                  <span className="cn-btn sm">Upload File</span>
                 </label>
                 <div className="cn-file"><b>{artName}</b><span>DPI {f.dpi}</span></div>
                 <div className="cn-row">
                   <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
                   <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
-                  <Switch checked={f.noArt} onChange={set("noArt")}>Remove background image when generating</Switch>
+                  <Switch checked={f.noArt} onChange={set("noArt")}>Hide background on export</Switch>
                 </div>
               </div>
             </details>
@@ -956,40 +981,38 @@ export default function CertificateNumbering() {
             </details>
 
             <details className="cn-sec">
-              <summary><Ic n="type" /><em>04</em>Text</summary>
+              <summary><Ic n="type" /><em>04</em>Text Styling</summary>
               <div className="cn-body">
                 <div className="cn-row">
-                  <Field span={12} label="Font name *">
+                  <Field span={12} label="Font family *">
                     <select value={f.font} onChange={set("font")}>
                       {fonts.map((n) => <option key={n}>{n}</option>)}
                     </select>
                   </Field>
-                  <Field span={6} label="Font size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
+                  <Field span={6} label="Size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
                   <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
                   <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
                   <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
                   <Field span={6} label="Number X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
                   <Field span={6} label="Number Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
                 </div>
-                <div className="cn-info">Position is measured in millimetres.</div>
               </div>
             </details>
 
             <details className="cn-sec">
-              <summary><Ic n="bar" /><em>05</em>Code 128 Barcode</summary>
+              <summary><Ic n="bar" /><em>05</em>Barcode (128)</summary>
               <div className="cn-body">
                 <Switch checked={f.bar} onChange={set("bar")}>Barcode {f.bar ? "ON" : "OFF"}</Switch>
                 {f.bar && (
                   <div className="cn-row">
                     <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
                     <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
-                    <Switch checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
+                    <Switch span={12} checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
                     <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
                     <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
                     <Field span={12} label="Encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
                   </div>
                 )}
-                <div className="cn-info">Barcode and QR can encode the serial number or an Excel column.</div>
               </div>
             </details>
 
@@ -1006,26 +1029,25 @@ export default function CertificateNumbering() {
                   </div>
                 )}
                 <div className="cn-row">
-                  <Field span={12} label="Pages per output file"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
+                  <Field span={12} label="Pages per output batch"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
                 </div>
               </div>
             </details>
 
             <details className="cn-sec" open={!!sheet}>
-              <summary><Ic n="xls" /><em>07</em>Excel Data{sheet && <span className="cn-pill">{sheet.count.toLocaleString()} rows</span>}</summary>
+              <summary><Ic n="xls" /><em>07</em>Excel Data {sheet && <span className="cn-pill">{sheet.count.toLocaleString()} rows</span>}</summary>
               <div className="cn-body">
                 <label className="cn-drop">
                   <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
                   <Ic n="xls" />
-                  <strong>Excel Data</strong>
-                  <small>Upload an Excel file to print customer/order data onto each certificate.</small>
-                  <span className="cn-btn">Choose Excel</span>
+                  <strong>Excel Import</strong>
+                  <small>Merge tabular rows onto certificates</small>
+                  <span className="cn-btn sm">Upload Spreadsheet</span>
                 </label>
                 <div className="cn-file">
-                  <b>{sheet ? sheet.name : "None"}</b>
+                  <b>{sheet ? sheet.name : "No file attached"}</b>
                   {sheet && <span>{sheet.count.toLocaleString()} rows · {sheet.headers.length} columns</span>}
                 </div>
-                <div className="cn-info">Excel rows are matched sequentially with certificate numbers (first data row = "From"). Row 1 must contain headers.</div>
                 {sheet && (
                   <>
                     {cols.map((c) => (
@@ -1037,13 +1059,13 @@ export default function CertificateNumbering() {
                           </label>
                           <label className="cn-f cn-chk cn-mini" onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} />
-                            <span>Show name</span>
+                            <span>Name</span>
                           </label>
                         </summary>
                         <div className="cn-row">
                           <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
-                          <Field span={4} label="Value colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
-                          <Field span={4} label="Name colour"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
+                          <Field span={4} label="Colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
+                          <Field span={4} label="Label"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
                           <Field span={6} label="X"><Mm><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Mm></Field>
                           <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Mm></Field>
                         </div>
@@ -1057,25 +1079,64 @@ export default function CertificateNumbering() {
           </form>
         </aside>
 
-        {/* ---------- centre: canvas ---------- */}
+        {/* ---------- centre: large preview stage ---------- */}
         <section className="cn-stage">
           <div className="cn-tool">
-            <strong>Preview</strong>
-            <span className="cn-rowsel">
-              Row
-              <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} aria-label="Preview row" />
-              of {sheet ? sheet.count.toLocaleString() : 1}
-            </span>
-            <span className="cn-dim">{dims.w}×{dims.h}px</span>
-            <span className="cn-grow" />
-            {selName && <span className="cn-badge">{selName}</span>}
-            <button className="cn-btn ghost sm" type="button" disabled={running} onClick={onCenter}><Ic n="center" />Center</button>
+            <div className="cn-tool-left">
+              {!sideOpen && (
+                <button className="cn-btn ghost sm" type="button" title="Show configuration sidebar" onClick={() => setSideOpen(true)}>
+                  <Ic n="sidebar" /> Controls
+                </button>
+              )}
+              <strong>Preview</strong>
+              <span className="cn-dim">{dims.w}×{dims.h}px</span>
+
+              <span className="cn-rowsel">
+                Row
+                <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} aria-label="Preview row" />
+                of {sheet ? sheet.count.toLocaleString() : 1}
+              </span>
+            </div>
+
+            <div className="cn-tool-center">
+              {/* Zoom Toolbar for larger viewing */}
+              <div className="cn-zoom-group">
+                <button className="cn-zoom-btn" type="button" onClick={zoomOut} title="Zoom out">
+                  <Ic n="minus" />
+                </button>
+                <button className={`cn-zoom-btn ${zoom === "fit" ? "active" : ""}`} type="button" onClick={zoomFit} title="Fit to screen">
+                  <Ic n="fit" /> Fit
+                </button>
+                <button className="cn-zoom-btn" type="button" onClick={zoomIn} title="Zoom in">
+                  <Ic n="plus" />
+                </button>
+                {zoom !== "fit" && <span className="cn-zoom-lbl">{Math.round(zoom)}%</span>}
+              </div>
+            </div>
+
+            <div className="cn-tool-right">
+              {selName && <span className="cn-badge" title={`Active: ${selName}`}>{selName}</span>}
+              <button className="cn-btn ghost sm" type="button" disabled={running} onClick={onCenter} title="Centre number and barcode">
+                <Ic n="center" /> Centre
+              </button>
+              <button className={`cn-btn ghost sm ${isMaximized ? "active-mode" : ""}`} type="button" onClick={toggleMaximize} title={isMaximized ? "Restore sidebars" : "Maximize preview (hide sidebars)"}>
+                <Ic n={isMaximized ? "shrink" : "expand"} /> {isMaximized ? "Restore" : "Maximize"}
+              </button>
+              {!propsOpen && (
+                <button className="cn-btn ghost sm" type="button" title="Show inspector panel" onClick={() => setPropsOpen(true)}>
+                  <Ic n="panelRight" /> Inspector
+                </button>
+              )}
+            </div>
           </div>
+
           <div className="cn-canvas-wrap">
             <canvas
               ref={cvRef}
               tabIndex={0}
-              aria-label="Certificate preview. Drag to move the number, barcode, QR or Excel fields. Double-click a field to show its distance from the page edges."
+              className={`cn-preview-canvas ${zoom === "fit" ? "fit-mode" : ""}`}
+              style={zoom !== "fit" ? { width: `${zoom}%`, maxWidth: "none", maxHeight: "none" } : undefined}
+              aria-label="Certificate preview canvas. Click and drag elements to position them."
               onPointerDown={onDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
@@ -1084,54 +1145,80 @@ export default function CertificateNumbering() {
               onKeyDown={onKey}
             />
           </div>
+
           <div className="cn-hints">
-            <span>Drag elements directly on the artwork.</span>
-            <span>Double-click an element to measure its distance from the page edges (Esc hides).</span>
-            <span>Arrow keys nudge (Shift = 5 mm).</span>
-            {f.noArt && <span className="warn">Background image will not be printed.</span>}
+            <span><b>Tip:</b> Click &amp; drag elements on the canvas.</span>
+            <span>Arrow keys nudge position (Shift = 5 mm).</span>
+            <span>Double-click an element to show edge distance guides (Esc hides).</span>
+            {f.noArt && <span className="warn">Artwork background is hidden on output.</span>}
           </div>
         </section>
 
-        {/* ---------- right: selected element ---------- */}
-        <aside className="cn-props">
-          <div className="cn-props-h">Selected element</div>
-          <div className="cn-props-n">{selName || "—"}</div>
-          {props}
-          {measure && (
-            <div className="cn-meas">
-              <b>Measuring</b>
-              <span>X: {r1(getPos(measure)[0])} mm</span>
-              <span>Y: {r1(getPos(measure)[1])} mm</span>
-              <small>Distances to all four page edges are drawn on the artwork. Press Esc to hide.</small>
+        {/* ---------- right: selected element inspector ---------- */}
+        <aside className="cn-props" aria-label="Element properties">
+          <div className="cn-panel-header">
+            <div className="cn-panel-title">
+              <span className="cn-props-dot" />
+              <span>Inspector</span>
             </div>
-          )}
-          <div className="cn-info">Position is measured in millimetres from the top-left corner of the page.</div>
+            <button className="cn-icon-btn" type="button" title="Collapse inspector" onClick={() => setPropsOpen(false)}>
+              <Ic n="panelRight" />
+            </button>
+          </div>
+
+          <div className="cn-props-body">
+            <div className="cn-props-head-info">
+              <span className="cn-props-tag">Active Selection</span>
+              <strong className="cn-props-n">{selName || "Nothing selected"}</strong>
+            </div>
+
+            {props}
+
+            {measure && (
+              <div className="cn-meas">
+                <b>Measuring Distances</b>
+                <span>X: {r1(getPos(measure)[0])} mm</span>
+                <span>Y: {r1(getPos(measure)[1])} mm</span>
+                <small>Distance guides from all 4 page edges are active. Press Esc to clear.</small>
+              </div>
+            )}
+          </div>
         </aside>
       </div>
 
-      {/* ---------- generation bar ---------- */}
+      {/* ---------- generation footer bar ---------- */}
       <footer className="cn-gen">
         <div className="cn-gen-info">
           <div className="cn-gen-stats">
             <b>{count.toLocaleString()} certificates</b>
-            <span>{okRange ? `${pad(p.from, p.digits)} – ${pad(p.to, p.digits)}` : "Enter a valid range"}</span>
-            {sheet && <span>Excel: {sheet.count.toLocaleString()} rows</span>}
+            <span className="cn-badge-inline">{okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Set range"}</span>
+            {sheet && <span className="cn-muted">Excel: {sheet.count.toLocaleString()} rows</span>}
           </div>
           <div className="cn-bar" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
-          <div className={`cn-status ${status.cls}`} role="status" aria-live="polite">{status.cls === "ok" && status.msg.startsWith("Done") ? "✓ " : ""}{status.msg}</div>
+          <div className={`cn-status ${status.cls}`} role="status" aria-live="polite">
+            {status.cls === "ok" && status.msg.startsWith("Done") ? "✓ " : ""}{status.msg}
+          </div>
         </div>
+
         <div className="cn-gen-btns">
-          <button className="cn-btn" type="button" disabled={running} onClick={() => generate("pdf")}><Ic n="down" />Download PDF</button>
-          <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>Download Images (ZIP)</button>
-          <button className="cn-btn ghost" type="button" disabled={running} onClick={onCenter}><Ic n="center" />Center</button>
-          {running && <button className="cn-btn stop" type="button" onClick={() => { stopFlag.current = true; }}><Ic n="stop" />Stop</button>}
+          <button className="cn-btn primary" type="button" disabled={running} onClick={() => generate("pdf")}>
+            <Ic n="down" /> Download PDF
+          </button>
+          <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>
+            Download Images (ZIP)
+          </button>
+          {running && (
+            <button className="cn-btn stop" type="button" onClick={() => { stopFlag.current = true; }}>
+              <Ic n="stop" /> Stop
+            </button>
+          )}
         </div>
       </footer>
     </div>
   );
 }
 
-/* ---------- helpers that depend on your app's auth storage (adjust if different) ---------- */
+/* ---------- helpers that depend on your app's auth storage ---------- */
 function authHeaders() {
   const h = { "Content-Type": "application/json" };
   const t = localStorage.getItem("token");
@@ -1147,169 +1234,198 @@ function whoAmI() {
 
 const CSS = `
 .cn-root{
-  --bg:#f4f6f8;--surface:#fff;--ink:#0b2b33;--muted:#5b7580;--line:#dde4e8;--line2:#c9d3d9;
-  --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#17715a;
-  --shadow:0 1px 2px rgba(11,43,51,.06),0 4px 14px rgba(11,43,51,.06);
-  display:flex;flex-direction:column;height:calc(100dvh - 28px);min-height:520px;width:100%;max-width:100%;
-  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  --bg:#f1f4f6;--surface:#ffffff;--ink:#0b2730;--muted:#5c737d;--line:#dce3e7;--line2:#c5d2d8;
+  --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#137358;
+  --shadow:0 1px 3px rgba(11,39,48,.05),0 6px 18px rgba(11,39,48,.06);
+  display:flex;flex-direction:column;height:calc(100dvh - 16px);min-height:540px;width:100%;max-width:100%;
+  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;overflow:hidden;
   font:13px/1.4 "Figtree","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
 .cn-ic{flex:0 0 auto}
 
-/* header */
-.cn-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--line);flex-wrap:wrap}
-.cn-brand{display:flex;align-items:center;gap:10px}
-.cn-logo{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#fff;background:var(--accent)}
-.cn-brand h1{margin:0;font-size:15px;font-weight:700;line-height:1.2}
-.cn-brand p{margin:0;font-size:12px;color:var(--muted)}
-.cn-chips{display:flex;gap:6px;flex-wrap:wrap}
-.cn-chip{display:inline-flex;gap:6px;align-items:center;padding:3px 10px;border:1px solid var(--line);border-radius:999px;background:var(--bg);font-size:12px;font-weight:600}
-.cn-chip b{font-weight:500;color:var(--muted)}
-.cn-chip.acc{background:var(--accent-soft);border-color:#b9dce4;color:var(--accent-d)}
-.cn-chip.run{background:#fff4e0;border-color:#f2d9a6;color:#8a5a00}
+/* workspace grid: defaults to 280px left, 1fr center, 225px right */
+.cn-work{
+  flex:1;min-height:0;display:grid;
+  grid-template-columns:280px minmax(0,1fr) 225px;
+  gap:8px;padding:6px;transition:grid-template-columns .2s ease;
+}
+.cn-work.no-side{grid-template-columns:0px minmax(0,1fr) 225px}
+.cn-work.no-props{grid-template-columns:280px minmax(0,1fr) 0px}
+.cn-work.no-side.no-props{grid-template-columns:0px minmax(0,1fr) 0px}
 
-/* workspace */
-.cn-work{flex:1;min-height:0;display:grid;grid-template-columns:340px minmax(0,1fr) 250px;gap:12px;padding:12px}
-.cn-side,.cn-stage,.cn-props{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-height:0;min-width:0}
-.cn-side{display:flex;flex-direction:column;overflow:hidden}
-.cn-steps{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:11.5px;font-weight:600;color:var(--muted)}
-.cn-steps span{color:var(--accent-d)}
-.cn-steps i{flex:1;height:1px;background:var(--line2);min-width:8px}
-.cn-side form{flex:1;min-height:0;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px}
+.cn-side,.cn-stage,.cn-props{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  box-shadow:var(--shadow);min-height:0;min-width:0;
+}
 
-/* sections */
-.cn-sec{border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+/* collapsible panels */
+.cn-side,.cn-props{display:flex;flex-direction:column;overflow:hidden;transition:opacity .15s}
+.cn-work.no-side .cn-side,.cn-work.no-props .cn-props{
+  opacity:0;pointer-events:none;border:none;margin:0;padding:0;
+}
+
+.cn-panel-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 10px;background:var(--surface);border-bottom:1px solid var(--line);
+}
+.cn-panel-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink)}
+.cn-icon-btn{
+  background:transparent;border:none;color:var(--muted);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;border-radius:5px;
+}
+.cn-icon-btn:hover{background:var(--accent-soft);color:var(--accent-d)}
+
+.cn-side form{flex:1;min-height:0;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
+
+/* sections inside accordion */
+.cn-sec{border:1px solid var(--line);border-radius:7px;background:var(--surface)}
 .cn-sec>summary,.cn-col>summary{list-style:none;cursor:pointer}
 .cn-sec>summary::-webkit-details-marker,.cn-col>summary::-webkit-details-marker{display:none}
-.cn-sec>summary{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;font-weight:700;position:relative}
-.cn-sec>summary em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:5px;padding:1px 5px}
-.cn-sec>summary::after{content:"";margin-left:auto;width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.cn-sec>summary{display:flex;align-items:center;gap:7px;padding:8px 10px;font-size:12.5px;font-weight:700;position:relative}
+.cn-sec>summary em{font-style:normal;font-size:10px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 4px}
+.cn-sec>summary::after{content:"";margin-left:auto;width:6px;height:6px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
 .cn-sec[open]>summary::after{transform:rotate(-135deg)}
 .cn-sec[open]>summary{border-bottom:1px solid var(--line)}
-.cn-sec>summary:focus-visible,.cn-col>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:10px}
-.cn-pill{margin-left:6px;font-size:11px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:0 8px}
-.cn-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:10px}
+.cn-body{padding:8px 10px 10px;display:flex;flex-direction:column;gap:8px}
 
-/* fields */
-.cn-row{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;align-items:end}
+/* fields layout */
+.cn-row{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end}
 .cn-s2{grid-column:span 2}.cn-s3{grid-column:span 3}.cn-s4{grid-column:span 4}.cn-s5{grid-column:span 5}.cn-s6{grid-column:span 6}.cn-s8{grid-column:span 8}.cn-s12{grid-column:span 12}
-.cn-f{display:flex;flex-direction:column;gap:3px;min-width:0}
-.cn-f>span:first-child{font-size:11.5px;font-weight:600;color:var(--muted)}
-.cn-root input[type=text],.cn-root input[type=number],.cn-root select{width:100%;height:30px;padding:0 8px;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:8px}
-.cn-root input[type=color]{width:100%;height:30px;padding:2px;background:#fff;border:1px solid var(--line2);border-radius:8px;cursor:pointer}
+.cn-f{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cn-f>span:first-child{font-size:11px;font-weight:600;color:var(--muted)}
+.cn-root input[type=text],.cn-root input[type=number],.cn-root select{
+  width:100%;height:28px;padding:0 7px;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:6px;
+}
+.cn-root input[type=color]{width:100%;height:28px;padding:1px;background:#fff;border:1px solid var(--line2);border-radius:6px;cursor:pointer}
 .cn-root input:disabled{opacity:.5;cursor:not-allowed}
 .cn-root input:focus-visible,.cn-root select:focus-visible,.cn-root button:focus-visible,.cn-root canvas:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .cn-mm{position:relative}
-.cn-mm input{padding-right:30px!important}
-.cn-mm::after{content:"mm";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none}
-.cn-f.cn-chk{flex-direction:row;align-items:center;gap:6px;height:30px;cursor:pointer}
-.cn-f.cn-chk span{font-size:12.5px;font-weight:600;color:var(--ink)}
-.cn-chk input{width:15px;height:15px;accent-color:var(--accent);margin:0}
-.cn-info{font-size:11.5px;color:var(--muted)}
+.cn-mm input{padding-right:26px!important}
+.cn-mm::after{content:"mm";position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10.5px;color:var(--muted);pointer-events:none}
+.cn-f.cn-chk{flex-direction:row;align-items:center;gap:6px;height:28px;cursor:pointer}
+.cn-f.cn-chk span{font-size:12px;font-weight:600;color:var(--ink)}
+.cn-chk input{width:14px;height:14px;accent-color:var(--accent);margin:0}
+.cn-info{font-size:11px;color:var(--muted)}
 
-/* switch */
-.cn-sw{flex-direction:row;align-items:center;gap:8px;height:30px;cursor:pointer;position:relative}
-.cn-sw input{position:absolute;opacity:0;width:36px;height:20px;margin:0;cursor:pointer}
-.cn-sw i{flex:0 0 auto;width:36px;height:20px;border-radius:999px;background:var(--line2);position:relative;transition:background .15s}
-.cn-sw i::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+/* switches */
+.cn-sw{flex-direction:row;align-items:center;gap:7px;height:28px;cursor:pointer;position:relative}
+.cn-sw input{position:absolute;opacity:0;width:32px;height:18px;margin:0;cursor:pointer}
+.cn-sw i{flex:0 0 auto;width:32px;height:18px;border-radius:999px;background:var(--line2);position:relative;transition:background .15s}
+.cn-sw i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
 .cn-sw input:checked+i{background:var(--accent)}
-.cn-sw input:checked+i::after{transform:translateX(16px)}
-.cn-sw input:focus-visible+i{outline:2px solid var(--accent);outline-offset:2px}
-.cn-sw>span{font-size:12.5px;font-weight:600}
+.cn-sw input:checked+i::after{transform:translateX(14px)}
+.cn-sw>span{font-size:12px;font-weight:600}
 
 /* buttons */
-.cn-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;font:600 12.5px/1 inherit;font-family:inherit;border:1px solid var(--accent);cursor:pointer;white-space:nowrap;background:var(--accent);color:#fff}
+.cn-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  height:30px;padding:0 10px;border-radius:6px;font:600 12px/1 inherit;border:1px solid var(--accent);
+  cursor:pointer;white-space:nowrap;background:var(--accent);color:#fff;
+}
+.cn-btn.primary{background:var(--accent);color:#fff;font-weight:700}
 .cn-btn:hover:not(:disabled){background:var(--accent-d)}
 .cn-btn:disabled{opacity:.5;cursor:not-allowed}
 .cn-btn.ghost{background:#fff;color:var(--accent-d);border-color:var(--line2)}
 .cn-btn.ghost:hover:not(:disabled){background:var(--accent-soft)}
+.cn-btn.ghost.active-mode{background:var(--accent-soft);border-color:var(--accent);color:var(--accent-d)}
 .cn-btn.danger{color:var(--err)}
 .cn-btn.stop{background:var(--err);border-color:var(--err);color:#fff}
-.cn-btn.sm{height:28px;padding:0 10px}
-.cn-actions{grid-column:1/-1;display:flex;gap:8px}
+.cn-btn.sm{height:25px;padding:0 8px;font-size:11.5px}
+.cn-actions{grid-column:1/-1;display:flex;gap:6px}
 .cn-actions .cn-btn{flex:1}
 
-/* upload cards */
-.cn-drop{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;padding:14px 10px;border:1.5px dashed var(--line2);border-radius:10px;background:var(--bg);cursor:pointer;color:var(--muted)}
+/* drop zone */
+.cn-drop{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;padding:10px 8px;border:1.5px dashed var(--line2);border-radius:8px;background:var(--bg);cursor:pointer;color:var(--muted)}
 .cn-drop:hover{border-color:var(--accent);background:var(--accent-soft)}
-.cn-drop .cn-ic{width:24px;height:24px;color:var(--accent)}
-.cn-drop strong{color:var(--ink);font-size:13px}
-.cn-drop small{font-size:11.5px}
-.cn-drop .cn-btn{margin-top:4px;pointer-events:none}
-.cn-file{display:flex;flex-direction:column;gap:1px;font-size:12px;color:var(--muted);min-width:0}
+.cn-drop strong{color:var(--ink);font-size:12px}
+.cn-drop small{font-size:10.5px}
+.cn-file{display:flex;flex-direction:column;gap:1px;font-size:11.5px;color:var(--muted);min-width:0}
 .cn-file b{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cn-range{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;background:var(--accent-soft);border:1px solid #b9dce4}
-.cn-range strong{font-size:15px;font-variant-numeric:tabular-nums;color:var(--accent-d)}
-.cn-range span{font-size:12px;color:var(--muted)}
-.cn-next b{color:var(--ink);font-variant-numeric:tabular-nums}
+.cn-range{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap;padding:6px 8px;border-radius:6px;background:var(--accent-soft);border:1px solid #b9dce4}
+.cn-range strong{font-size:13.5px;font-variant-numeric:tabular-nums;color:var(--accent-d)}
+.cn-range span{font-size:11.5px;color:var(--muted)}
 
-/* excel column accordion */
-.cn-col{border:1px solid var(--line);border-radius:8px;background:#fff}
+/* excel column item */
+.cn-col{border:1px solid var(--line);border-radius:6px;background:#fff}
 .cn-col.off{opacity:.75}
-.cn-col>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 10px}
-.cn-col>summary .cn-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
-.cn-col .cn-mini span{font-weight:500;color:var(--muted);font-size:12px}
+.cn-col>summary{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 8px}
+.cn-col>summary .cn-chk span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.cn-col .cn-mini span{font-weight:500;color:var(--muted);font-size:11px}
 .cn-col[open]>summary{border-bottom:1px solid var(--line)}
-.cn-col>.cn-row{padding:8px 10px 10px}
+.cn-col>.cn-row{padding:6px 8px 8px}
 
-/* stage */
-.cn-stage{display:flex;flex-direction:column;overflow:hidden}
-.cn-tool{display:flex;align-items:center;gap:12px;padding:8px 12px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.cn-tool strong{font-size:13px}
-.cn-grow{flex:1}
-.cn-rowsel{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-.cn-rowsel input{width:62px!important;height:26px!important}
-.cn-dim{font-size:12px;color:var(--muted)}
-.cn-badge{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--accent-d);background:var(--accent-soft);border:1px solid #b9dce4;border-radius:6px;padding:2px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cn-canvas-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;
-  background-color:#eef1f4;background-image:radial-gradient(#cfd8de 1px,transparent 1px);background-size:18px 18px}
-.cn-canvas-wrap canvas{display:block;max-width:100%;max-height:100%;height:auto;background:#fff;box-shadow:0 2px 4px rgba(11,43,51,.12),0 14px 36px rgba(11,43,51,.22);touch-action:none}
-.cn-hints{display:flex;flex-wrap:wrap;gap:2px 16px;padding:7px 12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+/* large stage */
+.cn-stage{display:flex;flex-direction:column;overflow:hidden;position:relative}
+.cn-tool{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:5px 10px;border-bottom:1px solid var(--line);background:#fafbfc;flex-wrap:nowrap;
+}
+.cn-tool-left,.cn-tool-center,.cn-tool-right{display:flex;align-items:center;gap:6px}
+.cn-tool-left strong{font-size:13px;font-weight:700}
+.cn-rowsel{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted)}
+.cn-rowsel input{width:50px!important;height:24px!important;padding:0 4px}
+.cn-dim{font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--line);padding:1px 6px;border-radius:4px}
+.cn-badge{font-size:11px;font-weight:700;color:var(--accent-d);background:var(--accent-soft);border:1px solid #b9dce4;border-radius:5px;padding:2px 7px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* zoom toolbar */
+.cn-zoom-group{display:inline-flex;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:6px;overflow:hidden;height:26px}
+.cn-zoom-btn{background:transparent;border:none;border-right:1px solid var(--line2);padding:0 7px;height:100%;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:600}
+.cn-zoom-btn:last-child{border-right:none}
+.cn-zoom-btn:hover{background:var(--accent-soft);color:var(--accent-d)}
+.cn-zoom-btn.active{background:var(--accent-soft);color:var(--accent-d)}
+.cn-zoom-lbl{padding:0 6px;font-size:11px;font-weight:600;color:var(--muted)}
+
+/* canvas view wrap */
+.cn-canvas-wrap{
+  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto;
+  background-color:#e9edf0;background-image:radial-gradient(#c7d3db 1px,transparent 1px);background-size:20px 20px;
+}
+.cn-preview-canvas{
+  display:block;box-shadow:0 3px 6px rgba(11,39,48,.1),0 16px 40px rgba(11,39,48,.2);
+  touch-action:none;background:#fff;
+}
+.cn-preview-canvas.fit-mode{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+
+.cn-hints{
+  display:flex;flex-wrap:wrap;gap:4px 14px;padding:5px 10px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--muted);background:#fafbfc;
+}
 .cn-hints .warn{color:#8a5a00;font-weight:600}
 
-/* right panel */
-.cn-props{padding:12px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
-.cn-props-h{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.cn-props-n{font-size:14px;font-weight:700;overflow-wrap:anywhere}
-.cn-meas{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:8px;background:#fff4ee;border:1px solid #f3cdb9;font-size:12px}
+/* right inspector */
+.cn-props-body{padding:8px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.cn-props-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
+.cn-props-head-info{display:flex;flex-direction:column;gap:1px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.cn-props-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cn-props-n{font-size:13.5px;color:var(--ink);overflow-wrap:anywhere}
+.cn-meas{display:flex;flex-direction:column;gap:2px;padding:6px 8px;border-radius:6px;background:#fff4ee;border:1px solid #f3cdb9;font-size:11.5px}
 .cn-meas b{color:#d9480f}
-.cn-meas small{color:var(--muted);margin-top:4px}
 
-/* generation bar */
-.cn-gen{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:10px 16px;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(11,43,51,.05)}
-.cn-gen-info{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:5px}
-.cn-gen-stats{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:baseline;font-size:12px;color:var(--muted)}
-.cn-gen-stats b{color:var(--ink);font-size:13px}
-.cn-bar{height:6px;border-radius:6px;background:var(--line);overflow:hidden}
-.cn-bar i{display:block;height:100%;background:var(--accent);transition:width .15s}
-.cn-status{font-size:12px;color:var(--muted);min-height:16px}
-.cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
-.cn-gen-btns{display:flex;gap:8px;flex-wrap:wrap}
-.cn-gen-btns .cn-btn{height:36px}
-
-/* tablet */
-@media (max-width:1180px){
-  .cn-work{grid-template-columns:320px minmax(0,1fr)}
-  .cn-props{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:flex-start;overflow:visible}
-  .cn-props>.cn-row{flex:1 1 260px}
+/* generation footer bar */
+.cn-gen{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 12px;
+  background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(11,39,48,.04);
 }
-/* mobile */
-@media (max-width:900px){
+.cn-gen-info{flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.cn-gen-stats{display:flex;gap:4px 10px;align-items:center;font-size:12px}
+.cn-badge-inline{font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent-d)}
+.cn-muted{color:var(--muted);font-size:11.5px}
+.cn-bar{height:5px;border-radius:5px;background:var(--line);overflow:hidden}
+.cn-bar i{display:block;height:100%;background:var(--accent);transition:width .15s}
+.cn-status{font-size:11.5px;color:var(--muted);min-height:14px}
+.cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
+.cn-gen-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* responsive adjustments */
+@media (max-width:1080px){
+  .cn-work{grid-template-columns:260px minmax(0,1fr) 200px}
+}
+@media (max-width:880px){
   .cn-root{height:auto;overflow:visible}
   .cn-work{display:flex;flex-direction:column}
-  .cn-side{overflow:visible}
-  .cn-side form{overflow:visible}
-  .cn-stage{order:-1}
-  .cn-canvas-wrap{padding:10px;min-height:240px}
-  .cn-canvas-wrap canvas{max-height:none}
-  .cn-gen{position:sticky;bottom:0;z-index:5}
-  .cn-gen-btns{width:100%}
-  .cn-gen-btns .cn-btn{flex:1 1 100%}
-}
-@media (max-width:480px){
-  .cn-row{grid-template-columns:repeat(6,1fr)}
-  .cn-s2,.cn-s3,.cn-s4{grid-column:span 3}
-  .cn-s5,.cn-s6,.cn-s8,.cn-s12{grid-column:span 6}
+  .cn-stage{order:-1;min-height:480px}
+  .cn-canvas-wrap{min-height:360px}
 }
 `;
