@@ -3,7 +3,6 @@ const ProductionReal = require("../models/ProductionReal");
 
 const Activity = require("../models/ActivityMaster"); // adjust to your model file names
 const Machine = require("../models/MachineMaster");   // adjust to your model file names
-const User = require("../models/User"); // to find login users' emails
 const sendMail = require("../utils/mailSender");
 const { TO, CC } = require("../utils/productionMailConfig");
 
@@ -270,81 +269,12 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
       </table>
     </div>`;
 
-    // ================= LOGIN-BASED RECIPIENTS (by user ID) =================
-    // TO = users who logged in and entered production in this window.
-    // Match by user ID so two users with the same name but different emails
-    // are never mixed up. Name matching is only a fallback for old records.
-    const userIds = new Set();
-    const legacyNames = new Set(); // records saved before enteredById existed
-
-    entries.forEach((e) => {
-      if (e.enteredById) {
-        userIds.add(String(e.enteredById._id || e.enteredById));
-      } else if (e.enteredBy && e.enteredBy.trim()) {
-        legacyNames.add(e.enteredBy.trim());
-      }
-    });
-
-    const emailSet = new Set();
-
-    // 1) Exact match by ID
-    if (userIds.size) {
-      const users = await User.find({ _id: { $in: [...userIds] } })
-        .select("name email")
-        .lean();
-
-      users.forEach((u) => u.email && emailSet.add(u.email));
-
-      const foundIds = new Set(users.map((u) => String(u._id)));
-      const missingIds = [...userIds].filter((id) => !foundIds.has(id));
-      if (missingIds.length) {
-        console.log(`⚠️ No user record found for IDs: ${missingIds.join(", ")}`);
-      }
-    }
-
-    // 2) Fallback for old records: match by name, but skip ambiguous names
-    if (legacyNames.size) {
-      const users = await User.find({ name: { $in: [...legacyNames] } })
-        .select("name email")
-        .lean();
-
-      const byName = {};
-      users.forEach((u) => {
-        const key = (u.name || "").trim();
-        (byName[key] = byName[key] || []).push(u);
-      });
-
-      legacyNames.forEach((name) => {
-        const list = byName[name] || [];
-
-        if (!list.length) {
-          console.log(`⚠️ No user record found for: ${name}`);
-          return;
-        }
-
-        if (list.length > 1) {
-          console.log(
-            `⚠️ Duplicate name "${name}" (${list.map((u) => u.email).join(", ")}) - skipped, cannot tell who entered it.`
-          );
-          return;
-        }
-
-        if (list[0].email) emailSet.add(list[0].email);
-      });
-    }
-
-    const loginEmails = [...emailSet];
-
-    // fall back to the fixed TO list if no login email could be found
-    const recipients = loginEmails.length ? loginEmails : (Array.isArray(TO) ? TO : TO ? [TO] : []);
+    // recipients: fixed TO list only
+    const recipients = Array.isArray(TO) ? TO : TO ? [TO] : [];
 
     if (!recipients.length) {
-      console.log("⚠️ No login-based emails and the fixed TO list is empty/undefined - mail not sent.");
+      console.log("⚠️ The fixed TO list is empty/undefined - check utils/productionMailConfig.js. Mail not sent.");
       return;
-    }
-
-    if (!loginEmails.length) {
-      console.log("⚠️ No login-based emails found - using fixed TO list.");
     }
 
     // don't repeat an address in both TO and CC

@@ -2,7 +2,6 @@ const cron = require("node-cron");
 const ProductionMachineStatus = require("../models/ProductionMachineStatus");
 const Machine = require("../models/MachineMaster"); // adjust to the model your Perso machine master uses
 const Activity = require("../models/ActivityMaster"); // same model as the floor production mail
-const User = require("../models/User"); // to find login users' emails
 const Printer = require("../models/PrinterMaster"); // the model behind /api/master/printers - adjust the file name
 const sendMail = require("../utils/mailSender");
 const XLSX = require("xlsx");
@@ -40,7 +39,7 @@ const escapeHtml = (v) =>
 
 // Runs daily at 10:00 AM and reports entries whose PRODUCTION DATE is yesterday
 // (TEST: change "0 10 * * *" to a time 2 minutes ahead, restart Node, then change it back)
-cron.schedule("0 10 * * *", async () => {
+cron.schedule("33 9 * * *", async () => {
   try {
     // only entries whose PRODUCTION DATE is yesterday (not when they were saved)
     const yDay = new Date();
@@ -498,54 +497,11 @@ cron.schedule("0 10 * * *", async () => {
       </table>
     </div>`;
 
-    // ================= LOGIN-BASED RECIPIENTS =================
-    // TO = users who entered Perso production for this production date.
-    // This model stores only the user's NAME (enteredBy), so match by name and
-    // skip ambiguous names (two users, same name) instead of mailing the wrong person.
-    const names = new Set();
-    entries.forEach((e) => {
-      if (e.enteredBy && e.enteredBy.trim()) names.add(e.enteredBy.trim());
-    });
-
-    const emailSet = new Set();
-
-    if (names.size) {
-      const users = await User.find({ name: { $in: [...names] } })
-        .select("name email")
-        .lean();
-
-      const byName = {};
-      users.forEach((u) => {
-        const key = (u.name || "").trim();
-        (byName[key] = byName[key] || []).push(u);
-      });
-
-      names.forEach((name) => {
-        const list = byName[name] || [];
-
-        if (!list.length) {
-          console.log(`⚠️ No user record found for: ${name}`);
-          return;
-        }
-
-        if (list.length > 1) {
-          console.log(
-            `⚠️ Duplicate name "${name}" (${list.map((u) => u.email).join(", ")}) - skipped, cannot tell who entered it.`
-          );
-          return;
-        }
-
-        if (list[0].email) emailSet.add(list[0].email);
-      });
-    }
-
-    const loginEmails = [...emailSet];
-
-    // fall back to the fixed TO list if no login email could be found
-    const recipients = loginEmails.length ? loginEmails : (TO || []);
+    // recipients: fixed TO list only
+    const recipients = TO || [];
 
     if (!recipients.length) {
-      console.log("⚠️ No login-based emails found and no fixed TO list - mail not sent.");
+      console.log("⚠️ The fixed TO list is empty/undefined - check utils/productionMailConfig.js. Mail not sent.");
       return;
     }
 
