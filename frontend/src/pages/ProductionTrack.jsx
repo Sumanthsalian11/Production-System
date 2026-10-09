@@ -1170,7 +1170,14 @@ function ProductionRealDashboard() {
       });
     });
 
-    return Array.from(groupMap.values()).map((group) => ({
+    return Array.from(groupMap.values())
+      .filter((group) =>
+        !String(group.activityName || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")
+          .includes("persoprinting")
+      )
+      .map((group) => ({
       ...group,
       rows: Array.from(group.rows.values()).map((row) => ({
         ...row,
