@@ -1073,6 +1073,24 @@ function CalibrationDashboard() {
               <p>MPi SP QS QA T087 • Equipment Master & Precision Calibration Record</p>
             </div>
           </div>
+
+          <div className="calib-header-actions">
+            <select
+              className="input-compact"
+              style={{ width: "210px", fontWeight: 800, cursor: "pointer" }}
+              defaultValue=""
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "new-inspection") navigate("/new-inspection");
+                else if (val === "inspection-dashboard") navigate("/receiving-inspection");
+                e.target.value = "";
+              }}
+            >
+              <option value="" disabled>-- Quick Actions --</option>
+              <option value="new-inspection">➕ Receiving Inspection</option>
+              <option value="inspection-dashboard">📊 Inspection Dashboard</option>
+            </select>
+          </div>
         </header>
 
         {/* 3D KPI Metrics Banner */}
