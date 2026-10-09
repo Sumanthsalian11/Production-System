@@ -968,8 +968,6 @@ export default function CertificateNumbering() {
               <div className="cn-body">
                 <div className="cn-range">
                   <strong>{rangeTxt}</strong>
-                  <span>{count.toLocaleString()} certificates</span>
-                  {nextFree != null && <span className="cn-next">Next available <b>{pad(nextFree, p.digits)}</b></span>}
                 </div>
                 <div className="cn-row">
                   <Field span={12} label="Static word"><input type="text" value={f.word} onChange={set("word")} /></Field>
