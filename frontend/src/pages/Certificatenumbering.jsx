@@ -682,7 +682,7 @@ export default function CertificateNumbering() {
 
   const loadTpls = async () => {
     try {
-      const r = await fetch(`${API}/api/numbering-templates`, { headers: authHeaders() });
+      const r = await fetch(`${API}/api/numbering-templates`, { headers: authHeaders(), cache: "no-store" });
       const d = await r.json();
       if (r.ok) setTpls(d);
     } catch { /* ignore */ }
@@ -784,10 +784,8 @@ export default function CertificateNumbering() {
     try {
       const r = await fetch(`${API}/api/numbering-templates/${t._id}`, { method: "DELETE", headers: authHeaders() });
       if (!r.ok) throw new Error("Could not delete the template.");
-      setTplId("");
-      setTplName("");
-      await loadTpls();
-      say(`Template "${t.name}" deleted.`, "ok");
+      window.location.reload();
+      return;
     } catch (err) {
       say(err.message || "Could not delete the template.", "err");
     } finally {
