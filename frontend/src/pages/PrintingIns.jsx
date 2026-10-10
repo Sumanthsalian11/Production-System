@@ -46,9 +46,9 @@ function Toggle({ checked, onChange, label }) {
 const selectStyles = {
   control: (base, state) => ({
     ...base,
-    minHeight: "34px",
+    minHeight: "38px",
     borderRadius: "10px",
-    fontSize: "12.5px",
+    fontSize: "14px",
     background: "rgba(255,255,255,0.88)",
     borderColor: state.isFocused ? "#4b83b8" : "rgba(110,140,170,0.28)",
     boxShadow: state.isFocused ? "0 0 0 3px rgba(75,131,184,0.18)" : "none",
@@ -56,7 +56,7 @@ const selectStyles = {
   }),
   valueContainer: (base) => ({ ...base, padding: "0 10px" }),
   indicatorsContainer: (base) => ({ ...base, height: "32px" }),
-  menu: (base) => ({ ...base, borderRadius: "12px", overflow: "hidden", fontSize: "12.5px", zIndex: 50 }),
+  menu: (base) => ({ ...base, borderRadius: "12px", overflow: "hidden", fontSize: "14px", zIndex: 50 }),
   option: (base, state) => ({
     ...base,
     background: state.isSelected ? "#3b6fa8" : state.isFocused ? "rgba(75,131,184,0.12)" : "#fff",
@@ -1576,7 +1576,7 @@ const expandTd = (order, key, value) => {
       margin-bottom: 10px;
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 3px 10px rgba(40, 70, 110, 0.05);
     }
-    .pi-sub-title { font-size: 11.5px; font-weight: 700; color: #2f5d8c; margin-bottom: 6px; }
+    .pi-sub-title { font-size: 13px; font-weight: 700; color: #2f5d8c; margin-bottom: 6px; }
 
     /* Section headers */
     .pi-sec-head {
@@ -1589,7 +1589,7 @@ const expandTd = (order, key, value) => {
       background: rgba(255, 255, 255, 0.85); color: #2f5d8c; font-size: 15px;
       box-shadow: 0 2px 8px rgba(40, 70, 110, 0.12), inset 0 1px 0 #fff;
     }
-    .pi-sec-title { margin: 0; font-size: 15px; font-weight: 650; color: #064c73; letter-spacing: -0.1px; }
+    .pi-sec-title { margin: 0; font-size: 16.5px; font-weight: 650; color: #064c73; letter-spacing: -0.1px; }
     .pi-sec-head::after {
       content: ""; flex: 1; height: 1px;
       background: linear-gradient(90deg, rgba(12, 90, 130, 0.25), transparent);
@@ -1610,12 +1610,12 @@ const expandTd = (order, key, value) => {
     /* Labels + inputs */
     .pi-label {
       display: block; margin: 0 0 3px 2px;
-      font-size: 11px; font-weight: 600; color: #000;
+      font-size: 13.5px; font-weight: 600; color: #000;
     }
     .pi-input {
       display: block; width: 100%;
-      min-height: 34px; padding: 6px 10px;
-      font-size: 12.5px; color: #1b2a3c;
+      min-height: 38px; padding: 7px 10px;
+      font-size: 14px; color: #1b2a3c;
       background: rgba(255, 255, 255, 0.88);
       border: 1px solid rgba(110, 140, 170, 0.28);
       border-radius: 10px; outline: none;
@@ -1634,7 +1634,7 @@ const expandTd = (order, key, value) => {
     .pi-btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       height: 32px; padding: 0 14px;
-      font-size: 12.5px; font-weight: 600;
+      font-size: 13.5px; font-weight: 600;
       border-radius: 10px; border: 1px solid transparent;
       cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
     }
@@ -1658,7 +1658,7 @@ const expandTd = (order, key, value) => {
     .pi-btn-xs { height: 24px; padding: 0 9px; font-size: 11px; border-radius: 8px; }
     .pi-linkbtn {
       background: none; border: none; padding: 0; margin-top: 4px;
-      font-size: 11px; font-weight: 700; color: #2f5d8c;
+      font-size: 12.5px; font-weight: 700; color: #2f5d8c;
       text-decoration: underline; cursor: pointer;
     }
     .pi-addbranch {
@@ -1686,11 +1686,11 @@ const expandTd = (order, key, value) => {
       background: #fff;
       box-shadow: 0 8px 20px rgba(4, 52, 78, 0.08);
     }
-    .pi-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; margin: 0; }
+    .pi-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; margin: 0; }
     .pi-table thead th {
       position: sticky; top: 0; z-index: 5;
       background: #064c73; color: #fff;
-      font-weight: 700; font-size: 11.5px; letter-spacing: 0.3px;
+      font-weight: 700; font-size: 12.5px; letter-spacing: 0.3px;
       padding: 9px 12px; text-align: center; white-space: nowrap;
       border: 1px solid rgba(255, 255, 255, 0.2);
     }
@@ -1707,7 +1707,7 @@ const expandTd = (order, key, value) => {
     .pi-neg { font-weight: 600; color: #dc2626; }
     .pi-badge {
       display: inline-block; padding: 2px 9px; border-radius: 999px;
-      font-size: 11px; font-weight: 700; border: 1px solid transparent;
+      font-size: 12px; font-weight: 700; border: 1px solid transparent;
     }
     .pi-badge-blue { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
     .pi-badge-gray { background: #eef2f6; color: #475569; border-color: #cbd5e1; }

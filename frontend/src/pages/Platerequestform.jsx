@@ -325,7 +325,7 @@ function PlateRequestForm() {
           min-height: 100vh;
           padding: 12px 18px 30px;
           font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
-          font-size: 15px;
+          font-size: 13.5px;
           color: var(--ink);
           background:
             radial-gradient(circle at 12% 6%, rgba(255,255,255,0.9) 0, rgba(255,255,255,0) 30%),
@@ -350,7 +350,7 @@ function PlateRequestForm() {
           background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
           border: 1px solid #86c6e8; box-shadow: 0 6px 14px rgba(40,120,170,0.22), inset 0 2px 3px rgba(255,255,255,0.9);
         }
-        .pr-hero h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
+        .pr-hero h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
         .pr-hero p { margin: 1px 0 0; font-size: 13.5px; font-weight: 600; color: var(--muted); }
 
         /* Glass cards */
@@ -367,7 +367,7 @@ function PlateRequestForm() {
           background: radial-gradient(circle at 30% 25%, #ffffff 0%, #d6effc 55%, #b3dff5 100%);
           border: 1px solid #a9d9f2; box-shadow: 0 3px 8px rgba(40,120,170,0.14);
         }
-        .pr-title { margin: 0; font-size: 17px; font-weight: 800; color: #0a4f8c; }
+        .pr-title { margin: 0; font-size: 15px; font-weight: 800; color: #0a4f8c; }
         .pr-sub { font-size: 13px; font-weight: 600; color: var(--muted); }
         .pr-pill {
           font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 999px; color: #0a4f8c; letter-spacing: 0.3px;
@@ -378,7 +378,7 @@ function PlateRequestForm() {
         /* section labels inside the form */
         .pr-sec {
           display: inline-flex; align-items: center; gap: 9px; margin: 0 0 8px 2px;
-          font-size: 12.5px; font-weight: 800; color: #0a4f8c; text-transform: uppercase; letter-spacing: 0.7px;
+          font-size: 11.5px; font-weight: 800; color: #0a4f8c; text-transform: uppercase; letter-spacing: 0.7px;
         }
         .pr-sec::before {
           content: ""; width: 9px; height: 9px; border-radius: 50%;
@@ -386,12 +386,12 @@ function PlateRequestForm() {
         }
         .pr-divider { height: 0; border-top: 1px dashed rgba(10,111,184,0.3); margin: 12px 0 10px; }
 
-        .pr-label { display: block; margin: 0 0 4px 2px; font-size: 13px; font-weight: 800; color: var(--ink); }
+        .pr-label { display: block; margin: 0 0 4px 2px; font-size: 12px; font-weight: 800; color: var(--ink); }
         .pr-label i { color: #e11d48; font-style: normal; }
 
         .pr-input {
           width: 100%; height: 40px; padding: 0 12px;
-          font-size: 15px; font-weight: 600; color: var(--ink); font-family: inherit;
+          font-size: 13.5px; font-weight: 600; color: var(--ink); font-family: inherit;
           background: #fff; border: 1.5px solid #9ccbe6; border-radius: 12px; outline: none;
           box-shadow: inset 0 2px 5px rgba(10,80,130,0.1); transition: border-color .18s ease, box-shadow .18s ease;
         }
@@ -412,15 +412,15 @@ function PlateRequestForm() {
           box-shadow: 0 6px 16px rgba(40,120,170,0.1), inset 0 1px 0 #fff;
         }
         .pr-bubble {
-          width: 42px; height: 42px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+          width: 36px; height: 36px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
           box-shadow: 0 5px 10px rgba(40,90,130,0.16), inset 0 2px 3px rgba(255,255,255,0.85), inset 0 -3px 5px rgba(0,0,0,0.06);
         }
         .pr-bubble.lavender { background: linear-gradient(145deg, #efe7ff, #c9b8fb); color: #6d4fd6; }
         .pr-bubble.peach    { background: linear-gradient(145deg, #fff0d1, #ffc978); color: #c2650a; }
         .pr-bubble.mint     { background: linear-gradient(145deg, #dcf9ea, #8fe0b8); color: #107a4d; }
         .pr-info-text { min-width: 0; }
-        .pr-info-text > span { display: block; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-        .pr-info-text > b { display: block; font-size: 16px; font-weight: 800; color: var(--ink); word-break: break-word; }
+        .pr-info-text > span { display: block; font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .pr-info-text > b { display: block; font-size: 14px; font-weight: 800; color: var(--ink); word-break: break-word; }
 
         /* Assignment fields */
         .pr-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; align-items: end; }
@@ -428,7 +428,7 @@ function PlateRequestForm() {
         /* Buttons */
         .pr-btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-          height: 40px; padding: 0 20px; font-size: 14.5px; font-weight: 800; font-family: inherit;
+          height: 40px; padding: 0 20px; font-size: 13px; font-weight: 800; font-family: inherit;
           border-radius: 12px; border: 1px solid transparent; cursor: pointer; white-space: nowrap; transition: all .15s ease;
         }
         .pr-btn:hover:not(:disabled) { transform: translateY(-1px); }
@@ -456,14 +456,14 @@ function PlateRequestForm() {
         }
         .pr-kpi-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .pr-kpi small { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.4px; color: var(--muted); }
-        .pr-kpi h5 { margin: 0; font-size: 22px; font-weight: 800; color: var(--ink); }
+        .pr-kpi h5 { margin: 0; font-size: 19px; font-weight: 800; color: var(--ink); }
 
         /* Filter toolbar */
         .pr-toolbar {
           display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 12px; border-radius: 16px;
           background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.95); box-shadow: inset 0 1px 0 #fff, 0 6px 16px rgba(40,120,170,0.08);
         }
-        .pr-toolbar .pr-input { width: auto; min-width: 150px; height: 38px; font-size: 14px; }
+        .pr-toolbar .pr-input { width: auto; min-width: 150px; height: 38px; font-size: 13px; }
         .pr-toolbar .pr-btn { height: 38px; }
         .pr-datebox { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #0a4f8c; }
 
@@ -475,26 +475,26 @@ function PlateRequestForm() {
         .pr-table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
         .pr-table-wrap::-webkit-scrollbar-track { background: #eaf7ff; }
         .pr-table-wrap::-webkit-scrollbar-thumb { background: #96d3f2; border-radius: 4px; }
-        .pr-table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; margin: 0; }
+        .pr-table { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; margin: 0; }
         .pr-table thead th {
           position: sticky; top: 0; z-index: 5; padding: 11px 14px; text-align: center; white-space: nowrap;
           background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%); color: #08406b;
-          font-weight: 800; font-size: 13px; letter-spacing: 0.3px; border: 1px solid #7fbfe4;
+          font-weight: 800; font-size: 11.5px; letter-spacing: 0.3px; border: 1px solid #7fbfe4;
         }
-        .pr-table tbody td { padding: 9px 14px; border: 1px solid #d3e8f4; color: var(--ink); font-weight: 600; vertical-align: middle; background: #fff; }
+        .pr-table tbody td { font-size: 12px; padding: 7px 12px; border: 1px solid #d3e8f4; color: var(--ink); font-weight: 600; vertical-align: middle; background: #fff; }
         .pr-table tbody tr:nth-child(even) td { background: #f3faff; }
         .pr-table tbody tr:hover td { background: #d9f2fc; }
         .pr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 800; }
         .pr-strong { font-weight: 800; }
         .pr-center { text-align: center; }
         .pr-empty { text-align: center; padding: 34px 12px !important; color: var(--muted); font-weight: 800; }
-        .pr-small { font-size: 12px; color: var(--muted); font-weight: 600; }
+        .pr-small { font-size: 11px; color: var(--muted); font-weight: 600; }
 
         .pr-badge {
           display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: 999px;
-          font-size: 12px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; border: 1px solid transparent;
+          font-size: 11px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; border: 1px solid transparent;
         }
-        .pr-badge-blue { background: #d6effc; color: #08406b; border-color: #86c6e8; text-transform: none; }
+        .pr-badge-blue { background: #d6effc; color: #08406b; border-color: #86c6e8; text-transform: none; font-size: 11px; }
         .pr-badge-warn { background: #fef3c7; color: #8a5a00; border-color: #fde68a; }
         .pr-badge-ok { background: #dcfce7; color: #15803d; border-color: #86efac; }
         .pr-badge-bad { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
@@ -680,7 +680,7 @@ function PlateRequestForm() {
         {/* ========================================================================= */}
         <div className="pr-glass">
           <div style={{ textAlign: "center", marginBottom: "10px" }}>
-            <h4 style={{ margin: 0, fontSize: "19px", fontWeight: 800, color: "#0a4f8c" }}>
+            <h4 style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#0a4f8c" }}>
               My Plate Requests
             </h4>
             <span className="pr-sub">Track status, Prepress review remarks, and approval timelines</span>
