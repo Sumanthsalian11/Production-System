@@ -721,13 +721,13 @@ function ProductionReport() {
 
   return (
     <div
-      className="container mt-2 production-report-universe"
+      className="container production-report-universe"
       style={{
         maxWidth: "100%",
         fontSize: "14px",
         background: "#d8f1fb",
         border: "1px solid rgba(12, 90, 130, 0.38)",
-        borderRadius: "20px"
+        borderRadius: "0px"
       }}
     >
       {/* ======================================================================

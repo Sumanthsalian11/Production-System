@@ -386,13 +386,13 @@ export default function SummaryReport() {
 
   return (
     <div
-      className="container mt-2 summary-report-page"
+      className="container  summary-report-page"
       style={{
         maxWidth: "100%",
         fontSize: "14px",
         background: "#d8f1fb",
         border: "1px solid rgba(12, 90, 130, 0.38)",
-        borderRadius: "20px"
+        borderRadius: "0px"
       }}
     >
       {/* ======================================================================

@@ -367,13 +367,13 @@ export default function WastageReport() {
 
   return (
     <div
-      className="container mt-2 wastage-report-page"
+      className="container wastage-report-page"
       style={{
         maxWidth: "100%",
         fontSize: "14px",
         background: "#d8f1fb",
-        border: "1px solid rgba(12, 90, 130, 0.38)",
-        borderRadius: "20px"
+        border: "px solid rgba(12, 90, 130, 0.38)",
+        borderRadius: "0px"
       }}
     >
       {/* ======================================================================
