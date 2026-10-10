@@ -286,6 +286,22 @@ const handleChange = (e) => {
     }
   }
 
+  // WO number changed -> clear fetched details, Fetch Details must be clicked again
+  if (name === "efiWoNumber") {
+    setForm(prev => ({
+      ...prev,
+      efiWoNumber: value,
+      purchaseOrderNo: "", poDate: "", customer: "", productName: "",
+      totalQty: "", dispatchQty: "", balanceQty: "", dispatchDate: "",
+      location: "", deliveryAddress: "", expectedDeliveryDate: "",
+      delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
+      invoiceNo: "", invoiceDate: "", extraQty: "", remarks: ""
+    }));
+    setEditingId(null);
+    setOriginalBalance(0);
+    return;
+  }
+
   // ✅ DEFINE FIRST
   let updatedForm = { ...form, [name]: value };
 
