@@ -568,7 +568,7 @@ function CustomerDashboard() {
 
   return (
     <div
-      className="container mt-2 customer-dashboard-universe"
+      className="container customer-dashboard-universe"
       style={{
         maxWidth: "100%",
         fontSize: "14px"

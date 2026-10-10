@@ -667,7 +667,6 @@ function PlateRequestForm() {
             <h4 style={{ margin: 0, fontSize: "19px", fontWeight: 800, color: "#0a4f8c" }}>
               My Plate Requests
             </h4>
-            <span className="pr-sub">Track status, Prepress review remarks, and approval timelines</span>
           </div>
 
           {/* 4 Summary KPI Tiles */}

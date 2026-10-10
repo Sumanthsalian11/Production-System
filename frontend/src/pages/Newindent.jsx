@@ -460,13 +460,12 @@ function NewIndent() {
         /* ============ Page shell (sky blue + white) ============ */
         .indent-app-container {
           max-width: 100%;
-          margin-top: 8px;
           min-height: 100vh;
           padding: 12px 24px 28px;
           font-size: 14px;
           color: #08283d;
           border: 1px solid rgba(12, 90, 130, 0.38);
-          border-radius: 20px;
+          border-radius: 0px;
           background:
             radial-gradient(circle at top left, rgba(34, 153, 204, 0.34), transparent 32%),
             linear-gradient(135deg, #d6f1fb 0%, #edfaff 48%, #c7e9f7 100%);
