@@ -10,15 +10,15 @@ const APP_CATEGORIES = [
   {
     title: "Admin & Setup",
     icon: "bi-shield-lock",
-    color: "#0e7490",
-    bgLight: "#ecfeff",
-    borderGlow: "#a5f3fc",
+    color: "#0f172a",
+    bgLight: "#f1f5f9",
+    borderGlow: "#cbd5e1",
     routes: ["/internal-register", "/admin"]
   },
   {
     title: "Planning & Prepress",
     icon: "bi-calendar2-range",
-    color: "#2563eb",
+    color: "#1d4ed8",
     bgLight: "#eff6ff",
     borderGlow: "#bfdbfe",
     routes: ["/customer-dashboard", "/planner", "/scheduler", "/print", "/preprocess", "/plate-request", "/kas"]
@@ -26,33 +26,33 @@ const APP_CATEGORIES = [
   {
     title: "Production",
     icon: "bi-gear-wide-connected",
-    color: "#0369a1",
-    bgLight: "#f0f9ff",
-    borderGlow: "#bae6fd",
+    color: "#1e3a8a",
+    bgLight: "#eff6ff",
+    borderGlow: "#bfdbfe",
     routes: ["/new-in", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
   },
   {
     title: "Reports & Analytics",
     icon: "bi-bar-chart-line",
-    color: "#db2777",
-    bgLight: "#fdf2f8",
-    borderGlow: "#fbcfe8",
+    color: "#2563eb",
+    bgLight: "#eff6ff",
+    borderGlow: "#bfdbfe",
     routes: ["/waste", "/summary", "/production-report", "/perso-report", "/perso-machine-report", "/billing-report", "/welcome-board", "/production-portal"]
   },
   {
     title: "Inward & Quality Control",
     icon: "bi-clipboard2-check",
-    color: "#059669",
-    bgLight: "#ecfdf5",
-    borderGlow: "#a7f3d0",
+    color: "#0b1220",
+    bgLight: "#f1f5f9",
+    borderGlow: "#cbd5e1",
     routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard", "/calibration", "/new-inspection", "/certificate-numbering"]
   },
   {
     title: "Dispatch & Logistics",
     icon: "bi-truck",
-    color: "#7c3aed",
-    bgLight: "#f5f3ff",
-    borderGlow: "#ddd6fe",
+    color: "#1e40af",
+    bgLight: "#eff6ff",
+    borderGlow: "#bfdbfe",
     routes: ["/dispatch", "/manual-box", "/po-details", "/scan"]
   }
 ];
@@ -288,11 +288,11 @@ export default function DashboardLayout() {
       case "critical":
         return { primary: "#dc2626", secondary: "#991b1b", glow: "rgba(220, 38, 38, 0.25)", bg: "#fef2f2" };
       case "maintenance":
-        return { primary: "#0284c7", secondary: "#0369a1", glow: "rgba(2, 132, 199, 0.25)", bg: "#f0f9ff" };
+        return { primary: "#2563eb", secondary: "#1d4ed8", glow: "rgba(37, 99, 235, 0.25)", bg: "#eff6ff" };
       case "celebration":
-        return { primary: "#16a34a", secondary: "#15803d", glow: "rgba(22, 163, 74, 0.25)", bg: "#f0fdf4" };
+        return { primary: "#1e3a8a", secondary: "#0f172a", glow: "rgba(30, 58, 138, 0.25)", bg: "#eff6ff" };
       case "info":
-        return { primary: "#7c3aed", secondary: "#6d28d9", glow: "rgba(124, 58, 237, 0.25)", bg: "#faf5ff" };
+        return { primary: "#0f172a", secondary: "#1e293b", glow: "rgba(15, 23, 42, 0.25)", bg: "#f1f5f9" };
       default:
         return { primary: "#1d4ed8", secondary: "#1e40af", glow: "rgba(29, 78, 216, 0.25)", bg: "#eff6ff" };
     }
@@ -421,7 +421,7 @@ export default function DashboardLayout() {
   const topOffset = isMobile ? 52 : 0;
 
   return (
-    <div className="d-flex" style={{ overflowX: "hidden", backgroundColor: "#f8fafc", color: "#0f172a" }}>
+    <div className="d-flex" style={{ overflowX: "hidden", backgroundColor: "#f1f5f9", color: "#0f172a" }}>
       <style>{`
         /* Seamless Infinite Ticker */
         @keyframes infiniteTicker {
@@ -446,8 +446,8 @@ export default function DashboardLayout() {
           background: rgba(255, 255, 255, 0.94);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
-          border-bottom: 1px solid #e2e8f0;
-          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 12px rgba(15, 23, 42, 0.02);
+          border-bottom: 2px solid #1d4ed8;
+          box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
           overflow: visible;
           z-index: 1028;
           transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.2s ease;
@@ -467,7 +467,7 @@ export default function DashboardLayout() {
           font-weight: 800;
           letter-spacing: 0.5px;
           text-transform: uppercase;
-          color: #0f172a;
+          color: #0b1220;
           line-height: 1.2;
           white-space: nowrap;
           overflow: hidden;
@@ -551,7 +551,7 @@ export default function DashboardLayout() {
         .header-user-subtext {
           font-size: 0.64rem;
           font-weight: 600;
-          color: #16a34a;
+          color: #1d4ed8;
           letter-spacing: 0.2px;
           transition: color 0.2s ease;
         }
@@ -562,7 +562,7 @@ export default function DashboardLayout() {
 
         /* Nav links */
         .sidebar-nav-scroll::-webkit-scrollbar { width: 5px; }
-        .sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+        .sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 6px; }
 
         .sidebar-nav-link {
           transition: all 0.18s ease;
@@ -571,13 +571,13 @@ export default function DashboardLayout() {
           border-radius: 8px;
         }
         .sidebar-nav-link:hover:not(.active-nav-link) {
-          background-color: #f1f5f9 !important;
-          color: #0f172a !important;
+          background-color: rgba(59, 130, 246, 0.12) !important;
+          color: #ffffff !important;
         }
         .sidebar-nav-link.active-nav-link {
-          background-color: #f1f5f9;
-          color: #0f172a !important;
-          border-left-color: #1e3a8a;
+          background-color: rgba(37, 99, 235, 0.25);
+          color: #ffffff !important;
+          border-left-color: #3b82f6;
           font-weight: 700 !important;
         }
 
@@ -626,6 +626,7 @@ export default function DashboardLayout() {
           background: #ffffff;
           border-radius: 12px;
           border: 1px solid #e2e8f0;
+          border-top: 3px solid #1d4ed8;
           padding: 16px;
           height: 100%;
           display: flex;
@@ -648,20 +649,20 @@ export default function DashboardLayout() {
         .app-keycap-3d:hover {
           color: #0f172a;
           background: #f8fafc;
-          border-color: #94a3b8;
+          border-color: #2563eb;
           transform: translateY(-1px);
         }
         .app-keycap-3d.active-3d {
-          background: #0f172a;
+          background: #1d4ed8;
           color: #ffffff !important;
-          border-color: #0f172a;
+          border-color: #1d4ed8;
         }
 
         /* Ticker Action Buttons */
         .ticker-action-btn {
           background: #ffffff;
           border: 1px solid #cbd5e1;
-          color: #1e3a8a;
+          color: #1d4ed8;
           border-radius: 5px;
           padding: 2px 7px;
           font-size: 0.72rem;
@@ -708,10 +709,10 @@ export default function DashboardLayout() {
           left: isMobile ? (collapsed ? "-260px" : "0") : "0",
           top: 0,
           height: "100vh",
-          backgroundColor: "#ffffff",
-          color: "#0f172a",
-          borderRight: "1px solid #e2e8f0",
-          boxShadow: "none"
+          backgroundColor: "#0a0f1c",
+          color: "#e2e8f0",
+          borderRight: "1px solid #1e293b",
+          boxShadow: "2px 0 12px rgba(2, 6, 23, 0.18)"
         }}
       >
         {/* BRAND HEADER + COLLAPSE TOGGLE */}
@@ -721,13 +722,13 @@ export default function DashboardLayout() {
             height: "58px",
             padding: collapsed ? "0" : "0 14px 0 18px",
             justifyContent: collapsed ? "center" : "space-between",
-            borderBottom: "1px solid #e2e8f0",
+            borderBottom: "1px solid #1e293b",
             flexShrink: 0
           }}
         >
           {!collapsed && (
-            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#0f172a", letterSpacing: "0.8px" }}>
-              MPI CONSOLE
+            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#ffffff", letterSpacing: "0.8px" }}>
+              MPI
             </span>
           )}
           <button
@@ -742,7 +743,7 @@ export default function DashboardLayout() {
               borderRadius: "6px",
               border: "none",
               background: "transparent",
-              color: "#475569"
+              color: "#94a3b8"
             }}
           >
             <i className={`bi ${collapsed ? "bi-layout-sidebar" : "bi-layout-sidebar-inset"}`} style={{ fontSize: "1.05rem" }}></i>
@@ -768,10 +769,10 @@ export default function DashboardLayout() {
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              background: toggleHover ? "#0f172a" : "#ffffff",
-              color: toggleHover ? "#ffffff" : "#475569",
-              border: "1px solid #cbd5e1",
-              boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)",
+              background: toggleHover ? "#2563eb" : "#0a0f1c",
+              color: "#ffffff",
+              border: "1px solid #334155",
+              boxShadow: "0 1px 4px rgba(2, 6, 23, 0.35)",
               zIndex: 1060,
               transition: "all 0.15s ease"
             }}
@@ -782,13 +783,13 @@ export default function DashboardLayout() {
 
         {/* All Modules button (admin only) */}
         {isAdmin && (
-          <div className="p-3" style={{ borderBottom: "1px solid #e2e8f0" }}>
+          <div className="p-3" style={{ borderBottom: "1px solid #1e293b" }}>
             {collapsed ? (
               <button
                 className="btn w-100 p-2 d-flex justify-content-center align-items-center rounded-2"
                 onClick={() => setShowAppLauncher(true)}
                 title="Open App Launcher (Ctrl+K)"
-                style={{ background: "#0f172a", border: "none", color: "#ffffff" }}
+                style={{ background: "#2563eb", border: "none", color: "#ffffff" }}
               >
                 <i className="bi bi-grid-3x3-gap-fill fs-6"></i>
               </button>
@@ -796,7 +797,7 @@ export default function DashboardLayout() {
               <button
                 className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-bold"
                 onClick={() => setShowAppLauncher(true)}
-                style={{ background: "#0f172a", border: "none", color: "#ffffff", fontSize: "0.82rem", padding: "8px 12px", borderRadius: "8px" }}
+                style={{ background: "#2563eb", border: "none", color: "#ffffff", fontSize: "0.82rem", padding: "8px 12px", borderRadius: "8px" }}
               >
                 <i className="bi bi-grid-3x3-gap-fill"></i>
                 <span>All Modules</span>
@@ -815,17 +816,17 @@ export default function DashboardLayout() {
             <div className="d-flex align-items-center justify-content-between px-2 py-1 mb-1">
               <div
                 className="small fw-bold text-uppercase d-flex align-items-center gap-1"
-                style={{ fontSize: "0.66rem", letterSpacing: "0.6px", color: "#64748b" }}
+                style={{ fontSize: "0.66rem", letterSpacing: "0.6px", color: "#94a3b8" }}
               >
-                <i className="bi bi-grid-fill" style={{ color: "#0f172a", fontSize: "0.7rem" }}></i>
+                <i className="bi bi-grid-fill" style={{ color: "#60a5fa", fontSize: "0.7rem" }}></i>
                 <span>Active Category</span>
               </div>
               <span
                 className="badge rounded-pill"
                 style={{
-                  backgroundColor: "#f1f5f9",
-                  color: "#0f172a",
-                  border: "1px solid #e2e8f0",
+                  backgroundColor: "rgba(37, 99, 235, 0.2)",
+                  color: "#bfdbfe",
+                  border: "1px solid #1e3a8a",
                   fontSize: "0.62rem",
                   padding: "2px 6px"
                 }}
@@ -844,13 +845,13 @@ export default function DashboardLayout() {
                 onClick={() => isMobile && setCollapsed(true)}
                 className={`nav-link py-2 px-3 rounded d-flex align-items-center gap-3 mb-1 sidebar-nav-link ${isActive ? "active-nav-link" : ""}`}
                 style={{
-                  color: isActive ? "#0f172a" : "#334155",
+                  color: isActive ? "#ffffff" : "#cbd5e1",
                   fontSize: "0.84rem",
                   fontWeight: isActive ? "700" : "500",
                   justifyContent: collapsed ? "center" : "flex-start"
                 }}
               >
-                <i className={`bi ${item.icon}`} style={{ fontSize: "0.95rem", color: isActive ? "#0f172a" : "#64748b" }}></i>
+                <i className={`bi ${item.icon}`} style={{ fontSize: "0.95rem", color: isActive ? "#60a5fa" : "#94a3b8" }}></i>
                 {!collapsed && <span className="text-truncate">{item.label}</span>}
               </NavLink>
             );
@@ -860,7 +861,7 @@ export default function DashboardLayout() {
         {/* Footer: user menu (Change Password / Logout) */}
         <div
           className="p-3 border-top"
-          style={{ borderColor: "#e2e8f0", backgroundColor: "#ffffff" }}
+          style={{ borderColor: "#1e293b", backgroundColor: "#0a0f1c" }}
         >
           <div className="dropup">
             {collapsed ? (
@@ -874,10 +875,10 @@ export default function DashboardLayout() {
                     height: "36px",
                     borderRadius: "50%",
                     padding: 0,
-                    background: "#0f172a",
+                    background: "#2563eb",
                     color: "#ffffff",
                     border: "none",
-                    boxShadow: "0 2px 6px rgba(15, 23, 42, 0.2)"
+                    boxShadow: "0 2px 6px rgba(2, 6, 23, 0.35)"
                   }}
                 >
                   {firstLetter}
@@ -890,9 +891,9 @@ export default function DashboardLayout() {
                 onMouseEnter={() => setProfileHover(true)}
                 onMouseLeave={() => setProfileHover(false)}
                 style={{
-                  backgroundColor: profileHover ? "#f8fafc" : "#ffffff",
+                  backgroundColor: profileHover ? "#111a2e" : "#0a0f1c",
                   border: "1px solid",
-                  borderColor: profileHover ? "#94a3b8" : "#e2e8f0",
+                  borderColor: profileHover ? "#3b82f6" : "#1e293b",
                   borderRadius: "10px",
                   padding: "7px 10px",
                   transition: "all 0.15s ease"
@@ -903,7 +904,7 @@ export default function DashboardLayout() {
                   style={{
                     width: "30px",
                     height: "30px",
-                    background: "#0f172a",
+                    background: "#2563eb",
                     color: "#ffffff",
                     fontSize: "0.82rem",
                     flexShrink: 0
@@ -912,14 +913,14 @@ export default function DashboardLayout() {
                   {firstLetter}
                 </div>
                 <div className="text-truncate flex-grow-1" style={{ minWidth: 0 }}>
-                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.78rem", color: "#0f172a" }}>
+                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.78rem", color: "#f1f5f9" }}>
                     {displayName}
                   </div>
-                  <div className="small" style={{ fontSize: "0.64rem", color: "#16a34a", fontWeight: 600 }}>
+                  <div className="small" style={{ fontSize: "0.64rem", color: "#60a5fa", fontWeight: 600 }}>
                     ● ONLINE
                   </div>
                 </div>
-                <i className="bi bi-chevron-up" style={{ color: "#94a3b8", fontSize: "0.75rem" }}></i>
+                <i className="bi bi-chevron-up" style={{ color: "#64748b", fontSize: "0.75rem" }}></i>
               </button>
             )}
 
@@ -941,7 +942,7 @@ export default function DashboardLayout() {
                   Signed In As
                 </div>
                 <div className="d-flex align-items-center gap-2 mt-1">
-                  <i className="bi bi-shield-check" style={{ color: "#1e3a8a" }}></i>
+                  <i className="bi bi-shield-check" style={{ color: "#1d4ed8" }}></i>
                   <span>{displayName}</span>
                 </div>
               </li>
@@ -1221,7 +1222,7 @@ export default function DashboardLayout() {
               top: `${topOffset + 6}px`,
               right: "20px",
               zIndex: 1035,
-              background: "#0f172a",
+              background: "#1d4ed8",
               color: "#ffffff",
               borderRadius: "999px",
               padding: "4px 12px",
@@ -1240,7 +1241,7 @@ export default function DashboardLayout() {
                 width: "6px",
                 height: "6px",
                 borderRadius: "50%",
-                background: "#22c55e",
+                background: "#93c5fd",
                 animation: "pulsePingLive 1.4s infinite"
               }}
             />
@@ -1400,21 +1401,21 @@ export default function DashboardLayout() {
                 onClick={copyAnnouncement}
                 style={{
                   background: "#ffffff",
-                  color: copiedNotification ? "#16a34a" : "#0f172a",
+                  color: copiedNotification ? "#1d4ed8" : "#0f172a",
                   border: "1px solid #cbd5e1",
                   borderRadius: "8px",
                   padding: "7px 14px",
                   fontSize: "0.82rem"
                 }}
               >
-                <i className={`bi ${copiedNotification ? "bi-check2 text-success" : "bi-clipboard"}`}></i>
+                <i className={`bi ${copiedNotification ? "bi-check2" : "bi-clipboard"}`}></i>
                 <span>{copiedNotification ? "Copied!" : "Copy Text"}</span>
               </button>
               <button
                 className="btn btn-sm fw-bold"
                 onClick={() => setShowDetailModal(false)}
                 style={{
-                  background: "#0f172a",
+                  background: "#1d4ed8",
                   color: "#ffffff",
                   border: "none",
                   borderRadius: "8px",
@@ -1435,7 +1436,7 @@ export default function DashboardLayout() {
           <div className="launcher-panel-3d-smooth" onClick={(e) => e.stopPropagation()}>
             <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom" style={{ borderColor: "#e2e8f0" }}>
               <div className="d-flex align-items-center gap-3">
-                <div style={{ background: "#f1f5f9", color: "#0f172a", padding: "8px 12px", borderRadius: "8px" }}>
+                <div style={{ background: "#0b1220", color: "#ffffff", padding: "8px 12px", borderRadius: "8px" }}>
                   <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
                 </div>
                 <div>
@@ -1645,7 +1646,7 @@ export default function DashboardLayout() {
                 onMouseEnter={() => setCpFormHover(true)}
                 onMouseLeave={() => setCpFormHover(false)}
                 style={{
-                  background: "#0f172a",
+                  background: "#1d4ed8",
                   border: "none",
                   borderRadius: "8px",
                   padding: "9px",

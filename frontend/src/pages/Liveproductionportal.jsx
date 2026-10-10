@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useLayoutEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useLayoutEffect, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import axios from "axios";
 import {
@@ -9,12 +9,12 @@ import {
   Factory, Search, LayoutDashboard, ClipboardList, Route,
   Gauge, Cpu, CheckCircle2, Users, Scroll, FileStack, X, Layers,
   TrendingUp, TrendingDown, ArrowUpDown, PackageCheck, RefreshCw, AlertTriangle,
-  ShieldCheck, ChevronDown,
+  ShieldCheck, ChevronDown, Download,
 } from "lucide-react";
 import BASE_URL from "../config/api";
 
 /* ------------------------------------------------------------------ */
-/* Design tokens — 3D glassmorphism palette                            */
+/* Design tokens                                                      */
 /* ------------------------------------------------------------------ */
 const COLORS = {
   ink: "#0f172a",
@@ -521,7 +521,7 @@ function buildDashboardData(realRows, reelRows) {
     mills: reelMills,
     wos: reelWOs,
     byWO: [...reelWOs].sort((a, b) => b.output - a.output),
-    wasteByWO: reelWOs.filter((w) => w.netWeight > 0).slice(0, 12).map((w) => ({ WO: `WO ${w.WO}`, wastePct: w.wastePct })),
+    wasteByWO: reelWOs.filter((w) => w.netWeight > 0).slice(0, 12).map((w) => ({ WO: `WO ${w.WO}`, woNo: w.WO, wastePct: w.wastePct })),
     records: reelRecords,
   };
 
@@ -531,7 +531,7 @@ function buildDashboardData(realRows, reelRows) {
 
 
 /* ------------------------------------------------------------------ */
-/* Global 3D glassmorphism styling                                     */
+/* Global styling                                                      */
 /* ------------------------------------------------------------------ */
 function GlobalStyles() {
   return (
@@ -585,10 +585,10 @@ function GlobalStyles() {
 
       .btn-3d { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 800; cursor: pointer; border: none; transition: all 0.12s; }
       .btn-3d:disabled { opacity: 0.35; cursor: not-allowed; }
-      .btn-3d-primary { background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); color: #ffffff; box-shadow: 0 4px 0 #075985, 0 8px 16px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4); }
-      .btn-3d-primary:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #075985, 0 3px 6px rgba(2, 132, 199, 0.2); }
-      .btn-3d-secondary { background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%); color: #334155; border: 1.5px solid #cbd5e1; box-shadow: 0 3px 0 #cbd5e1, 0 6px 12px rgba(15, 23, 42, 0.04); }
-      .btn-3d-secondary:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #cbd5e1; }
+      .btn-3d-primary { background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%); color: #ffffff; box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25); }
+      .btn-3d-primary:active:not(:disabled) { background: #0369a1; }
+      .btn-3d-secondary { background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%); color: #334155; border: 1.5px solid #cbd5e1; box-shadow: none; }
+      .btn-3d-secondary:active:not(:disabled) { background: #e2e8f0; }
       .btn-3d-sm { padding: 6px 12px; font-size: 11px; border-radius: 9px; }
 
       .nav-tabs-3d { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; overflow-x: visible; padding-top: 10px; }
@@ -596,6 +596,12 @@ function GlobalStyles() {
       .tab-btn-3d.active { background: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%); color: #ffffff; box-shadow: 0 6px 16px rgba(2, 132, 199, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6); }
       .tab-btn-3d.inactive { background: transparent; color: #64748b; }
       .tab-btn-3d.inactive:hover { background: rgba(241, 245, 249, 0.8); color: #0f172a; }
+      .tab-check { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 10px; font-size: 10.5px; font-weight: 800; cursor: pointer; user-select: none; white-space: nowrap; transition: all 0.2s; }
+      .tab-check input { margin: 0; width: 13px; height: 13px; cursor: pointer; accent-color: #0284c7; }
+      .tab-check.active { background: linear-gradient(135deg, #0284c7 0%, #4f46e5 100%); color: #ffffff; box-shadow: 0 3px 8px rgba(2, 132, 199, 0.3); }
+      .tab-check.active input { accent-color: #ffffff; }
+      .tab-check.inactive { background: transparent; color: #64748b; }
+      .tab-check.inactive:hover { background: rgba(241, 245, 249, 0.8); color: #0f172a; }
 
       .chip-3d { padding: 7px 14px; font-size: 11.5px; font-weight: 800; border-radius: 999px; border: 1.5px solid #cbd5e1; background: #ffffff; color: #475569; cursor: pointer; transition: all .15s; white-space: nowrap; }
       .chip-3d.active { background: linear-gradient(180deg, #0284c7, #0369a1); color: #fff; border-color: #0369a1; box-shadow: 0 4px 10px rgba(2,132,199,.3); }
@@ -607,17 +613,16 @@ function GlobalStyles() {
       .ms-dropdown { position: relative; }
       .ms-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; text-align: left; }
       .ms-trigger-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .ms-panel { position: fixed; z-index: 3000; max-height: 320px; overflow-y: auto; background: #ffffff; border-radius: 14px; border: 1.5px solid #cbd5e1; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24); padding: 10px; }
-      .filters-row { display: grid; grid-template-columns: minmax(150px, 0.7fr) repeat(4, minmax(140px, 1fr)) auto; align-items: end; gap: 10px; padding-top: 10px; margin-top: 0; border-top: none; }
-      @media (max-width: 1250px) { .filters-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-      @media (max-width: 720px) { .filters-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .filters-row .date-range-group { grid-column: 1 / -1; } }
+      .ms-panel { position: fixed; z-index: 11000; max-height: 320px; overflow-y: auto; background: #ffffff; border-radius: 14px; border: 1.5px solid #cbd5e1; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24); padding: 10px; }
+      .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); align-items: end; gap: 10px; padding-top: 10px; margin-top: 0; border-top: none; }
+      .filters-row .date-range-group { display: contents; }
       .filter-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
       .filter-label { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; padding-left: 2px; line-height: 1; }
       .filters-row .select-3d { height: 32px; box-sizing: border-box; }
       .filters-row .ms-dropdown { width: 100% !important; }
       .filters-row .search-container { min-width: 0; width: 100%; }
       .filters-row .search-container input { height: 32px; }
-      .filters-row .date-range-group input.select-3d { width: 128px; }
+      .filters-row .date-range-group input.select-3d { width: 100%; min-width: 0; }
       .ms-search { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; margin-bottom: 8px; }
       .ms-search input { border: none; outline: none; font-size: 12.5px; font-weight: 600; width: 100%; }
       .ms-actions { display: flex; justify-content: space-between; margin-bottom: 8px; }
@@ -708,6 +713,18 @@ function GlobalStyles() {
       .drawer-body { padding: 22px 24px; }
       .drawer-close-btn { background: #f1f5f9; border: none; border-radius: 10px; padding: 8px; cursor: pointer; display: flex; }
 
+      .drill-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+      .drill-panel { width: 100%; max-width: 1180px; max-height: 100%; overflow-y: auto; background: #ffffff; border-radius: 18px; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3); box-sizing: border-box; }
+      .drill-head { position: sticky; top: 0; background: #fff; border-bottom: 1.5px solid #f1f5f9; padding: 20px 24px; display: flex; align-items: flex-start; justify-content: space-between; z-index: 2; }
+      .drill-body { padding: 20px 24px 24px; }
+      .drill-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 14px; }
+      .drill-filters .filter-field { min-width: 0; }
+      .drill-filters .search-container { min-width: 200px; }
+      .drill-filters .search-container input { height: 32px; }
+      .drill-filters .select-3d { height: 32px; box-sizing: border-box; }
+      .drill-filters input.select-3d { width: 132px; }
+      .drill-filter-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
       @media print {
         .no-print { display: none !important; }
       }
@@ -791,14 +808,6 @@ function StatusPill({ status }) {
 const wasteColor = (p, warn = 3, bad = 5) => (p >= bad ? "#e11d48" : p >= warn ? "#d97706" : "#059669");
 const statusDot = (s) => (s === "PRODUCTION" ? COLORS.green : s === "BREAKDOWN" ? COLORS.rose : s === "IDLE" ? COLORS.slate : COLORS.amber);
 
-function TabButton({ id, label, icon: Icon, active, onClick }) {
-  return (
-    <button onClick={() => onClick(id)} className={`tab-btn-3d ${active ? "active" : "inactive"}`}>
-      <Icon size={15} /> {label}
-    </button>
-  );
-}
-
 function Chip({ active, onClick, children }) {
   return (
     <button onClick={onClick} className={`chip-3d ${active ? "active" : ""}`}>
@@ -815,7 +824,7 @@ function Chip({ active, onClick, children }) {
 // (portal-header-3d's backdrop-filter creates one of its own, which is why a
 // bumped z-index alone couldn't lift the old absolutely-positioned panel
 // above the header's own children).
-function MultiSelectDropdown({ label, options, selected, onChange, width = 200, isOpen, onToggle }) {
+function MultiSelectDropdown({ label, options, selected, onChange, width = 200, isOpen, onToggle, emptyText }) {
   const [query, setQuery] = useState("");
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
@@ -855,7 +864,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, width = 200, 
   };
 
   const summary =
-    selected.length === 0 ? `All ${label}` :
+    selected.length === 0 ? (emptyText || `All ${label}`) :
     selected.length === 1 ? selected[0] :
     `${selected.length} ${label} selected`;
 
@@ -1094,7 +1103,7 @@ function FilterableLegend({ hidden, toggle }) {
   };
 }
 
-/* Standalone clickable legend for the 3D bar/donut charts below — plain
+/* Standalone clickable legend for the bar/donut charts below — plain
    React JSX, not routed through Recharts, so clicks are never swallowed by
    an SVG hit-area or an absolute-positioned legend wrapper. Used both for
    donut slices and for bar-chart series. */
@@ -1124,21 +1133,9 @@ function PieLegend({ items, hidden, toggle }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3D chart primitives — plain SVG, isometric extruded blocks           */
+/* Chart primitives — plain SVG, flat                                   */
+/* Double-click a bar / slice / point to open its records in a table.   */
 /* ------------------------------------------------------------------ */
-function shadeColor(hex, percent) {
-  const clean = String(hex || "#64748b").replace("#", "");
-  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
-  const num = parseInt(full, 16) || 0;
-  let r = (num >> 16) + Math.round(255 * percent);
-  let g = ((num >> 8) & 0xff) + Math.round(255 * percent);
-  let b = (num & 0xff) + Math.round(255 * percent);
-  r = Math.max(0, Math.min(255, r));
-  g = Math.max(0, Math.min(255, g));
-  b = Math.max(0, Math.min(255, b));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
 function niceCeil(value) {
   if (!value || value <= 0) return 1;
   const exp = Math.floor(Math.log10(value));
@@ -1153,10 +1150,9 @@ function niceCeil(value) {
   return niceFrac * base;
 }
 
-/* Styled floating tooltip box (matches the look of a standard chart
-   tooltip: white rounded card, bold title, colored value rows). Positioned
-   with a left % (so it tracks correctly even though the SVG scales
-   non-uniformly) and a top px (1:1 with the SVG's own pixel height). */
+/* Styled floating tooltip box (white rounded card, bold title, colored value
+   rows). Positioned with a left % (so it tracks correctly even though the SVG
+   scales non-uniformly) and a top px (1:1 with the SVG's own pixel height). */
 function ChartTooltip({ hover }) {
   if (!hover) return null;
   return (
@@ -1183,16 +1179,18 @@ function ChartTooltip({ hover }) {
           {row.name} : {row.value}
         </div>
       ))}
+      {hover.hint && <div style={{ fontSize: 10.5, fontWeight: 700, color: "#64748b", marginTop: 6 }}>{hover.hint}</div>}
     </div>
   );
 }
 
-/* Isometric extruded bar/column chart — grouped or stacked. Each bar is
-   drawn as a prism (front face + lightened top face + darkened side face)
-   to match the chunky extruded-block look of the reference design.
-   Hovering a category shows a light highlight band plus a floating
-   tooltip card listing every visible series' value for that category. */
-function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10 }) {
+const DRILL_HINT = "Double-click to view records";
+
+/* Flat bar/column chart — grouped or stacked. Hovering a category shows a
+   light highlight band plus a floating tooltip card listing every visible
+   series' value for that category. Double-clicking a bar calls
+   onDrill(row, seriesKey); double-clicking the band calls onDrill(row, null). */
+function BarsChart({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill }) {
   const containerRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1272,9 +1270,6 @@ function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit
   const bandW = plotW / n;
   const groupW = bandW * 0.62;
   const barW = stacked ? groupW : groupW / seriesCount;
-  const depth = Math.min(barW * 0.36, 12);
-  const dx = depth * 0.75;
-  const dy = depth * 0.5;
 
   const gridTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * niceMax);
 
@@ -1285,17 +1280,17 @@ function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit
     if (!rect.width) return;
     const leftPct = ((e.clientX - rect.left) / rect.width) * 100;
     const topPx = e.clientY - rect.top;
-    const rows = series.map((sr, si) => ({
+    const rows = series.map((sr) => ({
       name: sr.name,
       color: categoryColors ? categoryColors[ci] : sr.color,
       value: `${fmtValue(Number(row[sr.key]) || 0)}${unit}`,
     }));
-    setHover({ leftPct, topPx, title: String(row[categoryKey]), rows });
+    setHover({ leftPct, topPx, title: String(row[categoryKey]), rows, hint: onDrill ? DRILL_HINT : null });
   };
   const hideHover = () => setHover(null);
 
   return (
-    <div ref={containerRef} style={{ width: "100%", position: "relative", display: "flex" }}>
+    <div ref={containerRef} style={{ width: "100%", position: "relative", display: "flex", userSelect: "none" }}>
       {/* Fixed axis strip — never scrolls, so values stay visible while bars scroll underneath */}
       <svg
         width={AXIS_W}
@@ -1341,6 +1336,7 @@ function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit
                 onMouseEnter={(e) => showHover(e, ci, row)}
                 onMouseMove={(e) => showHover(e, ci, row)}
                 onMouseLeave={hideHover}
+                onDoubleClick={() => onDrill && onDrill(row, null)}
                 style={{ cursor: "pointer" }}
               >
                 <rect x={bandX - bandW * 0.19} y={margin.top} width={groupW + bandW * 0.38} height={plotH} fill="#94a3b8" opacity={isHovered ? 0.16 : 0} rx={6} />
@@ -1349,18 +1345,20 @@ function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit
                   const h = yScale(raw);
                   if (h <= 0) return null;
                   const x0 = stacked ? bandX : bandX + si * barW;
-                  const x1 = x0 + barW;
                   const yTop = stacked ? baseline - yScale(cumulative + raw) : baseline - h;
                   const yBase = stacked ? baseline - yScale(cumulative) : baseline;
                   cumulative += raw;
                   const color = categoryColors ? categoryColors[ci] : sr.color;
-                  const top = shadeColor(color, 0.26);
-                  const side = shadeColor(color, -0.24);
                   return (
-                    <g key={sr.key}>
+                    <g
+                      key={sr.key}
+                      onDoubleClick={(e) => {
+                        if (!onDrill) return;
+                        e.stopPropagation();
+                        onDrill(row, sr.key);
+                      }}
+                    >
                       <rect x={x0} y={yTop} width={barW} height={Math.max(yBase - yTop, 0)} fill={color} />
-                      <polygon points={`${x0},${yTop} ${x1},${yTop} ${x1 + dx},${yTop - dy} ${x0 + dx},${yTop - dy}`} fill={top} />
-                      <polygon points={`${x1},${yTop} ${x1 + dx},${yTop - dy} ${x1 + dx},${yBase - dy} ${x1},${yBase}`} fill={side} />
                     </g>
                   );
                 })}
@@ -1391,11 +1389,11 @@ function Bars3D({ data, categoryKey, series, stacked = false, height = 280, unit
   );
 }
 
-/* Exploded isometric donut/pie — each slice rendered as a curved prism
-   (rim face + lifted top face), with a percentage label on larger slices.
-   Legend and click-to-filter stay in <PieLegend />, driven externally.
-   Hovering a slice shows the same floating tooltip card style as Bars3D. */
-function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
+/* Flat donut — percentage label on larger slices. Legend and click-to-filter
+   stay in <PieLegend />, driven externally. Hovering a slice shows the same
+   floating tooltip card as BarsChart; double-clicking a slice calls
+   onDrill({ name, value, color }). */
+function DonutChart({ data, height = 220, innerRatio = 0.55, onDrill }) {
   const containerRef = useRef(null);
   const [hover, setHover] = useState(null);
 
@@ -1413,7 +1411,6 @@ function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
   const cy = height / 2;
   const outerR = Math.max(Math.min(VBW / 2 - 30, height / 2 - 26), 40);
   const innerR = outerR * innerRatio;
-  const depth = Math.max(9, outerR * 0.15);
   const gapDeg = data.length > 1 ? 2.5 : 0;
 
   const rad = (deg) => (deg * Math.PI) / 180;
@@ -1439,13 +1436,6 @@ function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
     return `M ${x1} ${y1} A ${r2} ${r2} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${r1} ${r1} 0 ${large} 0 ${x4} ${y4} Z`;
   }
 
-  function rimPath(r, a1, a2, d) {
-    const large = a2 - a1 > 180 ? 1 : 0;
-    const [x1, y1] = pt(r, a1);
-    const [x2, y2] = pt(r, a2);
-    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${x2} ${y2 + d} A ${r} ${r} 0 ${large} 0 ${x1} ${y1 + d} Z`;
-  }
-
   const showHover = (e, s) => {
     const el = containerRef.current;
     if (!el) return;
@@ -1458,16 +1448,14 @@ function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
       topPx,
       title: s.name,
       rows: [{ name: "Value", color: s.color, value: `${fmtFull(s.value)} (${s.pct.toFixed(1)}%)` }],
+      hint: onDrill ? DRILL_HINT : null,
     });
   };
   const hideHover = () => setHover(null);
 
   return (
-    <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+    <div ref={containerRef} style={{ width: "100%", position: "relative", userSelect: "none" }}>
       <svg viewBox={`0 0 ${VBW} ${height}`} width="100%" height={height} style={{ display: "block", overflow: "visible" }}>
-        {slices.map((s, i) => (
-          <path key={`rim-${i}`} d={rimPath(outerR, s.start, s.end, depth)} fill={shadeColor(s.color, -0.32)} />
-        ))}
         {slices.map((s, i) => {
           const [lx, ly] = pt((innerR + outerR) / 2, (s.start + s.end) / 2);
           return (
@@ -1476,9 +1464,10 @@ function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
               onMouseEnter={(e) => showHover(e, s)}
               onMouseMove={(e) => showHover(e, s)}
               onMouseLeave={hideHover}
+              onDoubleClick={() => onDrill && onDrill({ name: s.name, value: s.value, color: s.color })}
               style={{ cursor: "pointer" }}
             >
-              <path d={sectorPath(innerR, outerR, s.start, s.end)} fill={shadeColor(s.color, 0.1)} stroke="#ffffff" strokeWidth={2} />
+              <path d={sectorPath(innerR, outerR, s.start, s.end)} fill={s.color} stroke="#ffffff" strokeWidth={2} />
               {s.pct >= 6 && (
                 <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" fontSize={12} fontWeight={800} fill="#ffffff" style={{ pointerEvents: "none" }}>
                   {s.pct.toFixed(0)}%
@@ -1493,13 +1482,11 @@ function Donut3D({ data, height = 220, innerRatio = 0.55 }) {
   );
 }
 
-/* Isometric line/area chart — same design language as Bars3D/Donut3D:
-   each line is drawn as a raised ribbon (a darker offset twin path behind
-   the bright line), points render as small lifted beads, optional area
-   fill uses a soft vertical gradient, and hovering anywhere over the plot
-   snaps to the nearest category and shows the same floating tooltip card.
-   Supports a second (right) y-axis for a dual-axis trend line. */
-function Lines3D({ data, categoryKey, series, height = 260, area = false, rotateLabels = 0, rightUnit = "%" }) {
+/* Flat line/area chart — hovering anywhere over the plot snaps to the nearest
+   category and shows the same floating tooltip card; double-clicking calls
+   onDrill(row) for the nearest category. Supports a second (right) y-axis for
+   a dual-axis trend line. */
+function LinesChart({ data, categoryKey, series, height = 260, area = false, rotateLabels = 0, rightUnit = "%", onDrill }) {
   const containerRef = useRef(null);
   const [hoverIdx, setHoverIdx] = useState(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1573,19 +1560,22 @@ function Lines3D({ data, categoryKey, series, height = 260, area = false, rotate
     return `${top} L ${xAt(n - 1).toFixed(2)} ${baseline.toFixed(2)} L ${xAt(0).toFixed(2)} ${baseline.toFixed(2)} Z`;
   };
 
-  const depth = 6;
   const gridFracs = [0, 0.25, 0.5, 0.75, 1];
+
+  const nearestIdx = (e) => {
+    const pr = e.currentTarget.getBoundingClientRect();
+    const relX = margin.left + ((e.clientX - pr.left) / (pr.width || 1)) * plotW;
+    let idx = 0, best = Infinity;
+    data.forEach((_, i) => { const d = Math.abs(xAt(i) - relX); if (d < best) { best = d; idx = i; } });
+    return idx;
+  };
 
   const updateHover = (e) => {
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
     if (!rect.width) return;
-    const pr = e.currentTarget.getBoundingClientRect();
-    const relX = margin.left + ((e.clientX - pr.left) / (pr.width || 1)) * plotW;
-    let idx = 0, best = Infinity;
-    data.forEach((_, i) => { const d = Math.abs(xAt(i) - relX); if (d < best) { best = d; idx = i; } });
-    setHoverIdx(idx);
+    setHoverIdx(nearestIdx(e));
     setHoverPos({ leftPct: ((e.clientX - rect.left) / rect.width) * 100, topPx: e.clientY - rect.top });
   };
   const clearHover = () => { setHoverIdx(null); setHoverPos(null); };
@@ -1600,16 +1590,17 @@ function Lines3D({ data, categoryKey, series, height = 260, area = false, rotate
           color: s.color,
           value: s.format ? s.format(Number(data[hoverIdx][s.key]) || 0) : fmtFull(Number(data[hoverIdx][s.key]) || 0),
         })),
+        hint: onDrill ? DRILL_HINT : null,
       }
     : null;
 
   return (
-    <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+    <div ref={containerRef} style={{ width: "100%", position: "relative", userSelect: "none" }}>
       <div className={needsScroll ? "lp-scroll" : undefined} style={{ width: "100%", overflowX: needsScroll ? "auto" : "visible" }}>
       <svg viewBox={`0 0 ${VBW} ${height}`} width={needsScroll ? VBW : "100%"} height={height} preserveAspectRatio={needsScroll ? undefined : "none"} style={{ display: "block", overflow: "visible" }}>
         <defs>
           {series.map((s, i) => (
-            <linearGradient key={i} id={`lines3d-grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+            <linearGradient key={i} id={`lines-grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={s.color} stopOpacity={0.38} />
               <stop offset="100%" stopColor={s.color} stopOpacity={0.02} />
             </linearGradient>
@@ -1640,32 +1631,19 @@ function Lines3D({ data, categoryKey, series, height = 260, area = false, rotate
         )}
 
         {area && series.map((s, si) => (
-          <path key={`area-${si}`} d={buildArea(s)} fill={`url(#lines3d-grad-${s.key})`} stroke="none" />
+          <path key={`area-${si}`} d={buildArea(s)} fill={`url(#lines-grad-${s.key})`} stroke="none" />
         ))}
 
         {series.map((s, si) => (
           <g key={`line-${si}`}>
-            <path
-              d={buildLine(s)}
-              fill="none"
-              stroke={shadeColor(s.color, -0.28)}
-              strokeWidth={4}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              opacity={0.55}
-              transform={`translate(${depth * 0.6}, ${depth * 0.6})`}
-            />
-            <path d={buildLine(s)} fill="none" stroke={s.color} strokeWidth={3.5} strokeLinejoin="round" strokeLinecap="round" />
+            <path d={buildLine(s)} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
             {data.map((row, i) => {
               const yScale = yForSeries(s);
               const cx = xAt(i);
               const cy = yScale(Number(row[s.key]) || 0);
               const isHovered = hoverIdx === i;
               return (
-                <g key={i}>
-                  <circle cx={cx + depth * 0.6} cy={cy + depth * 0.6} r={isHovered ? 5.5 : 3.5} fill={shadeColor(s.color, -0.3)} opacity={0.5} />
-                  <circle cx={cx} cy={cy} r={isHovered ? 5.5 : 3.5} fill="#ffffff" stroke={s.color} strokeWidth={2.4} />
-                </g>
+                <circle key={i} cx={cx} cy={cy} r={isHovered ? 5.5 : 3.5} fill="#ffffff" stroke={s.color} strokeWidth={2.4} />
               );
             })}
           </g>
@@ -1701,6 +1679,7 @@ function Lines3D({ data, categoryKey, series, height = 260, area = false, rotate
           onMouseMove={updateHover}
           onMouseEnter={updateHover}
           onMouseLeave={clearHover}
+          onDoubleClick={(e) => onDrill && onDrill(data[nearestIdx(e)])}
           style={{ cursor: "crosshair" }}
         />
       </svg>
@@ -1836,9 +1815,564 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Double-click drill-down — the records behind a chart bar/slice/point */
+/* ------------------------------------------------------------------ */
+const DrillContext = createContext(() => {});
+const useDrill = () => useContext(DrillContext);
+
+const completionStatusOf = (name) => {
+  const n = String(name || "").toLowerCase();
+  if (n.startsWith("under")) return "Under";
+  if (n.startsWith("exact")) return "Exact";
+  return "Over";
+};
+
+// Same status matching the dashboard builder uses (prefix based, typo tolerant).
+const statusKeyOf = (status) => {
+  const s = String(status || "").toUpperCase().replace(/[^A-Z]/g, "");
+  if (s.startsWith("PRODUC")) return "production";
+  if (s.startsWith("IDLE")) return "idle";
+  if (s.startsWith("MAKE") && s.includes("READY")) return "makeReady";
+  if (s.startsWith("BREAK")) return "breakdown";
+  if (s.startsWith("MAINT")) return "maintenance";
+  return "other";
+};
+const STATUS_LABEL = { production: "Production", idle: "Idle", makeReady: "Make-Ready", breakdown: "Breakdown", maintenance: "Maintenance" };
+
+// One normalised record per production-log entry, read the same way
+// buildDashboardData reads each row.
+function buildEntries(realRows) {
+  const safe = Array.isArray(realRows) ? realRows : [];
+  const out = [];
+  safe.forEach((item) => {
+    const wo = String(item.workOrder ?? "").trim();
+    if (!wo) return;
+    const dStr = dateOnly(item.productionDate);
+    const pairsRaw = item.machiness?.length ? item.machiness : [{ activityId: null, machineId: null }];
+    out.push({
+      wo,
+      customerKey: item.customerName || "",
+      customer: item.customerName || "-",
+      job: item.jobDescription || "-",
+      dStr,
+      date: dStr || "-",
+      from: item.productionFromTime || "",
+      to: item.productionToTime || "",
+      status: item.machineStatus || "-",
+      statusKey: statusKeyOf(item.machineStatus),
+      hours: hoursBetween(dStr, item.productionFromTime, item.productionToTime),
+      orderQty: toNum(item.liveOrderQty ?? item.orderQty),
+      prodQty: toNum(item.productionQty),
+      wasteQty: toNum(item.wastageQty),
+      pairs: pairsRaw.map((p) => ({
+        stage: p.activityId?.activityName || "Unassigned",
+        machine: p.machineId?.machineName || "Unassigned",
+      })),
+    });
+  });
+  return out;
+}
+
+const uniqJoin = (arr) => Array.from(new Set(arr)).join(", ");
+
+/* ---- Excel (.xlsx) export — dependency-free: a minimal OOXML workbook in an uncompressed zip ---- */
+const CRC_TABLE = (() => {
+  const t = [];
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+const crc32 = (bytes) => {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+
+function zipStore(files) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  files.forEach((f) => {
+    const nameB = enc.encode(f.name);
+    const data = enc.encode(f.data);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + nameB.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true); // UTF-8 names
+    lv.setUint16(8, 0, true); // stored
+    lv.setUint16(10, 0, true);
+    lv.setUint16(12, 0x21, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, nameB.length, true);
+    local.set(nameB, 30);
+    chunks.push(local, data);
+
+    const cen = new Uint8Array(46 + nameB.length);
+    const cv = new DataView(cen.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, 0, true);
+    cv.setUint16(14, 0x21, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameB.length, true);
+    cv.setUint32(42, offset, true);
+    cen.set(nameB, 46);
+    central.push(cen);
+    offset += local.length + data.length;
+  });
+  const cenSize = central.reduce((s, c) => s + c.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cenSize, true);
+  ev.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, end], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+const xmlEsc = (s) =>
+  String(s)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+const xlsxColName = (i) => {
+  let n = i + 1;
+  let s = "";
+  while (n > 0) {
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+};
+
+function downloadXlsx({ fileName, sheetName, columns, rows }) {
+  const cellVal = (r, c) => {
+    const v = r[c.key];
+    if (typeof v === "number" && isFinite(v)) return Number.isInteger(v) ? v : Number(v.toFixed(2));
+    return v === null || v === undefined ? "" : v;
+  };
+  const headerRow = `<row r="1">${columns.map((c, i) => `<c r="${xlsxColName(i)}1" s="1" t="inlineStr"><is><t>${xmlEsc(c.label)}</t></is></c>`).join("")}</row>`;
+  const bodyRows = rows.map((r, ri) => {
+    const rn = ri + 2;
+    const cells = columns.map((c, ci) => {
+      const v = cellVal(r, c);
+      const ref = `${xlsxColName(ci)}${rn}`;
+      return typeof v === "number"
+        ? `<c r="${ref}"><v>${v}</v></c>`
+        : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+    });
+    return `<row r="${rn}">${cells.join("")}</row>`;
+  });
+  const widths = columns.map((c) => {
+    let w = String(c.label).length;
+    rows.slice(0, 500).forEach((r) => { w = Math.max(w, String(cellVal(r, c)).length); });
+    return Math.min(Math.max(w + 2, 10), 50);
+  });
+  const lastRef = `${xlsxColName(columns.length - 1)}${rows.length + 1}`;
+  const sheet =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+    `<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>` +
+    `<cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` +
+    `<sheetData>${headerRow}${bodyRows.join("")}</sheetData>` +
+    `<autoFilter ref="A1:${lastRef}"/>` +
+    `</worksheet>`;
+  const styles =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+    `<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>` +
+    `<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
+    `<fill><patternFill patternType="solid"><fgColor rgb="FFE0F2FE"/><bgColor indexed="64"/></patternFill></fill></fills>` +
+    `<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>` +
+    `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+    `<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>` +
+    `<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>` +
+    `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+    `</styleSheet>`;
+  const safeSheet = (String(sheetName || "Records").replace(/[\[\]:*?/\\]/g, " ").trim() || "Records").slice(0, 31);
+  const files = [
+    { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: "xl/workbook.xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEsc(safeSheet)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: "xl/_rels/workbook.xml.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: "xl/styles.xml", data: styles },
+    { name: "xl/worksheets/sheet1.xml", data: sheet },
+  ];
+  const blob = zipStore(files);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildDrill(spec, data, realRows, reelRows) {
+  const { kind, value } = spec;
+
+  /* ---- Work-order level (completion buckets) ---- */
+  if (kind === "completion") {
+    const label = { Under: "Under-completed", Exact: "Exact (100%)", Over: "Over-completed" }[value] || value;
+    const rows = data.ledger.filter((r) => r.status === value);
+    return {
+      eyebrow: "Work orders",
+      title: label,
+      sub: "Work orders in this completion bucket",
+      stats: (rs) => {
+        const sum = (k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
+        return [
+          ["Work Orders", rs.length.toLocaleString("en-IN")],
+          ["Order Qty", fmtFull(sum("orderQty"))],
+          ["Production Qty", fmtFull(sum("finalOutputQty"))],
+          ["Wastage Qty", fmtFull(sum("totalWasteQty"))],
+        ];
+      },
+      fields: [
+        { key: "customer", label: "Customers" },
+        { key: "job", label: "Jobs" },
+        { key: "type", label: "Types" },
+      ],
+      dateKey: null,
+      columns: [
+        { key: "wo", label: "WO #", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
+        { key: "customer", label: "Customer" },
+        { key: "job", label: "Job Description" },
+        { key: "type", label: "Product Type" },
+        { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
+        { key: "finalOutputQty", label: "Production Qty", render: (r) => fmtFull(r.finalOutputQty) },
+        { key: "totalWasteQty", label: "Wastage Qty", render: (r) => fmtFull(r.totalWasteQty) },
+        { key: "completionPct", label: "Completion", render: (r) => `${r.completionPct}%` },
+        { key: "status", label: "Status", render: (r) => <StatusPill status={r.status} /> },
+        { key: "wastePct", label: "Waste %", render: (r) => fmtPct(r.wastePct) },
+        { key: "events", label: "Events" },
+        { key: "startDate", label: "Start" },
+        { key: "endDate", label: "End" },
+      ],
+      rows,
+      sort: { key: "completionPct", dir: "asc" },
+      note: null,
+    };
+  }
+
+  /* ---- Reel register ---- */
+  if (kind === "reelCustomer" || kind === "reelMill" || kind === "reelWO") {
+    const recs = data.reel.records; // same order as the reel rows they were built from
+    const rows = [];
+    reelRows.forEach((r, i) => {
+      const match =
+        kind === "reelCustomer" ? (r.customerName || "Unknown") === value :
+        kind === "reelMill" ? (r.mill || "Unknown") === value :
+        String(r.efiWoNumber ?? "").trim() === value;
+      if (!match || !recs[i]) return;
+      rows.push({ ...recs[i], output: toNum(r.productionOutput), plannedQty: toNum(r.liveOrderQty) });
+    });
+    const what = kind === "reelCustomer" ? "Customer" : kind === "reelMill" ? "Mill" : "Work Order";
+    return {
+      eyebrow: "Reel Register",
+      title: `${what} — ${kind === "reelWO" ? `WO #${value}` : value}`,
+      sub: "Reel records",
+      stats: (rs) => {
+        const net = rs.reduce((s, r) => s + r.actualNet, 0);
+        const waste = rs.reduce((s, r) => s + r.totalWaste, 0);
+        return [
+          ["Reels", rs.length.toLocaleString("en-IN")],
+          ["Net Weight", `${fmt(Number(net.toFixed(1)))} kg`],
+          ["Waste", `${fmt(Number(waste.toFixed(1)))} kg`],
+          ["Waste %", fmtPct(pct(waste, net))],
+        ];
+      },
+      fields: [
+        { key: "customer", label: "Customers" },
+        { key: "mill", label: "Mills" },
+        { key: "wo", label: "Work Orders" },
+      ],
+      dateKey: null,
+      columns: [
+        { key: "wo", label: "WO #" },
+        { key: "customer", label: "Customer" },
+        { key: "mill", label: "Mill" },
+        { key: "reelNo", label: "Reel No" },
+        { key: "gsm", label: "GSM" },
+        { key: "actualNet", label: "Net (kg)" },
+        { key: "totalWaste", label: "Waste (kg)" },
+        { key: "wastePct", label: "Waste %", render: (r) => <span style={{ fontWeight: 700, color: wasteColor(r.wastePct, 3, 5) }}>{fmtPct(r.wastePct)}</span> },
+        { key: "output", label: "Production Output", render: (r) => fmtFull(r.output) },
+        { key: "plannedQty", label: "Planned Qty", render: (r) => fmtFull(r.plannedQty) },
+      ],
+      rows,
+      sort: { key: "actualNet", dir: "desc" },
+      note: null,
+    };
+  }
+
+  /* ---- Production-log entries ---- */
+  const entries = buildEntries(realRows);
+  let picked = [];
+  let title = "";
+  let note = "";
+  const metric = spec.metric === "hours" ? "hours" : "qty";
+
+  if (kind === "customer") {
+    title = `Customer — ${value || "(no customer)"}`;
+    note = "Every entry is listed. The chart counts only the latest production entry of each work order.";
+    picked = entries.filter((e) => e.customerKey === value).map((e) => ({ ...e, cHours: 0 }));
+  } else if (kind === "machine") {
+    const sk = spec.statusKey || null;
+    title = `Machine — ${value}${sk ? ` · ${STATUS_LABEL[sk] || sk}` : ""}`;
+    note = metric === "hours"
+      ? "Chart Hours is each entry's duration, split evenly across the machines/stages that entry lists."
+      : "Every entry is listed with its full quantity. The chart splits an entry's quantity evenly across the machines/stages it lists.";
+    entries.forEach((e) => {
+      const cnt = e.pairs.filter((p) => p.machine === value).length;
+      if (!cnt) return;
+      if (sk && e.statusKey !== sk) return;
+      picked.push({ ...e, cHours: (e.hours / e.pairs.length) * cnt });
+    });
+  } else if (kind === "stage") {
+    title = `Stage — ${value}`;
+    note = "Every entry is listed with its full quantity. The chart splits an entry's quantity evenly across the machines/stages it lists.";
+    picked = entries.filter((e) => e.pairs.some((p) => p.stage === value)).map((e) => ({ ...e, cHours: 0 }));
+  } else if (kind === "legStage") {
+    title = `WO #${spec.wo} — Stage ${value}`;
+    note = "Every entry is listed. The chart counts only the latest production entry of each stage/machine step.";
+    picked = entries.filter((e) => e.wo === spec.wo && e.pairs.some((p) => p.stage === value)).map((e) => ({ ...e, cHours: 0 }));
+  } else if (kind === "month") {
+    title = `Month — ${value}`;
+    picked = entries.filter((e) => e.dStr && monthLabel(e.dStr) === value).map((e) => ({ ...e, cHours: 0 }));
+  }
+
+  const rows = picked.map((e) => ({
+    date: e.date,
+    wo: e.wo,
+    customer: e.customer,
+    job: e.job,
+    status: e.status,
+    machines: uniqJoin(e.pairs.map((p) => p.machine)),
+    stages: uniqJoin(e.pairs.map((p) => p.stage)),
+    time: e.from || e.to ? `${e.from || "—"} – ${e.to || "—"}` : "-",
+    hours: Number(e.hours.toFixed(2)),
+    orderQty: Math.round(e.orderQty),
+    prodQty: Math.round(e.prodQty),
+    wasteQty: Math.round(e.wasteQty),
+    cHours: e.cHours,
+  }));
+
+  const stats = (rs) => {
+    const sum = (k) => rs.reduce((s, r) => s + r[k], 0);
+    return metric === "hours"
+      ? [
+          ["Entries", rs.length.toLocaleString("en-IN")],
+          ["Chart Hours", `${sum("cHours").toFixed(1)} h`],
+          ["Production Qty", fmtFull(sum("prodQty"))],
+          ["Wastage Qty", fmtFull(sum("wasteQty"))],
+        ]
+      : [
+          ["Entries", rs.length.toLocaleString("en-IN")],
+          ["Production Qty", fmtFull(sum("prodQty"))],
+          ["Wastage Qty", fmtFull(sum("wasteQty"))],
+          ["Waste %", fmtPct(pct(sum("wasteQty"), sum("prodQty")))],
+        ];
+  };
+
+  const columns = [
+    { key: "date", label: "Date" },
+    { key: "wo", label: "WO #", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
+    { key: "customer", label: "Customer" },
+    { key: "job", label: "Job Description" },
+    { key: "status", label: "Machine Status" },
+    { key: "machines", label: "Machine(s)" },
+    { key: "stages", label: "Stage(s)" },
+    { key: "time", label: "Time", sortable: false },
+    { key: "hours", label: "Hours" },
+    { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
+    { key: "prodQty", label: "Production Qty", render: (r) => fmtFull(r.prodQty) },
+    { key: "wasteQty", label: "Wastage Qty", render: (r) => fmtFull(r.wasteQty) },
+  ];
+  if (metric === "hours") columns.push({ key: "cHours", label: "Chart Hours", render: (r) => Number(r.cHours.toFixed(2)) });
+
+  return {
+    eyebrow: "Production log",
+    title,
+    sub: "Production-log entries",
+    stats,
+    fields: [
+      { key: "customer", label: "Customers" },
+      { key: "wo", label: "Work Orders" },
+      { key: "job", label: "Jobs" },
+      { key: "status", label: "Statuses" },
+      { key: "machines", label: "Machines", split: true },
+      { key: "stages", label: "Stages", split: true },
+    ],
+    dateKey: "date",
+    columns,
+    rows,
+    sort: { key: "date", dir: "desc" },
+    note,
+  };
+}
+
+const fieldValues = (row, f) => (f.split ? String(row[f.key] ?? "").split(", ") : [String(row[f.key] ?? "")]);
+
+function DrillModal({ spec, data, realRows, reelRows, onClose }) {
+  const built = useMemo(() => buildDrill(spec, data, realRows, reelRows), [spec, data, realRows, reelRows]);
+  const [search, setSearch] = useState("");
+  const [sel, setSel] = useState({});
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
+  const [openFilter, setOpenFilter] = useState(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Only offer a dropdown when it can actually narrow something (2+ distinct values).
+  const fields = useMemo(
+    () =>
+      built.fields
+        .map((f) => {
+          const set = new Set();
+          built.rows.forEach((r) => fieldValues(r, f).forEach((v) => { if (v !== "") set.add(v); }));
+          return { ...f, options: Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) };
+        })
+        .filter((f) => f.options.length > 1),
+    [built]
+  );
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return built.rows.filter((r) => {
+      for (const f of fields) {
+        const chosen = sel[f.key] || [];
+        if (chosen.length && !fieldValues(r, f).some((v) => chosen.includes(v))) return false;
+      }
+      if (built.dateKey && (dFrom || dTo)) {
+        const d = r[built.dateKey];
+        if (!d || d === "-") return false;
+        if (dFrom && d < dFrom) return false;
+        if (dTo && d > dTo) return false;
+      }
+      if (q) {
+        const hay = built.columns.map((c) => String(r[c.key] ?? "")).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [built, fields, sel, search, dFrom, dTo]);
+
+  const hasFilters = Boolean(search) || Boolean(dFrom) || Boolean(dTo) || Object.values(sel).some((v) => v && v.length);
+  const clearFilters = () => { setSearch(""); setSel({}); setDFrom(""); setDTo(""); };
+
+  const exportExcel = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const base = built.title.replace(/[^\w\- ]+/g, "_").replace(/\s+/g, " ").trim() || "records";
+    downloadXlsx({ fileName: `${base} ${stamp}.xlsx`, sheetName: built.title, columns: built.columns, rows: filteredRows });
+  };
+
+  return createPortal(
+    <div className="drill-overlay no-print" onClick={onClose}>
+      <div className="drill-panel lp-scroll" onClick={(e) => e.stopPropagation()}>
+        <div className="drill-head">
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: COLORS.indigo, margin: 0 }}>{built.eyebrow}</p>
+            <h2 style={{ fontSize: 20, fontWeight: 900, margin: "4px 0 0 0", color: COLORS.ink }}>{built.title}</h2>
+            <p style={{ fontSize: 12, marginTop: 4, color: COLORS.slate }}>
+              {filteredRows.length.toLocaleString("en-IN")} of {built.rows.length.toLocaleString("en-IN")} {built.sub.toLowerCase()}
+            </p>
+          </div>
+          <button onClick={onClose} className="drawer-close-btn" title="Close (Esc)"><X size={18} /></button>
+        </div>
+        <div className="drill-body">
+          <div className="mini-stat-grid">
+            {built.stats(filteredRows).map(([l, v]) => (
+              <div key={l} className="mini-stat-box">
+                <p className="lbl">{l}</p>
+                <p className="val" style={{ color: COLORS.indigoDeep }}>{v}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="drill-filters">
+            <div className="filter-field">
+              <label className="filter-label" htmlFor="drill-search">Search</label>
+              <div className="search-container">
+                <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#020408" }} />
+                <input id="drill-search" name="drillSearch" autoComplete="off" type="text" placeholder="Search records" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+            </div>
+            {fields.map((f) => (
+              <div key={f.key} className="filter-field">
+                <span className="filter-label">{f.label}</span>
+                <MultiSelectDropdown
+                  label={f.label}
+                  options={f.options}
+                  selected={sel[f.key] || []}
+                  onChange={(v) => setSel((s) => ({ ...s, [f.key]: v }))}
+                  width={170}
+                  isOpen={openFilter === f.key}
+                  onToggle={(o) => setOpenFilter(o ? f.key : null)}
+                />
+              </div>
+            ))}
+            {built.dateKey && (
+              <>
+                <div className="filter-field">
+                  <label className="filter-label" htmlFor="drill-date-from">From Date</label>
+                  <input id="drill-date-from" name="drillDateFrom" type="date" value={dFrom} onChange={(e) => setDFrom(e.target.value)} className="select-3d" />
+                </div>
+                <div className="filter-field">
+                  <label className="filter-label" htmlFor="drill-date-to">To Date</label>
+                  <input id="drill-date-to" name="drillDateTo" type="date" value={dTo} onChange={(e) => setDTo(e.target.value)} className="select-3d" />
+                </div>
+              </>
+            )}
+            <div className="drill-filter-actions">
+              {hasFilters && (
+                <button type="button" onClick={clearFilters} className="btn-3d btn-3d-secondary btn-3d-sm">
+                  <X size={13} /> Clear filters
+                </button>
+              )}
+              <button type="button" onClick={exportExcel} disabled={filteredRows.length === 0} className="btn-3d btn-3d-primary btn-3d-sm">
+                <Download size={13} /> Export Excel
+              </button>
+            </div>
+          </div>
+
+          <DataTable columns={built.columns} rows={filteredRows} pageSize={10} initialSort={built.sort} />
+          {built.note && <p style={{ fontSize: 11.5, color: COLORS.slate, marginTop: 10 }}>{built.note}</p>}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Tabs                                                                 */
 /* ------------------------------------------------------------------ */
 function OverviewTab({ data }) {
+  const openDrill = useDrill();
   const o = data.overview;
   const jc = o.jobCompletion;
   const jcData = [
@@ -1854,8 +2388,9 @@ function OverviewTab({ data }) {
     <div>
       <div className="panel-grid-2">
         <Panel title="Top Volume Customers" icon={Users} iconGrad={ACCENTS.blue.grad} sub="Production output by client account (units)">
-          <Bars3D
+          <BarsChart
             data={o.topCustomers}
+            onDrill={(row) => openDrill({ kind: "customer", value: row.name })}
             categoryKey="name"
             series={[{ key: "qty", name: "Units", color: COLORS.indigo }]}
             height={280}
@@ -1863,8 +2398,9 @@ function OverviewTab({ data }) {
           />
         </Panel>
         <Panel title="Highest Volume Machinery" icon={Cpu} iconGrad={ACCENTS.emerald.grad} sub="Leading machines by total produced units">
-          <Bars3D
+          <BarsChart
             data={o.topMachines}
+            onDrill={(row) => openDrill({ kind: "machine", value: row.name })}
             categoryKey="name"
             series={[{ key: "qty", name: "Units", color: COLORS.teal }]}
             height={280}
@@ -1875,12 +2411,13 @@ function OverviewTab({ data }) {
 
       <div className="panel-grid-3">
         <Panel title="Job Completion Profile" icon={CheckCircle2} iconGrad={ACCENTS.amber.grad} sub={`Target compliance across ${o.totalWorkOrders.toLocaleString("en-IN")} work orders`}>
-          <Donut3D data={jcVisible} height={220} />
+          <DonutChart data={jcVisible} height={220} onDrill={(s) => openDrill({ kind: "completion", value: completionStatusOf(s.name) })} />
           <PieLegend items={jcData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={jcFilter.hidden} toggle={jcFilter.toggle} />
         </Panel>
         <Panel title="High Waste Machine Comparison" icon={TrendingUp} iconGrad={ACCENTS.rose.grad} sub="Machines ranked by waste rate (%)">
-          <Bars3D
+          <BarsChart
             data={o.highWasteMachines}
+            onDrill={(row) => openDrill({ kind: "machine", value: row.Machine })}
             categoryKey="Machine"
             series={[{ key: "wastePct", name: "Waste %", color: COLORS.rose }]}
             height={220}
@@ -1892,8 +2429,9 @@ function OverviewTab({ data }) {
       </div>
 
       <Panel title="Production vs Waste — Monthly Trend" icon={TrendingUp} iconGrad={ACCENTS.blue.grad} sub="Output volume and wastage rate across the dataset period">
-        <Lines3D
+        <LinesChart
           data={data.trend}
+          onDrill={(row) => openDrill({ kind: "month", value: row.Month })}
           categoryKey="Month"
           series={[
             { key: "prodQty", name: "Production Qty", color: COLORS.indigo, axis: "left", format: fmtFull },
@@ -1915,6 +2453,7 @@ function OverviewTab({ data }) {
 }
 
 function StageTrackerTab({ data, wo, setWo, openWO }) {
+  const openDrill = useDrill();
   const options = useMemo(() => [...data.ledger].sort((a, b) => b.orderQty - a.orderQty), [data.ledger]);
   const current = data.ledger.some((r) => r.wo === wo) ? wo : options[0]?.wo;
   const row = data.ledger.find((r) => r.wo === current);
@@ -1934,6 +2473,7 @@ const chartData = useMemo(() => {
   });
   return Array.from(byStage.values()).map((e, i) => ({
     name: `${i + 1}. ${e.stage}`,
+    stage: e.stage,
     output: e.output,
     wastage: e.wastage,
   }));
@@ -2015,8 +2555,9 @@ const chartData = useMemo(() => {
 
       {legs.length > 0 && (
         <Panel title="Stage Output vs wastage" icon={Layers} iconGrad={ACCENTS.blue.grad} tag="Stage comparison" sub={`WO #${current} across ${chartData.length} stages`}>
-          <Bars3D
+          <BarsChart
             data={chartData}
+            onDrill={(row) => openDrill({ kind: "legStage", wo: current, value: row.stage })}
             categoryKey="name"
             series={[
               { key: "output", name: "Good output", color: COLORS.indigo },
@@ -2090,6 +2631,7 @@ function LedgerTab({ data, search, openWO, trackWO }) {
 }
 
 function UtilizationTab({ data }) {
+  const openDrill = useDrill();
   const rows = data.machineUtilization;
   const chartRows = rows;
   const columns = [
@@ -2113,8 +2655,9 @@ function UtilizationTab({ data }) {
   return (
     <div>
       <Panel title="Machine Time Allocation" icon={Gauge} iconGrad={ACCENTS.blue.grad} sub="Top 10 machines by logged hours — Production / Idle / Make-Ready / Breakdown / Maintenance">
-        <Bars3D
+        <BarsChart
           data={chartRows}
+          onDrill={(row, key) => openDrill({ kind: "machine", value: row.machine, metric: "hours", statusKey: key })}
           categoryKey="machine"
           stacked
           series={[
@@ -2149,6 +2692,7 @@ function UtilizationTab({ data }) {
 }
 
 function ProdWasteTab({ data }) {
+  const openDrill = useDrill();
   const rows = data.machineProdWaste;
   const chartRows = rows;
   const columns = [
@@ -2163,8 +2707,9 @@ function ProdWasteTab({ data }) {
     <div>
       <div className="panel-grid-2">
         <Panel title="Production vs wastage by Machine" icon={Cpu} iconGrad={ACCENTS.blue.grad} sub="Top 10 machines by output volume">
-          <Bars3D
+          <BarsChart
             data={chartRows}
+            onDrill={(row) => openDrill({ kind: "machine", value: row.Machine })}
             categoryKey="Machine"
             series={[
               { key: "prodQty", name: "Production", color: COLORS.indigo },
@@ -2184,8 +2729,9 @@ function ProdWasteTab({ data }) {
           />
         </Panel>
         <Panel title="Highest Machine Waste Rates" icon={TrendingUp} iconGrad={ACCENTS.rose.grad} sub="Machines triggering the highest wastage rates (%)">
-          <Lines3D
+          <LinesChart
             data={data.overview.highWasteMachines}
+            onDrill={(row) => openDrill({ kind: "machine", value: row.Machine })}
             categoryKey="Machine"
             series={[{ key: "wastePct", name: "Waste %", color: COLORS.rose, format: (v) => `${v.toFixed(2)}%` }]}
             height={280}
@@ -2195,8 +2741,9 @@ function ProdWasteTab({ data }) {
         </Panel>
       </div>
       <Panel title="Output by Production Stage" icon={Route} iconGrad={ACCENTS.emerald.grad} sub="Across all logged process stages">
-        <Bars3D
+        <BarsChart
           data={data.stages}
+          onDrill={(row) => openDrill({ kind: "stage", value: row.Stage })}
           categoryKey="Stage"
           series={[{ key: "prodQty", name: "Output", color: COLORS.teal }]}
           height={280}
@@ -2212,6 +2759,7 @@ function ProdWasteTab({ data }) {
 }
 
 function JobCompletionTab({ data, openWO }) {
+  const openDrill = useDrill();
   const [statusFilter, setStatusFilter] = useState("Under");
   const jc = data.overview.jobCompletion;
   const total = jc.under + jc.exact + jc.over;
@@ -2242,12 +2790,13 @@ function JobCompletionTab({ data, openWO }) {
       </div>
       <div className="panel-grid-3">
         <Panel title="Completion Profile" icon={CheckCircle2} iconGrad={ACCENTS.amber.grad}>
-          <Donut3D data={barVisible.map((d) => ({ name: d.name, value: d.value, color: d.fill }))} height={220} />
+          <DonutChart data={barVisible.map((d) => ({ name: d.name, value: d.value, color: d.fill }))} height={220} onDrill={(s) => openDrill({ kind: "completion", value: completionStatusOf(s.name) })} />
           <PieLegend items={barData.map((d) => ({ name: d.name, color: d.fill, dataKey: d.name }))} hidden={jpFilter.hidden} toggle={jpFilter.toggle} />
         </Panel>
         <Panel title="Work Orders by Completion Bucket" icon={ClipboardList} iconGrad={ACCENTS.blue.grad}>
-          <Bars3D
+          <BarsChart
             data={barData}
+            onDrill={(row) => openDrill({ kind: "completion", value: completionStatusOf(row.name) })}
             categoryKey="name"
             series={[{ key: "value", name: "Work orders", color: COLORS.indigo }]}
             categoryColors={barData.map((d) => d.fill)}
@@ -2272,6 +2821,7 @@ function JobCompletionTab({ data, openWO }) {
 }
 
 function CustomersTab({ data }) {
+  const openDrill = useDrill();
   const rows = data.customers;
   const chartRows = rows;
   const columns = [
@@ -2285,8 +2835,9 @@ function CustomersTab({ data }) {
     <div>
       <div className="panel-grid-2">
         <Panel title="Output by Customer" icon={Users} iconGrad={ACCENTS.blue.grad} sub="Top 8 accounts by produced units">
-          <Bars3D
+          <BarsChart
             data={chartRows}
+            onDrill={(row) => openDrill({ kind: "customer", value: row.Customer })}
             categoryKey="Customer"
             series={[{ key: "prodQty", name: "Output", color: COLORS.indigo }]}
             height={280}
@@ -2295,8 +2846,9 @@ function CustomersTab({ data }) {
           />
         </Panel>
         <Panel title="wastage by Customer" icon={TrendingDown} iconGrad={ACCENTS.rose.grad} sub="Top 8 accounts by waste volume">
-          <Bars3D
+          <BarsChart
             data={[...rows].sort((a, b) => b.wasteQty - a.wasteQty)}
+            onDrill={(row) => openDrill({ kind: "customer", value: row.Customer })}
             categoryKey="Customer"
             series={[{ key: "wasteQty", name: "wastage", color: COLORS.rose }]}
             height={280}
@@ -2313,6 +2865,7 @@ function CustomersTab({ data }) {
 }
 
 function PersoTab({ data }) {
+  const openDrill = useDrill();
   const k = data.perso.kpi;
   const persoFilter = useSeriesFilter();
   return (
@@ -2325,8 +2878,9 @@ function PersoTab({ data }) {
       </div>
       <div className="panel-grid-2">
         <Panel title="Activity Mix" icon={FileStack} iconGrad={ACCENTS.blue.grad} sub="Production output by activity/stage">
-          <Bars3D
+          <BarsChart
             data={data.perso.activity}
+            onDrill={(row) => openDrill({ kind: "stage", value: row.Activity })}
             categoryKey="Activity"
             series={[{ key: "totalPages", name: "Output", color: COLORS.indigo }]}
             height={220}
@@ -2335,8 +2889,9 @@ function PersoTab({ data }) {
           />
         </Panel>
         <Panel title="Machine Utilization" icon={Gauge} iconGrad={ACCENTS.emerald.grad} sub="Production Entry line (ProductionReal)">
-          <Bars3D
+          <BarsChart
             data={data.perso.utilization}
+            onDrill={(row, key) => openDrill({ kind: "machine", value: row.machine, metric: "hours", statusKey: key })}
             categoryKey="machine"
             stacked
             series={[
@@ -2365,6 +2920,7 @@ function PersoTab({ data }) {
 }
 
 function ReelTab({ data, openWO }) {
+  const openDrill = useDrill();
   const [sub, setSub] = useState("customer");
   const r = data.reel;
   const k = r.kpi;
@@ -2456,8 +3012,9 @@ function ReelTab({ data, openWO }) {
 
       <div className="panel-grid-2">
         <Panel title="Customer Weight & Waste" icon={Users} iconGrad={ACCENTS.blue.grad} sub="Net weight vs waste across top clients (kg)">
-          <Bars3D
+          <BarsChart
             data={r.byCustomer}
+            onDrill={(row) => openDrill({ kind: "reelCustomer", value: row.Customer })}
             categoryKey="Customer"
             series={[
               { key: "netWeight", name: "Net Weight (kg)", color: COLORS.indigo },
@@ -2477,12 +3034,13 @@ function ReelTab({ data, openWO }) {
           />
         </Panel>
         <Panel title="Mill Production Share" icon={Factory} iconGrad={ACCENTS.emerald.grad} sub="Share of net weight by mill">
-          <Donut3D data={millDonutData} height={260} />
+          <DonutChart data={millDonutData} height={260} onDrill={(s) => openDrill({ kind: "reelMill", value: s.name })} />
           <PieLegend items={r.mills.map((m, i) => ({ name: m.Mill, color: MILL_COLORS[i % MILL_COLORS.length], dataKey: m.Mill }))} hidden={millFilter.hidden} toggle={millFilter.toggle} />
         </Panel>
         <Panel title="Work Order Waste Rate" icon={TrendingUp} iconGrad={ACCENTS.amber.grad} sub="Reel waste % per work order">
-          <Lines3D
+          <LinesChart
             data={r.wasteByWO}
+            onDrill={(row) => openDrill({ kind: "reelWO", value: row.woNo })}
             categoryKey="WO"
             series={[{ key: "wastePct", name: "Waste %", color: COLORS.amber, format: (v) => `${v.toFixed(2)}%` }]}
             height={260}
@@ -2491,11 +3049,12 @@ function ReelTab({ data, openWO }) {
           />
         </Panel>
         <Panel title="Planned vs Actual Output" icon={PackageCheck} iconGrad={ACCENTS.emerald.grad} sub="Top work orders by output (units)">
-          <Bars3D
+          <BarsChart
             data={r.byWO}
+            onDrill={(row) => openDrill({ kind: "reelWO", value: row.WO })}
             categoryKey="WO"
             series={[
-              { key: "plannedQty", name: "Planned Qty", color: "#cbd5e1" },
+              { key: "plannedQty", name: "Planned Qty", color: COLORS.indigo },
               { key: "output", name: "Actual Output", color: COLORS.green },
             ].filter((s) => !plannedFilter.hidden.has(s.key))}
             height={260}
@@ -2504,7 +3063,7 @@ function ReelTab({ data, openWO }) {
           />
           <PieLegend
             items={[
-              { name: "Planned Qty", color: "#cbd5e1", dataKey: "plannedQty" },
+              { name: "Planned Qty", color: COLORS.indigo, dataKey: "plannedQty" },
               { name: "Actual Output", color: COLORS.green, dataKey: "output" },
             ]}
             hidden={plannedFilter.hidden}
@@ -2547,7 +3106,7 @@ const TABS = [
 ];
 
 export default function LiveProductionPortal() {
-  const [tab, setTab] = useState("overview");
+  const [tabs, setTabs] = useState(["overview"]); // sections currently ticked — only these are shown
   const [search, setSearch] = useState("");
   const [drawerWO, setDrawerWO] = useState(null);
   const [trackerWO, setTrackerWO] = useState(null);
@@ -2557,6 +3116,7 @@ export default function LiveProductionPortal() {
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [drillSpec, setDrillSpec] = useState(null);
   const [openFilter, setOpenFilter] = useState(null); // "customers" | "jobs" | "machines" | "locations" | null — only one open at a time
 
   const [realRows, setRealRows] = useState([]);
@@ -2719,8 +3279,10 @@ export default function LiveProductionPortal() {
   const trackWO = (wo) => {
     setTrackerWO(wo);
     setDrawerWO(null);
-    setTab("tracker");
+    setTabs((prev) => (prev.includes("tracker") ? prev : [...prev, "tracker"]));
+    setTimeout(() => document.getElementById("section-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   };
+
 
   // The WO#/customer/job box filters every tab live as you type — it no longer
   // forces a jump to the Stage Tracker tab, since that would hide the filtered
@@ -2764,6 +3326,7 @@ export default function LiveProductionPortal() {
   }
 
   return (
+    <DrillContext.Provider value={setDrillSpec}>
     <div className="portal-universe">
       <GlobalStyles />
 
@@ -2819,6 +3382,18 @@ export default function LiveProductionPortal() {
               isOpen={openFilter === "locations"} onToggle={(o) => setOpenFilter(o ? "locations" : null)}
             />
           </div>
+          <div className="filter-field">
+            <span className="filter-label">Sections</span>
+            <MultiSelectDropdown
+              label="Sections" options={TABS.map((t) => t.label)} width={210} emptyText="None selected"
+              selected={TABS.filter((t) => tabs.includes(t.id)).map((t) => t.label)}
+              onChange={(labels) => {
+                const ids = TABS.filter((t) => labels.includes(t.label)).map((t) => t.id);
+                setTabs(ids.length ? ids : ["overview"]); // always keep at least Overview KPIs selected
+              }}
+              isOpen={openFilter === "sections"} onToggle={(o) => setOpenFilter(o ? "sections" : null)}
+            />
+          </div>
           <div className="date-range-group">
             <div className="filter-field">
               <label className="filter-label" htmlFor="portal-date-from">From Date</label>
@@ -2832,22 +3407,22 @@ export default function LiveProductionPortal() {
           </div>
         </div>
 
-        <nav className="nav-tabs-3d lp-scroll no-print">
-          {TABS.map((t) => <TabButton key={t.id} {...t} active={tab === t.id} onClick={setTab} />)}
-        </nav>
       </header>
 
       <main>
         <KpiBanner data={data} />
-        {tab === "overview" && <OverviewTab data={data} />}
-        {tab === "reel" && <ReelTab data={data} openWO={openWO} />}
-        {tab === "tracker" && <StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} />}
-        {tab === "utilization" && <UtilizationTab data={data} />}
-        {tab === "prodwaste" && <ProdWasteTab data={data} />}
-        {tab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} />}
-        {tab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
-        {tab === "customers" && <CustomersTab data={data} />}
-        {tab === "perso" && <PersoTab data={data} />}
+        {tabs.length === 0 && (
+          <Panel><p style={{ fontSize: 13, color: COLORS.slate, margin: 0 }}>Select one or more sections from the Sections dropdown to show them.</p></Panel>
+        )}
+        {tabs.includes("overview") && <OverviewTab data={data} />}
+        {tabs.includes("reel") && <ReelTab data={data} openWO={openWO} />}
+        {tabs.includes("tracker") && <div id="section-tracker"><StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} /></div>}
+        {tabs.includes("utilization") && <UtilizationTab data={data} />}
+        {tabs.includes("prodwaste") && <ProdWasteTab data={data} />}
+        {tabs.includes("ledger") && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} />}
+        {tabs.includes("jobperf") && <JobCompletionTab data={data} openWO={openWO} />}
+        {tabs.includes("customers") && <CustomersTab data={data} />}
+        {tabs.includes("perso") && <PersoTab data={data} />}
       </main>
 
       <footer style={{ padding: "18px 4px", fontSize: 11, color: COLORS.slate, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -2856,6 +3431,8 @@ export default function LiveProductionPortal() {
       </footer>
 
       {drawerWO && <StageDrawer wo={drawerWO} data={data} onClose={() => setDrawerWO(null)} onTrack={trackWO} />}
+      {drillSpec && <DrillModal spec={drillSpec} data={data} realRows={deferredRealRows} reelRows={deferredReelRows} onClose={() => setDrillSpec(null)} />}
     </div>
+    </DrillContext.Provider>
   );
 }
