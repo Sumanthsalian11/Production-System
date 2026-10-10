@@ -1719,22 +1719,13 @@ useEffect(() => {
       <style>{CSS}</style>
 
       {/* Header */}
-      <div className="pms-header">
-        <div className="pms-header-inner">
-          <div><h1 className="pms-title"><FiPrinter className="pms-ico pms-ico-lg" /> Perso Production Entry</h1></div>
-          <div className="pms-user-box">
-            <div className="pms-user-label">Logged In</div>
-            <div className="pms-user-name">{loggedInUser || "—"}</div>
-          </div>
-        </div>
-      </div>
 
       <div className="pms-body">
         <div className="pms-card">
           <div className="pms-card-head">
             <div>
-              <div className="pms-card-title">
-                <FiEdit3 className="pms-ico" />
+              <div className="pms-card-title" style={{ justifyContent: "center", textAlign: "center" }}>
+                <FiEdit3 className="pms-ico" /> 
                 {editingId ? "Edit Production Entry" : "New Production Entry"}
               </div>
             </div>
@@ -2145,7 +2136,7 @@ useEffect(() => {
         <div className="pms-card">
           <div className="pms-record-head">
             <div>
-              <div className="pms-card-title"><FiList className="pms-ico" /> Machine Status Records</div>
+              <div className="pms-card-title" style={{ justifyContent: "center", textAlign: "center" }}><FiList className="pms-ico" /> Machine Status Records</div>
               <div className="pms-card-note">Latest entries first</div>
             </div>
             <span className="pms-count">Total: {filteredRecords.length}</span>

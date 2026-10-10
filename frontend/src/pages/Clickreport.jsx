@@ -898,7 +898,7 @@ export default function ClickReport() {
 
         .cr-month-left {
           position: absolute;
-          left: 0;
+          right: 0;
           top: 50%;
           transform: translateY(-50%);
           display: flex;
@@ -960,36 +960,7 @@ export default function ClickReport() {
               </button>
             )}
           </div>
-          <h1
-            style={{
-              margin: 0,
-              fontWeight: 800,
-              color: "#0a4f8c",
-              letterSpacing: "-0.5px",
-              fontSize: "28px",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "12px",
-            }}
-          >
-            <span
-              style={{
-                width: "46px",
-                height: "46px",
-                borderRadius: "50%",
-                background: "radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%)",
-                border: "1px solid #86c6e8",
-                color: "#0a6fb8",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 6px 14px rgba(40, 120, 170, 0.22), inset 0 2px 3px rgba(255, 255, 255, 0.9)",
-              }}
-            >
-              <Icons.Chart />
-            </span>
-            Click Report
-          </h1>
+         
           <p style={{ margin: "4px 0 0", color: "#4a6f8c", fontSize: "13.5px", fontWeight: 500 }}>
             {editingId
               ? "✏️ Editing a saved record — update parameters and save."

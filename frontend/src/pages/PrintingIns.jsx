@@ -1844,21 +1844,6 @@ const expandTd = (order, key, value) => {
   <div className="pi-container">
 
   {/* PAGE TITLE */}
-  <div className="pi-hero">
-    <div className="pi-hero-emblem">
-      <i className="bi bi-printer-fill"></i>
-    </div>
-    <h1 className="pi-hero-title">
-      <b>Printing Instruction Entry</b>
-    </h1>
-    {loggedInUser && (
-      <div className="pi-user-pill">
-        <span className="pi-user-dot"></span>
-        <i className="bi bi-person"></i>
-        <span>{loggedInUser}</span>
-      </div>
-    )}
-  </div>
 
   <form onSubmit={handleSubmit}>
 

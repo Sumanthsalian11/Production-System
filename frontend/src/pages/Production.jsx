@@ -771,6 +771,7 @@ function Productiondashboard() {
         /* ---------- WO search ---------- */
         .wo-search-flex { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
         .wo-input-box { flex: 1; min-width: 250px; }
+        .wo-date-box { flex: 0 0 210px; }
 
         /* ---------- Inputs ---------- */
         .field-3d-wrapper { display: flex; flex-direction: column; gap: 6px; }
@@ -1088,37 +1089,7 @@ function Productiondashboard() {
       `}</style>
 
       <div className="pd-shell">
-        {/* 🌟 GLOSSY HERO HEADER */}
-        <header className="dash-hero-header">
-          <div className="hero-left-branding">
-            <div className="hero-emblem-3d">
-              <Icons.Factory />
-            </div>
-            <div className="hero-titles">
-              <h1>Reel Register Entry</h1>
-              <p>Shop Floor Operations & Waste Tracking Dashboard</p>
-            </div>
-          </div>
 
-          <div className="hero-right-controls">
-            {loggedInUser && (
-              <div className="operator-pill-3d">
-                <span className="operator-pulse-dot"></span>
-                <Icons.User />
-                <span>{loggedInUser}</span>
-              </div>
-            )}
-
-            <div className="calendar-control-3d">
-              <Icons.Calendar />
-              <input
-                type="date"
-                value={productionDate}
-                onChange={(e) => setProductionDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </header>
 
         {/* 🔍 STEP 1: WORK ORDER RETRIEVAL */}
         <section className="pd-glass">
@@ -1141,6 +1112,18 @@ function Productiondashboard() {
                   placeholder="Enter WO Number (e.g. 104523)"
                   value={form.efiWoNumber}
                   onChange={handleChange}
+                  className="input-inset-3d"
+                />
+              </div>
+            </div>
+
+            <div className="wo-date-box">
+              <div className="field-3d-wrapper">
+                <label className="label-3d">Production Date</label>
+                <input
+                  type="date"
+                  value={productionDate}
+                  onChange={(e) => setProductionDate(e.target.value)}
                   className="input-inset-3d"
                 />
               </div>

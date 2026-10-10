@@ -673,7 +673,7 @@ function PreprocessDashboard() {
               <Icons.Factory />
             </div>
             <div>
-              <h3>Prepress</h3>
+              <h3>Switch Pages👉🏼</h3>
               <p>
                 {activeView === "workorders" && "Work orders pending prepress completion."}
                 {activeView === "platerequests" && "Plate requests pending approval."}

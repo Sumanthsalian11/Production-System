@@ -968,25 +968,15 @@ function NewIndent() {
       <div className="indent-app-container">
 
         {/* HEADER SECTION */}
-        <div className="indent-header">
-          <h1 className="indent-title">New Indent Entry</h1>
-          {loggedInUser && (
-            <div className="user-pill">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              <span>{loggedInUser}</span>
-            </div>
-          )}
-        </div>
 
         {/* ===== ENTRY FORM (glass panel) ===== */}
         <div className="gl-stage" ref={stageRef}>
           <div className="gl-card">
             <div className="gl-head">
-              <h3 className="gl-title">Indent Details</h3>
-              <span className="gl-pill">{editingId ? "Editing indent" : "New indent"}</span>
+              <h3 className="gl-title" style={{ textAlign: "center", width: "100%" }}>Indent Details</h3>
+              <span className="gl-pill" style={{ textAlign: "center", width: "100%" }}>
+                {editingId ? "Editing indent" : "New indent"}
+              </span>
             </div>
 
             <form onSubmit={handleSubmit}>

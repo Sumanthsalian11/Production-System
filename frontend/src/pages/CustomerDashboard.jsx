@@ -1176,21 +1176,7 @@ function CustomerDashboard() {
       {/* ======================================================================
           GLOSSY HERO HEADER
           ====================================================================== */}
-      <div className="po-hero">
-        <div className="po-hero-emblem">
-          <i className="bi bi-receipt-cutoff"></i>
-        </div>
-        <h1 className="dash-hero-title m-0">
-          <b>Purchase Order Management</b>
-        </h1>
-        {loggedInUser && (
-          <div className="po-user-pill">
-            <span className="po-user-dot"></span>
-            <i className="bi bi-person"></i>
-            <span>{loggedInUser}</span>
-          </div>
-        )}
-      </div>
+
 
       {/* ======================================================================
           VIEW MODE TOGGLE BUTTONS
