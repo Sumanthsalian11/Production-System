@@ -491,10 +491,7 @@ function ReceivingInspectionDashboard() {
           </div>
           <div>
             <div className="company-title">
-              MPI <span style={{ fontSize: "1.05rem", fontWeight: 600, color: "#4a7391" }}>| Manipal Payment and Identity Solutions</span>
-            </div>
-            <div className="doc-info">
-              <i className="bi bi-shield-check me-1 text-primary"></i> Internal Document &bull; Document ID: MPI_SP_QS_IQC_T080_RM Receiving Inspection Report_V1.00
+            <span style={{ fontSize: "1.55rem", fontWeight: 700, color: "#4a7391" }}>Receiving Inspection Analysis</span>
             </div>
           </div>
         </div>

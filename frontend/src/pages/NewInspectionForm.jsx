@@ -540,31 +540,20 @@ function NewInspectionForm() {
         .btn-3d-submit:active { transform: translateY(3px); box-shadow: 0 1px 0 #0d8a5a, 0 4px 8px rgba(20, 168, 112, 0.22); }
       `}</style>
 
-      {/* Header Bar */}
-      <div className="company-header d-flex justify-content-between align-items-center">
-        <div className="hero-left">
-          <div className="hero-emblem-3d">
-            <FactoryIcon />
-          </div>
-          <div>
-            <div className="company-title">
-              MPI <span style={{ fontSize: "1.05rem", fontWeight: 600, color: "#4a7391" }}>| Manipal Payment and Identity Solutions</span>
-            </div>
-            <div className="doc-info">
-              <i className="bi bi-shield-check me-1 text-primary"></i> Internal Document &bull; Document ID: MPI_SP_QS_IQC_T080_RM Receiving Inspection Report_V1.00
-            </div>
-          </div>
-        </div>
-        <div>
-          <button className="btn btn-3d-secondary d-flex align-items-center gap-2" onClick={() => navigate("/receiving-inspection")}>
-            <i className="bi bi-arrow-left-circle-fill"></i> Back to Dashboard
-          </button>
-        </div>
-      </div>
+
 
       {/* Main Report Card */}
       <div className="report-card-3d">
-        <div className="banner-header-3d">RECEIVING INSPECTION REPORT (NEW INSPECTION)</div>
+        <div className="banner-header-3d position-relative">
+          RECEIVING INSPECTION REPORT (NEW INSPECTION)
+          <button
+            className="btn btn-3d-secondary d-flex align-items-center gap-2 position-absolute top-50 end-0 translate-middle-y me-2"
+            style={{ padding: "4px 12px", fontSize: "0.78rem", letterSpacing: 0, textTransform: "none" }}
+            onClick={() => navigate("/receiving-inspection")}
+          >
+            <i className="bi bi-arrow-left-circle-fill"></i> Back to Dashboard
+          </button>
+        </div>
 
         {/* Fetch Mode Selector */}
         <div className="d-flex align-items-center gap-4 mb-3 px-1">

@@ -875,24 +875,6 @@ function InwardRegister() {
       <style>{css}</style>
 
       <div className="ir-inner">
-      {/* ── HEADER ── */}
-      <div className="ir-header">
-        <div className="ir-brand">
-          <div className="ir-emblem"><FiClipboard size={22} /></div>
-          <div className="ir-header-text">
-            <h1>Store Inward Register</h1>
-            <p>Record print inward entries against work orders</p>
-          </div>
-        </div>
-        {loggedInUser && (
-          <div className="ir-user-chip">
-            <span className="ir-user-dot"></span>
-            <FiUser size={13} />
-            <span>{loggedInUser}</span>
-          </div>
-        )}
-      </div>
-
       {/* ── LOOKUP ── */}
       <div className="ir-card ir-card-blue">
         <div className="ir-card-title">
