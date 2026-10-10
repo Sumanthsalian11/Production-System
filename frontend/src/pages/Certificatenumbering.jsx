@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { jsPDF } from "jspdf";
 import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
 import QRCode from "qrcode";
@@ -104,10 +103,76 @@ const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
   new Promise((res, rej) => {
     const url = URL.createObjectURL(blob), img = new Image();
-    img.onload = () => res(img);
-    img.onerror = () => rej(new Error("Could not read that image. Use PNG, JPG, WebP or PDF."));
+    img.decoding = "async";
+    img.onload = async () => {
+      try { if (img.decode) await img.decode(); } catch { /* ignore */ }
+      URL.revokeObjectURL(url);
+      res(img);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("Could not read that image. Use PNG, JPG, WebP or PDF.")); };
     img.src = url;
   });
+
+/* small copy of the artwork (max 2048 px wide) used only for the on-screen preview */
+const PREVIEW_W = 2048;
+function makePreviewImg(img) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  if (!w || w <= PREVIEW_W) return null;
+  const k = PREVIEW_W / w;
+  const c = document.createElement("canvas");
+  c.width = PREVIEW_W;
+  c.height = Math.max(1, Math.round(h * k));
+  const x = c.getContext("2d");
+  x.imageSmoothingQuality = "high";
+  x.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+/* Most PDF viewers (Chrome, Edge, Acrobat, phones) cannot open a PDF over 2 GB, so a part is closed at ~1.5 GB. */
+const PDF_MAX_BYTES = 1.5 * 1024 * 1024 * 1024;
+
+/* Streaming PDF writer: pages are JPEG blobs appended to a Blob list, so the PDF is never one giant string
+   (jsPDF fails with "Invalid string length" past ~512 MB; this has no such limit). */
+function makePdfWriter(wpt, hpt) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const offs = [];
+  let pos = 0, nextId = 3;
+  const kids = [];
+  const text = (t) => { const b = enc.encode(t); parts.push(b); pos += b.length; };
+  const blobPart = (b) => { parts.push(b); pos += b.size; };
+  const begin = (id) => { offs[id] = pos; text(`${id} 0 obj\n`); };
+  const W = wpt.toFixed(3), H = hpt.toFixed(3);
+  text("%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
+  return {
+    get pages() { return kids.length; },
+    get size() { return pos; },
+    addJpeg(blob, wPx, hPx) {
+      const img = nextId++, cont = nextId++, page = nextId++;
+      begin(img);
+      text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${blob.size} >>\nstream\n`);
+      blobPart(blob);
+      text("\nendstream\nendobj\n");
+      const content = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+      begin(cont);
+      text(`<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+      begin(page);
+      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${img} 0 R >> >> /Contents ${cont} 0 R >>\nendobj\n`);
+      kids.push(page);
+    },
+    finish() {
+      begin(2);
+      text(`<< /Type /Pages /Count ${kids.length} /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] >>\nendobj\n`);
+      begin(1);
+      text("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+      const xref = pos;
+      let x = `xref\n0 ${nextId}\n0000000000 65535 f \n`;
+      for (let i = 1; i < nextId; i++) x += `${String(offs[i]).padStart(10, "0")} 00000 n \n`;
+      text(x + `trailer\n<< /Size ${nextId} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+      return new Blob(parts, { type: "application/pdf" });
+    },
+  };
+}
+const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 
 /* first page of a PDF -> PNG blob, rendered so that 1 page-mm = 1 artwork-mm at the returned dpi */
 async function rasterPdf(file, dpi) {
@@ -128,6 +193,8 @@ async function rasterPdf(file, dpi) {
   let blob = await toBlob(cv, "image/png");
   if (!blob || blob.size > MAX_ART) blob = await toBlob(cv, "image/jpeg", 0.92);
   const pages = pdf.numPages;
+  try { page.cleanup(); } catch { /* ignore */ }
+  cv.width = 1; cv.height = 1;
   try { await pdf.destroy(); } catch { /* ignore */ }
   return { blob, dpi: Math.round(scale * 72), pages };
 }
@@ -140,7 +207,7 @@ function render(S, ctx, n, s, p, preview, row) {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, S.w, S.h);
   // the preview always shows the artwork (for positioning); the output leaves it out when ticked
-  if (S.img && (preview || !p.noArt)) ctx.drawImage(S.img, 0, 0, S.w, S.h);
+  if (S.img && (preview || !p.noArt)) ctx.drawImage((preview && S.prev) || S.img, 0, 0, S.w, S.h);
 
   ctx.textBaseline = "top";
   ctx.font = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
@@ -360,7 +427,7 @@ export default function CertificateNumbering() {
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
 
   const cvRef = useRef(null);
-  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, tplCols: new Map() }).current;
+  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map() }).current;
   const drag = useRef(null);
   const stopFlag = useRef(false);
   const fRef = useRef(f);
@@ -378,6 +445,20 @@ export default function CertificateNumbering() {
     setCols((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
   };
   const say = (msg, cls = "") => setStatus({ msg, cls });
+
+  /* loading overlay: shown while a heavy file is read, cleared only after the preview has settled */
+  const [busy, setBusy] = useState("");
+  const frame = () => new Promise((r) => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 250); });
+  const withBusy = async (msg, fn) => {
+    setBusy(msg);
+    await frame();           // let the overlay paint before the heavy work starts
+    try { await fn(); }
+    finally {
+      await frame(); await frame();   // let the new artwork / data render in the preview
+      await new Promise((r) => setTimeout(r, 150));
+      setBusy("");
+    }
+  };
 
   /* google fonts */
   useEffect(() => {
@@ -512,29 +593,36 @@ export default function CertificateNumbering() {
   /* ---------- uploads ---------- */
   const setArtImage = (img, blob, label) => {
     S.img = img; S.blob = blob; S.w = img.naturalWidth; S.h = img.naturalHeight;
+    S.prev = makePreviewImg(img);
     setDims({ w: S.w, h: S.h });
     setArtName(`${label} · ${S.w}×${S.h}px`);
   };
   const clearArt = () => {
-    S.img = null; S.blob = null; S.w = 2480; S.h = 1754;
+    S.img = null; S.prev = null; S.blob = null; S.w = 2480; S.h = 1754;
     setDims({ w: S.w, h: S.h });
     setArtName("None — blank A4 landscape");
   };
 
   /* image (PNG/JPG/WebP) or PDF (first page) */
-  const onArt = async (e) => {
+  const onArt = (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
+    const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    return withBusy(pdf ? "Reading PDF…" : "Loading image…", () => loadArt(file));
+  };
+  const loadArt = async (file) => {
     try {
       const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       let blob = file, label = file.name, dpiFix = null;
       if (isPdf) {
         say("Reading PDF…");
+        await nextFrame();
         const r = await rasterPdf(file, P(fRef.current).dpi);
         blob = r.blob; dpiFix = r.dpi;
         label = r.pages > 1 ? `${file.name} (page 1 of ${r.pages})` : file.name;
       }
+      if (!isPdf) { say("Reading image…"); await nextFrame(); }
       const img = await loadImg(blob);
       setArtImage(img, blob, label);
       const o = dpiFix ? { ...fRef.current, dpi: String(dpiFix) } : fRef.current;
@@ -573,9 +661,12 @@ export default function CertificateNumbering() {
   };
   useEffect(() => { loadTpls(); }, []);
 
-  const applyTemplate = async (id) => {
+  const applyTemplate = (id) => {
     setTplId(id);
     if (!id) return;
+    return withBusy("Loading template…", () => runTemplate(id));
+  };
+  const runTemplate = async (id) => {
     try {
       say("Loading template…");
       const r = await fetch(`${API}/api/numbering-templates/${id}`, { headers: authHeaders() });
@@ -680,13 +771,35 @@ export default function CertificateNumbering() {
   };
 
   /* Excel: row 1 = headers, every next row = one certificate (first row ↔ "From") */
-  const onSheet = async (e) => {
+  const onSheet = (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
+    return withBusy("Reading Excel…", () => loadSheet(file));
+  };
+  const loadSheet = async (file) => {
     try {
-      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      say("Reading Excel…");
+      await nextFrame();
+      const wb = XLSX.read(await file.arrayBuffer(), {
+        type: "array", sheets: 0, cellFormula: false, cellHTML: false, cellStyles: false,
+      });
       const ws = wb.Sheets[wb.SheetNames[0]];
+      if (ws && ws["!ref"]) {
+        const full = XLSX.utils.decode_range(ws["!ref"]);
+        let mr = -1, mc = -1;
+        for (const k in ws) {
+          if (k.charCodeAt(0) === 33) continue; // "!ref", "!merges" …
+          const c = ws[k];
+          if (!c || c.v === undefined || c.v === null || String(c.v).trim() === "") continue;
+          const a = XLSX.utils.decode_cell(k);
+          if (a.r > mr) mr = a.r;
+          if (a.c > mc) mc = a.c;
+        }
+        if (mr >= 0 && (mr < full.e.r || mc < full.e.c)) {
+          ws["!ref"] = XLSX.utils.encode_range(full.s, { r: Math.min(mr, full.e.r), c: Math.min(mc, full.e.c) });
+        }
+      }
       const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: false });
       if (aoa.length < 2) throw new Error("the first sheet needs a header row and at least one data row.");
 
@@ -696,9 +809,17 @@ export default function CertificateNumbering() {
         if (seen[name]) { seen[name] += 1; name = `${name} (${seen[name]})`; } else seen[name] = 1;
         return name;
       });
-      const rows = aoa.slice(1)
-        .map((r) => Object.fromEntries(headers.map((h, i) => [h, String(r[i] ?? "").trim()])))
-        .filter((r) => headers.some((h) => r[h] !== ""));
+      const rows = [];
+      for (let ri = 1; ri < aoa.length; ri++) {
+        const r = aoa[ri], o = {};
+        let any = false;
+        for (let i = 0; i < headers.length; i++) {
+          const v = String(r[i] ?? "").trim();
+          o[headers[i]] = v;
+          if (v !== "") any = true;
+        }
+        if (any) rows.push(o);
+      }
       if (!rows.length) throw new Error("no data rows found under the header row.");
 
       const o = fRef.current, dpi = P(o).dpi;
@@ -804,14 +925,21 @@ export default function CertificateNumbering() {
         const b = Math.min(p.to, a + p.per - 1);
         const base = `certificates_${pad(a, p.digits)}-${pad(b, p.digits)}`;
         let pdf = null, zip = null;
-        if (kind === "pdf") pdf = new jsPDF({ orientation: orient, unit: "pt", format: [wpt, hpt], compress: true });
+        if (kind === "pdf") pdf = makePdfWriter(wpt, hpt);
         else zip = new JSZip();
+        let partStart = a;
 
         for (let n = a; n <= b && !stopFlag.current; n++) {
           render(S, ctx, n, 1, p, false, S.rows[n - p.from]);
           if (pdf) {
-            if (n > a) pdf.addPage([wpt, hpt], orient);
-            pdf.addImage(off.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, wpt, hpt, "", "FAST");
+            const jpg = await new Promise((res) => off.toBlob(res, "image/jpeg", 0.95));
+            if (pdf.pages > 0 && pdf.size + jpg.size + 4096 > PDF_MAX_BYTES) {
+              saveBlob(`certificates_${pad(partStart, p.digits)}-${pad(n - 1, p.digits)}.pdf`, pdf.finish());
+              await tick();
+              pdf = makePdfWriter(wpt, hpt);
+              partStart = n;
+            }
+            pdf.addJpeg(jpg, off.width, off.height);
           } else {
             const blob = await new Promise((res) => off.toBlob(res, "image/jpeg", 0.95));
             zip.file(`${pad(n, p.digits)}.jpg`, blob);
@@ -821,8 +949,13 @@ export default function CertificateNumbering() {
           if (done % 4 === 0) { say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`); await tick(); }
         }
         if (stopFlag.current) break;
-        const blob = pdf ? pdf.output("blob") : await zip.generateAsync({ type: "blob", compression: "STORE" });
-        saveBlob(`${base}.${pdf ? "pdf" : "zip"}`, blob);
+        const blob = pdf ? pdf.finish() : await zip.generateAsync({ type: "blob", compression: "STORE" });
+        saveBlob(
+          pdf && partStart !== a
+            ? `certificates_${pad(partStart, p.digits)}-${pad(b, p.digits)}.pdf`
+            : `${base}.${pdf ? "pdf" : "zip"}`,
+          blob
+        );
       }
       if (stopFlag.current) say("Stopped.");
       else say(`Done. ${total.toLocaleString()} certificates generated${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
@@ -906,6 +1039,16 @@ export default function CertificateNumbering() {
   return (
     <div className="cn-root">
       <style>{CSS}</style>
+
+      {busy && (
+        <div className="cn-busy" role="alertdialog" aria-live="assertive" aria-busy="true">
+          <div className="cn-busy-box">
+            <div className="cn-spin" />
+            <b>{busy}</b>
+            <span>Please wait — you can continue once this finishes.</span>
+          </div>
+        </div>
+      )}
 
       {/* workspace grid: dynamically expands preview canvas */}
       <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`}>
@@ -1415,6 +1558,15 @@ const CSS = `
 .cn-status{font-size:11.5px;color:var(--muted);min-height:14px}
 .cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
 .cn-gen-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* loading overlay */
+.cn-busy{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(15,40,50,.45)}
+.cn-busy-box{background:#fff;border-radius:12px;padding:22px 32px;display:flex;flex-direction:column;align-items:center;gap:8px;
+  box-shadow:0 18px 50px rgba(11,39,48,.35);min-width:250px;text-align:center}
+.cn-busy-box b{font-size:14px;color:var(--ink,#10343d)}
+.cn-busy-box span{font-size:11.5px;color:var(--muted)}
+.cn-spin{width:38px;height:38px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:cn-spin .8s linear infinite}
+@keyframes cn-spin{to{transform:rotate(360deg)}}
 
 /* responsive adjustments */
 @media (max-width:1080px){
