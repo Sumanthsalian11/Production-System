@@ -2906,9 +2906,9 @@ function PlannerDashboard() {
         {/* 1. TOP HEADER (Dead Center Title & Quick-Nav Tabs)                        */}
         {/* ========================================================================= */}
         <div className="text-center mb-3">
-          <h2 className="fw-bold m-0" style={{ color: "#064c73", letterSpacing: "-0.5px" }}>
+          <h1 className="fw-bold m-0" style={{ color: "#064c73", letterSpacing: "-0.5px" }}>
             Planner Dashboard
-          </h2>
+          </h1>
           <p className="text-muted small mt-1 mb-0">Production Planning &amp; Work Order Orchestration System</p>
         </div>
 

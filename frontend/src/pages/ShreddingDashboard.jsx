@@ -417,6 +417,118 @@ function ShreddingDashboard() {
           border: 1px solid #fca5a5;
         }
 
+        /* ===== Customer-page look ===== */
+        .shredding-dashboard-wrapper {
+          color: #0b2f4f;
+          background:
+            radial-gradient(circle at 12% 6%, rgba(255,255,255,0.9) 0, rgba(255,255,255,0) 30%),
+            radial-gradient(circle at 88% 18%, rgba(160,222,250,0.7) 0, rgba(160,222,250,0) 32%),
+            radial-gradient(circle at 50% 100%, rgba(255,255,255,0.7) 0, rgba(255,255,255,0) 45%),
+            linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
+          background-attachment: fixed;
+          font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+        }
+
+        /* hero */
+        .shredding-dashboard-wrapper .container > .position-relative {
+          z-index: 0; min-height: 64px; padding: 12px 36px;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .shredding-dashboard-wrapper .container > .position-relative::before {
+          content: ""; position: absolute; inset: 0; z-index: -1;
+          transform: skewX(-20deg); border-radius: 14px;
+          background: linear-gradient(180deg, #c9eafb 0%, #b5dff6 100%);
+          border: 1px solid #6fb5dc;
+          box-shadow: 0 8px 20px rgba(40,120,170,.25);
+        }
+        .dashboard-title { font-size: 26px; color: #0a4f8c; letter-spacing: -0.3px; }
+        .sd-emblem {
+          display: inline-flex; align-items: center; justify-content: center;
+          width: 46px; height: 46px; border-radius: 50%; color: #0a6fb8;
+          background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
+          border: 1px solid #86c6e8;
+          box-shadow: 0 6px 14px rgba(40,120,170,.22), inset 0 2px 3px rgba(255,255,255,.9);
+        }
+        .sd-emblem svg { width: 22px; height: 22px; }
+        .shredding-dashboard-wrapper .position-absolute.end-0 { right: 36px !important; }
+        .shredding-dashboard-wrapper .position-absolute .user-badge {
+          background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
+          border: 1px solid #a9d9f2; color: #0a4f8c;
+          box-shadow: 0 4px 12px rgba(40,120,170,.15), inset 0 1px 0 #fff;
+        }
+        .shredding-dashboard-wrapper .position-absolute .user-badge svg { display: none; }
+        .shredding-dashboard-wrapper .position-absolute .user-badge::before {
+          content: ""; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%;
+          background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.25);
+        }
+
+        /* cards */
+        .forge-card {
+          background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(228,246,255,.9) 100%);
+          border: 1px solid rgba(255,255,255,.95); border-top: 1px solid rgba(255,255,255,.95);
+          border-radius: 22px;
+          box-shadow: 0 12px 28px rgba(40,120,170,.12), inset 0 1px 0 #fff;
+        }
+        .card-title-accent { color: #0a4f8c; }
+        .card-title-accent svg, .custom-input-group label svg { color: #0a6fb8 !important; }
+        .selection-instructions { color: #0a6fb8; }
+        .date-time-selection-bar {
+          background: rgba(255,255,255,.72); border: 2px dashed #7fc3e8; border-radius: 16px;
+          box-shadow: inset 0 1px 0 #fff;
+        }
+        .custom-input-group label { color: #0b2f4f; }
+        .custom-input {
+          border: 1.5px solid #9ccbe6 !important; border-radius: 12px !important;
+          color: #0b2f4f !important; box-shadow: inset 0 2px 5px rgba(10,80,130,.1) !important;
+        }
+        .custom-input:hover { border-color: #5fb4de !important; }
+        .custom-input:focus {
+          border-color: #1b9be0 !important;
+          box-shadow: 0 0 0 4px rgba(27,155,224,.2), 0 6px 14px rgba(27,155,224,.12) !important;
+        }
+
+        /* buttons */
+        .btn-forge-primary, .btn-forge-success, .btn-forge-excel {
+          border: 1px solid transparent !important; border-radius: 12px !important;
+        }
+        .btn-forge-primary {
+          background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%) !important;
+          color: #08406b !important; border-color: #7fc3e8 !important;
+          box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40,120,170,.18), inset 0 1px 0 rgba(255,255,255,.8) !important;
+        }
+        .btn-forge-success, .btn-forge-excel {
+          background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%) !important;
+          color: #07583b !important; border-color: #7fd3ab !important;
+          box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20,168,112,.18), inset 0 1px 0 rgba(255,255,255,.8) !important;
+        }
+        .btn-forge-primary:hover { background: linear-gradient(180deg, #e2f5fe 0%, #b0def6 100%) !important; }
+        .btn-forge-success:hover, .btn-forge-excel:hover {
+          background: linear-gradient(180deg, #e0f9ec 0%, #b0ecd0 100%) !important;
+        }
+
+        /* tables */
+        .custom-table-container { border: 1px solid #9ccbe6; border-radius: 18px; }
+        .custom-table th {
+          background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
+          color: #08406b !important; border: 1px solid #7fbfe4 !important;
+        }
+        .custom-table td { border-bottom: 1px solid #d3e8f4 !important; color: #0b2f4f; }
+        .custom-table tbody tr:nth-child(even) { background: #f3faff; }
+        .custom-table tbody tr:hover { background: #d9f2fc !important; }
+        .waste-highlight { color: #0a4f8c; }
+        .no-records-cell { color: #4a6f8c; }
+        .custom-table .user-badge {
+          background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%) !important;
+          color: #0a4f8c !important; border: 1px solid #a9d9f2 !important;
+        }
+
+        @media (max-width: 768px) {
+          .shredding-dashboard-wrapper .container > .position-relative { flex-direction: column; gap: 8px; }
+          .shredding-dashboard-wrapper .position-absolute.end-0 {
+            position: static !important; transform: none !important; right: auto !important;
+          }
+        }
+
         /* Adjust internal browser calendar indicators to fit dark icons */
         input[type="date"]::-webkit-calendar-picker-indicator,
         input[type="time"]::-webkit-calendar-picker-indicator {
@@ -428,7 +540,12 @@ function ShreddingDashboard() {
       <div className="container">
         {/* Header Section (Centered Title with User badge positioned on the far right) */}
         <div className="position-relative text-center mb-4">
-          <h2 className="dashboard-title m-0">Shredding Entry</h2>
+          <h2 className="dashboard-title m-0 d-inline-flex align-items-center gap-3">
+            <span className="sd-emblem">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </span>
+            Shredding Entry
+          </h2>
           {loggedInUser && (
             <div className="position-absolute end-0 top-50 translate-middle-y">
               <span className="user-badge">

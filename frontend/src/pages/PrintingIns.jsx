@@ -1700,6 +1700,124 @@ const expandTd = (order, key, value) => {
     }
     .pi-table tbody tr:nth-child(even) td { background: #f3faff; }
     .pi-table tbody tr:hover td { background: #d9f2fc; }
+    /* ===== Customer-page look ===== */
+    .pi-root {
+      background:
+        radial-gradient(circle at 12% 6%, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 30%),
+        radial-gradient(circle at 88% 18%, rgba(160,222,250,.7) 0, rgba(160,222,250,0) 32%),
+        radial-gradient(circle at 50% 100%, rgba(255,255,255,.7) 0, rgba(255,255,255,0) 45%),
+        linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
+      background-attachment: fixed;
+      color: #0b2f4f;
+    }
+    .pi-container { background: none; border: none; box-shadow: none; padding: 0; }
+
+    /* Hero */
+    .pi-hero {
+      position: relative; z-index: 0;
+      display: flex; align-items: center; justify-content: center; gap: 14px;
+      margin: 0 0 16px; padding: 12px 22px; text-align: left;
+    }
+    .pi-hero::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      transform: skewX(-20deg); border-radius: 14px;
+      background: linear-gradient(180deg, #c9eafb 0%, #b5dff6 100%);
+      border: 1px solid #6fb5dc;
+      box-shadow: 0 8px 20px rgba(40,120,170,.25);
+    }
+    .pi-hero-emblem {
+      width: 46px; height: 46px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #0a6fb8; font-size: 21px;
+      background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
+      border: 1px solid #86c6e8;
+      box-shadow: 0 6px 14px rgba(40,120,170,.18), inset 0 2px 3px rgba(255,255,255,.9);
+    }
+    .pi-hero-title { margin: 0; color: #0a4f8c; letter-spacing: -0.3px; font-size: 26px; font-weight: 800; }
+    .pi-user-pill {
+      position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 14px; border-radius: 30px;
+      font-size: 13px; font-weight: 700; color: #0b2f4f;
+      background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
+      border: 1px solid #a9d9f2;
+      box-shadow: 0 4px 12px rgba(40,120,170,.15), inset 0 1px 0 #fff;
+    }
+    .pi-user-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+    @media (max-width: 768px) {
+      .pi-user-pill { position: static; transform: none; }
+      .pi-hero { flex-wrap: wrap; }
+    }
+
+    /* Master / Perso toggle */
+    .pi-seg {
+      border-radius: 22px; padding: 6px; gap: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(214,240,252,.8));
+      border: 1px solid #ffffff;
+      box-shadow: 0 10px 24px rgba(40,120,170,.18), inset 0 1px 0 #fff;
+    }
+    .pi-seg-btn { color: #0a4f8c; font-weight: 800; border-radius: 16px; border: 1px solid transparent; }
+    .pi-seg-btn.on {
+      color: #0a4f8c;
+      background: linear-gradient(180deg, #d2eefc 0%, #8fd0f3 100%);
+      border-color: #7fc3e8;
+      box-shadow: 0 3px 0 #6fb5dc, 0 8px 16px rgba(40,120,170,.15), inset 0 1px 0 #fff;
+    }
+
+    /* Glass panels */
+    .pi-panel, .pi-filter {
+      background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(228,246,255,.9) 100%);
+      border: 1px solid rgba(255,255,255,.95);
+      border-radius: 22px;
+      box-shadow: 0 12px 28px rgba(40,120,170,.12), inset 0 1px 0 #fff;
+    }
+    .pi-sub { background: rgba(255,255,255,.85); border-radius: 16px; }
+    .pi-sub-title, .pi-sec-title { color: #0a4f8c; font-weight: 800; }
+    .pi-sec-icon {
+      color: #0a6fb8;
+      background: radial-gradient(circle at 30% 25%, #ffffff, #bfe5f8 55%, #8fd0f0);
+      border: 1px solid #86c6e8;
+    }
+    .pi-label { color: #0b2f4f; font-weight: 700; }
+
+    /* Inputs */
+    .pi-input {
+      border: 1.5px solid #9ccbe6; border-radius: 12px;
+      background: #ffffff; color: #0b2f4f; font-weight: 600;
+      box-shadow: inset 0 2px 5px rgba(10,80,130,.1);
+    }
+    .pi-input:focus { border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27,155,224,.2); }
+    .pi-input[readonly] { background: #f1faff; color: #0a6fb8; }
+    .pi-toggle { background: linear-gradient(180deg, #ffffff, #e3f2fb); border: 1px solid #a9d9f2; color: #0a4f8c; font-weight: 800; }
+
+    /* Glossy light buttons */
+    .pi-btn { border-radius: 12px; font-weight: 800; border: 1px solid rgba(255,255,255,.6); }
+    .pi-btn-primary, .pi-btn-primary:hover:not(:disabled) {
+      background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%);
+      color: #08406b; border-color: #7fc3e8;
+      box-shadow: 0 2px 0 #7fbbe0, 0 6px 12px rgba(40,120,170,.14), inset 0 1px 0 #fff;
+    }
+    .pi-btn-success {
+      background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%);
+      color: #07583b; border-color: #7fd3ab;
+      box-shadow: 0 2px 0 #84cba9, 0 6px 12px rgba(20,168,112,.14), inset 0 1px 0 #fff;
+    }
+    .pi-btn-red, .pi-btn-danger {
+      background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%);
+      color: #8f1414; border-color: #ee8f8f;
+      box-shadow: 0 2px 0 #e08a8a, 0 6px 12px rgba(220,38,38,.12), inset 0 1px 0 #fff;
+    }
+    .pi-btn-soft, .pi-btn-ghost {
+      background: linear-gradient(180deg, #ffffff, #e3f2fb);
+      color: #0a4f8c; border-color: #a9d9f2;
+      box-shadow: 0 3px 8px rgba(40,120,170,.12);
+    }
+
+    /* Light table header */
+    .pi-table thead th {
+      background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
+      color: #08406b; border: 1px solid #7fbfe4; font-weight: 800;
+    }
     .pi-exp { cursor: pointer; transition: all 0.2s ease; }
     .pi-strong { font-weight: 600; }
     .pi-accent { font-weight: 600; color: #0369a1; }
@@ -1727,11 +1845,19 @@ const expandTd = (order, key, value) => {
 
   {/* PAGE TITLE */}
   <div className="pi-hero">
-    <h1>
-      <i className="bi bi-printer-fill me-2" style={{ color: "#0284c7" }}></i>
-      Printing Instruction Entry
+    <div className="pi-hero-emblem">
+      <i className="bi bi-printer-fill"></i>
+    </div>
+    <h1 className="pi-hero-title">
+      <b>Printing Instruction Entry</b>
     </h1>
-    <p>Create and manage printing instructions for Master and Perso orders</p>
+    {loggedInUser && (
+      <div className="pi-user-pill">
+        <span className="pi-user-dot"></span>
+        <i className="bi bi-person"></i>
+        <span>{loggedInUser}</span>
+      </div>
+    )}
   </div>
 
   <form onSubmit={handleSubmit}>
