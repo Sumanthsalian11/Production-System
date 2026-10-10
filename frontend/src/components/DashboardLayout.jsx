@@ -155,7 +155,6 @@ export default function DashboardLayout() {
   const location = useLocation();
 
   const isAdmin = loggedInUser === "admin";
-  const roleTheme = useMemo(() => getRoleTheme(loggedInUser), [loggedInUser]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -287,15 +286,15 @@ export default function DashboardLayout() {
     const t = announcementData?.type || "broadcast";
     switch (t) {
       case "critical":
-        return { primary: "#ef4444", secondary: "#b91c1c", glow: "rgba(239, 68, 68, 0.4)" };
+        return { primary: "#dc2626", secondary: "#991b1b", glow: "rgba(220, 38, 38, 0.25)", bg: "#fef2f2" };
       case "maintenance":
-        return { primary: "#0ea5e9", secondary: "#0369a1", glow: "rgba(14, 165, 233, 0.4)" };
+        return { primary: "#0284c7", secondary: "#0369a1", glow: "rgba(2, 132, 199, 0.25)", bg: "#f0f9ff" };
       case "celebration":
-        return { primary: "#22c55e", secondary: "#15803d", glow: "rgba(34, 197, 94, 0.4)" };
+        return { primary: "#16a34a", secondary: "#15803d", glow: "rgba(22, 163, 74, 0.25)", bg: "#f0fdf4" };
       case "info":
-        return { primary: "#a855f7", secondary: "#7e22ce", glow: "rgba(168, 85, 247, 0.4)" };
+        return { primary: "#7c3aed", secondary: "#6d28d9", glow: "rgba(124, 58, 237, 0.25)", bg: "#faf5ff" };
       default:
-        return { primary: "#3b82f6", secondary: "#1d4ed8", glow: "rgba(59, 130, 246, 0.4)" };
+        return { primary: "#1d4ed8", secondary: "#1e40af", glow: "rgba(29, 78, 216, 0.25)", bg: "#eff6ff" };
     }
   }, [announcementData?.type]);
 
@@ -351,7 +350,7 @@ export default function DashboardLayout() {
     navigate("/");
   };
 
-  const sidebarWidth = collapsed ? "64px" : "220px";
+  const sidebarWidth = collapsed ? "68px" : "230px";
 
   const allowedModules = useMemo(() => {
     return menuItems.filter((item) => {
@@ -397,21 +396,22 @@ export default function DashboardLayout() {
   const inputStyle = (inputName, hasError) => {
     const isFocused = focusedInput === inputName;
     return {
-      backgroundColor: "#eff6ff",
-      border: "1.5px solid",
-      borderColor: hasError ? "#ef4444" : isFocused ? "#3b82f6" : "#bfdbfe",
-      color: "#1e3a5f",
-      boxShadow: isFocused ? "0 0 0 3px rgba(59, 130, 246, 0.15)" : "none",
+      backgroundColor: "#f8fafc",
+      border: "1px solid",
+      borderColor: hasError ? "#ef4444" : isFocused ? "#1e40af" : "#cbd5e1",
+      color: "#0f172a",
+      boxShadow: isFocused ? "0 0 0 3px rgba(30, 64, 175, 0.12)" : "none",
       transition: "all 0.2s ease",
-      borderRadius: "8px 0 0 8px"
+      borderRadius: "8px 0 0 8px",
+      padding: "9px 12px"
     };
   };
 
   const eyeButtonStyle = (hoverState) => ({
-    backgroundColor: "#eff6ff",
-    border: "1.5px solid #bfdbfe",
+    backgroundColor: "#f8fafc",
+    border: "1px solid #cbd5e1",
     borderLeft: "none",
-    color: hoverState ? "#1d4ed8" : "#93c5fd",
+    color: hoverState ? "#0f172a" : "#64748b",
     transition: "all 0.2s ease",
     borderRadius: "0 8px 8px 0"
   });
@@ -421,16 +421,9 @@ export default function DashboardLayout() {
   const topOffset = isMobile ? 52 : 0;
 
   return (
-    <div className="d-flex" style={{ overflowX: "hidden" }}>
+    <div className="d-flex" style={{ overflowX: "hidden", backgroundColor: "#f8fafc", color: "#0f172a" }}>
       <style>{`
-        @keyframes moltenFlow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-        @keyframes underlinePulse {
-          0% { box-shadow: 0 2px 0 rgba(30, 60, 120, 0.2), 0 2px 8px rgba(59, 130, 246, 0.3); transform: scaleX(0.98); }
-          50% { box-shadow: 0 3px 0 rgba(30, 60, 120, 0.2), 0 6px 18px rgba(29, 78, 216, 0.45); transform: scaleX(1.02); }
-          100% { box-shadow: 0 2px 0 rgba(30, 60, 120, 0.2), 0 2px 8px rgba(59, 130, 246, 0.3); transform: scaleX(0.98); }
-        }
-
-        /* Seamless Dual-Track Infinite Loop */
+        /* Seamless Infinite Ticker */
         @keyframes infiniteTicker {
           0% { transform: translate3d(0, 0, 0); }
           100% { transform: translate3d(-50%, 0, 0); }
@@ -438,165 +431,60 @@ export default function DashboardLayout() {
 
         @keyframes pulsePingLive {
           0% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.4); opacity: 0.4; }
+          50% { transform: scale(1.35); opacity: 0.5; }
           100% { transform: scale(1); opacity: 1; }
         }
 
-        @keyframes cyberScanbeam {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
-        }
-
-        /* Shining Gleam animation for Highlighted Logo */
-        @keyframes logoShimmer {
-          0% { transform: translateX(-150%) skewX(-25deg); opacity: 0; }
-          25% { opacity: 0.75; }
-          50% { transform: translateX(180%) skewX(-25deg); opacity: 0.85; }
-          75% { opacity: 0.2; }
-          100% { transform: translateX(250%) skewX(-25deg); opacity: 0; }
-        }
-
-        @keyframes logoGlowPulse {
-          0%, 100% {
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(14, 165, 233, 0.15), inset 0 1px 1px #ffffff;
-            border-color: #93c5fd;
-          }
-          50% {
-            box-shadow: 0 0 18px rgba(37, 99, 235, 0.45), 0 4px 14px rgba(56, 189, 248, 0.35), inset 0 1px 2px #ffffff;
-            border-color: #3b82f6;
-          }
-        }
-
-        /* Continuous Holographic Shining Lightbeam for Sidebar Shield */
-        @keyframes cyberShieldGleam {
-          0% { transform: translateX(-120%) rotate(25deg); opacity: 0; }
-          20% { opacity: 0.8; }
-          50% { transform: translateX(140%) rotate(25deg); opacity: 0.9; }
-          80% { opacity: 0.2; }
-          100% { transform: translateX(200%) rotate(25deg); opacity: 0; }
-        }
-
-        @keyframes orbPulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 0 12px rgba(59, 130, 246, 0.6), inset 0 0 8px rgba(255, 255, 255, 0.7); }
-          50% { transform: scale(1.05); box-shadow: 0 0 22px rgba(14, 165, 233, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.9); }
-        }
-
-        /* ===== ALWAYS-CENTERED EXECUTIVE HEADER ===== */
+        /* ===== EXECUTIVE TOP BAR ===== */
         .page-header-bar {
-          position: relative;
+          position: fixed;
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 8px 20px;
+          padding: 8px 24px;
           min-height: 58px;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(240, 249, 255, 0.94) 50%, rgba(224, 242, 254, 0.95) 100%);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
-          border-bottom: 1.5px solid #bfdbfe;
-          box-shadow: 0 3px 18px rgba(59, 130, 246, 0.08);
+          background: rgba(255, 255, 255, 0.94);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          border-bottom: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03), 0 4px 12px rgba(15, 23, 42, 0.02);
           overflow: visible;
+          z-index: 1028;
+          transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.2s ease;
         }
 
-        /* Bottom reflective glow border */
-        .page-header-bar::after {
-          content: "";
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: 1.5px;
-          background: linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.5) 50%, transparent 100%);
-        }
-
-        /* ===== HIGHLIGHTED PREMIUM LOGO DOCK ===== */
-        .header-logo-highlight {
-          position: relative;
+        /* Left Logo Presentation */
+        .header-logo-dock {
           display: flex;
           align-items: center;
-          gap: 8px;
-          background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
-          border: 1.8px solid #93c5fd;
-          border-radius: 12px;
-          padding: 4px 12px;
-          animation: logoGlowPulse 4s infinite ease-in-out;
-          overflow: hidden;
-          transition: all 0.25s ease;
-          cursor: pointer;
-        }
-        .header-logo-highlight::after {
-          content: "";
-          position: absolute;
-          top: -10px;
-          left: -40px;
-          width: 32px;
-          height: 60px;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
-          animation: logoShimmer 3.2s infinite;
-          pointer-events: none;
-        }
-        .header-logo-highlight:hover {
-          transform: translateY(-1.5px) scale(1.02);
-          border-color: #2563eb;
-          box-shadow: 0 0 20px rgba(37, 99, 235, 0.5), inset 0 1px 2px #ffffff;
+          gap: 12px;
         }
 
-        /* Always dead-center title & icon */
-        .page-header-center-anchor {
-          position: absolute;
-          left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          max-width: 48%;
-          pointer-events: none;
-        }
-
-        /* Refined, compact icon medallion */
-        .page-header-icon-box {
-          width: 32px;
-          height: 32px;
-          border-radius: 9px;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 0.95rem;
-          flex-shrink: 0;
-          box-shadow: 0 2.5px 8px rgba(29, 78, 216, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-          pointer-events: auto;
-        }
-
-        /* CAPS Header Title */
+        /* CAPS Header Title - Executive Corporate Look */
         .page-header-title {
           margin: 0;
-          font-size: 1.3rem;
-          font-weight: 900;
-          letter-spacing: 1.2px;
+          font-size: 1.12rem;
+          font-weight: 800;
+          letter-spacing: 0.5px;
           text-transform: uppercase;
-          color: #0f2d4a;
+          color: #0f172a;
           line-height: 1.2;
-          text-align: center;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
-          pointer-events: auto;
         }
 
-        /* ===== CLICK-TO-LOGOUT USER PILL WITH HOVER LOGOUT ICON ===== */
+        /* ===== CLICK-TO-LOGOUT USER PILL ===== */
         .header-user-logout-pill {
           display: inline-flex;
           align-items: center;
           background: #ffffff;
-          border: 1.5px solid #bfdbfe;
+          border: 1px solid #e2e8f0;
           border-radius: 50px;
-          padding: 4px 10px 4px 4px;
-          gap: 8px;
-          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
-          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          padding: 4px 12px 4px 4px;
+          gap: 9px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
           cursor: pointer;
           user-select: none;
         }
@@ -604,32 +492,29 @@ export default function DashboardLayout() {
         .header-user-logout-pill:hover {
           border-color: #ef4444;
           background: #fef2f2;
-          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
           transform: translateY(-1px);
         }
 
         .user-avatar-badge {
-          width: 28px;
-          height: 28px;
+          width: 30px;
+          height: 30px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%);
+          background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
           color: #ffffff;
-          font-weight: 800;
-          font-size: 0.78rem;
+          font-weight: 700;
+          font-size: 0.8rem;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
-          box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
-          transition: all 0.25s ease;
+          transition: all 0.2s ease;
         }
 
         .header-user-logout-pill:hover .user-avatar-badge {
-          background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
-          box-shadow: 0 2px 8px rgba(220, 38, 38, 0.45);
+          background: #ef4444;
         }
 
-        /* Avatar swaps from Initial Letter to Logout Icon on Hover */
         .avatar-initial {
           display: block;
         }
@@ -647,15 +532,15 @@ export default function DashboardLayout() {
         .header-user-meta {
           display: flex;
           flex-direction: column;
-          line-height: 1.1;
+          line-height: 1.15;
           text-align: left;
         }
 
         .header-user-name {
-          font-size: 0.78rem;
-          font-weight: 800;
-          color: #1e3a5f;
-          max-width: 110px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          color: #0f172a;
+          max-width: 120px;
           transition: color 0.2s ease;
         }
 
@@ -664,10 +549,10 @@ export default function DashboardLayout() {
         }
 
         .header-user-subtext {
-          font-size: 0.62rem;
-          font-weight: 700;
+          font-size: 0.64rem;
+          font-weight: 600;
           color: #16a34a;
-          letter-spacing: 0.3px;
+          letter-spacing: 0.2px;
           transition: color 0.2s ease;
         }
 
@@ -675,125 +560,34 @@ export default function DashboardLayout() {
           color: #ef4444;
         }
 
-        /* ===== SHINING SIDEBAR BRAND SHIELD ===== */
-        .sidebar-brand-shield {
-          position: relative;
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          background: linear-gradient(135deg, #0284c7 0%, #1e40af 50%, #4338ca 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #ffffff;
-          font-size: 1.25rem;
-          overflow: hidden;
-          box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.7);
-          animation: orbPulse 3.5s ease-in-out infinite;
-          cursor: pointer;
-          border: 1px solid rgba(255, 255, 255, 0.4);
-        }
-
-        .sidebar-brand-shield::after {
-          content: "";
-          position: absolute;
-          top: -20px;
-          left: -40px;
-          width: 35px;
-          height: 90px;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
-          animation: cyberShieldGleam 2.8s infinite;
-          pointer-events: none;
-        }
-
-        @media (max-width: 767px) {
-          .page-header-bar { padding: 6px 10px; min-height: 50px; }
-          .page-header-center-anchor { max-width: 58%; gap: 6px; }
-          .page-header-title { font-size: 0.95rem; letter-spacing: 0.8px; }
-          .page-header-icon-box { width: 26px; height: 26px; font-size: 0.8rem; border-radius: 6px; }
-          .header-user-meta { display: none; }
-          .header-logo-highlight { padding: 2px 6px; }
-          .header-logo-highlight img { height: 24px !important; }
-        }
-
-        /* 3D Trigger Button (Sidebar & Topbar) */
-        .launcher-btn-3d {
-          background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
-          border: none;
-          color: #ffffff;
-          font-weight: 800;
-          font-size: 0.82rem;
-          padding: 7px 15px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-          box-shadow: 0 3px 0 #1e3a8a, 0 5px 12px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-          transform: translateY(0);
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .launcher-btn-3d:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 5px 0 #1e3a8a, 0 8px 18px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
-          color: #ffffff;
-        }
-
-        .role-hub-card {
-          position: relative;
-          background: linear-gradient(165deg, #ffffff 0%, #eff6ff 100%);
-          border: 1.5px solid #bfdbfe;
-          border-top: 2px solid #60a5fa;
-          border-bottom: 3px solid #6d98cb;
-          border-radius: 12px;
-          padding: 9px 11px;
-          box-shadow: 0 6px 18px rgba(59, 130, 246, 0.18), 0 0 14px rgba(59, 130, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .role-medallion-3d {
-          width: 34px;
-          height: 34px;
-          border-radius: 9px;
-          background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
-          border: 1px solid #93c5fd;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 2.5px 0 #1e3a8a, 0 3px 8px rgba(29, 78, 216, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6);
-          flex-shrink: 0;
-        }
-
-        .sidebar-nav-scroll::-webkit-scrollbar { width: 8px; height: 0; }
-        .sidebar-nav-scroll::-webkit-scrollbar-track { background: transparent; }
-        .sidebar-nav-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
-        .sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #e3f4ff; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25); }
-        .sidebar-nav-scroll::-webkit-scrollbar-thumb:hover { background: #83daff; }
-        @supports (-moz-appearance: none) {
-          .sidebar-nav-scroll { scrollbar-width: thin; scrollbar-color: #e3f4ff transparent; }
-        }
-        .sidebar-nav-scroll .nav-link { flex-shrink: 0; }
+        /* Nav links */
+        .sidebar-nav-scroll::-webkit-scrollbar { width: 5px; }
+        .sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
 
         .sidebar-nav-link {
-          transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+          transition: all 0.18s ease;
           border-left: 3px solid transparent;
+          text-decoration: none;
+          border-radius: 8px;
         }
         .sidebar-nav-link:hover:not(.active-nav-link) {
-          background-color: #f0f9ff !important;
-          color: #3b82f6 !important;
-          transform: translateX(3px);
+          background-color: #f1f5f9 !important;
+          color: #0f172a !important;
         }
         .sidebar-nav-link.active-nav-link {
-          border-left-color: #1d4ed8;
+          background-color: #f1f5f9;
+          color: #0f172a !important;
+          border-left-color: #1e3a8a;
+          font-weight: 700 !important;
         }
 
         /* 3D Application Launcher Modal */
         .launcher-overlay-3d {
           position: fixed;
           inset: 0;
-          background: rgba(29, 78, 216, 0.15);
-          backdrop-filter: blur(12px);
-          -webkit-backdrop-filter: blur(12px);
+          background: rgba(15, 23, 42, 0.45);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
           z-index: 1070;
           display: flex;
           align-items: center;
@@ -801,88 +595,74 @@ export default function DashboardLayout() {
           padding: 20px;
         }
         .launcher-panel-3d-smooth {
-          background: linear-gradient(175deg, #ffffff 0%, #f9fafb 55%, #f1f5f9 100%);
-          border: 1.5px solid #cbd5e1;
-          border-radius: 24px;
+          background: #ffffff;
+          border: 1px solid #cbd5e1;
+          border-radius: 16px;
           width: 100%;
-          max-width: 1140px;
+          max-width: 1120px;
           max-height: 90vh;
           overflow-y: auto;
-          box-shadow: 0 35px 70px -15px rgba(0, 0, 0, 0.35), inset 0 2px 0 #ffffff;
-          padding: 32px 36px;
+          box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+          padding: 30px;
           color: #0f172a;
         }
         .search-well-3d-smooth {
           position: relative;
-          background: #ffffff;
-          border-radius: 12px;
-          border: 1.5px solid #cbd5e1;
-          box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.07);
+          background: #f8fafc;
+          border-radius: 8px;
+          border: 1px solid #cbd5e1;
         }
         .search-well-3d-smooth input {
           width: 100%;
           background: transparent;
           border: none;
           outline: none;
-          padding: 10px 14px 10px 40px;
+          padding: 8px 12px 8px 36px;
           color: #0f172a;
-          font-size: 0.85rem;
+          font-size: 0.84rem;
           font-weight: 600;
         }
         .category-deck-3d {
-          background: linear-gradient(180deg, #ffffff 0%, #fcfdfd 60%, #f8fafc 100%);
-          border-radius: 18px;
+          background: #ffffff;
+          border-radius: 12px;
           border: 1px solid #e2e8f0;
-          border-top: 2px solid #ffffff;
-          border-bottom: 3.5px solid #cbd5e1;
-          padding: 18px;
+          padding: 16px;
           height: 100%;
           display: flex;
           flex-direction: column;
         }
         .app-keycap-3d {
-          background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+          background: #ffffff;
           border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          padding: 9px 12px;
+          border-radius: 8px;
+          padding: 8px 12px;
           display: flex;
           align-items: center;
           gap: 10px;
           color: #334155;
           text-decoration: none;
-          font-size: 0.83rem;
+          font-size: 0.82rem;
           font-weight: 600;
-          box-shadow: 0 3.5px 0 #cbd5e1;
+          transition: all 0.15s ease;
         }
         .app-keycap-3d:hover {
           color: #0f172a;
-          background: #eff6ff;
-          border-color: #93c5fd;
-          transform: translateY(-2px);
+          background: #f8fafc;
+          border-color: #94a3b8;
+          transform: translateY(-1px);
         }
         .app-keycap-3d.active-3d {
-          background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
+          background: #0f172a;
           color: #ffffff !important;
-          border-color: #1d4ed8;
-        }
-        .btn-round-3d-smooth {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          border: 1px solid #cbd5e1;
-          background: #ffffff;
-          color: #475569;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          border-color: #0f172a;
         }
 
-        /* Ticker Action Buttons (Admin Only) */
+        /* Ticker Action Buttons */
         .ticker-action-btn {
           background: #ffffff;
-          border: 1px solid #bfdbfe;
-          color: #1d4ed8;
-          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+          color: #1e3a8a;
+          border-radius: 5px;
           padding: 2px 7px;
           font-size: 0.72rem;
           cursor: pointer;
@@ -892,9 +672,15 @@ export default function DashboardLayout() {
           transition: all 0.15s ease;
         }
         .ticker-action-btn:hover {
-          background: rgba(59, 130, 246, 0.15);
-          border-color: #3b82f6;
-          color: #1d4ed8;
+          background: #f1f5f9;
+          border-color: #94a3b8;
+          color: #0f172a;
+        }
+
+        @media (max-width: 767px) {
+          .page-header-bar { padding: 6px 14px; min-height: 52px; }
+          .page-header-title { font-size: 0.95rem; }
+          .header-user-meta { display: none; }
         }
       `}</style>
 
@@ -905,7 +691,7 @@ export default function DashboardLayout() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(29, 78, 216, 0.12)",
+            background: "rgba(15, 23, 42, 0.4)",
             backdropFilter: "blur(4px)",
             zIndex: 1040
           }}
@@ -922,178 +708,124 @@ export default function DashboardLayout() {
           left: isMobile ? (collapsed ? "-260px" : "0") : "0",
           top: 0,
           height: "100vh",
-          backgroundColor: "#a8eee5",
-          color: "#1e3a5f",
-          borderRight: "1.5px solid #bfdbfe",
-          boxShadow: "4px 0 24px rgba(59, 130, 246, 0.08)"
+          backgroundColor: "#ffffff",
+          color: "#0f172a",
+          borderRight: "1px solid #e2e8f0",
+          boxShadow: "none"
         }}
       >
-        {/* BRAND HEADER: SHINING HOLOGRAPHIC SHIELD + toggle */}
+        {/* BRAND HEADER + COLLAPSE TOGGLE */}
         <div
           className="d-flex align-items-center"
           style={{
-            height: "70px",
-            padding: collapsed ? "0" : "0 14px",
+            height: "58px",
+            padding: collapsed ? "0" : "0 14px 0 18px",
             justifyContent: collapsed ? "center" : "space-between",
-            gap: "10px",
-            borderBottom: "1.5px solid #6d98cb",
-            background: "linear-gradient(135deg, #a8eee5 0%, #8fd9ee 100%)",
+            borderBottom: "1px solid #e2e8f0",
             flexShrink: 0
           }}
         >
           {!collapsed && (
-            <div className="d-flex align-items-center gap-2">
-              {/* Shining Cyber Shield Badge */}
-              <div className="sidebar-brand-shield" title="MPI Enterprise">
-                <i className="bi bi-shield-shaded"></i>
-              </div>
-              <div className="d-flex flex-column" style={{ lineHeight: 1.15 }}>
-                <span className="fw-black text-uppercase" style={{ fontSize: "0.86rem", fontWeight: 900, color: "#0f2d4a", letterSpacing: "1.1px" }}>
-                  MPI CONSOLE
-                </span>
-                <span style={{ fontSize: "0.62rem", color: "#1d4ed8", fontWeight: 700, letterSpacing: "0.8px" }}>
-                  SECURE CORE
-                </span>
-              </div>
-            </div>
+            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "#0f172a", letterSpacing: "0.8px" }}>
+              MPI CONSOLE
+            </span>
           )}
-
           <button
-            className="btn d-flex align-items-center justify-content-center"
+            type="button"
             onClick={() => setCollapsed(!collapsed)}
-            onMouseEnter={() => setToggleHover(true)}
-            onMouseLeave={() => setToggleHover(false)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="btn d-flex align-items-center justify-content-center"
             style={{
-              backgroundColor: toggleHover ? "#eff6ff" : "#ffffff",
-              borderColor: toggleHover ? "#3b82f6" : "#bfdbfe",
-              borderWidth: "1.5px",
-              borderStyle: "solid",
-              color: toggleHover ? "#1d4ed8" : "#94a3b8",
-              transition: "all 0.2s ease",
-              padding: "8px 12px",
-              borderRadius: "8px",
-              boxShadow: toggleHover ? "0 0 8px rgba(124, 200, 228, 0.15)" : "none",
-              flexShrink: 0
+              width: "32px",
+              height: "32px",
+              padding: 0,
+              borderRadius: "6px",
+              border: "none",
+              background: "transparent",
+              color: "#475569"
             }}
           >
-            <i className="bi bi-list fs-5"></i>
+            <i className={`bi ${collapsed ? "bi-layout-sidebar" : "bi-layout-sidebar-inset"}`} style={{ fontSize: "1.05rem" }}></i>
           </button>
         </div>
 
-        <div
-          className="p-3 border-bottom"
-          style={{ borderColor: "#6d98cb", background: "linear-gradient(135deg, #a8eee5 0%, #8fd9ee 100%)" }}
-        >
-          {isAdmin ? (
-            collapsed ? (
+        {/* Floating round edge handle (desktop only) */}
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            onMouseEnter={() => setToggleHover(true)}
+            onMouseLeave={() => setToggleHover(false)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              position: "absolute",
+              top: "70px",
+              right: "-12px",
+              width: "24px",
+              height: "24px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              background: toggleHover ? "#0f172a" : "#ffffff",
+              color: toggleHover ? "#ffffff" : "#475569",
+              border: "1px solid #cbd5e1",
+              boxShadow: "0 1px 4px rgba(15, 23, 42, 0.12)",
+              zIndex: 1060,
+              transition: "all 0.15s ease"
+            }}
+          >
+            <i className={`bi ${collapsed ? "bi-chevron-right" : "bi-chevron-left"}`} style={{ fontSize: "0.72rem" }}></i>
+          </button>
+        )}
+
+        {/* All Modules button (admin only) */}
+        {isAdmin && (
+          <div className="p-3" style={{ borderBottom: "1px solid #e2e8f0" }}>
+            {collapsed ? (
               <button
-                className="btn w-100 p-2 d-flex justify-content-center align-items-center rounded-3 shadow-sm"
+                className="btn w-100 p-2 d-flex justify-content-center align-items-center rounded-2"
                 onClick={() => setShowAppLauncher(true)}
-                title="Open 3D App Launcher (Ctrl+K)"
-                style={{ background: "linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%)", border: "none", color: "#ffffff" }}
+                title="Open App Launcher (Ctrl+K)"
+                style={{ background: "#0f172a", border: "none", color: "#ffffff" }}
               >
-                <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
+                <i className="bi bi-grid-3x3-gap-fill fs-6"></i>
               </button>
             ) : (
               <button
-                className="launcher-btn-3d w-100 justify-content-center"
+                className="btn w-100 d-flex align-items-center justify-content-center gap-2 fw-bold"
                 onClick={() => setShowAppLauncher(true)}
+                style={{ background: "#0f172a", border: "none", color: "#ffffff", fontSize: "0.82rem", padding: "8px 12px", borderRadius: "8px" }}
               >
-                <i className="bi bi-grid-3x3-gap-fill fs-6"></i>
+                <i className="bi bi-grid-3x3-gap-fill"></i>
                 <span>All Modules</span>
               </button>
-            )
-          ) : collapsed ? (
-            <div className="d-flex justify-content-center">
-              <div
-                className="role-medallion-3d"
-                style={{ width: "38px", height: "38px", borderRadius: "10px", cursor: "default" }}
-                title={`${loggedInUser ? loggedInUser.toUpperCase() : "USER"} - ${roleTheme.department} (${allowedModules.length} Modules)`}
-              >
-                <i className={`bi ${roleTheme.icon} fs-5`}></i>
-              </div>
-            </div>
-          ) : (
-            <div className="role-hub-card">
-              <div className="d-flex align-items-center gap-2 mb-2">
-                <div className="role-medallion-3d">
-                  <i className={`bi ${roleTheme.icon} fs-6`}></i>
-                </div>
-                <div className="overflow-hidden flex-grow-1" style={{ minWidth: 0 }}>
-                  <div
-                    className="fw-bold text-truncate text-uppercase"
-                    style={{ fontSize: "0.82rem", letterSpacing: "0.6px", color: "#1e3a5f" }}
-                  >
-                    <span style={{ color: "#1d4ed8" }}>{loggedInUser || "User"}</span> Role
-                  </div>
-                  <div
-                    className="text-truncate text-uppercase"
-                    style={{ color: "#64748b", fontSize: "0.64rem", fontWeight: "600", letterSpacing: "0.4px" }}
-                  >
-                    {roleTheme.department}
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className="d-flex align-items-center justify-content-between pt-2 mt-1"
-                style={{ borderTop: "1px solid #bfdbfe", fontSize: "0.66rem" }}
-              >
-                <div className="d-flex align-items-center gap-1">
-                  <span
-                    style={{
-                      width: "7px",
-                      height: "7px",
-                      borderRadius: "50%",
-                      backgroundColor: "#22c55e",
-                      boxShadow: "0 0 6px #22c55e",
-                      display: "inline-block"
-                    }}
-                  />
-                  <span className="fw-bold" style={{ color: "#16a34a", letterSpacing: "0.4px", fontSize: "0.62rem" }}>
-                    ONLINE
-                  </span>
-                </div>
-
-                <span
-                  className="badge"
-                  style={{
-                    fontSize: "0.63rem",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    border: "1px solid #bfdbfe",
-                    padding: "2px 8px",
-                    borderRadius: "6px",
-                    fontWeight: 700
-                  }}
-                >
-                  {allowedModules.length} {allowedModules.length === 1 ? "Module" : "Modules"}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Navigation */}
         <nav
           className="nav flex-column flex-nowrap p-2 gap-1 flex-grow-1 w-100 sidebar-nav-scroll"
           style={{ overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
         >
-          {!collapsed && (
+          {/* Header indicator ONLY for Admin; Removed "Assigned Modules" for non-admin */}
+          {!collapsed && isAdmin && (
             <div className="d-flex align-items-center justify-content-between px-2 py-1 mb-1">
               <div
                 className="small fw-bold text-uppercase d-flex align-items-center gap-1"
-                style={{ fontSize: "0.68rem", letterSpacing: "0.5px", color: "#1e3a5f" }}
+                style={{ fontSize: "0.66rem", letterSpacing: "0.6px", color: "#64748b" }}
               >
-                <i className="bi bi-grid-fill" style={{ color: "#1d4ed8", fontSize: "0.7rem" }}></i>
-                <span>{isAdmin ? "Active Category" : "Assigned Modules"}</span>
+                <i className="bi bi-grid-fill" style={{ color: "#0f172a", fontSize: "0.7rem" }}></i>
+                <span>Active Category</span>
               </div>
               <span
                 className="badge rounded-pill"
                 style={{
-                  backgroundColor: "#eff6ff",
-                  color: "#1d4ed8",
-                  border: "1px solid #bfdbfe",
+                  backgroundColor: "#f1f5f9",
+                  color: "#0f172a",
+                  border: "1px solid #e2e8f0",
                   fontSize: "0.62rem",
                   padding: "2px 6px"
                 }}
@@ -1112,18 +844,13 @@ export default function DashboardLayout() {
                 onClick={() => isMobile && setCollapsed(true)}
                 className={`nav-link py-2 px-3 rounded d-flex align-items-center gap-3 mb-1 sidebar-nav-link ${isActive ? "active-nav-link" : ""}`}
                 style={{
-                  backgroundColor: isActive ? "#eff6ff" : "transparent",
-                  color: isActive ? "#1d4ed8" : "#000000",
+                  color: isActive ? "#0f172a" : "#334155",
                   fontSize: "0.84rem",
                   fontWeight: isActive ? "700" : "500",
-                  ...(isActive
-                    ? {
-                        boxShadow: "0 2px 10px rgba(59, 130, 246, 0.15)"
-                      }
-                    : {})
+                  justifyContent: collapsed ? "center" : "flex-start"
                 }}
               >
-                <i className={`bi ${item.icon}`} style={{ fontSize: "1rem" }}></i>
+                <i className={`bi ${item.icon}`} style={{ fontSize: "0.95rem", color: isActive ? "#0f172a" : "#64748b" }}></i>
                 {!collapsed && <span className="text-truncate">{item.label}</span>}
               </NavLink>
             );
@@ -1133,7 +860,7 @@ export default function DashboardLayout() {
         {/* Footer: user menu (Change Password / Logout) */}
         <div
           className="p-3 border-top"
-          style={{ borderColor: "#6d98cb", backgroundColor: "#a6cde7" }}
+          style={{ borderColor: "#e2e8f0", backgroundColor: "#ffffff" }}
         >
           <div className="dropup">
             {collapsed ? (
@@ -1143,14 +870,14 @@ export default function DashboardLayout() {
                   data-bs-toggle="dropdown"
                   title={displayName}
                   style={{
-                    width: "40px",
-                    height: "40px",
+                    width: "36px",
+                    height: "36px",
                     borderRadius: "50%",
                     padding: 0,
-                    background: "linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%)",
+                    background: "#0f172a",
                     color: "#ffffff",
                     border: "none",
-                    boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)"
+                    boxShadow: "0 2px 6px rgba(15, 23, 42, 0.2)"
                   }}
                 >
                   {firstLetter}
@@ -1163,67 +890,64 @@ export default function DashboardLayout() {
                 onMouseEnter={() => setProfileHover(true)}
                 onMouseLeave={() => setProfileHover(false)}
                 style={{
-                  backgroundColor: profileHover ? "#eff6ff" : "#ffffff",
-                  border: "1.5px solid",
-                  borderColor: profileHover ? "#3b82f6" : "#bfdbfe",
-                  borderRadius: "12px",
-                  padding: "8px",
-                  transition: "all 0.2s ease",
-                  boxShadow: profileHover ? "0 0 8px rgba(59, 130, 246, 0.15)" : "0 1px 4px rgba(59, 130, 246, 0.08)"
+                  backgroundColor: profileHover ? "#f8fafc" : "#ffffff",
+                  border: "1px solid",
+                  borderColor: profileHover ? "#94a3b8" : "#e2e8f0",
+                  borderRadius: "10px",
+                  padding: "7px 10px",
+                  transition: "all 0.15s ease"
                 }}
               >
                 <div
                   className="rounded-circle d-flex align-items-center justify-content-center fw-bold"
                   style={{
-                    width: "32px",
-                    height: "32px",
-                    background: "linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%)",
+                    width: "30px",
+                    height: "30px",
+                    background: "#0f172a",
                     color: "#ffffff",
-                    fontSize: "0.85rem",
-                    boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+                    fontSize: "0.82rem",
                     flexShrink: 0
                   }}
                 >
                   {firstLetter}
                 </div>
                 <div className="text-truncate flex-grow-1" style={{ minWidth: 0 }}>
-                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.8rem", color: "#1e3a5f" }}>
+                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.78rem", color: "#0f172a" }}>
                     {displayName}
                   </div>
-                  <div className="small" style={{ fontSize: "0.65rem", color: "#16a34a", fontWeight: 600 }}>
+                  <div className="small" style={{ fontSize: "0.64rem", color: "#16a34a", fontWeight: 600 }}>
                     ● ONLINE
                   </div>
                 </div>
-                <i className="bi bi-chevron-up" style={{ color: "#94a3b8", fontSize: "0.8rem" }}></i>
+                <i className="bi bi-chevron-up" style={{ color: "#94a3b8", fontSize: "0.75rem" }}></i>
               </button>
             )}
 
             <ul
-              className="dropdown-menu py-2"
+              className="dropdown-menu py-2 shadow-sm"
               style={{
                 backgroundColor: "#ffffff",
                 minWidth: "200px",
-                borderRadius: "12px",
-                border: "1.5px solid #bfdbfe",
-                boxShadow: "0 8px 30px rgba(59, 130, 246, 0.12)",
-                padding: "10px 6px"
+                borderRadius: "10px",
+                border: "1px solid #cbd5e1",
+                padding: "8px 6px"
               }}
             >
               <li
                 className="dropdown-item-text fw-semibold text-capitalize mb-2 px-3 py-2 rounded"
-                style={{ color: "#1d4ed8", fontSize: "0.95rem", backgroundColor: "#eff6ff" }}
+                style={{ color: "#0f172a", fontSize: "0.9rem", backgroundColor: "#f8fafc" }}
               >
-                <div className="small fw-normal" style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                <div className="small fw-normal text-muted" style={{ fontSize: "0.72rem" }}>
                   Signed In As
                 </div>
                 <div className="d-flex align-items-center gap-2 mt-1">
-                  <i className="bi bi-shield-check" style={{ color: "#3b82f6" }}></i>
+                  <i className="bi bi-shield-check" style={{ color: "#1e3a8a" }}></i>
                   <span>{displayName}</span>
                 </div>
               </li>
 
               <li>
-                <hr className="dropdown-divider" style={{ borderColor: "#bfdbfe" }} />
+                <hr className="dropdown-divider" style={{ borderColor: "#e2e8f0" }} />
               </li>
 
               <li>
@@ -1233,14 +957,15 @@ export default function DashboardLayout() {
                   onMouseEnter={() => setCpItemHover(true)}
                   onMouseLeave={() => setCpItemHover(false)}
                   style={{
-                    color: cpItemHover ? "#1d4ed8" : "#475569",
-                    backgroundColor: cpItemHover ? "#eff6ff" : "transparent",
-                    transition: "all 0.2s ease",
-                    padding: "10px 16px",
+                    color: cpItemHover ? "#0f172a" : "#475569",
+                    backgroundColor: cpItemHover ? "#f1f5f9" : "transparent",
+                    transition: "all 0.15s ease",
+                    padding: "8px 14px",
+                    fontSize: "0.82rem",
                     fontWeight: "500"
                   }}
                 >
-                  <i className="bi bi-key-fill" style={{ color: "#3b82f6" }}></i> Change Password
+                  <i className="bi bi-key-fill text-secondary"></i> Change Password
                 </button>
               </li>
 
@@ -1251,10 +976,10 @@ export default function DashboardLayout() {
                   onMouseEnter={() => setLogoutItemHover(true)}
                   onMouseLeave={() => setLogoutItemHover(false)}
                   style={{
-                    color: logoutItemHover ? "#dc2626" : "#f87171",
-                    backgroundColor: logoutItemHover ? "rgba(239, 68, 68, 0.15)" : "transparent",
-                    transition: "all 0.2s ease",
-                    padding: "10px 16px",
+                    backgroundColor: logoutItemHover ? "#fef2f2" : "transparent",
+                    transition: "all 0.15s ease",
+                    padding: "8px 14px",
+                    fontSize: "0.82rem",
                     fontWeight: "500"
                   }}
                 >
@@ -1288,11 +1013,11 @@ export default function DashboardLayout() {
               left: "8px",
               zIndex: 1045,
               backgroundColor: "#ffffff",
-              border: "1.5px solid #bfdbfe",
-              color: "#1d4ed8",
-              padding: "8px 12px",
+              border: "1px solid #cbd5e1",
+              color: "#0f172a",
+              padding: "7px 11px",
               borderRadius: "8px",
-              boxShadow: "0 2px 10px rgba(59, 130, 246, 0.2)"
+              boxShadow: "0 2px 6px rgba(0,0,0,0.1)"
             }}
           >
             <i className="bi bi-list fs-5"></i>
@@ -1310,9 +1035,9 @@ export default function DashboardLayout() {
               left: isMobile ? 0 : sidebarWidth,
               right: 0,
               height: "36px",
-              backgroundColor: "#eff6ff",
-              borderBottom: `1.5px solid ${themeColors.primary}`,
-              boxShadow: `0 4px 18px ${themeColors.glow}`,
+              backgroundColor: themeColors.bg,
+              borderBottom: `1px solid ${themeColors.primary}`,
+              boxShadow: `0 2px 10px ${themeColors.glow}`,
               zIndex: 1029,
               display: "flex",
               alignItems: "center",
@@ -1320,43 +1045,28 @@ export default function DashboardLayout() {
               transition: "all 0.3s ease"
             }}
           >
-            {/* Cyber Scan Line Effect */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                bottom: 0,
-                width: "120px",
-                background: "linear-gradient(90deg, transparent, rgba(59,130,246,0.12), transparent)",
-                animation: "cyberScanbeam 6s linear infinite",
-                pointerEvents: "none",
-                zIndex: 1
-              }}
-            />
-
-            {/* Left 3D Glowing Badge */}
+            {/* Left Badge */}
             <div
               style={{
                 background: `linear-gradient(135deg, ${themeColors.primary} 0%, ${themeColors.secondary} 100%)`,
                 color: "#ffffff",
-                padding: "0 12px",
+                padding: "0 14px",
                 height: "100%",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                fontSize: "0.74rem",
-                fontWeight: "900",
-                letterSpacing: "0.6px",
+                fontSize: "0.72rem",
+                fontWeight: "800",
+                letterSpacing: "0.5px",
                 textTransform: "uppercase",
-                boxShadow: "4px 0 14px rgba(59, 130, 246, 0.25)",
                 zIndex: 4,
                 flexShrink: 0
               }}
             >
               <span
                 style={{
-                  width: "8px",
-                  height: "8px",
+                  width: "7px",
+                  height: "7px",
                   borderRadius: "50%",
                   background: "#ffffff",
                   animation: "pulsePingLive 1.4s infinite"
@@ -1394,32 +1104,32 @@ export default function DashboardLayout() {
                 <div style={{ display: "flex", alignItems: "center", paddingRight: "60px" }}>
                   <span
                     style={{
-                      color: themeColors.primary,
+                      color: "#0f172a",
                       fontWeight: "700",
-                      fontSize: "0.85rem",
-                      letterSpacing: "0.3px",
+                      fontSize: "0.82rem",
+                      letterSpacing: "0.2px",
                       whiteSpace: "nowrap"
                     }}
                   >
                     {announcementData.text}
                   </span>
-                  <span style={{ color: "#93c5fd", margin: "0 25px" }}>❖</span>
+                  <span style={{ color: "#94a3b8", margin: "0 26px" }}>❖</span>
                 </div>
 
                 {/* Track 2 */}
                 <div style={{ display: "flex", alignItems: "center", paddingRight: "60px" }}>
                   <span
                     style={{
-                      color: themeColors.primary,
+                      color: "#0f172a",
                       fontWeight: "700",
-                      fontSize: "0.85rem",
-                      letterSpacing: "0.3px",
+                      fontSize: "0.82rem",
+                      letterSpacing: "0.2px",
                       whiteSpace: "nowrap"
                     }}
                   >
                     {announcementData.text}
                   </span>
-                  <span style={{ color: "#93c5fd", margin: "0 25px" }}>❖</span>
+                  <span style={{ color: "#94a3b8", margin: "0 26px" }}>❖</span>
                 </div>
               </div>
             </div>
@@ -1430,9 +1140,8 @@ export default function DashboardLayout() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "5px",
+                  gap: "4px",
                   padding: "0 10px",
-                  background: "linear-gradient(90deg, transparent 0%, #eff6ff 25%)",
                   height: "100%",
                   zIndex: 4,
                   flexShrink: 0
@@ -1447,10 +1156,7 @@ export default function DashboardLayout() {
                   }}
                   title={tickerPaused ? "Resume scrolling" : "Pause scrolling"}
                 >
-                  <i
-                    className={`bi ${tickerPaused ? "bi-play-fill" : "bi-pause-fill"}`}
-                    style={tickerPaused ? { color: "#3b82f6" } : undefined}
-                  ></i>
+                  <i className={`bi ${tickerPaused ? "bi-play-fill" : "bi-pause-fill"}`}></i>
                 </button>
 
                 {/* Speed Multiplier */}
@@ -1475,10 +1181,7 @@ export default function DashboardLayout() {
                   }}
                   title={isTickerMuted ? "Sound chime muted" : "Sound chime active (Click to test)"}
                 >
-                  <i
-                    className={`bi ${isTickerMuted ? "bi-volume-mute text-secondary" : "bi-volume-up"}`}
-                    style={isTickerMuted ? undefined : { color: "#3b82f6" }}
-                  ></i>
+                  <i className={`bi ${isTickerMuted ? "bi-volume-mute text-secondary" : "bi-volume-up"}`}></i>
                 </button>
 
                 {/* View Details */}
@@ -1518,27 +1221,26 @@ export default function DashboardLayout() {
               top: `${topOffset + 6}px`,
               right: "20px",
               zIndex: 1035,
-              background: `linear-gradient(135deg, ${themeColors.primary} 0%, ${themeColors.secondary} 100%)`,
+              background: "#0f172a",
               color: "#ffffff",
               borderRadius: "999px",
-              padding: "5px 12px",
+              padding: "4px 12px",
               display: "flex",
               alignItems: "center",
               gap: "6px",
               cursor: "pointer",
-              fontWeight: "800",
-              fontSize: "0.74rem",
-              boxShadow: `0 4px 15px ${themeColors.glow}`,
-              border: "1px solid #ffffff"
+              fontWeight: "700",
+              fontSize: "0.72rem",
+              boxShadow: "0 4px 12px rgba(15, 23, 42, 0.18)"
             }}
             title="Click to restore broadcast ticker"
           >
             <span
               style={{
-                width: "7px",
-                height: "7px",
+                width: "6px",
+                height: "6px",
                 borderRadius: "50%",
-                background: "#ffffff",
+                background: "#22c55e",
                 animation: "pulsePingLive 1.4s infinite"
               }}
             />
@@ -1548,7 +1250,7 @@ export default function DashboardLayout() {
 
         {/* Content Outlet */}
         <div
-          className="p-3 p-md-0 bg-light"
+          className="p-3 p-md-0"
           style={{
             minHeight: `calc(100vh - ${topOffset + (announcementData?.text && !isMinimized ? 36 : 0)}px)`,
             marginTop: `${topOffset + (announcementData?.text && !isMinimized ? 36 : 0)}px`,
@@ -1556,23 +1258,18 @@ export default function DashboardLayout() {
           }}
         >
           {/* =========================================================================
-              CLEAN ALWAYS-CENTERED PAGE HEADER (HIGHLIGHTED LOGO + CLICK-TO-LOGOUT USER)
+              CLEAN TOP PAGE HEADER
               ========================================================================= */}
           <div
             className="page-header-bar"
             style={{
-              position: "fixed",
               top: `${topOffset + (announcementData?.text && !isMinimized ? 36 : 0)}px`,
               left: isMobile ? 0 : sidebarWidth,
-              right: 0,
-              zIndex: 1028,
-              transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.2s ease",
-              ...(isMobile ? { borderRadius: "14px", margin: "10px", padding: "8px 12px" } : {})
+              right: 0
             }}
           >
-            
-            {/* LEFT SIDE: HIGHLIGHTED MPI LOGO WITH AMBIENT GLOW & SHIMMER */}
-            <div className="header-logo-highlight" title="MPI Enterprise">
+            {/* LEFT SIDE: Exact Logo & Current Page Title */}
+            <div className="header-logo-dock" style={{ minWidth: 0 }}>
               <img
                 src="Logo.png"
                 alt="MPI Logo"
@@ -1580,28 +1277,20 @@ export default function DashboardLayout() {
                   height: "28px",
                   width: "auto",
                   maxWidth: "115px",
-                  objectFit: "contain",
-                  filter: "drop-shadow(0 2px 4px rgba(29, 78, 216, 0.25))"
+                  objectFit: "contain"
                 }}
               />
-            </div>
-
-            {/* ABSOLUTE CENTER TITLE & COMPACT ICON (Always perfectly dead-centered) */}
-            <div className="page-header-center-anchor">
-              <div
-                className="page-header-icon-box"
-                style={{
-                  background: `linear-gradient(135deg, ${currentPage.color} 0%, #1e3a8a 100%)`
-                }}
+              <div style={{ height: "20px", width: "1px", backgroundColor: "#e2e8f0" }} />
+              <h1
+                className="page-header-title"
+                title={currentPage.title}
+                style={{ textAlign: "left" }}
               >
-                <i className={`bi ${currentPage.icon}`}></i>
-              </div>
-              <h1 className="page-header-title" title={currentPage.title}>
                 {currentPage.title}
               </h1>
             </div>
 
-            {/* RIGHT SIDE: CLICKABLE USER PILL (HOVER SHOWS LOGOUT ICON, CLICK LOGS OUT) */}
+            {/* RIGHT SIDE: CLICKABLE USER PILL */}
             <div className="d-flex align-items-center">
               <div
                 className="header-user-logout-pill"
@@ -1625,8 +1314,8 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {/* spacer = height of the fixed header bar */}
-          <div style={{ height: isMobile ? 70 : 58 }} />
+          {/* Spacer for header */}
+          <div style={{ height: isMobile ? 64 : 58 }} />
 
           <Outlet />
         </div>
@@ -1640,8 +1329,8 @@ export default function DashboardLayout() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(29, 78, 216, 0.18)",
-              backdropFilter: "blur(6px)",
+              background: "rgba(15, 23, 42, 0.4)",
+              backdropFilter: "blur(4px)",
               zIndex: 1080
             }}
           />
@@ -1653,53 +1342,52 @@ export default function DashboardLayout() {
               transform: "translate(-50%, -50%)",
               zIndex: 1085,
               width: "92%",
-              maxWidth: "520px",
-              background: "linear-gradient(175deg, #ffffff 0%, #eff6ff 100%)",
-              borderRadius: "18px",
-              border: `2px solid ${themeColors.primary}`,
-              boxShadow: `0 25px 60px rgba(59, 130, 246, 0.25), 0 0 30px ${themeColors.glow}`,
-              padding: "26px",
-              color: "#1e3a5f"
+              maxWidth: "500px",
+              background: "#ffffff",
+              borderRadius: "14px",
+              border: "1px solid #cbd5e1",
+              boxShadow: "0 20px 45px rgba(15, 23, 42, 0.2)",
+              padding: "24px",
+              color: "#0f172a"
             }}
           >
-            <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2" style={{ borderColor: "#bfdbfe" }}>
+            <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2" style={{ borderColor: "#e2e8f0" }}>
               <div className="d-flex align-items-center gap-2">
                 <span
                   className="badge"
                   style={{
                     background: themeColors.primary,
                     color: "#ffffff",
-                    fontWeight: "900",
-                    fontSize: "0.75rem",
+                    fontWeight: "800",
+                    fontSize: "0.72rem",
                     padding: "5px 10px",
                     borderRadius: "6px"
                   }}
                 >
                   {announcementData.badge}
                 </span>
-                <span className="small" style={{ color: "#64748b" }}>
+                <span className="small text-muted">
                   {announcementData.timestamp ? new Date(announcementData.timestamp).toLocaleTimeString() : "Live Notice"}
                 </span>
               </div>
               <button
-                className="btn btn-sm btn-link p-0"
+                className="btn btn-sm btn-link p-0 text-muted"
                 onClick={() => setShowDetailModal(false)}
-                style={{ color: "#64748b" }}
               >
-                <i className="bi bi-x-lg fs-5"></i>
+                <i className="bi bi-x-lg fs-6"></i>
               </button>
             </div>
 
             <div
               style={{
-                fontSize: "1.05rem",
+                fontSize: "0.96rem",
                 lineHeight: "1.6",
-                color: "#1e3a5f",
+                color: "#1e293b",
                 fontWeight: "500",
-                background: "#eff6ff",
+                background: "#f8fafc",
                 padding: "16px",
-                borderRadius: "12px",
-                border: "1px solid #bfdbfe",
+                borderRadius: "10px",
+                border: "1px solid #e2e8f0",
                 marginBottom: "20px"
               }}
             >
@@ -1712,24 +1400,26 @@ export default function DashboardLayout() {
                 onClick={copyAnnouncement}
                 style={{
                   background: "#ffffff",
-                  color: copiedNotification ? "#16a34a" : "#1d4ed8",
-                  border: "1.5px solid #bfdbfe",
+                  color: copiedNotification ? "#16a34a" : "#0f172a",
+                  border: "1px solid #cbd5e1",
                   borderRadius: "8px",
-                  padding: "8px 16px"
+                  padding: "7px 14px",
+                  fontSize: "0.82rem"
                 }}
               >
-                <i className={`bi ${copiedNotification ? "bi-check2" : "bi-clipboard"}`}></i>
+                <i className={`bi ${copiedNotification ? "bi-check2 text-success" : "bi-clipboard"}`}></i>
                 <span>{copiedNotification ? "Copied!" : "Copy Text"}</span>
               </button>
               <button
                 className="btn btn-sm fw-bold"
                 onClick={() => setShowDetailModal(false)}
                 style={{
-                  background: themeColors.primary,
+                  background: "#0f172a",
                   color: "#ffffff",
                   border: "none",
                   borderRadius: "8px",
-                  padding: "8px 20px"
+                  padding: "7px 18px",
+                  fontSize: "0.82rem"
                 }}
               >
                 Close
@@ -1745,11 +1435,11 @@ export default function DashboardLayout() {
           <div className="launcher-panel-3d-smooth" onClick={(e) => e.stopPropagation()}>
             <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom" style={{ borderColor: "#e2e8f0" }}>
               <div className="d-flex align-items-center gap-3">
-                <div className="category-medallion-smooth" style={{ background: "#eff6ff", color: "#2563eb", borderColor: "#bfdbfe" }}>
+                <div style={{ background: "#f1f5f9", color: "#0f172a", padding: "8px 12px", borderRadius: "8px" }}>
                   <i className="bi bi-grid-3x3-gap-fill fs-5"></i>
                 </div>
                 <div>
-                  <h5 className="mb-0 fw-bold text-dark text-uppercase" style={{ letterSpacing: "0.6px" }}>
+                  <h5 className="mb-0 fw-bold text-dark text-uppercase" style={{ letterSpacing: "0.5px" }}>
                     MODULE LAUNCHER
                   </h5>
                   <div className="text-secondary small fw-semibold">
@@ -1758,10 +1448,10 @@ export default function DashboardLayout() {
                 </div>
               </div>
 
-              <div className="search-well-3d-smooth" style={{ width: "340px" }}>
+              <div className="search-well-3d-smooth" style={{ width: "320px" }}>
                 <i
                   className="bi bi-search position-absolute text-muted"
-                  style={{ left: "14px", top: "50%", transform: "translateY(-50%)" }}
+                  style={{ left: "12px", top: "50%", transform: "translateY(-50%)" }}
                 ></i>
                 <input
                   ref={searchInputRef}
@@ -1773,11 +1463,12 @@ export default function DashboardLayout() {
               </div>
 
               <button
-                className="btn-round-3d-smooth"
+                className="btn btn-sm btn-light border rounded-circle"
+                style={{ width: "34px", height: "34px" }}
                 onClick={() => setShowAppLauncher(false)}
                 title="Close (Esc)"
               >
-                <i className="bi bi-x-lg fs-6"></i>
+                <i className="bi bi-x-lg"></i>
               </button>
             </div>
 
@@ -1795,14 +1486,14 @@ export default function DashboardLayout() {
                 return (
                   <div key={cat.title} className="col-lg-4 col-md-6">
                     <div className="category-deck-3d">
-                      <div className="category-header-3d-smooth">
-                        <div className="category-medallion-smooth" style={{ background: cat.bgLight, color: cat.color, borderColor: cat.borderGlow }}>
-                          <i className={`bi ${cat.icon}`}></i>
+                      <div className="d-flex align-items-center justify-content-between mb-3">
+                        <div className="d-flex align-items-center gap-2">
+                          <i className={`bi ${cat.icon}`} style={{ color: cat.color }}></i>
+                          <div className="fw-bold small text-uppercase" style={{ color: cat.color, letterSpacing: "0.5px" }}>
+                            {cat.title}
+                          </div>
                         </div>
-                        <div className="fw-bold small text-uppercase" style={{ color: cat.color, letterSpacing: "0.5px" }}>
-                          {cat.title}
-                        </div>
-                        <span className="badge bg-light border text-secondary ms-auto small px-2 py-1 rounded-pill">
+                        <span className="badge bg-light border text-secondary small px-2 py-1 rounded-pill">
                           {catItems.length}
                         </span>
                       </div>
@@ -1840,7 +1531,7 @@ export default function DashboardLayout() {
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(29, 78, 216, 0.08)",
+              background: "rgba(15, 23, 42, 0.4)",
               backdropFilter: "blur(4px)",
               zIndex: 1060
             }}
@@ -1853,21 +1544,21 @@ export default function DashboardLayout() {
               transform: "translate(-50%, -50%)",
               zIndex: 1065,
               width: "90%",
-              maxWidth: "420px",
+              maxWidth: "400px",
               backgroundColor: "#ffffff",
-              borderRadius: "16px",
-              border: "2px solid #93c5fd",
-              boxShadow: "0 12px 40px rgba(59, 130, 246, 0.18)",
-              padding: "30px",
-              color: "#1e3a5f"
+              borderRadius: "14px",
+              border: "1px solid #cbd5e1",
+              boxShadow: "0 15px 40px rgba(15, 23, 42, 0.15)",
+              padding: "28px",
+              color: "#0f172a"
             }}
           >
-            <h5 className="text-center fw-bold mb-4" style={{ color: "#1d4ed8" }}>
+            <h5 className="text-center fw-bold mb-4" style={{ color: "#0f172a" }}>
               🔐 Change Password
             </h5>
 
             <div className="mb-3">
-              <label className="form-label small fw-semibold" style={{ color: "#2563eb" }}>Current Password</label>
+              <label className="form-label small fw-semibold text-secondary">Current Password</label>
               <div className="input-group">
                 <input
                   type={showCurrent ? "text" : "password"}
@@ -1894,7 +1585,7 @@ export default function DashboardLayout() {
             </div>
 
             <div className="mb-3">
-              <label className="form-label small fw-semibold" style={{ color: "#2563eb" }}>New Password</label>
+              <label className="form-label small fw-semibold text-secondary">New Password</label>
               <div className="input-group">
                 <input
                   type={showNew ? "text" : "password"}
@@ -1921,7 +1612,7 @@ export default function DashboardLayout() {
             </div>
 
             <div className="mb-4">
-              <label className="form-label small fw-semibold" style={{ color: "#2563eb" }}>Confirm New Password</label>
+              <label className="form-label small fw-semibold text-secondary">Confirm New Password</label>
               <div className="input-group">
                 <input
                   type={showConfirm ? "text" : "password"}
@@ -1949,20 +1640,16 @@ export default function DashboardLayout() {
 
             <div className="d-flex gap-2">
               <button
-                className="btn w-100 fw-semibold"
+                className="btn w-100 fw-semibold text-white"
                 onClick={handleChangePassword}
                 onMouseEnter={() => setCpFormHover(true)}
                 onMouseLeave={() => setCpFormHover(false)}
                 style={{
-                  background: "linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%)",
-                  color: "#ffffff",
+                  background: "#0f172a",
                   border: "none",
                   borderRadius: "8px",
-                  boxShadow: cpFormHover
-                    ? "0 4px 20px rgba(59, 130, 246, 0.4)"
-                    : "0 4px 10px rgba(59, 130, 246, 0.2)",
-                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                  padding: "10px"
+                  padding: "9px",
+                  fontSize: "0.85rem"
                 }}
               >
                 Update Password
@@ -1974,12 +1661,11 @@ export default function DashboardLayout() {
                 onMouseLeave={() => setCpCancelHover(false)}
                 style={{
                   backgroundColor: "transparent",
-                  border: "1.5px solid",
-                  borderColor: cpCancelHover ? "#3b82f6" : "#bfdbfe",
-                  color: cpCancelHover ? "#1d4ed8" : "#64748b",
-                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                  border: "1px solid #cbd5e1",
+                  color: "#64748b",
                   borderRadius: "8px",
-                  padding: "10px"
+                  padding: "9px",
+                  fontSize: "0.85rem"
                 }}
               >
                 Cancel
