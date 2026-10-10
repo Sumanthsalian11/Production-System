@@ -43,14 +43,14 @@ const DASHBOARD_STYLES = `
 .inv-dash .filter-card {
   background: #ffffff;
   border-radius: 12px;
-  padding: 16px 20px;
+  padding: 10px 16px 12px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
 }
 .inv-dash .filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px 12px;
 }
 .inv-dash .dropdown-menu-checkbox {
   position: absolute; top: calc(100% + 4px); left: 0; z-index: 100; max-height: 280px; overflow-y: auto;
@@ -177,6 +177,126 @@ const DASHBOARD_STYLES = `
 }
 .inv-dash .inv-modal .modal-body { padding: 20px; }
 .inv-dash .table-card.is-loading { opacity: 0.55; pointer-events: none; }
+
+/* ===== Aqua-glass theme (same as Reel Register) ===== */
+.inv-dash {
+  color: #0b2f4f;
+  background:
+    radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 30%),
+    radial-gradient(circle at 88% 18%, rgba(160, 222, 250, 0.7) 0, rgba(160, 222, 250, 0) 32%),
+    radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
+  background-attachment: fixed;
+}
+.inv-dash .text-muted { color: #4a6f8c !important; }
+.inv-dash .text-dark { color: #0b2f4f !important; }
+
+/* glass cards */
+.inv-dash .filter-card,
+.inv-dash .card-kpi,
+.inv-dash .chart-box,
+.inv-dash .table-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(228, 246, 255, 0.9) 100%);
+  border-radius: 22px;
+  box-shadow: 0 14px 32px rgba(40, 120, 170, 0.16), inset 0 1px 0 #fff;
+}
+.inv-dash .filter-card,
+.inv-dash .chart-box,
+.inv-dash .table-card { border: 1px solid rgba(255, 255, 255, 0.95); }
+.inv-dash .card-kpi { border-color: #cfe8f6; border-top-width: 4px; }
+.inv-dash .card-kpi.kpi-total { border-top-color: #1b8fd6; }
+.inv-dash .card-kpi.kpi-regular { border-top-color: #10b981; }
+.inv-dash .card-kpi.kpi-slow { border-top-color: #f59e0b; }
+.inv-dash .card-kpi.kpi-nonmoving { border-top-color: #ef4444; }
+
+/* section headings */
+.inv-dash .section-title-wrap { border-bottom-color: #a6d6ee; }
+.inv-dash .section-title { color: #0a4f8c; }
+.inv-dash .badge.text-bg-light {
+  background: linear-gradient(180deg, #ffffff, #d4f0fd) !important;
+  color: #0a4f8c !important;
+  border-color: #a6d6ee !important;
+}
+
+/* tables: light aqua headers */
+.inv-dash .table {
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: #f3faff;
+  --bs-table-hover-bg: #d9f2fc;
+  --bs-table-color: #0b2f4f;
+  --bs-table-border-color: #dcecf6;
+}
+.inv-dash .table-light {
+  --bs-table-bg: #e3f3fc;
+  --bs-table-color: #0a4f8c;
+  --bs-table-border-color: #bfe0f2;
+}
+.inv-dash .table thead th {
+  background: linear-gradient(180deg, #f4fbff 0%, #d9eefb 100%) !important;
+  color: #0a4f8c !important;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid #9ccbe6 !important;
+}
+.inv-dash .table-responsive.border { border-color: #a9d9f2 !important; background: #fff; }
+.inv-dash .sort-header:hover { background: #e3f3fc !important; color: #0a5fa8 !important; }
+
+/* filter dropdown buttons (the red "None Selected" border is kept) */
+.inv-dash .filter-grid .dropdown > .btn:not([style*="ef4444"]) {
+  border: 1.5px solid #9ccbe6 !important;
+  border-radius: 12px !important;
+  box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
+}
+.inv-dash .dropdown-menu-checkbox { border: 1.5px solid #a6d6ee; border-radius: 16px; background: linear-gradient(180deg, #ffffff 0%, #eaf8ff 100%); }
+.inv-dash .dropdown-menu-checkbox::-webkit-scrollbar-thumb,
+.inv-dash .table-responsive::-webkit-scrollbar-thumb { background: #84b5ce; }
+
+/* inputs */
+.inv-dash .form-control {
+  border: 1.5px solid #9ccbe6;
+  border-radius: 12px !important;
+  color: #0b2f4f;
+  font-weight: 600;
+  box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
+}
+.inv-dash .form-control:focus { border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27, 155, 224, 0.2); }
+
+/* buttons */
+.inv-dash .btn { font-weight: 800; border-radius: 12px !important; transition: all 0.15s ease; }
+.inv-dash .btn:not(.btn-link):not(.btn-close):hover { transform: translateY(-1px); }
+.inv-dash .btn-primary {
+  background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border: 1px solid #7fc3e8;
+  box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40, 120, 170, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+.inv-dash .btn-primary:hover, .inv-dash .btn-primary:focus, .inv-dash .btn-primary:active {
+  background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border-color: #7fc3e8; filter: brightness(1.04);
+}
+.inv-dash .btn-success {
+  background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border: 1px solid #7fd3ab;
+  box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20, 168, 112, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
+.inv-dash .btn-success:hover, .inv-dash .btn-success:focus, .inv-dash .btn-success:active {
+  background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab; filter: brightness(1.04);
+}
+.inv-dash .btn-danger {
+  background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%); color: #8f1414; border: 1px solid #ee8f8f;
+  box-shadow: 0 3px 0 #e08a8a, inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+.inv-dash .btn-light,
+.inv-dash .btn-outline-secondary,
+.inv-dash .btn-outline-primary {
+  background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%) !important; color: #08406b; border: 1px solid #9fcfe9;
+  box-shadow: 0 3px 0 #b3dcf0, inset 0 1px 0 #fff;
+}
+.inv-dash .btn:disabled { opacity: 0.5; }
+
+/* modals */
+.inv-dash .inv-modal { background: linear-gradient(180deg, #ffffff 0%, #e8f6fe 100%); border: 1px solid #fff; border-radius: 22px; }
+.inv-dash .inv-modal .modal-header,
+.inv-dash .inv-modal .modal-footer { background: rgba(214, 239, 252, 0.55); border-color: #cfe8f6; }
+.inv-dash .comment-bubble { background: #f3faff; border-color: #cfe8f6; border-left-color: #1b8fd6; }
+.inv-dash .progress { background: #dff1fb; }
 `;
 
 const API_BASE = `${BASE_URL}/api/inventory-dashboard`;
@@ -595,128 +715,9 @@ export default function InventoryDashboard() {
     <div className="inv-dash">
       <style>{DASHBOARD_STYLES}</style>
 
-      {/* HEADER BAR */}
-      <header className="dashboard-header py-3 px-3 px-md-4 mb-3">
-        <div className="container-fluid p-0">
-          <div className="row align-items-center g-3">
-            <div className="col-12 col-md-6 text-start">
-              <div className="d-flex align-items-center gap-3">
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 10,
-                    background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#ffffff",
-                    boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <i className="fa-solid fa-boxes-stacked" style={{ fontSize: 18 }}></i>
-                </div>
-                <div>
-                  <h5 className="fw-bold text-dark mb-0" style={{ letterSpacing: "-0.02em" }}>
-                    MPi Inventory Review
-                  </h5>
-                  <div className="d-flex align-items-center gap-2 mt-1">
-                    <span className="text-muted extra-small fw-medium">Cards Manipal</span>
-                    <span style={{ fontSize: 10, color: "#cbd5e1" }}>&bull;</span>
-                    <span className="badge text-bg-light border extra-small px-2 py-0 fw-medium text-secondary">
-                      Inventory Analytics Platform
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-12 col-md-6 text-md-end text-start">
-              <div className="d-flex flex-wrap gap-2 justify-content-md-end justify-content-start align-items-center">
-                {/* Uploads Dropdown */}
-                <div className="dropdown">
-                  <button
-                    className="btn btn-outline-secondary btn-sm px-3 d-inline-flex align-items-center gap-2 fw-medium batch-toggle-btn"
-                    type="button"
-                    style={{ borderRadius: 8, background: "#ffffff" }}
-                    onClick={() => setBatchDropdownOpen((v) => !v)}
-                  >
-                    <i className="fa-solid fa-folder-open text-primary"></i>
-                    <span className="text-truncate" style={{ maxWidth: 160 }}>
-                      {selectedBatch
-                        ? batches.find((b) => b.id === selectedBatch)?.filename || "Selected File"
-                        : "All Uploads"}
-                    </span>
-                    <i className="fa-solid fa-chevron-down extra-small text-muted"></i>
-                  </button>
-
-                  {batchDropdownOpen && (
-                    <div className="dropdown-menu-checkbox shadow show" style={{ minWidth: 280, right: 0, left: "auto" }}>
-                      <div
-                        className="extra-small py-2 px-2 fw-bold text-primary d-flex align-items-center gap-2 rounded upload-item"
-                        style={{ cursor: "pointer", background: selectedBatch === null ? "#eff6ff" : "transparent" }}
-                        onClick={() => { setSelectedBatch(null); setBatchDropdownOpen(false); }}
-                      >
-                        <i className="fa-solid fa-layer-group"></i> All Uploaded Datasets
-                      </div>
-                      <hr className="my-1 text-secondary opacity-25" />
-                      {batches.map((b) => (
-                        <div
-                          key={b.id}
-                          className="d-flex align-items-center justify-content-between py-1 px-2 extra-small rounded"
-                          style={{
-                            background: selectedBatch === b.id ? "#eff6ff" : "transparent",
-                            transition: "background 0.1s ease"
-                          }}
-                        >
-                          <span
-                            className="text-truncate upload-item"
-                            style={{ cursor: "pointer", maxWidth: 200, fontWeight: selectedBatch === b.id ? 700 : 500 }}
-                            onClick={() => { setSelectedBatch(b.id); setBatchDropdownOpen(false); }}
-                            title={b.filename}
-                          >
-                            📄 {b.filename}
-                          </span>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-link text-danger p-0 d-flex align-items-center justify-content-center opacity-75"
-                            title="Delete this file's data"
-                            style={{ minWidth: 20, minHeight: 20, fontSize: "0.85rem", textDecoration: "none" }}
-                            onClick={(e) => { e.stopPropagation(); deleteBatch(b.id, b.filename); }}
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      ))}
-                      {!batches.length && <div className="extra-small text-muted px-2 py-2">No files uploaded yet.</div>}
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  className="btn btn-success btn-sm px-3 d-inline-flex align-items-center gap-2 fw-semibold"
-                  style={{ borderRadius: 8, boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)" }}
-                  onClick={() => document.getElementById("invUploadModal").classList.add("show-modal")}
-                >
-                  <i className="fa-solid fa-file-excel"></i> Upload Excel
-                </button>
-
-                <button
-                  className="btn btn-primary btn-sm px-3 d-inline-flex align-items-center gap-2 fw-semibold"
-                  style={{ borderRadius: 8, boxShadow: "0 2px 6px rgba(37, 99, 235, 0.25)" }}
-                  onClick={loadFilterOptions}
-                >
-                  <i className="fa-solid fa-rotate"></i> Refresh
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
 
       {/* BODY CONTENT */}
-      <div className="container-fluid px-3 px-md-4 pb-4">
+      <div className="container-fluid px-3 px-md-4 pt-3 pb-4">
         {loading && (
           <div className="loading-spinner">
             <div className="spinner-border text-primary" role="status" style={{ width: "3.2rem", height: "3.2rem", borderWidth: 3 }}></div>
@@ -847,17 +848,89 @@ export default function InventoryDashboard() {
           <div id="dashboard-content">
             {/* ================= SECTION 0: FILTERS DOCK ================= */}
             <div className="filter-card mb-4">
-              <div className="d-flex justify-content-between align-items-center mb-3">
+              <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <div className="d-flex align-items-center gap-2">
                   <i className="fa-solid fa-filter text-primary"></i>
                   <span className="fw-bold text-dark small">Multi-Dimension Filters</span>
                 </div>
-                <button
-                  className="btn btn-link text-decoration-none btn-sm p-0 extra-small fw-semibold text-primary"
-                  onClick={resetAllFilters}
-                >
-                  <i className="fa-solid fa-rotate-left me-1"></i> Reset Filters
-                </button>
+
+                <div className="d-flex flex-wrap gap-2 align-items-center">
+                  {/* Uploads Dropdown */}
+                  <div className="dropdown">
+                    <button
+                      className="btn btn-outline-secondary btn-sm px-3 d-inline-flex align-items-center gap-2 fw-medium batch-toggle-btn"
+                      type="button"
+                      style={{ borderRadius: 8, background: "#ffffff" }}
+                      onClick={() => setBatchDropdownOpen((v) => !v)}
+                    >
+                      <i className="fa-solid fa-folder-open text-primary"></i>
+                      <span className="text-truncate" style={{ maxWidth: 160 }}>
+                        {selectedBatch
+                          ? batches.find((b) => b.id === selectedBatch)?.filename || "Selected File"
+                          : "All Uploads"}
+                      </span>
+                      <i className="fa-solid fa-chevron-down extra-small text-muted"></i>
+                    </button>
+
+                    {batchDropdownOpen && (
+                      <div className="dropdown-menu-checkbox shadow show" style={{ minWidth: 280, right: 0, left: "auto" }}>
+                        <div
+                          className="extra-small py-2 px-2 fw-bold text-primary d-flex align-items-center gap-2 rounded upload-item"
+                          style={{ cursor: "pointer", background: selectedBatch === null ? "#eff6ff" : "transparent" }}
+                          onClick={() => { setSelectedBatch(null); setBatchDropdownOpen(false); }}
+                        >
+                          <i className="fa-solid fa-layer-group"></i> All Uploaded Datasets
+                        </div>
+                        <hr className="my-1 text-secondary opacity-25" />
+                        {batches.map((b) => (
+                          <div
+                            key={b.id}
+                            className="d-flex align-items-center justify-content-between py-1 px-2 extra-small rounded"
+                            style={{
+                              background: selectedBatch === b.id ? "#eff6ff" : "transparent",
+                              transition: "background 0.1s ease"
+                            }}
+                          >
+                            <span
+                              className="text-truncate upload-item"
+                              style={{ cursor: "pointer", maxWidth: 200, fontWeight: selectedBatch === b.id ? 700 : 500 }}
+                              onClick={() => { setSelectedBatch(b.id); setBatchDropdownOpen(false); }}
+                              title={b.filename}
+                            >
+                              📄 {b.filename}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-link text-danger p-0 d-flex align-items-center justify-content-center opacity-75"
+                              title="Delete this file's data"
+                              style={{ minWidth: 20, minHeight: 20, fontSize: "0.85rem", textDecoration: "none" }}
+                              onClick={(e) => { e.stopPropagation(); deleteBatch(b.id, b.filename); }}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        ))}
+                        {!batches.length && <div className="extra-small text-muted px-2 py-2">No files uploaded yet.</div>}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    className="btn btn-success btn-sm px-3 d-inline-flex align-items-center gap-2 fw-semibold"
+                    style={{ borderRadius: 8, boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)" }}
+                    onClick={() => document.getElementById("invUploadModal").classList.add("show-modal")}
+                  >
+                    <i className="fa-solid fa-file-excel"></i> Upload Excel
+                  </button>
+
+                  <button
+                    className="btn btn-primary btn-sm px-3 d-inline-flex align-items-center gap-2 fw-semibold"
+                    style={{ borderRadius: 8, boxShadow: "0 2px 6px rgba(37, 99, 235, 0.25)" }}
+                    onClick={loadFilterOptions}
+                  >
+                    <i className="fa-solid fa-rotate"></i> Refresh
+                  </button>
+                </div>
               </div>
 
               <div className="filter-grid">

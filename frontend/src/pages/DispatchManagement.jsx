@@ -726,6 +726,85 @@ return(
   .dm-table tbody tr:hover td { background: #d9f2fc; }
   .dm-muted { color: var(--muted); }
 
+  /* ---------- Split form: blue (fetched WO) | white (entry) ---------- */
+  .dm-split {
+    display: grid; grid-template-columns: minmax(300px, 32%) 1fr;
+    border-radius: 20px; overflow: hidden; margin-bottom: 12px; background: #ffffff;
+    box-shadow: 0 18px 42px rgba(40, 120, 180, 0.28);
+  }
+  .dm-split-left {
+    position: relative; overflow: hidden; padding: 16px 20px 14px; color: #ffffff;
+    background: linear-gradient(170deg, #35a2ea 0%, #4f9cf0 48%, #86cbf8 100%);
+  }
+  .dm-split-left::before {
+    content: ''; position: absolute; width: 280px; height: 280px; border-radius: 50%;
+    right: -110px; top: -90px; background: rgba(255, 255, 255, 0.13);
+  }
+  .dm-split-left::after {
+    content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%;
+    left: -90px; bottom: -80px; background: rgba(255, 255, 255, 0.1);
+  }
+  .dm-split-left > * { position: relative; z-index: 1; }
+  .dm-left-brand { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
+  .dm-left-hero { margin: 8px 0 6px; }
+  .dm-left-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: 0.85; }
+  .dm-left-big { font-size: 32px; font-weight: 900; line-height: 1.05; letter-spacing: -1px; word-break: break-all; }
+  .dm-left-sub { margin-top: 2px; font-size: 13px; font-weight: 600; opacity: 0.95; }
+  .dm-left-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+  .dm-lchip {
+    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.22); border: 1px solid rgba(255, 255, 255, 0.5); color: #fff;
+  }
+  .dm-lchip.ok { background: rgba(16, 185, 129, 0.35); }
+  .dm-lchip.warn { background: rgba(251, 191, 36, 0.4); }
+  .dm-left-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .dm-lrow { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
+  .dm-lrow.wide { grid-column: span 2; }
+  .dm-licon {
+    flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.35);
+  }
+  .dm-licon svg { width: 13px; height: 13px; }
+  .dm-lbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .dm-llabel { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255, 255, 255, 0.8); }
+  .dm-lvalue { font-size: 12.5px; font-weight: 700; color: #ffffff; word-break: break-word; }
+
+  .dm-split-right { background: #ffffff; padding: 14px 22px 16px; }
+  .dm-right-title { margin: 0; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #2f4156; }
+  .dm-right-rule { height: 2px; margin: 6px auto 2px; width: 100%; background: linear-gradient(90deg, transparent, #cfe6f5, transparent); }
+  .dm-sub-head { margin: 10px 0 6px; font-size: 12px; font-weight: 800; color: #1b8fd6; }
+  .dm-edit-chip {
+    display: inline-block; margin: 4px 0 0; padding: 3px 12px; font-size: 11px; font-weight: 800; border-radius: 999px;
+    color: #0a4f8c; background: linear-gradient(180deg, #fff7d6, #ffe9a3); border: 1px solid #fde68a;
+  }
+  .dm-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
+  .dm-span-2 { grid-column: span 2; }
+  .dm-span-4 { grid-column: span 4; }
+  .dm-split-right .dm-label { font-size: 10px; font-weight: 700; color: #5b6f82; }
+  .dm-split-right .dm-input,
+  .dm-split-right .dm-select,
+  .dm-split-right .dm-textarea {
+    border-radius: 4px; border: 1px solid #cfd9e4; box-shadow: none; padding: 7px 10px; font-size: 12.5px;
+  }
+  .dm-split-right .dm-input:focus,
+  .dm-split-right .dm-select:focus,
+  .dm-split-right .dm-textarea:focus { border-color: #35a2ea; box-shadow: 0 0 0 3px rgba(53, 162, 234, 0.18); }
+  .dm-split-right .dm-input[readonly],
+  .dm-split-right .dm-textarea[readonly] { background: #f1f5f9; color: #0b2f4f; border-color: #cfd9e4; font-weight: 700; }
+  .dm-split-right .dm-actions { border-top: none; margin-top: 12px; padding-top: 0; }
+  .dm-save { width: 100%; max-width: 340px; }
+
+  @media (max-width: 1100px) {
+    .dm-split { grid-template-columns: 1fr; }
+    .dm-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dm-span-4 { grid-column: span 2; }
+  }
+  @media (max-width: 640px) {
+    .dm-form-grid { grid-template-columns: 1fr; }
+    .dm-span-2, .dm-span-4 { grid-column: span 1; }
+  }
+
   @media (max-width: 1100px) {
     .dm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .dm-info-grid { grid-template-columns: 1fr; }
@@ -739,24 +818,6 @@ return(
 `}</style>
 
 <div className="dm-inner">
-
-{/* HEADER */}
-<div className="dm-header">
-  <div className="dm-brand">
-    <div className="dm-emblem"><IconTruck width={22} height={22} /></div>
-    <div>
-      <h1>Dispatch Entry</h1>
-      <p>Record dispatches against work orders</p>
-    </div>
-  </div>
-  {loggedInUser && (
-    <div className="dm-user-chip">
-      <span className="dm-user-dot"></span>
-      <IconUser width={13} height={13} />
-      <span>{loggedInUser}</span>
-    </div>
-  )}
-</div>
 
 
 {/* WORK ORDER CARD */}
@@ -792,255 +853,230 @@ onClick={fetchWorkOrder}>
 </div>
 
 
-{/* WO SUMMARY + DISPATCH FORM (open together after fetch) */}
+{/* SPLIT FORM: blue = fetched Work Order, white = dispatch entry */}
 {form.customer && (
 
-<form
-className="dm-card"
-onSubmit={handleSubmit}
->
+<form className="dm-split" onSubmit={handleSubmit}>
 
-<div className="dm-pill">Work Order Summary</div>
-
-<div className="dm-info-grid">
-
-  <div className="dm-info">
-    <div className="dm-bubble lavender"><IconUser /></div>
-    <div className="dm-info-text">
-      <div className="dm-info-label">Customer Name</div>
-      <div className="dm-info-value">{form.customer}</div>
+  {/* LEFT (BLUE): FETCHED WORK ORDER */}
+  <aside className="dm-split-left">
+    <div className="dm-left-brand">
+      <IconTruck /> <span>Work Order</span>
     </div>
-  </div>
 
-  <div className="dm-info">
-    <div className="dm-bubble peach"><IconBox /></div>
-    <div className="dm-info-text">
-      <div className="dm-info-label">Product Name</div>
-      <div className="dm-info-value">{form.productName}</div>
+    <div className="dm-left-hero">
+      <div className="dm-left-kicker">Active WO</div>
+      <div className="dm-left-big">#{form.efiWoNumber}</div>
+      <div className="dm-left-sub">{form.customer}</div>
     </div>
-  </div>
 
-  <div className="dm-info">
-    <div className="dm-bubble mint"><IconHash /></div>
-    <div className="dm-info-text">
-      <div className="dm-info-label">Po No</div>
-      <div className="dm-info-value">{form.purchaseOrderNo || "-"}</div>
+    <div className="dm-left-chips">
+      <span className="dm-lchip ok">Verified Record</span>
+      {editingId && <span className="dm-lchip warn">Editing</span>}
     </div>
-  </div>
 
-</div>
+    <div className="dm-left-list">
+      <div className="dm-lrow wide">
+        <span className="dm-licon"><IconBox /></span>
+        <div className="dm-lbody">
+          <span className="dm-llabel">Product Name</span>
+          <span className="dm-lvalue">{form.productName}</span>
+        </div>
+      </div>
 
-<div className="dm-pill">Dispatch Entry</div>
+      <div className="dm-lrow">
+        <span className="dm-licon"><IconHash /></span>
+        <div className="dm-lbody">
+          <span className="dm-llabel">PO No</span>
+          <span className="dm-lvalue">{form.purchaseOrderNo || "-"}</span>
+        </div>
+      </div>
 
-<div className="dm-grid">
+    </div>
+  </aside>
 
-<div className="dm-field">
+  {/* RIGHT (WHITE): ENTRY FIELDS */}
+  <section className="dm-split-right">
+    <h2 className="dm-right-title">Dispatch Entry</h2>
+    <div className="dm-right-rule"></div>
 
-<label className="dm-label">Total Order Qty</label>
+    {editingId && (
+      <div className="dm-edit-chip">✎ Editing dispatch {form.efiWoNumber}</div>
+    )}
 
-<input
-value={form.totalQty}
-className="dm-input"
-readOnly
-/>
+    <div className="dm-sub-head">Dispatch Details</div>
 
-</div>
+    <div className="dm-form-grid">
 
-<div className="dm-field">
+      <div className="dm-field">
+        <label className="dm-label">Total Order Qty</label>
+        <input value={form.totalQty} className="dm-input" readOnly />
+      </div>
 
-<label className="dm-label">Dispatch Qty</label>
+      <div className="dm-field">
+        <label className="dm-label">Dispatch Qty</label>
+        <input
+          type="text"
+          name="dispatchQty"
+          value={form.dispatchQty}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
 
-<input
-type="text"
-name="dispatchQty"
-value={form.dispatchQty}
-onChange={handleChange}
-className="dm-input"
-/>
+      <div className="dm-field">
+        <label className="dm-label">Balance Qty to dispatch</label>
+        <input value={form.balanceQty} className="dm-input" readOnly />
+      </div>
 
-</div>
+      <div className="dm-field">
+        <label className="dm-label">Extra Qty</label>
+        <input
+          type="number"
+          min={0}
+          name="extraQty"
+          value={form.extraQty}
+          onChange={handleChange}
+          onKeyDown={(e) => {
+            if (e.key === "-" || e.key === "+" || e.key === "e") {
+              e.preventDefault();
+              showAlert("Negative values are not allowed","error");
+            }
+          }}
+          className="dm-input"
+        />
+      </div>
 
-<div className="dm-field">
+      <div className="dm-field">
+        <label className="dm-label">Expected Delivery</label>
+        <input
+          type="date"
+          value={form.expectedDeliveryDate}
+          className="dm-input"
+          readOnly
+        />
+      </div>
 
-<label className="dm-label">Balance Qty to dispatch</label>
+      <div className="dm-field">
+        <label className="dm-label">Dispatch Date</label>
+        <input
+          type="date"
+          name="dispatchDate"
+          value={form.dispatchDate}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
 
-<input
-value={form.balanceQty}
-className="dm-input"
-readOnly
-/>
+      <div className="dm-field">
+        <label className="dm-label">TAT</label>
+        <input
+          value={form.delayLabel}
+          className={`dm-input ${
+            form.delayDays > 0
+              ? "dm-tat-late"
+              : form.delayDays < 0
+              ? "dm-tat-early"
+              : "dm-tat-ontime"
+          }`}
+          readOnly
+        />
+      </div>
 
-</div>
+      <div className="dm-field">
+        <label className="dm-label">Transportation</label>
+        <select
+          name="courier"
+          value={form.courier}
+          onChange={handleChange}
+          className="dm-select"
+          required>
+          <option value="">Select Transportation</option>
+          {transportations.map(t=>(
+            <option key={t._id} value={t.name}>{t.name}</option>
+          ))}
+        </select>
+      </div>
 
-<div className="dm-field">
-  <label className="dm-label">Extra Qty</label>
-  <input
-    type="number"
-    min={0}
-    name="extraQty"
-    value={form.extraQty}
-    onChange={handleChange}
-     onKeyDown={(e) => {
-              if (e.key === "-" ||e.key === "+" || e.key === "e") {
-                e.preventDefault();
-                showAlert("Negative values are not allowed","error");
-              }
-            }}
-    className="dm-input"
-  />
-</div>
-<div className="dm-field">
+      <div className="dm-field">
+        <label className="dm-label">Tracking Number</label>
+        <input
+          name="trackingNumber"
+          value={form.trackingNumber}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
 
-<label className="dm-label">Expected Delivery</label>
+      <div className="dm-field">
+        <label className="dm-label">Invoice No</label>
+        <input
+          name="invoiceNo"
+          value={form.invoiceNo}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
 
-<input
-type="date"
-value={form.expectedDeliveryDate}
-className="dm-input"
-readOnly
-/>
+      <div className="dm-field">
+        <label className="dm-label">Invoice Date</label>
+        <input
+          type="date"
+          name="invoiceDate"
+          value={form.invoiceDate}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
 
-</div>
+      <div className="dm-field">
+        <label className="dm-label">Location</label>
+        <select
+          name="location"
+          value={form.location}
+          onChange={handleChange}
+          className="dm-select"
+        >
+          <option value="">Select Location</option>
+          {locations.map((loc) => (
+            <option key={loc._id} value={loc._id.toString()}>
+              {loc.locationName}
+            </option>
+          ))}
+        </select>
+      </div>
 
-<div className="dm-field">
+      <div className="dm-field dm-span-2">
+        <label className="dm-label">Delivery Address</label>
+        <textarea
+          rows="2"
+          name="deliveryAddress"
+          value={form.deliveryAddress}
+          readOnly={form.location !== ""}
+          className="dm-textarea"
+        />
+      </div>
 
-<label className="dm-label">Dispatch Date</label>
+      <div className="dm-field dm-span-2">
+        <label className="dm-label">Remarks</label>
+        <textarea
+          rows="2"
+          name="remarks"
+          value={form.remarks}
+          onChange={handleChange}
+          className="dm-textarea"
+        />
+      </div>
 
-<input
-type="date"
-name="dispatchDate"
-value={form.dispatchDate}
-onChange={handleChange}
-className="dm-input"
-/>
+    </div>
 
-</div>
-<div className="dm-field">
+    <div className="dm-actions">
+      <button className="dm-btn dm-btn-green dm-save" type="submit">
+        {editingId ? "Update" : "Save"}
+      </button>
+    </div>
+  </section>
 
-<label className="dm-label">TAT</label>
-<input
-value={form.delayLabel}
-className={`dm-input ${
-form.delayDays > 0
-? "dm-tat-late"
-: form.delayDays < 0
-? "dm-tat-early"
-: "dm-tat-ontime"
-}`}
-readOnly
-/>
-
-</div>
-
-<div className="dm-field">
-
-<label className="dm-label">Transportation</label>
-
-<select
-name="courier"
-value={form.courier}
-onChange={handleChange}
-className="dm-select"
-required>
-
-<option value="">Select Transportation</option>
-
-{transportations.map(t=>(
-<option key={t._id} value={t.name}>{t.name}</option>
-))}
-
-</select>
-
-</div>
-
-
-<div className="dm-field">
-
-<label className="dm-label">Tracking Number</label>
-
-<input
-name="trackingNumber"
-value={form.trackingNumber}
-onChange={handleChange}
-className="dm-input"
-/>
-
-</div>
-<div className="dm-field">
-<label className="dm-label">Invoice No</label>
-<input
-name="invoiceNo"
-value={form.invoiceNo}
-onChange={handleChange}
-className="dm-input"
-/>
-</div>
-
-<div className="dm-field">
-<label className="dm-label">Invoice Date</label>
-<input
-type="date"
-name="invoiceDate"
-value={form.invoiceDate}
-onChange={handleChange}
-className="dm-input"
-/>
-</div>
-
-<div className="dm-field">
-  <label className="dm-label">Location</label>
-
-  <select
-    name="location"
-    value={form.location}
-    onChange={handleChange}
-    className="dm-select"
-  >
-    <option value="">Select Location</option>
-
-    {locations.map((loc) => (
-      <option key={loc._id} value={loc._id.toString()}>
-  {loc.locationName}
-</option>
-    ))}
-  </select>
-</div>
-
-<div className="dm-field dm-span-3">
-
-<label className="dm-label">Delivery Address</label>
-
-<textarea
-  rows="2"
-  name="deliveryAddress"
-  value={form.deliveryAddress}
-  readOnly={form.location !== ""}
-  className="dm-textarea"
-/>
-
-</div>
-
-<div className="dm-field dm-span-3">
-
-<label className="dm-label">Remarks</label>
-
-<textarea
-rows="2"
-name="remarks"
-value={form.remarks}
-onChange={handleChange}
-className="dm-textarea"
-/>
-
-</div>
-
-</div>
-
-<div className="dm-actions">
-  <button className="dm-btn dm-btn-green" type="submit">
-    {editingId ? "Update" : "Save"}
-  </button>
-</div>
 </form>
 )}
 
