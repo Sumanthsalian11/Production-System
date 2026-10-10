@@ -42,8 +42,8 @@ function InternalRegister() {
   const [moduleDropdownOpen, setModuleDropdownOpen] = useState(false);
   const [viewModulesOpenId, setViewModulesOpenId] = useState(null);
   const [viewLocationsOpenId, setViewLocationsOpenId] = useState(null);
-  const [showUserModal, setShowUserModal] = useState(false); // Add/Edit user popup
-  const [showBroadcastModal, setShowBroadcastModal] = useState(false); // Broadcast Studio popup
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const moduleDropdownRef = useRef(null);
   const viewModulesRef = useRef(null);
   const viewLocationsRef = useRef(null);
@@ -56,20 +56,16 @@ function InternalRegister() {
     role: "ADMIN"
   });
 
-  // ==========================================
-  // UPGRADED CRAZY ANNOUNCEMENT STUDIO STATES
-  // ==========================================
+  // Announcement Studio States
   const [dashboardComment, setDashboardComment] = useState("");
   const [commentSuccess, setCommentSuccess] = useState("");
   const [announcementType, setAnnouncementType] = useState("broadcast");
   const [customBadge, setCustomBadge] = useState("");
-  const [marqueeSpeed, setMarqueeSpeed] = useState("normal"); // slow, normal, fast
+  const [marqueeSpeed, setMarqueeSpeed] = useState("normal");
   const [enableSound, setEnableSound] = useState(true);
   const [isCurrentlyActive, setIsCurrentlyActive] = useState(false);
   const [previewPaused, setPreviewPaused] = useState(false);
-  const [activeCount, setActiveCount] = useState(0);
 
-  // Fetch current announcement on mount to pre-fill studio
   const fetchCurrentAnnouncement = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -89,7 +85,6 @@ function InternalRegister() {
             return;
           }
         } catch {
-          // Plain legacy string
           setDashboardComment(res.data.text);
         }
       } else {
@@ -112,7 +107,6 @@ function InternalRegister() {
     }
     const token = localStorage.getItem("token");
 
-    // Package rich announcement metadata into JSON text string (100% backward & forward compatible)
     const richPayload = JSON.stringify({
       text: dashboardComment.trim(),
       type: announcementType,
@@ -160,7 +154,6 @@ function InternalRegister() {
     setDashboardComment(tpl.text);
   };
 
-  // Original User Management Calls
   const fetchUsers = async () => {
     const token = localStorage.getItem("token");
     const res = await axios.get(`${BASE_URL}/api/auth/internal/users`, {
@@ -243,7 +236,6 @@ function InternalRegister() {
     setError("");
     setSuccess("");
 
-    // ===== EDIT MODE =====
     if (editUserId) {
       if (form.password && form.password !== form.confirmPassword) {
         setError("Passwords do not match");
@@ -276,7 +268,6 @@ function InternalRegister() {
       return;
     }
 
-    // ===== CREATE MODE =====
     const validationError = validateForm();
     if (validationError) {
       setError(validationError);
@@ -299,12 +290,9 @@ function InternalRegister() {
         modules: selectedModules
       });
       setSuccess("User registered successfully ✅");
-
-      setTimeout(() => {
-        setSuccess("");
-      }, 2000);
-
+      setTimeout(() => setSuccess(""), 2000);
       resetForm();
+      setShowUserModal(false);
       fetchUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Error");
@@ -356,9 +344,8 @@ function InternalRegister() {
   };
 
   const currentTheme = ANNOUNCEMENT_THEMES.find((t) => t.id === announcementType) || ANNOUNCEMENT_THEMES[0];
-
-  // ---------- Light aqua-glass look (same family as Reel Register) ----------
   const inputShadow = "inset 0 2px 5px rgba(10, 80, 130, 0.1)";
+
   const styles = {
     pageContainer: {
       minHeight: "100vh",
@@ -372,48 +359,6 @@ function InternalRegister() {
     container: {
       maxWidth: "100%",
       margin: "0 auto"
-    },
-    pageHeader: {
-      marginBottom: "0.8rem",
-      padding: "0.5rem 1.4rem",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: "0.9rem",
-      background: "linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(222,244,254,0.8) 100%)",
-      border: "1px solid rgba(255,255,255,0.95)",
-      borderRadius: "28px",
-      backdropFilter: "blur(14px)",
-      boxShadow: "0 14px 30px rgba(40,120,170,0.18), inset 0 1px 0 #fff, inset 0 -10px 22px rgba(140,210,245,0.2)"
-    },
-    emblem: {
-      width: "42px",
-      height: "42px",
-      borderRadius: "50%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontSize: "1.2rem",
-      color: "#0a6fb8",
-      background: "radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%)",
-      border: "1px solid #86c6e8",
-      boxShadow: "0 6px 14px rgba(40,120,170,0.22), inset 0 2px 3px rgba(255,255,255,0.9)"
-    },
-    pageTitle: {
-      fontSize: "1.45rem",
-      fontWeight: "800",
-      color: "#0a4f8c",
-      display: "flex",
-      alignItems: "center",
-      gap: "1rem",
-      margin: 0,
-      letterSpacing: "-0.3px"
-    },
-    pageSubtitle: {
-      color: "#4a6f8c",
-      margin: 0,
-      fontSize: "0.82rem",
-      fontWeight: "600"
     },
     card: {
       background: "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(228,246,255,0.9) 100%)",
@@ -434,28 +379,8 @@ function InternalRegister() {
       alignItems: "center",
       flexDirection: "column"
     },
-    cardHeaderText: {
-      color: "#08406b"
-    },
-    cardHeaderTitle: {
-      fontSize: "1rem",
-      fontWeight: "800",
-      margin: 0
-    },
-    cardHeaderSubtitle: {
-      fontSize: "0.76rem",
-      color: "#2f6d96",
-      margin: 0,
-      fontWeight: "600"
-    },
     cardBody: {
       padding: "0.8rem 1.1rem 0.9rem"
-    },
-    formGrid: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-      gap: "0.55rem 0.85rem",
-      alignItems: "start"
     },
     formGroup: {
       display: "flex",
@@ -653,26 +578,20 @@ function InternalRegister() {
       fontSize: "0.82rem",
       color: "#0b2f4f"
     },
-    submitSection: {
-      gridColumn: "1 / -0",
-      display: "flex",
-      justifyContent: "center",
-      marginTop: "0.1rem"
-    },
     submitBtn: {
       background: "linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%)",
       color: "#08406b",
       border: "1px solid #7fc3e8",
-      padding: "0.5rem 1.5rem",
-      borderRadius: "12px",
-      fontSize: "0.88rem",
+      padding: "0.42rem 1.1rem",
+      borderRadius: "10px",
+      fontSize: "0.82rem",
       fontWeight: "800",
       cursor: "pointer",
-      display: "flex",
+      display: "inline-flex",
       alignItems: "center",
-      gap: "0.5rem",
+      gap: "0.45rem",
       transition: "all 0.2s ease",
-      boxShadow: "0 3px 0 #7fbbe0, 0 7px 12px rgba(40, 120, 170, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)"
+      boxShadow: "0 2px 0 #7fbbe0, 0 5px 10px rgba(40, 120, 170, 0.15), inset 0 1px 0 rgba(255,255,255,0.8)"
     },
     alert: {
       padding: "0.55rem 0.9rem",
@@ -696,48 +615,50 @@ function InternalRegister() {
     },
     tableCard: {
       background: "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(228,246,255,0.9) 100%)",
-      borderRadius: "22px",
+      borderRadius: "20px",
       boxShadow: "0 14px 32px rgba(40,120,170,0.16), inset 0 1px 0 #fff",
       overflow: "hidden",
       border: "1px solid rgba(255,255,255,0.95)"
     },
     tableHeader: {
       background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-      padding: "0.4rem 1.1rem",
+      padding: "0.45rem 1rem",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      borderBottom: "1px solid #86c6e8"
+      borderBottom: "1px solid #86c6e8",
+      flexWrap: "wrap",
+      gap: "8px"
     },
     tableHeaderLeft: {
       display: "flex",
       alignItems: "center",
-      gap: "0.75rem",
+      gap: "0.65rem",
       color: "#08406b"
     },
     tableHeaderIcon: {
-      width: "30px",
-      height: "30px",
+      width: "28px",
+      height: "28px",
       background: "radial-gradient(circle at 30% 25%, #ffffff 0%, #d6effc 55%, #b3dff5 100%)",
       borderRadius: "50%",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontSize: "1rem",
+      fontSize: "0.9rem",
       border: "1px solid #a9d9f2"
     },
     tableHeaderTitle: {
-      fontSize: "1rem",
+      fontSize: "0.98rem",
       fontWeight: "800",
       margin: 0
     },
     userCount: {
       background: "linear-gradient(180deg, #ffffff 0%, #d6effc 100%)",
       border: "1px solid #a9d9f2",
-      padding: "0.25rem 0.85rem",
+      padding: "0.2rem 0.65rem",
       borderRadius: "999px",
       color: "#08406b",
-      fontSize: "0.8rem",
+      fontSize: "0.76rem",
       fontWeight: "800"
     },
     tableWrapper: {
@@ -913,7 +834,6 @@ function InternalRegister() {
           50% { transform: scale(1.2); opacity: 1; filter: drop-shadow(0 0 6px #22c55e); }
           100% { transform: scale(0.95); opacity: 0.8; }
         }
-        /* ---------- Add / Edit User popup (split card) ---------- */
         .ur-overlay {
           position: fixed; inset: 0; z-index: 2000;
           display: flex; align-items: center; justify-content: center; padding: 16px;
@@ -1032,7 +952,7 @@ function InternalRegister() {
         }
       `}</style>
 
-      {/* Floating notices (success after the popup closes / errors raised outside the popup) */}
+      {/* Floating notices */}
       {success && (
         <div className="ur-toast ur-toast-ok">✓ {success}</div>
       )}
@@ -1043,396 +963,387 @@ function InternalRegister() {
         </div>
       )}
 
-
-      {/* ===================== BROADCAST STUDIO POPUP ===================== */}
+      {/* BROADCAST STUDIO MODAL */}
       {showBroadcastModal && (
         <div className="ur-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowBroadcastModal(false); }}>
           <div className="ur-bmodal">
             <button type="button" className="ur-close" style={{ zIndex: 5 }} onClick={() => setShowBroadcastModal(false)} aria-label="Close">✕</button>
-        {/* =========================================================================
-            UPGRADED ENTERPRISE BROADCAST STUDIO (CRAZY LOOK + ALL POWERFUL FEATURES)
-            ========================================================================= */}
-        <div style={{ ...styles.card, marginBottom: 0, boxShadow: "none" }}>
-          <div
-            style={{
-              ...styles.cardHeader,
-              background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-              color: "#08406b",
-              borderBottom: "1px solid #86c6e8",
-              flexDirection: "row",
-              justifyContent: "space-between",
-              padding: "0.5rem 3.4rem 0.5rem 1.2rem"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", textAlign: "left" }}>
+            <div style={{ ...styles.card, marginBottom: 0, boxShadow: "none" }}>
               <div
                 style={{
-                  width: "36px",
-                  height: "36px",
-                  borderRadius: "50%",
-                  background: "linear-gradient(180deg, #ffe9a8 0%, #ffc04d 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.1rem",
-                  boxShadow: "0 4px 10px rgba(255, 160, 0, 0.3), inset 0 2px 3px rgba(255,255,255,0.8)"
+                  ...styles.cardHeader,
+                  background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
+                  color: "#08406b",
+                  borderBottom: "1px solid #86c6e8",
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  padding: "0.5rem 3.4rem 0.5rem 1.2rem"
                 }}
               >
-                📡
-              </div>
-              <div>
-                <h2 style={{ fontSize: "1rem", fontWeight: "800", margin: 0, color: "#08406b", letterSpacing: "0.3px" }}>
-                  Enterprise Broadcast Studio
-                </h2>
-                <p style={{ fontSize: "0.76rem", color: "#2f6d96", margin: 0, fontWeight: 600 }}>
-                  High-priority real-time announcements broadcast across all user portals & logins
-                </p>
-              </div>
-            </div>
-
-            {/* Live Indicator Pill */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                background: isCurrentlyActive ? "rgba(34, 197, 94, 0.15)" : "rgba(255, 255, 255, 0.7)",
-                border: `1px solid ${isCurrentlyActive ? "#22c55e" : "#9fcfe9"}`,
-                padding: "4px 14px",
-                borderRadius: "999px"
-              }}
-            >
-              <span
-                style={{
-                  width: "9px",
-                  height: "9px",
-                  borderRadius: "50%",
-                  background: isCurrentlyActive ? "#22c55e" : "#8fb0c8",
-                  boxShadow: isCurrentlyActive ? "0 0 8px #22c55e" : "none",
-                  animation: isCurrentlyActive ? "pulseDot 1.6s infinite" : "none"
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "0.74rem",
-                  fontWeight: "800",
-                  color: isCurrentlyActive ? "#15803d" : "#4a6f8c",
-                  letterSpacing: "0.5px"
-                }}
-              >
-                {isCurrentlyActive ? "BROADCAST LIVE" : "IDLE / NO BROADCAST"}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ ...styles.cardBody, backgroundColor: "rgba(244, 251, 255, 0.6)" }}>
-            {commentSuccess && (
-              <div style={{ ...styles.alert, ...styles.alertSuccess, boxShadow: "0 4px 12px rgba(34, 197, 94, 0.15)" }}>
-                <span>✓</span>
-                {commentSuccess}
-              </div>
-            )}
-
-            {/* LIVE SIMULATOR BAR (Interactive Preview) */}
-            <div style={{ marginBottom: "0.8rem" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ fontSize: "0.74rem", fontWeight: "800", color: "#4a6f8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  🖥️ Live Ticker Simulator (Real-Time Preview)
-                </span>
-                <span style={{ fontSize: "0.72rem", color: "#4a6f8c", fontWeight: "600" }}>
-                  Speed: {marqueeSpeed.toUpperCase()} • Theme: {currentTheme.label}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  height: "34px",
-                  backgroundColor: "#ffffff",
-                  borderRadius: "12px",
-                  border: `1.5px solid ${currentTheme.color}`,
-                  boxShadow: `0 4px 15px ${currentTheme.color}33`,
-                  display: "flex",
-                  alignItems: "center",
-                  overflow: "hidden",
-                  position: "relative"
-                }}
-              >
-                <div
-                  style={{
-                    background: currentTheme.color,
-                    color: "#0c0c0e",
-                    padding: "0 14px",
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "0.75rem",
-                    fontWeight: "900",
-                    letterSpacing: "0.6px",
-                    textTransform: "uppercase",
-                    flexShrink: 0,
-                    zIndex: 2,
-                    boxShadow: "4px 0 10px rgba(0,0,0,0.15)"
-                  }}
-                >
-                  <span>{currentTheme.icon}</span>
-                  <span>{customBadge || currentTheme.badge}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", textAlign: "left" }}>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      background: "linear-gradient(180deg, #ffe9a8 0%, #ffc04d 100%)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.1rem",
+                      boxShadow: "0 4px 10px rgba(255, 160, 0, 0.3), inset 0 2px 3px rgba(255,255,255,0.8)"
+                    }}
+                  >
+                    📡
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: "1rem", fontWeight: "800", margin: 0, color: "#08406b", letterSpacing: "0.3px" }}>
+                      Enterprise Broadcast Studio
+                    </h2>
+                    <p style={{ fontSize: "0.76rem", color: "#2f6d96", margin: 0, fontWeight: 600 }}>
+                      High-priority real-time announcements broadcast across all user portals & logins
+                    </p>
+                  </div>
                 </div>
 
                 <div
                   style={{
-                    flex: 1,
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
                     display: "flex",
                     alignItems: "center",
-                    position: "relative"
+                    gap: "8px",
+                    background: isCurrentlyActive ? "rgba(34, 197, 94, 0.15)" : "rgba(255, 255, 255, 0.7)",
+                    border: `1px solid ${isCurrentlyActive ? "#22c55e" : "#9fcfe9"}`,
+                    padding: "4px 14px",
+                    borderRadius: "999px"
                   }}
-                  onMouseEnter={() => setPreviewPaused(true)}
-                  onMouseLeave={() => setPreviewPaused(false)}
                 >
                   <span
                     style={{
-                      display: "inline-block",
-                      color: currentTheme.color,
-                      fontWeight: "700",
-                      fontSize: "0.85rem",
-                      animation: `studioMarquee ${
-                        marqueeSpeed === "fast" ? "10s" : marqueeSpeed === "slow" ? "24s" : "16s"
-                      } linear infinite`,
-                      animationPlayState: previewPaused ? "paused" : "running",
-                      paddingLeft: "15px"
+                      width: "9px",
+                      height: "9px",
+                      borderRadius: "50%",
+                      background: isCurrentlyActive ? "#22c55e" : "#8fb0c8",
+                      boxShadow: isCurrentlyActive ? "0 0 8px #22c55e" : "none",
+                      animation: isCurrentlyActive ? "pulseDot 1.6s infinite" : "none"
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.74rem",
+                      fontWeight: "800",
+                      color: isCurrentlyActive ? "#15803d" : "#4a6f8c",
+                      letterSpacing: "0.5px"
                     }}
                   >
-                    {dashboardComment || "Type an announcement below to preview live scrolling..."}
+                    {isCurrentlyActive ? "BROADCAST LIVE" : "IDLE / NO BROADCAST"}
                   </span>
                 </div>
               </div>
-            </div>
 
-            <form onSubmit={handleCommentSubmit}>
-              {/* Row 1: Quick Theme Selectors */}
-              <div style={{ marginBottom: "0.7rem" }}>
-                <label style={{ ...styles.formLabel, marginBottom: "6px" }}>
-                  <span>🎨</span> Choose Announcement Category & Visual Theme
-                </label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {ANNOUNCEMENT_THEMES.map((theme) => (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => {
-                        setAnnouncementType(theme.id);
-                        if (!customBadge) setCustomBadge(theme.badge);
-                      }}
+              <div style={{ ...styles.cardBody, backgroundColor: "rgba(244, 251, 255, 0.6)" }}>
+                {commentSuccess && (
+                  <div style={{ ...styles.alert, ...styles.alertSuccess, boxShadow: "0 4px 12px rgba(34, 197, 94, 0.15)" }}>
+                    <span>✓</span>
+                    {commentSuccess}
+                  </div>
+                )}
+
+                {/* LIVE SIMULATOR BAR */}
+                <div style={{ marginBottom: "0.8rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <span style={{ fontSize: "0.74rem", fontWeight: "800", color: "#4a6f8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      🖥️ Live Ticker Simulator (Real-Time Preview)
+                    </span>
+                    <span style={{ fontSize: "0.72rem", color: "#4a6f8c", fontWeight: "600" }}>
+                      Speed: {marqueeSpeed.toUpperCase()} • Theme: {currentTheme.label}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      height: "34px",
+                      backgroundColor: "#ffffff",
+                      borderRadius: "12px",
+                      border: `1.5px solid ${currentTheme.color}`,
+                      boxShadow: `0 4px 15px ${currentTheme.color}33`,
+                      display: "flex",
+                      alignItems: "center",
+                      overflow: "hidden",
+                      position: "relative"
+                    }}
+                  >
+                    <div
                       style={{
-                        padding: "5px 12px",
-                        borderRadius: "12px",
-                        fontSize: "0.8rem",
-                        fontWeight: "800",
-                        cursor: "pointer",
+                        background: currentTheme.color,
+                        color: "#0c0c0e",
+                        padding: "0 14px",
+                        height: "100%",
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
-                        border: `1.5px solid ${announcementType === theme.id ? theme.color : "#cbd5e1"}`,
-                        background: announcementType === theme.id ? theme.bg : "#ffffff",
-                        color: announcementType === theme.id ? theme.color : "#475569",
-                        boxShadow: announcementType === theme.id ? `0 4px 12px ${theme.color}26` : "none",
-                        transition: "all 0.15s ease"
+                        fontSize: "0.75rem",
+                        fontWeight: "900",
+                        letterSpacing: "0.6px",
+                        textTransform: "uppercase",
+                        flexShrink: 0,
+                        zIndex: 2,
+                        boxShadow: "4px 0 10px rgba(0,0,0,0.15)"
                       }}
                     >
-                      <span>{theme.icon}</span>
-                      <span>{theme.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      <span>{currentTheme.icon}</span>
+                      <span>{customBadge || currentTheme.badge}</span>
+                    </div>
 
-              {/* Row 2: Message Input & Quick Templates */}
-              <div style={{ marginBottom: "0.7rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
-                  <label style={styles.formLabel}>
-                    <span>✍️</span> Broadcast Message Body
-                  </label>
-                  <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "600" }}>
-                    {dashboardComment.length} characters
-                  </span>
-                </div>
-
-                <textarea
-                  rows="2"
-                  value={dashboardComment}
-                  onChange={(e) => setDashboardComment(e.target.value)}
-                  placeholder="Enter high-impact announcement to broadcast across all departments..."
-                  style={{
-                    ...styles.formInput,
-                    fontFamily: "inherit",
-                    resize: "vertical",
-                    fontSize: "0.9rem",
-                    borderColor: currentTheme.color
-                  }}
-                  required
-                />
-
-                {/* Quick Emoji Bar & Template Buttons */}
-                <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "6px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Add Icon:</span>
-                    {["🚨", "⚠️", "⚡", "🔥", "📢", "🛠️", "🎉", "📦", "🕒", "🔒"].map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => insertEmoji(emoji)}
+                    <div
+                      style={{
+                        flex: 1,
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        display: "flex",
+                        alignItems: "center",
+                        position: "relative"
+                      }}
+                      onMouseEnter={() => setPreviewPaused(true)}
+                      onMouseLeave={() => setPreviewPaused(false)}
+                    >
+                      <span
                         style={{
-                          background: "#ffffff",
-                          border: "1px solid #bfe0f2",
-                          borderRadius: "8px",
-                          padding: "1px 7px",
-                          fontSize: "0.85rem",
-                          cursor: "pointer"
-                        }}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Presets:</span>
-                    {PRESET_TEMPLATES.map((tpl) => (
-                      <button
-                        key={tpl.label}
-                        type="button"
-                        onClick={() => applyTemplate(tpl)}
-                        style={{
-                          background: "linear-gradient(180deg, #ffffff 0%, #e4f4fd 100%)",
-                          border: "1px solid #a9d9f2",
-                          borderRadius: "999px",
-                          padding: "2px 10px",
-                          fontSize: "0.72rem",
-                          color: "#08406b",
+                          display: "inline-block",
+                          color: currentTheme.color,
                           fontWeight: "700",
-                          cursor: "pointer"
+                          fontSize: "0.85rem",
+                          animation: `studioMarquee ${
+                            marqueeSpeed === "fast" ? "10s" : marqueeSpeed === "slow" ? "24s" : "16s"
+                          } linear infinite`,
+                          animationPlayState: previewPaused ? "paused" : "running",
+                          paddingLeft: "15px"
                         }}
                       >
-                        {tpl.label}
-                      </button>
-                    ))}
+                        {dashboardComment || "Type an announcement below to preview live scrolling..."}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Row 3: Advanced Options (Custom Tag, Speed, Sound) */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                  gap: "10px",
-                  padding: "8px 12px",
-                  background: "rgba(255,255,255,0.75)",
-                  borderRadius: "14px",
-                  border: "1px solid #cfe8f6",
-                  marginBottom: "0.8rem"
-                }}
-              >
-                <div>
-                  <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                    🏷️ Custom Badge Label
-                  </label>
-                  <input
-                    type="text"
-                    value={customBadge}
-                    onChange={(e) => setCustomBadge(e.target.value)}
-                    placeholder={currentTheme.badge}
-                    style={{ ...styles.formInput, padding: "0.38rem 0.7rem", fontSize: "0.84rem" }}
-                  />
-                </div>
+                <form onSubmit={handleCommentSubmit}>
+                  {/* Theme Selectors */}
+                  <div style={{ marginBottom: "0.7rem" }}>
+                    <label style={{ ...styles.formLabel, marginBottom: "6px" }}>
+                      <span>🎨</span> Choose Announcement Category & Visual Theme
+                    </label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {ANNOUNCEMENT_THEMES.map((theme) => (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            setAnnouncementType(theme.id);
+                            if (!customBadge) setCustomBadge(theme.badge);
+                          }}
+                          style={{
+                            padding: "5px 12px",
+                            borderRadius: "12px",
+                            fontSize: "0.8rem",
+                            fontWeight: "800",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            border: `1.5px solid ${announcementType === theme.id ? theme.color : "#cbd5e1"}`,
+                            background: announcementType === theme.id ? theme.bg : "#ffffff",
+                            color: announcementType === theme.id ? theme.color : "#475569",
+                            boxShadow: announcementType === theme.id ? `0 4px 12px ${theme.color}26` : "none",
+                            transition: "all 0.15s ease"
+                          }}
+                        >
+                          <span>{theme.icon}</span>
+                          <span>{theme.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                <div>
-                  <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                    ⏩ Marquee Scroll Speed
-                  </label>
-                  <select
-                    value={marqueeSpeed}
-                    onChange={(e) => setMarqueeSpeed(e.target.value)}
-                    style={{ ...styles.formSelect, padding: "0.38rem 0.7rem", fontSize: "0.84rem" }}
-                  >
-                    <option value="slow">Slow & Steady (24s cycle)</option>
-                    <option value="normal">Standard Ticker (16s cycle)</option>
-                    <option value="fast">Rapid Priority (10s cycle)</option>
-                  </select>
-                </div>
+                  {/* Message Input & Templates */}
+                  <div style={{ marginBottom: "0.7rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <label style={styles.formLabel}>
+                        <span>✍️</span> Broadcast Message Body
+                      </label>
+                      <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "600" }}>
+                        {dashboardComment.length} characters
+                      </span>
+                    </div>
 
-                <div>
-                  <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                    🔔 Ambient Sci-Fi Chime
-                  </label>
+                    <textarea
+                      rows="2"
+                      value={dashboardComment}
+                      onChange={(e) => setDashboardComment(e.target.value)}
+                      placeholder="Enter high-impact announcement to broadcast across all departments..."
+                      style={{
+                        ...styles.formInput,
+                        fontFamily: "inherit",
+                        resize: "vertical",
+                        fontSize: "0.9rem",
+                        borderColor: currentTheme.color
+                      }}
+                      required
+                    />
+
+                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "6px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Add Icon:</span>
+                        {["🚨", "⚠️", "⚡", "🔥", "📢", "🛠️", "🎉", "📦", "🕒", "🔒"].map((emoji) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => insertEmoji(emoji)}
+                            style={{
+                              background: "#ffffff",
+                              border: "1px solid #bfe0f2",
+                              borderRadius: "8px",
+                              padding: "1px 7px",
+                              fontSize: "0.85rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Presets:</span>
+                        {PRESET_TEMPLATES.map((tpl) => (
+                          <button
+                            key={tpl.label}
+                            type="button"
+                            onClick={() => applyTemplate(tpl)}
+                            style={{
+                              background: "linear-gradient(180deg, #ffffff 0%, #e4f4fd 100%)",
+                              border: "1px solid #a9d9f2",
+                              borderRadius: "999px",
+                              padding: "2px 10px",
+                              fontSize: "0.72rem",
+                              color: "#08406b",
+                              fontWeight: "700",
+                              cursor: "pointer"
+                            }}
+                          >
+                            {tpl.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Advanced Options */}
                   <div
-                    onClick={() => setEnableSound(!enableSound)}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "0.38rem 0.7rem",
-                      borderRadius: "12px",
-                      border: "1.5px solid #9ccbe6",
-                      cursor: "pointer",
-                      background: enableSound ? "#e4f4fd" : "#ffffff",
-                      fontSize: "0.83rem",
-                      fontWeight: "700",
-                      color: enableSound ? "#0a4f8c" : "#4a6f8c"
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                      gap: "10px",
+                      padding: "8px 12px",
+                      background: "rgba(255,255,255,0.75)",
+                      borderRadius: "14px",
+                      border: "1px solid #cfe8f6",
+                      marginBottom: "0.8rem"
                     }}
                   >
-                    <span>{enableSound ? "🔊 Sound Enabled" : "🔇 Silent Notice"}</span>
+                    <div>
+                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
+                        🏷️ Custom Badge Label
+                      </label>
+                      <input
+                        type="text"
+                        value={customBadge}
+                        onChange={(e) => setCustomBadge(e.target.value)}
+                        placeholder={currentTheme.badge}
+                        style={{ ...styles.formInput, padding: "0.38rem 0.7rem", fontSize: "0.84rem" }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
+                        ⏩ Marquee Scroll Speed
+                      </label>
+                      <select
+                        value={marqueeSpeed}
+                        onChange={(e) => setMarqueeSpeed(e.target.value)}
+                        style={{ ...styles.formSelect, padding: "0.38rem 0.7rem", fontSize: "0.84rem" }}
+                      >
+                        <option value="slow">Slow & Steady (24s cycle)</option>
+                        <option value="normal">Standard Ticker (16s cycle)</option>
+                        <option value="fast">Rapid Priority (10s cycle)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
+                        🔔 Ambient Sci-Fi Chime
+                      </label>
+                      <div
+                        onClick={() => setEnableSound(!enableSound)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "0.38rem 0.7rem",
+                          borderRadius: "12px",
+                          border: "1.5px solid #9ccbe6",
+                          cursor: "pointer",
+                          background: enableSound ? "#e4f4fd" : "#ffffff",
+                          fontSize: "0.83rem",
+                          fontWeight: "700",
+                          color: enableSound ? "#0a4f8c" : "#4a6f8c"
+                        }}
+                      >
+                        <span>{enableSound ? "🔊 Sound Enabled" : "🔇 Silent Notice"}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button
+                      type="submit"
+                      style={{
+                        ...styles.submitBtn,
+                        background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
+                        color: "#7a4f00",
+                        border: "1px solid #f3c35a",
+                        boxShadow: "0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)",
+                        padding: "0.5rem 1.4rem"
+                      }}
+                    >
+                      <span>🚀</span> Launch Broadcast Now
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCommentClear}
+                      style={{
+                        ...styles.submitBtn,
+                        background: "linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)",
+                        border: "1px solid #f3a5a5",
+                        color: "#b91c1c",
+                        boxShadow: "none",
+                        padding: "0.5rem 1.3rem"
+                      }}
+                    >
+                      <span>🗑️</span> Clear / Mute All
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <button
-                  type="submit"
-                  style={{
-                    ...styles.submitBtn,
-                    background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
-                    color: "#7a4f00",
-                    border: "1px solid #f3c35a",
-                    boxShadow: "0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)",
-                    padding: "0.5rem 1.4rem"
-                  }}
-                >
-                  <span>🚀</span> Launch Broadcast Now
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCommentClear}
-                  style={{
-                    ...styles.submitBtn,
-                    background: "linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)",
-                    border: "1px solid #f3a5a5",
-                    color: "#b91c1c",
-                    boxShadow: "none",
-                    padding: "0.5rem 1.3rem"
-                  }}
-                >
-                  <span>🗑️</span> Clear / Mute All
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-
+            </div>
           </div>
         </div>
       )}
 
-      {/* ===================== ADD / EDIT USER POPUP ===================== */}
+      {/* USER MODAL */}
       {showUserModal && (
         <div className="ur-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) cancelEdit(); }}>
           <div className="ur-modal" ref={formCardRef}>
-
-            {/* LEFT: brand panel */}
             <div className="ur-left">
               <div className="ur-left-top">
                 <span className="ur-left-label">User Management</span>
@@ -1462,7 +1373,6 @@ function InternalRegister() {
               <span className="ur-planet ur-planet-3"></span>
             </div>
 
-            {/* RIGHT: registration form */}
             <div className="ur-right">
               <button type="button" className="ur-close" onClick={cancelEdit} aria-label="Close">✕</button>
 
@@ -1696,85 +1606,76 @@ function InternalRegister() {
           </div>
         </div>
       )}
+
+      {/* ===================== MAIN TABLE CARD ===================== */}
       <div style={styles.container}>
-        <div style={styles.pageHeader}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.9rem" }}>
-            <div style={styles.emblem}>
-              <FaUserTie />
-            </div>
-            <div>
-              <h1 style={styles.pageTitle}>User Management</h1>
-              <p style={styles.pageSubtitle}>
-                Create and manage user accounts with role-based access control
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            style={{
-              ...styles.submitBtn,
-              background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
-              color: "#7a4f00",
-              border: "1px solid #f3c35a",
-              boxShadow: "0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.2), inset 0 1px 0 rgba(255,255,255,0.8)"
-            }}
-            onClick={() => setShowBroadcastModal(true)}
-          >
-            <span>📢</span> Broadcast Announcement
-            {isCurrentlyActive && (
-              <span
-                title="A broadcast is live"
-                style={{
-                  width: "9px",
-                  height: "9px",
-                  borderRadius: "50%",
-                  background: "#22c55e",
-                  boxShadow: "0 0 8px #22c55e",
-                  animation: "pulseDot 1.6s infinite"
-                }}
-              />
-            )}
-          </button>
-          <button
-            type="button"
-            style={{
-              ...styles.submitBtn,
-              background: "linear-gradient(180deg, #ffe3df 0%, #f7a79f 100%)",
-              color: "#8f1414",
-              border: "1px solid #ee8f8f",
-              boxShadow: "0 3px 0 #e08a8a, 0 7px 12px rgba(220, 38, 38, 0.2), inset 0 1px 0 rgba(255,255,255,0.8)"
-            }}
-            onClick={() => {
-              resetForm();
-              setError("");
-              setSuccess("");
-              setShowUserModal(true);
-            }}
-          >
-            <span>➕</span> Add New User
-          </button>
-          </div>
-        </div>
-
-        {/* All Users Table Card */}
         <div style={styles.tableCard}>
+          {/* Integrated Header: Title + User Count + Action Buttons together */}
           <div style={styles.tableHeader}>
             <div style={styles.tableHeaderLeft}>
-              <div style={styles.tableHeaderIcon}>📋</div>
-              <h2 style={styles.tableHeaderTitle}>All Users</h2>
+              <div style={styles.tableHeaderIcon}>👥</div>
+              <h2 style={styles.tableHeaderTitle}>User Management</h2>
+              <div style={styles.userCount}>{filteredUsers.length} Users</div>
             </div>
-            <div style={styles.userCount}>{filteredUsers.length} Users</div>
+
+            {/* Embedded Action Buttons */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                style={{
+                  ...styles.submitBtn,
+                  background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
+                  color: "#7a4f00",
+                  border: "1px solid #f3c35a",
+                  boxShadow: "0 2px 0 #e9b845, 0 4px 8px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)"
+                }}
+                onClick={() => setShowBroadcastModal(true)}
+              >
+                <span>📢</span> Broadcast Studio
+                {isCurrentlyActive && (
+                  <span
+                    title="A broadcast is live"
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#22c55e",
+                      boxShadow: "0 0 8px #22c55e",
+                      animation: "pulseDot 1.6s infinite"
+                    }}
+                  />
+                )}
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  ...styles.submitBtn,
+                  background: "linear-gradient(180deg, #ffe3df 0%, #f7a79f 100%)",
+                  color: "#8f1414",
+                  border: "1px solid #ee8f8f",
+                  boxShadow: "0 2px 0 #e08a8a, 0 4px 8px rgba(220, 38, 38, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)"
+                }}
+                onClick={() => {
+                  resetForm();
+                  setError("");
+                  setSuccess("");
+                  setShowUserModal(true);
+                }}
+              >
+                <span>➕</span> Add New User
+              </button>
+            </div>
           </div>
 
+          {/* Filter Bar */}
           <div
             style={{
               display: "flex",
               flexWrap: "wrap",
               gap: "0.5rem",
               alignItems: "center",
-              padding: "0.28rem 1.1rem",
+              padding: "0.32rem 1rem",
               background: "rgba(255,255,255,0.7)",
               borderBottom: "1px solid #cfe8f6"
             }}

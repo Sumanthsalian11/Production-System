@@ -425,11 +425,6 @@ function AdminDashboard() {
 
   const token = localStorage.getItem("token");
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    navigate("/");
-  };
-
   const showAlert = (message) => {
     const m = String(message ?? "");
     const low = m.toLowerCase();
@@ -1433,9 +1428,6 @@ function AdminDashboard() {
             <p>Manage master data used across the ERP</p>
           </div>
         </div>
-        <button className="pro-btn primary" onClick={logout}>
-          <LogOut size={16} /> Logout
-        </button>
       </div>
 
       <div className="admin-section-tabs">

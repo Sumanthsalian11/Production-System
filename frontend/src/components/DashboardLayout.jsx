@@ -29,7 +29,7 @@ const APP_CATEGORIES = [
     color: "#0369a1",
     bgLight: "#f0f9ff",
     borderGlow: "#bae6fd",
-    routes: ["/new-in", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding","/click-report"]
+    routes: ["/new-in", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
   },
   {
     title: "Reports & Analytics",
@@ -45,7 +45,7 @@ const APP_CATEGORIES = [
     color: "#059669",
     bgLight: "#ecfdf5",
     borderGlow: "#a7f3d0",
-    routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard","/calibration","/new-inspection","/certificate-numbering"]
+    routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard", "/calibration", "/new-inspection", "/certificate-numbering"]
   },
   {
     title: "Dispatch & Logistics",
@@ -379,7 +379,21 @@ export default function DashboardLayout() {
     }
     return allowedModules.slice(0, 6);
   }, [isAdmin, allowedModules, location.pathname]);
-  
+
+  // Current page info for the header
+  const currentPage = useMemo(() => {
+    const path = location.pathname;
+    const match = menuItems.find((m) => path === m.to || path.startsWith(m.to + "/"));
+    const cat = APP_CATEGORIES.find((c) =>
+      c.routes.some((r) => path === r || path.startsWith(r + "/"))
+    );
+    return {
+      title: match?.label || "Dashboard",
+      icon: match?.icon || "bi-speedometer2",
+      color: cat?.color || "#1d4ed8"
+    };
+  }, [location.pathname]);
+
   const inputStyle = (inputName, hasError) => {
     const isFocused = focusedInput === inputName;
     return {
@@ -433,6 +447,275 @@ export default function DashboardLayout() {
           100% { transform: translateX(200%); }
         }
 
+        /* Shining Gleam animation for Highlighted Logo */
+        @keyframes logoShimmer {
+          0% { transform: translateX(-150%) skewX(-25deg); opacity: 0; }
+          25% { opacity: 0.75; }
+          50% { transform: translateX(180%) skewX(-25deg); opacity: 0.85; }
+          75% { opacity: 0.2; }
+          100% { transform: translateX(250%) skewX(-25deg); opacity: 0; }
+        }
+
+        @keyframes logoGlowPulse {
+          0%, 100% {
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.25), 0 2px 8px rgba(14, 165, 233, 0.15), inset 0 1px 1px #ffffff;
+            border-color: #93c5fd;
+          }
+          50% {
+            box-shadow: 0 0 18px rgba(37, 99, 235, 0.45), 0 4px 14px rgba(56, 189, 248, 0.35), inset 0 1px 2px #ffffff;
+            border-color: #3b82f6;
+          }
+        }
+
+        /* Continuous Holographic Shining Lightbeam for Sidebar Shield */
+        @keyframes cyberShieldGleam {
+          0% { transform: translateX(-120%) rotate(25deg); opacity: 0; }
+          20% { opacity: 0.8; }
+          50% { transform: translateX(140%) rotate(25deg); opacity: 0.9; }
+          80% { opacity: 0.2; }
+          100% { transform: translateX(200%) rotate(25deg); opacity: 0; }
+        }
+
+        @keyframes orbPulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 12px rgba(59, 130, 246, 0.6), inset 0 0 8px rgba(255, 255, 255, 0.7); }
+          50% { transform: scale(1.05); box-shadow: 0 0 22px rgba(14, 165, 233, 0.9), inset 0 0 12px rgba(255, 255, 255, 0.9); }
+        }
+
+        /* ===== ALWAYS-CENTERED EXECUTIVE HEADER ===== */
+        .page-header-bar {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 20px;
+          min-height: 58px;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.97) 0%, rgba(240, 249, 255, 0.94) 50%, rgba(224, 242, 254, 0.95) 100%);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1.5px solid #bfdbfe;
+          box-shadow: 0 3px 18px rgba(59, 130, 246, 0.08);
+          overflow: visible;
+        }
+
+        /* Bottom reflective glow border */
+        .page-header-bar::after {
+          content: "";
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 1.5px;
+          background: linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.5) 50%, transparent 100%);
+        }
+
+        /* ===== HIGHLIGHTED PREMIUM LOGO DOCK ===== */
+        .header-logo-highlight {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+          border: 1.8px solid #93c5fd;
+          border-radius: 12px;
+          padding: 4px 12px;
+          animation: logoGlowPulse 4s infinite ease-in-out;
+          overflow: hidden;
+          transition: all 0.25s ease;
+          cursor: pointer;
+        }
+        .header-logo-highlight::after {
+          content: "";
+          position: absolute;
+          top: -10px;
+          left: -40px;
+          width: 32px;
+          height: 60px;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+          animation: logoShimmer 3.2s infinite;
+          pointer-events: none;
+        }
+        .header-logo-highlight:hover {
+          transform: translateY(-1.5px) scale(1.02);
+          border-color: #2563eb;
+          box-shadow: 0 0 20px rgba(37, 99, 235, 0.5), inset 0 1px 2px #ffffff;
+        }
+
+        /* Always dead-center title & icon */
+        .page-header-center-anchor {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          max-width: 48%;
+          pointer-events: none;
+        }
+
+        /* Refined, compact icon medallion */
+        .page-header-icon-box {
+          width: 32px;
+          height: 32px;
+          border-radius: 9px;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.95rem;
+          flex-shrink: 0;
+          box-shadow: 0 2.5px 8px rgba(29, 78, 216, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+          pointer-events: auto;
+        }
+
+        /* CAPS Header Title */
+        .page-header-title {
+          margin: 0;
+          font-size: 1.3rem;
+          font-weight: 900;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: #0f2d4a;
+          line-height: 1.2;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+          pointer-events: auto;
+        }
+
+        /* ===== CLICK-TO-LOGOUT USER PILL WITH HOVER LOGOUT ICON ===== */
+        .header-user-logout-pill {
+          display: inline-flex;
+          align-items: center;
+          background: #ffffff;
+          border: 1.5px solid #bfdbfe;
+          border-radius: 50px;
+          padding: 4px 10px 4px 4px;
+          gap: 8px;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .header-user-logout-pill:hover {
+          border-color: #ef4444;
+          background: #fef2f2;
+          box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
+          transform: translateY(-1px);
+        }
+
+        .user-avatar-badge {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #60a5fa 0%, #1d4ed8 100%);
+          color: #ffffff;
+          font-weight: 800;
+          font-size: 0.78rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          box-shadow: 0 2px 6px rgba(29, 78, 216, 0.35);
+          transition: all 0.25s ease;
+        }
+
+        .header-user-logout-pill:hover .user-avatar-badge {
+          background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+          box-shadow: 0 2px 8px rgba(220, 38, 38, 0.45);
+        }
+
+        /* Avatar swaps from Initial Letter to Logout Icon on Hover */
+        .avatar-initial {
+          display: block;
+        }
+        .avatar-logout-icon {
+          display: none;
+          font-size: 0.82rem;
+        }
+        .header-user-logout-pill:hover .avatar-initial {
+          display: none;
+        }
+        .header-user-logout-pill:hover .avatar-logout-icon {
+          display: block;
+        }
+
+        .header-user-meta {
+          display: flex;
+          flex-direction: column;
+          line-height: 1.1;
+          text-align: left;
+        }
+
+        .header-user-name {
+          font-size: 0.78rem;
+          font-weight: 800;
+          color: #1e3a5f;
+          max-width: 110px;
+          transition: color 0.2s ease;
+        }
+
+        .header-user-logout-pill:hover .header-user-name {
+          color: #dc2626;
+        }
+
+        .header-user-subtext {
+          font-size: 0.62rem;
+          font-weight: 700;
+          color: #16a34a;
+          letter-spacing: 0.3px;
+          transition: color 0.2s ease;
+        }
+
+        .header-user-logout-pill:hover .header-user-subtext {
+          color: #ef4444;
+        }
+
+        /* ===== SHINING SIDEBAR BRAND SHIELD ===== */
+        .sidebar-brand-shield {
+          position: relative;
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #0284c7 0%, #1e40af 50%, #4338ca 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          font-size: 1.25rem;
+          overflow: hidden;
+          box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.7);
+          animation: orbPulse 3.5s ease-in-out infinite;
+          cursor: pointer;
+          border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .sidebar-brand-shield::after {
+          content: "";
+          position: absolute;
+          top: -20px;
+          left: -40px;
+          width: 35px;
+          height: 90px;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+          animation: cyberShieldGleam 2.8s infinite;
+          pointer-events: none;
+        }
+
+        @media (max-width: 767px) {
+          .page-header-bar { padding: 6px 10px; min-height: 50px; }
+          .page-header-center-anchor { max-width: 58%; gap: 6px; }
+          .page-header-title { font-size: 0.95rem; letter-spacing: 0.8px; }
+          .page-header-icon-box { width: 26px; height: 26px; font-size: 0.8rem; border-radius: 6px; }
+          .header-user-meta { display: none; }
+          .header-logo-highlight { padding: 2px 6px; }
+          .header-logo-highlight img { height: 24px !important; }
+        }
+
         /* 3D Trigger Button (Sidebar & Topbar) */
         .launcher-btn-3d {
           background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%);
@@ -481,7 +764,7 @@ export default function DashboardLayout() {
           flex-shrink: 0;
         }
 
-                .sidebar-nav-scroll::-webkit-scrollbar { width: 8px; height: 0; }
+        .sidebar-nav-scroll::-webkit-scrollbar { width: 8px; height: 0; }
         .sidebar-nav-scroll::-webkit-scrollbar-track { background: transparent; }
         .sidebar-nav-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
         .sidebar-nav-scroll::-webkit-scrollbar-thumb { background: #e3f4ff; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25); }
@@ -645,12 +928,12 @@ export default function DashboardLayout() {
           boxShadow: "4px 0 24px rgba(59, 130, 246, 0.08)"
         }}
       >
-        {/* BRAND HEADER: logo + sidebar toggle */}
+        {/* BRAND HEADER: SHINING HOLOGRAPHIC SHIELD + toggle */}
         <div
           className="d-flex align-items-center"
           style={{
             height: "70px",
-            padding: collapsed ? "0" : "0 12px",
+            padding: collapsed ? "0" : "0 14px",
             justifyContent: collapsed ? "center" : "space-between",
             gap: "10px",
             borderBottom: "1.5px solid #6d98cb",
@@ -659,12 +942,22 @@ export default function DashboardLayout() {
           }}
         >
           {!collapsed && (
-            <img
-              src="Logo.png"
-              alt="logo"
-              style={{ height: "34px", width: "auto", maxWidth: "140px", objectFit: "contain", filter: "drop-shadow(0 0 4px rgba(59, 130, 246, 0.2))" }}
-            />
+            <div className="d-flex align-items-center gap-2">
+              {/* Shining Cyber Shield Badge */}
+              <div className="sidebar-brand-shield" title="MPI Enterprise">
+                <i className="bi bi-shield-shaded"></i>
+              </div>
+              <div className="d-flex flex-column" style={{ lineHeight: 1.15 }}>
+                <span className="fw-black text-uppercase" style={{ fontSize: "0.86rem", fontWeight: 900, color: "#0f2d4a", letterSpacing: "1.1px" }}>
+                  MPI CONSOLE
+                </span>
+                <span style={{ fontSize: "0.62rem", color: "#1d4ed8", fontWeight: 700, letterSpacing: "0.8px" }}>
+                  SECURE CORE
+                </span>
+              </div>
+            </div>
           )}
+
           <button
             className="btn d-flex align-items-center justify-content-center"
             onClick={() => setCollapsed(!collapsed)}
@@ -783,9 +1076,9 @@ export default function DashboardLayout() {
 
         {/* Navigation */}
         <nav
-  className="nav flex-column flex-nowrap p-2 gap-1 flex-grow-1 w-100 sidebar-nav-scroll"
-  style={{ overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
->
+          className="nav flex-column flex-nowrap p-2 gap-1 flex-grow-1 w-100 sidebar-nav-scroll"
+          style={{ overflowY: "auto", overflowX: "hidden", minHeight: 0 }}
+        >
           {!collapsed && (
             <div className="d-flex align-items-center justify-content-between px-2 py-1 mb-1">
               <div
@@ -835,7 +1128,6 @@ export default function DashboardLayout() {
               </NavLink>
             );
           })}
-
         </nav>
 
         {/* Footer: user menu (Change Password / Logout) */}
@@ -1263,6 +1555,65 @@ export default function DashboardLayout() {
             transition: "margin-top 0.2s ease"
           }}
         >
+          {/* =========================================================================
+              CLEAN ALWAYS-CENTERED PAGE HEADER (HIGHLIGHTED LOGO + CLICK-TO-LOGOUT USER)
+              ========================================================================= */}
+          <div className="page-header-bar" style={isMobile ? { borderRadius: "14px", margin: "10px", padding: "8px 12px" } : undefined}>
+            
+            {/* LEFT SIDE: HIGHLIGHTED MPI LOGO WITH AMBIENT GLOW & SHIMMER */}
+            <div className="header-logo-highlight" title="MPI Enterprise">
+              <img
+                src="Logo.png"
+                alt="MPI Logo"
+                style={{
+                  height: "28px",
+                  width: "auto",
+                  maxWidth: "115px",
+                  objectFit: "contain",
+                  filter: "drop-shadow(0 2px 4px rgba(29, 78, 216, 0.25))"
+                }}
+              />
+            </div>
+
+            {/* ABSOLUTE CENTER TITLE & COMPACT ICON (Always perfectly dead-centered) */}
+            <div className="page-header-center-anchor">
+              <div
+                className="page-header-icon-box"
+                style={{
+                  background: `linear-gradient(135deg, ${currentPage.color} 0%, #1e3a8a 100%)`
+                }}
+              >
+                <i className={`bi ${currentPage.icon}`}></i>
+              </div>
+              <h1 className="page-header-title" title={currentPage.title}>
+                {currentPage.title}
+              </h1>
+            </div>
+
+            {/* RIGHT SIDE: CLICKABLE USER PILL (HOVER SHOWS LOGOUT ICON, CLICK LOGS OUT) */}
+            <div className="d-flex align-items-center">
+              <div
+                className="header-user-logout-pill"
+                onClick={logout}
+                title={`Logged in as ${displayName} (${loggedInUser || "User"}) • Click to Logout`}
+              >
+                <div className="user-avatar-badge">
+                  <span className="avatar-initial">{firstLetter}</span>
+                  <i className="bi bi-box-arrow-right avatar-logout-icon"></i>
+                </div>
+
+                <div className="header-user-meta">
+                  <span className="header-user-name text-truncate">
+                    {displayName}
+                  </span>
+                  <span className="header-user-subtext text-capitalize">
+                    ● {loggedInUser || "Online"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <Outlet />
         </div>
       </div>
