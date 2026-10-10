@@ -27,7 +27,7 @@ const CSS = `
     background-attachment: fixed;
   }
   .br-root * { box-sizing: border-box; }
-  .br-inner { max-width: 1100px; margin: 0 auto; }
+  .br-inner { width: 100%; max-width: none; margin: 0; }
 
   /* ---------- Header ---------- */
   .br-root .pro-header {
@@ -114,11 +114,13 @@ const CSS = `
   .br-gen-card .pro-card-header { margin-bottom: 8px; }
   .br-form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
   .br-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .br-field-customer { flex: 0 1 340px; min-width: 220px; }
+  .br-field-customer { flex: 1 1 340px; min-width: 220px; }
+  .br-field-file { flex: 1 1 260px; min-width: 200px; }
+  .br-form-row .pro-input { height: 40px; }
   .br-label { font-size: 10.5px; font-weight: 800; color: #4a6f8c; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 0 2px; }
-  .br-root .br-upload { max-width: 300px; justify-content: flex-start; min-height: 36px; }
+  .br-root .br-upload { width: 100%; max-width: none; justify-content: center; height: 40px; min-height: 40px; }
   .br-upload-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px; }
-  .br-root .br-generate { min-height: 36px; padding: 6px 26px; }
+  .br-root .br-generate { height: 40px; min-height: 40px; padding: 6px 34px; }
 
   /* ---------- Report history table ---------- */
   .br-table-head { border-radius: 14px 14px 0 0; overflow: hidden; margin-top: 12px; border: 1px solid #7fbfe4; border-bottom: none; }
@@ -497,17 +499,6 @@ function BillingCountReport() {
       />
 
       <div className="br-inner">
-        <div className="pro-header">
-          <div className="br-emblem">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-            </svg>
-          </div>
-          <h1>Billing Count Report</h1>
-        </div>
 
         <div className="pro-card br-gen-card">
           <div className="pro-card-header">
@@ -531,7 +522,7 @@ function BillingCountReport() {
               </select>
             </div>
 
-            <div className="br-field">
+            <div className="br-field br-field-file">
               <label className="br-label">Excel File</label>
               <label className="pro-btn br-upload" style={{ cursor: "pointer" }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">

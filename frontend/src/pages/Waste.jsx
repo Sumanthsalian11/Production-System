@@ -611,34 +611,29 @@ export default function WastageReport() {
         }
       `}</style>
 
-      {/* HEADER WITH CENTERED TITLE & RIGHT-ALIGNED BUTTON */}
-      <div className="position-relative text-center mt-2 mb-4">
-        <h1 className="report-title m-0">
-          <b>Wastage Report</b>
-        </h1>
 
-        {userRole !== "PLANNER" && (
-          <div className="position-absolute top-50 end-0 translate-middle-y">
-            <button
-              className="btn btn-success px-4"
-              onClick={exportExcel}
-              disabled={exporting}
-            >
-              {exporting ? "Exporting..." : "Export Excel"}
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* FILTERS CARD */}
       <div className="card shadow-lg p-3 mb-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="filter-header-title">Filters</h5>
-          <span className="count-pill">
-            {loading
-              ? "Loading..."
-              : `Showing ${total.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} Records`}
-          </span>
+          <div className="d-flex align-items-center gap-3">
+            <span className="count-pill">
+              {loading
+                ? "Loading..."
+                : `Showing ${total.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} Records`}
+            </span>
+            {userRole !== "PLANNER" && (
+              <button
+                type="button"
+                className="btn btn-success px-4"
+                onClick={exportExcel}
+                disabled={exporting}
+              >
+                {exporting ? "Exporting..." : "Export Excel"}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="row g-2">

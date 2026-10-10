@@ -2769,18 +2769,7 @@ export default function LiveProductionPortal() {
 
       <header className="portal-header-3d">
         <div className="header-top-row">
-          <div className="brand-group">
-            <div className="brand-emblem-3d">
-              <Factory size={24} />
-            </div>
-            <div className="brand-titles">
-              <h1>
-                PRODUCTION OVERALL SUMMARY
-                {/* <span className="live-badge"><span className="live-dot" /> Live Data</span> */}
-              </h1>
-              <p>Multi-stage machine routing, output efficiency, reel wastage and job completion</p>
-            </div>
-          </div>
+       
 
           <div className="controls-group no-print">
             {hasActiveFilters && (

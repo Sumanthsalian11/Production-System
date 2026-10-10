@@ -115,6 +115,7 @@ const CSS = `
   }
   .pr-export-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
   .pr-export-btn:active { transform: translateY(2px); }
+    .pr-field .pr-export-btn { min-height: 36px; justify-content: center; }
 
   /* ── body ── */
   .pr-body { max-width: 1500px; margin: 0 auto; padding: 16px 18px 40px; }
@@ -666,31 +667,22 @@ export default function Productionreportt() {
     <div className="pr-root">
       <style>{CSS}</style>
 
-      {/* ── Glossy hero header ── */}
-      <div className="pr-header">
-        <div className="pr-header-left">
-          <div className="pr-emblem">
-            <Icons.Factory />
-          </div>
-          <div>
-            <div className="pr-header-title">Production Machine Status Report</div>
-            <div className="pr-header-sub">Based on production entry records</div>
-          </div>
-        </div>
-        <div className="pr-header-actions">
-          <div className="pr-count-pill">
-            <span className="pr-pulse-dot"></span>
-            <span>{filteredRecords.length} records</span>
-          </div>
-          <button className="pr-export-btn" onClick={exportExcel}>⬇ Export Excel</button>
-        </div>
-      </div>
+
 
       <div className="pr-body">
 
         {/* ── Filters ── */}
         <div className="pr-filter-card">
-          <div className="pr-filter-title text-black">Filters</div>
+          <div className="pr-filter-title text-black">
+            Filters
+            <span
+              className="pr-count-pill"
+              style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0 }}
+            >
+              <span className="pr-pulse-dot"></span>
+              <span>{filteredRecords.length} records</span>
+            </span>
+          </div>
           <div className="pr-filter-grid">
             <div className="pr-field">
               <label className="pr-label">WO Number</label>
@@ -755,6 +747,10 @@ export default function Productionreportt() {
             <div className="pr-field">
               <label className="pr-label">Show Tables</label>
               <TableVisibilityDropdown visible={visibleTables} setVisible={setVisibleTables} />
+            </div>
+            <div className="pr-field">
+              <label className="pr-label">&nbsp;</label>
+              <button className="pr-export-btn" onClick={exportExcel}>⬇ Export Excel</button>
             </div>
           </div>
         </div>
