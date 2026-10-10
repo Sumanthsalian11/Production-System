@@ -1558,7 +1558,18 @@ export default function DashboardLayout() {
           {/* =========================================================================
               CLEAN ALWAYS-CENTERED PAGE HEADER (HIGHLIGHTED LOGO + CLICK-TO-LOGOUT USER)
               ========================================================================= */}
-          <div className="page-header-bar" style={isMobile ? { borderRadius: "14px", margin: "10px", padding: "8px 12px" } : undefined}>
+          <div
+            className="page-header-bar"
+            style={{
+              position: "fixed",
+              top: `${topOffset + (announcementData?.text && !isMinimized ? 36 : 0)}px`,
+              left: isMobile ? 0 : sidebarWidth,
+              right: 0,
+              zIndex: 1028,
+              transition: "left 0.3s cubic-bezier(0.4, 0, 0.2, 1), top 0.2s ease",
+              ...(isMobile ? { borderRadius: "14px", margin: "10px", padding: "8px 12px" } : {})
+            }}
+          >
             
             {/* LEFT SIDE: HIGHLIGHTED MPI LOGO WITH AMBIENT GLOW & SHIMMER */}
             <div className="header-logo-highlight" title="MPI Enterprise">
@@ -1613,6 +1624,9 @@ export default function DashboardLayout() {
               </div>
             </div>
           </div>
+
+          {/* spacer = height of the fixed header bar */}
+          <div style={{ height: isMobile ? 70 : 58 }} />
 
           <Outlet />
         </div>

@@ -360,14 +360,14 @@ function PlateRequestForm() {
           padding: 12px 18px 16px; margin-bottom: 14px;
           box-shadow: 0 14px 32px rgba(40,120,170,0.16), inset 0 1px 0 #fff;
         }
-        .pr-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px 10px; flex-wrap: wrap; }
-        .pr-head-left { display: flex; align-items: center; gap: 12px; }
+        .pr-head { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 2px 10px; text-align: center; }
+        .pr-head-left { display: flex; align-items: center; justify-content: center; gap: 12px; }
         .pr-icon {
           width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0a6fb8;
           background: radial-gradient(circle at 30% 25%, #ffffff 0%, #d6effc 55%, #b3dff5 100%);
           border: 1px solid #a9d9f2; box-shadow: 0 3px 8px rgba(40,120,170,0.14);
         }
-        .pr-title { margin: 0; font-size: 17px; font-weight: 800; color: #0a4f8c; }
+        .pr-title { margin: 0; font-size: 17px; font-weight: 800; color: #0a4f8c; align-self: center; letter-spacing: -0.3px; }
         .pr-sub { font-size: 13px; font-weight: 600; color: var(--muted); }
         .pr-pill {
           font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 999px; color: #0a4f8c; letter-spacing: 0.3px;
@@ -512,19 +512,6 @@ function PlateRequestForm() {
 
       <div className="pr-shell">
         {/* ========================================================================= */}
-        {/* 1. PAGE HEADING                                                           */}
-        {/* ========================================================================= */}
-        <div className="pr-hero">
-          <div className="pr-emblem">
-            <Icons.Layers />
-          </div>
-          <div>
-            <h1>Plate Request Dashboard</h1>
-            <p>Prepress Plate Approval &amp; Allocation System</p>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
         {/* 2. SUBMIT NEW PLATE REQUEST                                               */}
         {/* ========================================================================= */}
         <div className="pr-glass">
@@ -535,11 +522,8 @@ function PlateRequestForm() {
               </div>
               <div>
                 <h5 className="pr-title">Create New Plate Request</h5>
-                <span className="pr-sub">Submit a Work Order for prepress plate verification and approval</span>
               </div>
             </div>
-
-            <span className="pr-pill">● PREPRESS ROUTING</span>
           </div>
 
           <form onSubmit={handleSubmit}>

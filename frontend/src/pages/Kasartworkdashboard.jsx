@@ -273,11 +273,18 @@ export default function KasArtworkDashboard() {
   const initials = (name) =>
     (name || "?").split(" ").filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
 
-  const HeadingBar = ({ title, subtitle, onBack }) => (
-    <div className="paw-heading">
+  const HeadingBar = ({ title, subtitle, onBack, center }) => (
+    <div
+      className="paw-heading"
+      style={center ? { justifyContent: "center", textAlign: "center" } : undefined}
+    >
       <div className="d-flex align-items-center gap-3">
         {onBack && (
-          <button className="paw-back-btn" onClick={onBack}>
+          <button
+            className="paw-back-btn"
+            onClick={onBack}
+            style={center ? { position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)" } : undefined}
+          >
             <ArrowLeft size={16} />
           </button>
         )}
@@ -286,13 +293,13 @@ export default function KasArtworkDashboard() {
           {subtitle ? <p>{subtitle}</p> : null}
         </div>
       </div>
-      <div className="paw-userchip">
+      {/* <div className="paw-userchip">
         <div className="paw-avatar">{initials(user?.name)}</div>
         <div className="paw-userinfo">
           <b>{user?.name}</b>
           <span>Requester</span>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 
@@ -303,7 +310,7 @@ export default function KasArtworkDashboard() {
       <div style={{ width: "100%", padding: 0, margin: 0 }}>
         <style>{kasArtworkStyles}</style>
         <div className="paw-container">
-          <HeadingBar title="New ticket" subtitle="Raise a new artwork request." onBack={() => setView("list")} />
+          <HeadingBar title="New ticket" subtitle="Raise a new artwork request." onBack={() => setView("list")} center />
 
           <div className="paw-form-card">
             <div style={{ marginBottom: 16 }}>
@@ -595,8 +602,6 @@ export default function KasArtworkDashboard() {
     <div style={{ width: "100%", padding: 0, margin: 0 }}>
       <style>{kasArtworkStyles}</style>
       <div className="paw-container">
-        <HeadingBar title="Artwork Docket" subtitle="Raise and track artwork requests." />
-
         <div className="d-flex gap-2 flex-wrap mb-3">
           {FILTERS.map((f) => (
             <button

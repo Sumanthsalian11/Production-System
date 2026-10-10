@@ -2140,6 +2140,7 @@ function ProductionRealDashboard() {
         .production-dashboard-page .btn:disabled { opacity: 0.5; transform: none; }
 
         /* ---------- Icons ---------- */
+                .production-dashboard-page .pd-section-head .pd-offday { padding: 2px 14px 2px 12px; }
         .production-dashboard-page .pd-ico {
           width: 15px; height: 15px; margin-right: 6px; flex-shrink: 0; vertical-align: -2px; opacity: 0.9; color: #0a6fb8;
         }
@@ -2461,39 +2462,30 @@ function ProductionRealDashboard() {
         }
       `}</style>
 
-      {/* PAGE HEADER */}
-      <div className="pd-header">
-        <div className="pd-brand">
-          <div className="pd-emblem"><FiClipboard aria-hidden="true" /></div>
-          <div>
-            <h1 className="production-title"><b>Production Entry</b></h1>
-            <p className="pd-subtitle">Record machine production, wastage and status for each work order</p>
-          </div>
-        </div>
-        <div className="form-check form-switch pd-offday">
-          <input
-            type="checkbox"
-            className="form-check-input"
-            id="offDayCheck"
-            checked={isOffDay}
-            onChange={handleOffDayToggle}
-          />
-          <label className="form-check-label text-black fw-bold" htmlFor="offDayCheck">
-            <FiPower className="pd-ico" aria-hidden="true" />Off Day
-          </label>
-        </div>
-      </div>
+
 
 
          {/* WORK ORDER INPUT */}
-      {!isOffDay && (
-        <div
-          ref={findCardRef}
-          className="card pd-section"
-        >
-          <div className="pd-section-head">
-            <h6><FiSearch className="pd-ico" /> Find work order</h6>
+      <div
+        ref={findCardRef}
+        className="card pd-section"
+      >
+        <div className="pd-section-head">
+          <h6><FiSearch className="pd-ico" /> Find work order</h6>
+          <div className="form-check form-switch pd-offday">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              id="offDayCheck"
+              checked={isOffDay}
+              onChange={handleOffDayToggle}
+            />
+            <label className="form-check-label text-black fw-bold" htmlFor="offDayCheck">
+              <FiPower className="pd-ico" aria-hidden="true" />Off Day
+            </label>
           </div>
+        </div>
+        {!isOffDay && (
           <div className="pd-section-body">
             <div className="row g-3 align-items-end">
               <div className="col-md-9">
@@ -2514,8 +2506,8 @@ function ProductionRealDashboard() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ENTRY POPUP: opens after Fetch / Edit / Off Day (same split-card design as Add New User) */}
       {showEntryModal && (workOrderDetails || isOffDay) && (

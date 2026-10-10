@@ -1919,20 +1919,6 @@ const Scheduler = () => {
   // =========================
   return (
     <div className="sch-root">
-
-      {/* ── TOP BAR ── */}
-      <div className="sch-topbar">
-        <div className="sch-topbar-icon">📅</div>
-        <div>
-          <h1>Production Scheduler</h1>
-          <p>Drag Gantt bars to reschedule · Double-click to delete</p>
-        </div>
-        <div className="sch-topbar-badge">
-          <span></span>
-          {pendingItems.length} pending · {schedules.length} scheduled
-        </div>
-      </div>
-
       <div className="sch-body">
 
         {/* ── WORK ORDER TABLE ── */}
@@ -1941,7 +1927,7 @@ const Scheduler = () => {
             <div className="sch-card-head navy">
               <span>📋</span> Pending Work Orders
               <span className="head-count">
-                {pendingFilteredItems.length}
+                {pendingItems.length} pending · {schedules.length} scheduled · {pendingFilteredItems.length} filtered
               </span>
             </div>
 

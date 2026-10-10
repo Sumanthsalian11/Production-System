@@ -539,29 +539,12 @@ function ShreddingDashboard() {
 
       <div className="container">
         {/* Header Section (Centered Title with User badge positioned on the far right) */}
-        <div className="position-relative text-center mb-4">
-          <h2 className="dashboard-title m-0 d-inline-flex align-items-center gap-3">
-            <span className="sd-emblem">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-            </span>
-            Shredding Entry
-          </h2>
-          {loggedInUser && (
-            <div className="position-absolute end-0 top-50 translate-middle-y">
-              <span className="user-badge">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight: '6px', color: '#b45309'}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                {loggedInUser}
-              </span>
-            </div>
-          )}
-        </div>
-
         {/* Work Order Card */}
         <div className="forge-card">
           <div className="row align-items-end">
-            <div className="col-md-9 custom-input-group mb-3 mb-md-0">
+            <div className="col-md-9 custom-input-group mb-0 mb-md-0">
               <label className="d-flex align-items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#d97706'}}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <svg  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: '#d97706'}}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
                 Work Order (WO) Number
               </label>
               <input
