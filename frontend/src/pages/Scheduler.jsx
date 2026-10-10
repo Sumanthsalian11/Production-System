@@ -19,14 +19,14 @@ import BASE_URL from "../config/api";
 ───────────────────────────────────────────────────────── */
 const STYLES = `
   .sch-root {
-    --navy:   #064c73;
-    --navy2:  #0369a1;
+    --navy:   #0284c7;
+    --navy2:  #0284c7;
     --blue:   #3b6fa8;
     --blue-l: #4b83b8;
     --teal:   #0284c7;
     --amber:  #d97706;
     --red:    #dc2626;
-    --green:  #10b981;
+    --green:  #16a34a;
     --bg:     #e3f3fa;
     --surface:#ffffff;
     --border: #cfe6f0;
@@ -115,7 +115,7 @@ const STYLES = `
   .sch-card-head.navy  { background: var(--navy);  color: #fff; }
   .sch-card-head.blue  { background: var(--blue);  color: #fff; }
   .sch-card-head.teal  { background: var(--teal);  color: #fff; }
-  .sch-card-head.dark  { background: #064c73;       color: #fff; }
+  .sch-card-head.dark  { background: #0284c7;       color: #fff; }
   .sch-card-head .head-count {
     margin-left: auto;
     background: rgba(255,255,255,.18);
@@ -128,7 +128,7 @@ const STYLES = `
 
   /* ── WO TABLE ── */
   .wo-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  .wo-table thead tr { background: #064c73; }
+  .wo-table thead tr { background: #0284c7; }
   .wo-table th { color: #fff !important;
     padding: 10px 14px;
     text-align: left;
@@ -163,7 +163,7 @@ const STYLES = `
   }
   .badge-pri.high   { background: #fee2e2; color: #dc2626; }
   .badge-pri.medium { background: #fef3c7; color: #d97706; }
-  .badge-pri.low    { background: #dcfce7; color: #10b981; }
+  .badge-pri.low    { background: #dcfce7; color: #16a34a; }
   .badge-pri::before {
     content: '';
     width: 6px; height: 6px;
@@ -242,7 +242,7 @@ const STYLES = `
     cursor: pointer; display: flex; align-items: center; gap: 7px;
     transition: background .15s;
   }
-  .btn-save:hover { background: #059669; }
+  .btn-save:hover { background: #15803d; }
   .btn-cancel-form {
     background: #e3f3fa;
     color: var(--muted); border: 1.5px solid var(--border);
@@ -293,7 +293,7 @@ const STYLES = `
   }
   .gantt_grid_scale,
   .gantt_task_scale {
-    background: linear-gradient(180deg, #064c73 0%, #0369a1 100%) !important;
+    background: linear-gradient(180deg, #0284c7 0%, #0284c7 100%) !important;
     border-bottom: 2px solid #334155 !important;
   }
   .gantt_grid_head_cell {
@@ -424,6 +424,113 @@ const STYLES = `
     background: #ffffff !important;
     padding: 0 !important;
     overflow: hidden;
+  }
+      /* ══ AQUA GLASS THEME (same as Purchase Order page) ══ */
+  .sch-root {
+    background:
+      radial-gradient(circle at 12% 6%, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 30%),
+      radial-gradient(circle at 88% 18%, rgba(160,222,250,.7) 0, rgba(160,222,250,0) 32%),
+      linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
+    background-attachment: fixed;
+    color: #0b2f4f;
+  }
+
+  /* top bar */
+  .sch-topbar {
+    background: linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(222,244,254,.8) 100%);
+    border-bottom: 1px solid #fff;
+    box-shadow: 0 14px 30px rgba(40,120,170,.18), inset 0 1px 0 #fff;
+  }
+  .sch-topbar-icon {
+    background: radial-gradient(circle at 30% 25%, #fff 0%, #bfe5f8 50%, #8fd0f0 100%);
+    border: 1px solid #86c6e8;
+  }
+  .sch-topbar h1 { color: #0a4f8c; }
+  .sch-topbar p { color: #4a6f8c; }
+  .sch-topbar-badge {
+    background: linear-gradient(180deg, #fff 0%, #dff6ff 100%);
+    border: 1px solid #a9d9f2;
+    color: #0b2f4f;
+  }
+
+  /* glass cards */
+  .sch-card {
+    background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(228,246,255,.9) 100%);
+    border: 1px solid rgba(255,255,255,.95);
+    border-radius: 22px;
+    box-shadow: 0 12px 28px rgba(40,120,170,.12), inset 0 1px 0 #fff;
+  }
+  .sch-card-head.navy,
+  .sch-card-head.blue,
+  .sch-card-head.teal,
+  .sch-card-head.dark {
+    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
+    color: #08406b;
+    border-bottom: 1px solid #86c6e8;
+    box-shadow: inset 0 1px 0 #fff;
+  }
+  .sch-card-head .head-count {
+    background: linear-gradient(180deg, #fff, #d6effc);
+    color: #0a4f8c;
+    border: 1px solid #a9d9f2;
+  }
+
+  /* pending table */
+  .wo-table thead th {
+    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
+    border-bottom: 2px solid #7fbfe4;
+  }
+  .wo-table th { color: #08406b !important; }
+  .wo-table td { color: #0b2f4f; font-weight: 600; border-bottom: 1px solid #d3e8f4; }
+  .wo-table tbody tr:nth-child(even) td { background: #f3faff; }
+  .wo-table tbody tr:hover td { background: #d9f2fc; }
+  .wo-num { color: #0a6fb8; }
+
+  /* glossy blue buttons */
+  .btn-sched,
+  button[title="Auto-schedule every pending row onto the Gantt"]:not(:disabled) {
+    background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%) !important;
+    color: #08406b !important;
+    border: 1px solid #7fc3e8 !important;
+    box-shadow: 0 2px 0 #7fbbe0, 0 6px 12px rgba(40,120,170,.14), inset 0 1px 0 #fff;
+  }
+  .btn-sched:hover { background: linear-gradient(180deg, #e3f5fe 0%, #b0e0f8 100%); }
+
+  /* form fields */
+  .form-field label { color: #0b2f4f; }
+  .form-field input,
+  .form-field select,
+  .form-field textarea {
+    border: 1.5px solid #9ccbe6;
+    border-radius: 12px;
+    background: #fff;
+    color: #0b2f4f;
+    font-weight: 600;
+    box-shadow: inset 0 2px 5px rgba(10,80,130,.1);
+  }
+  .form-field input:focus,
+  .form-field select:focus,
+  .form-field textarea:focus {
+    border-color: #1b9be0;
+    box-shadow: 0 0 0 4px rgba(27,155,224,.2);
+  }
+  .form-field input:disabled { background: #eef7fc; color: #4a6f8c; }
+
+  /* gantt header */
+  .gantt_grid_scale,
+  .gantt_task_scale {
+    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
+    border-bottom: 2px solid #86c6e8 !important;
+  }
+  .gantt_grid_head_cell,
+  .gantt_scale_cell {
+    color: #08406b !important;
+    border-right: 1px solid rgba(8,64,107,.15) !important;
+  }
+  .gantt_scale_line:nth-child(1) .gantt_scale_cell {
+    color: #08406b !important;
+    background: rgba(255,255,255,.3) !important;
+    border-bottom: 1px solid rgba(8,64,107,.15) !important;
   }
 `;
 
@@ -2258,7 +2365,7 @@ const Scheduler = () => {
                 style={{
                   height: 34,
                   padding: "0 16px",
-                  background: "#10b981",
+                  background: "#16a34a",
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
@@ -2272,8 +2379,8 @@ const Scheduler = () => {
                   boxShadow: "0 2px 6px rgba(22, 163, 74, 0.2)",
                   transition: "background 0.15s ease",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = "#059669")}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#10b981")}
+                onMouseOver={(e) => (e.currentTarget.style.background = "#15803d")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "#16a34a")}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -2613,7 +2720,7 @@ const Scheduler = () => {
                   <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5f7487" }}>
                     Total Production IMP
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#10b981", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#16a34a", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
                     {totalFilteredSummary.imp.toLocaleString()}
                   </div>
                 </div>
@@ -2794,7 +2901,7 @@ const Scheduler = () => {
                           style={{
                             height: "100%",
                             width: `${percent}%`,
-                            background: "linear-gradient(90deg, #4b83b8 0%, #0369a1 100%)",
+                            background: "linear-gradient(90deg, #4b83b8 0%, #0284c7 100%)",
                             borderRadius: 8,
                             transition: "width 0.4s ease",
                           }}
@@ -2828,7 +2935,7 @@ const Scheduler = () => {
                         <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#fef3c7", color: "#d97706", fontWeight: 700 }}>
                           🟠 {m.medCount} Med
                         </span>
-                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#10b981", fontWeight: 700 }}>
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#16a34a", fontWeight: 700 }}>
                           🟢 {m.lowCount} Low
                         </span>
                       </div>

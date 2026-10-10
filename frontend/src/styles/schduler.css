@@ -2,24 +2,24 @@
 
 .gantt_grid_head_cell,
 .gantt_scale_cell {
-  background: #064c73 !important;
-  color: white !important;
+ background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
+  color: #08406b !important;
   font-weight: 600;
-  border-color: #0369a1 !important;
+  border-color: #0284c7 !important;
 }
 
 /* ===== MACHINE ROW ===== */
 
 .machine-row .gantt_task_content {
-  background: #064c73 !important;
-  color: white !important;
+ background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
+  color: #08406b !important;
   border-radius: 8px;
   font-weight: bold;
 }
 .wo-table thead th {
   position: sticky;
   top: 0;
-  background: #064c73;
+  background: #0284c7;
   color: #fff;
   z-index: 10;
 }
