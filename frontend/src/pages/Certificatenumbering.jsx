@@ -99,6 +99,8 @@ function getQR(S, val, p) {
 
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
+const JPG_Q = 0.95;               // ZIP (full-page JPEG) export quality
+const PATCH_Q = 0.98;             // PDF export: quality of the small number/barcode/QR patches
 const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
   new Promise((res, rej) => {
@@ -127,9 +129,6 @@ function makePreviewImg(img) {
   x.drawImage(img, 0, 0, c.width, c.height);
   return c;
 }
-/* Most PDF viewers (Chrome, Edge, Acrobat, phones) cannot open a PDF over 2 GB, so a part is closed at ~1.5 GB. */
-const PDF_MAX_BYTES = 1.5 * 1024 * 1024 * 1024;
-
 /* Streaming PDF writer: pages are JPEG blobs appended to a Blob list, so the PDF is never one giant string
    (jsPDF fails with "Invalid string length" past ~512 MB; this has no such limit). */
 function makePdfWriter(wpt, hpt) {
@@ -142,21 +141,37 @@ function makePdfWriter(wpt, hpt) {
   const blobPart = (b) => { parts.push(b); pos += b.size; };
   const begin = (id) => { offs[id] = pos; text(`${id} 0 obj\n`); };
   const W = wpt.toFixed(3), H = hpt.toFixed(3);
+  let bg = 0;
+  const imageObj = (blob, wPx, hPx, filter) => {
+    const id = nextId++;
+    begin(id);
+    text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter ${filter} /Length ${blob.size} >>\nstream\n`);
+    blobPart(blob);
+    text("\nendstream\nendobj\n");
+    return id;
+  };
   text("%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
   return {
     get pages() { return kids.length; },
-    get size() { return pos; },
-    addJpeg(blob, wPx, hPx) {
-      const img = nextId++, cont = nextId++, page = nextId++;
-      begin(img);
-      text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${blob.size} >>\nstream\n`);
-      blobPart(blob);
-      text("\nendstream\nendobj\n");
-      const content = `q ${W} 0 0 ${H} 0 0 cm /Im0 Do Q`;
+    /* the artwork is stored ONCE in the file and shared by every page */
+    setBackground(blob, wPx, hPx, filter) { bg = imageObj(blob, wPx, hPx, filter); },
+    /* a page = shared artwork + small JPEG patches (number / barcode / QR / Excel text) placed on top.
+       patches: [{ blob, x, y, w, h }] in artwork pixels, k = points per pixel */
+    addPage(patches, k) {
+      const refs = [];
+      let ops = "";
+      if (bg) { refs.push(`/Bg ${bg} 0 R`); ops += `q ${W} 0 0 ${H} 0 0 cm /Bg Do Q\n`; }
+      patches.forEach((q, i) => {
+        const id = imageObj(q.blob, q.w, q.h, "/DCTDecode");
+        refs.push(`/P${i} ${id} 0 R`);
+        const w = q.w * k, h = q.h * k, x = q.x * k, y = hpt - q.y * k - h;
+        ops += `q ${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm /P${i} Do Q\n`;
+      });
+      const cont = nextId++, page = nextId++;
       begin(cont);
-      text(`<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+      text(`<< /Length ${ops.length} >>\nstream\n${ops}endstream\nendobj\n`);
       begin(page);
-      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 ${img} 0 R >> >> /Contents ${cont} 0 R >>\nendobj\n`);
+      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << ${refs.join(" ")} >> >> /Contents ${cont} 0 R >>\nendobj\n`);
       kids.push(page);
     },
     finish() {
@@ -199,15 +214,39 @@ async function rasterPdf(file, dpi) {
   return { blob, dpi: Math.round(scale * 72), pages };
 }
 
-/* ---------- render one certificate (row = Excel row for this certificate, if any) ---------- */
-function render(S, ctx, n, s, p, preview, row) {
+/* artwork as one lossless image for the PDF (Flate); falls back to a near-lossless JPEG if the browser can't deflate */
+async function makeBackground(S, p) {
+  if (!S.img || p.noArt) return null;
+  const c = document.createElement("canvas");
+  c.width = S.w; c.height = S.h;
+  const x = c.getContext("2d", { alpha: false });
+  x.fillStyle = "#fff";
+  x.fillRect(0, 0, S.w, S.h);
+  x.drawImage(S.img, 0, 0, S.w, S.h);
+  try {
+    const d = x.getImageData(0, 0, S.w, S.h).data;
+    const rgb = new Uint8Array(S.w * S.h * 3);
+    for (let i = 0, j = 0; i < d.length; i += 4) { rgb[j++] = d[i]; rgb[j++] = d[i + 1]; rgb[j++] = d[i + 2]; }
+    const z = await new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+    return { blob: z, filter: "/FlateDecode" };
+  } catch {
+    const j = await toBlob(c, "image/jpeg", 1);
+    if (!j) throw new Error("Could not prepare the artwork for the PDF.");
+    return { blob: j, filter: "/DCTDecode" };
+  }
+}
+
+/* ---------- render one certificate (row = Excel row for this certificate, if any) ----------
+   out (optional): receives the bounding box of every drawn element, used to build PDF patches */
+function render(S, ctx, n, s, p, preview, row, out) {
+  const B = preview ? S.box : out;
   const u = p.dpi / 25.4, px = (p.pt * p.dpi) / 72, val = pad(n, p.digits);
   ctx.save();
   ctx.scale(s, s);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, S.w, S.h);
   // the preview always shows the artwork (for positioning); the output leaves it out when ticked
-  if (S.img && (preview || !p.noArt)) ctx.drawImage((preview && S.prev) || S.img, 0, 0, S.w, S.h);
+  if (S.img && (preview || !p.noArt)) ctx.drawImage(preview ? (S.prev || S.img) : (S.bmp || S.img), 0, 0, S.w, S.h);
 
   ctx.textBaseline = "top";
   ctx.font = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
@@ -221,7 +260,7 @@ function render(S, ctx, n, s, p, preview, row) {
   ctx.fillStyle = p.nc;
   ctx.fillText(val, x + off, y);
   const w = off + ctx.measureText(val).width;
-  if (preview) S.box.num = { x, y, w, h: px * 1.2 };
+  if (B) B.num = { x, y, w, h: px * 1.2 };
 
   /* Excel columns */
   for (const c of S.cols) {
@@ -240,7 +279,7 @@ function render(S, ctx, n, s, p, preview, row) {
     ctx.fillStyle = c.color;
     ctx.fillText(value, cx + tw, cy);
     tw += ctx.measureText(value).width;
-    if (preview) S.box[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2 };
+    if (B) B[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2 };
   }
 
   /* what the barcode / QR encode: serial number or an Excel column */
@@ -255,13 +294,13 @@ function render(S, ctx, n, s, p, preview, row) {
     const c = safe((v) => (preview ? getBarcode(S, v, p) : makeBarcode(v, p)), enc(p.benc, true));
     ctx.imageSmoothingEnabled = s < 1;
     ctx.drawImage(c, p.bx * u, p.by * u);
-    if (preview) S.box.bar = { x: p.bx * u, y: p.by * u, w: c.width, h: c.height };
+    if (B) B.bar = { x: p.bx * u, y: p.by * u, w: c.width, h: c.height };
   }
   if (p.qr) {
     const c = safe((v) => (preview ? getQR(S, v, p) : makeQR(v, p)), enc(p.qenc, false));
     ctx.imageSmoothingEnabled = s < 1;
     ctx.drawImage(c, p.qx * u, p.qy * u);
-    if (preview) S.box.qr = { x: p.qx * u, y: p.qy * u, w: c.width, h: c.height };
+    if (B) B.qr = { x: p.qx * u, y: p.qy * u, w: c.width, h: c.height };
   }
   ctx.restore();
 }
@@ -420,6 +459,7 @@ export default function CertificateNumbering() {
   const [tplName, setTplName] = useState("");
   const [tplBusy, setTplBusy] = useState(false);
   const [measure, setMeasure] = useState(null);   // field whose edge distances are shown
+  const [busy, setBusy] = useState("");           // loading message while artwork is being processed
 
   /* Layout toggles & Zoom to maximize preview window */
   const [sideOpen, setSideOpen] = useState(true);
@@ -427,7 +467,7 @@ export default function CertificateNumbering() {
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
 
   const cvRef = useRef(null);
-  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map() }).current;
+  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false }).current;
   const drag = useRef(null);
   const stopFlag = useRef(false);
   const fRef = useRef(f);
@@ -445,20 +485,6 @@ export default function CertificateNumbering() {
     setCols((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
   };
   const say = (msg, cls = "") => setStatus({ msg, cls });
-
-  /* loading overlay: shown while a heavy file is read, cleared only after the preview has settled */
-  const [busy, setBusy] = useState("");
-  const frame = () => new Promise((r) => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 250); });
-  const withBusy = async (msg, fn) => {
-    setBusy(msg);
-    await frame();           // let the overlay paint before the heavy work starts
-    try { await fn(); }
-    finally {
-      await frame(); await frame();   // let the new artwork / data render in the preview
-      await new Promise((r) => setTimeout(r, 150));
-      setBusy("");
-    }
-  };
 
   /* google fonts */
   useEffect(() => {
@@ -530,6 +556,8 @@ export default function CertificateNumbering() {
         drawMeasure(ctx, S, mb, p.dpi / 25.4, k, s);
       }
       ctx.restore();
+      /* artwork upload finished painting → remove the loading overlay */
+      if (S.clearBusy) { S.clearBusy = false; requestAnimationFrame(() => setBusy("")); }
     })();
     return () => { dead = true; };
   }, [f, cols, sheet, pv, dims, sel, measure, fonts, S]);
@@ -603,27 +631,24 @@ export default function CertificateNumbering() {
     setArtName("None — blank A4 landscape");
   };
 
-  /* image (PNG/JPG/WebP) or PDF (first page) */
-  const onArt = (e) => {
+  /* image (PNG/JPG/WebP) or PDF (first page) — shows a full-screen loader until the preview is painted */
+  const onArt = async (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-    return withBusy(pdf ? "Reading PDF…" : "Loading image…", () => loadArt(file));
-  };
-  const loadArt = async (file) => {
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    setBusy(isPdf ? "Reading PDF…" : "Loading image…");
+    await nextFrame();
     try {
-      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
       let blob = file, label = file.name, dpiFix = null;
       if (isPdf) {
-        say("Reading PDF…");
-        await nextFrame();
         const r = await rasterPdf(file, P(fRef.current).dpi);
         blob = r.blob; dpiFix = r.dpi;
         label = r.pages > 1 ? `${file.name} (page 1 of ${r.pages})` : file.name;
       }
-      if (!isPdf) { say("Reading image…"); await nextFrame(); }
       const img = await loadImg(blob);
+      setBusy("Preparing preview…");
+      await nextFrame();
       setArtImage(img, blob, label);
       const o = dpiFix ? { ...fRef.current, dpi: String(dpiFix) } : fRef.current;
       const dpi = P(o).dpi;
@@ -636,9 +661,12 @@ export default function CertificateNumbering() {
         qs: String(qs), qx: r1(wmm - qs - wmm * 0.03), qy: r1(hmm - qs - hmm * 0.04),
       };
       const c = await centerLayout(next, S.w, S.h);
+      S.clearBusy = true;
       setF({ ...next, ...c });
       say(isPdf && dpiFix && dpiFix !== P(fRef.current).dpi ? `PDF read. Artwork DPI set to ${dpiFix} so millimetres stay exact.` : "");
     } catch (err) {
+      S.clearBusy = false;
+      setBusy("");
       say(err.message || "Could not read that file.", "err");
     }
   };
@@ -661,12 +689,9 @@ export default function CertificateNumbering() {
   };
   useEffect(() => { loadTpls(); }, []);
 
-  const applyTemplate = (id) => {
+  const applyTemplate = async (id) => {
     setTplId(id);
     if (!id) return;
-    return withBusy("Loading template…", () => runTemplate(id));
-  };
-  const runTemplate = async (id) => {
     try {
       say("Loading template…");
       const r = await fetch(`${API}/api/numbering-templates/${id}`, { headers: authHeaders() });
@@ -771,13 +796,10 @@ export default function CertificateNumbering() {
   };
 
   /* Excel: row 1 = headers, every next row = one certificate (first row ↔ "From") */
-  const onSheet = (e) => {
+  const onSheet = async (e) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    return withBusy("Reading Excel…", () => loadSheet(file));
-  };
-  const loadSheet = async (file) => {
     try {
       say("Reading Excel…");
       await nextFrame();
@@ -916,52 +938,90 @@ export default function CertificateNumbering() {
 
     const off = document.createElement("canvas");
     off.width = S.w; off.height = S.h;
-    const ctx = off.getContext("2d");
-    const wpt = (S.w * 72) / p.dpi, hpt = (S.h * 72) / p.dpi, orient = S.w >= S.h ? "l" : "p";
+    const ctx = off.getContext("2d", { alpha: false });   // opaque canvas: faster fill + JPEG encode
+    const wpt = (S.w * 72) / p.dpi, hpt = (S.h * 72) / p.dpi;
     let done = 0;
 
     try {
-      for (let a = p.from; a <= p.to && !stopFlag.current; a += p.per) {
-        const b = Math.min(p.to, a + p.per - 1);
-        const base = `certificates_${pad(a, p.digits)}-${pad(b, p.digits)}`;
-        let pdf = null, zip = null;
-        if (kind === "pdf") pdf = makePdfWriter(wpt, hpt);
-        else zip = new JSZip();
-        let partStart = a;
+      /* decode the artwork once; drawImage from a bitmap avoids re-decoding it on every page */
+      S.bmp = S.img && !p.noArt && window.createImageBitmap ? await createImageBitmap(S.img) : null;
 
-        for (let n = a; n <= b && !stopFlag.current; n++) {
-          render(S, ctx, n, 1, p, false, S.rows[n - p.from]);
-          if (pdf) {
-            const jpg = await new Promise((res) => off.toBlob(res, "image/jpeg", 0.95));
-            if (pdf.pages > 0 && pdf.size + jpg.size + 4096 > PDF_MAX_BYTES) {
-              saveBlob(`certificates_${pad(partStart, p.digits)}-${pad(n - 1, p.digits)}.pdf`, pdf.finish());
-              await tick();
-              pdf = makePdfWriter(wpt, hpt);
-              partStart = n;
-            }
-            pdf.addJpeg(jpg, off.width, off.height);
-          } else {
-            const blob = await new Promise((res) => off.toBlob(res, "image/jpeg", 0.95));
-            zip.file(`${pad(n, p.digits)}.jpg`, blob);
-          }
-          done++;
-          setProgress((done / total) * 100);
-          if (done % 4 === 0) { say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`); await tick(); }
+      /* split output by size: a new file starts once ~1.9 GB is reached (viewers fail on PDFs of 2 GB+) */
+      const MAX_FILE = 1.9 * 1024 * 1024 * 1024;
+      const PDF = kind === "pdf";
+      /* PDF: the artwork is embedded once (lossless); each page only adds small patches for the variable matter.
+         ZIP: full-page JPEGs, encoded in parallel while the next page is being drawn. */
+      const bg = PDF ? await makeBackground(S, p) : null;
+      const K = 72 / p.dpi;
+      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 2 : 4;
+      const pending = [];
+      let cur = null;
+
+      /* crop each drawn element (with a small margin) out of the rendered page and JPEG-encode it */
+      const patchesFor = (boxes) => {
+        const jobs = [];
+        for (const k of Object.keys(boxes)) {
+          const b = boxes[k];
+          if (!b) continue;
+          const pad4 = Math.ceil(Math.max(4, Math.min(b.h * 0.25, 40)));
+          const x0 = Math.max(0, Math.floor(b.x - pad4)), y0 = Math.max(0, Math.floor(b.y - pad4));
+          const x1 = Math.min(S.w, Math.ceil(b.x + b.w + pad4)), y1 = Math.min(S.h, Math.ceil(b.y + b.h + pad4));
+          const w = x1 - x0, h = y1 - y0;
+          if (w < 1 || h < 1) continue;
+          const c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d", { alpha: false }).drawImage(off, x0, y0, w, h, 0, 0, w, h);
+          jobs.push(toBlob(c, "image/jpeg", PATCH_Q).then((blob) => ({ blob, x: x0, y: y0, w, h })));
         }
-        if (stopFlag.current) break;
-        const blob = pdf ? pdf.finish() : await zip.generateAsync({ type: "blob", compression: "STORE" });
-        saveBlob(
-          pdf && partStart !== a
-            ? `certificates_${pad(partStart, p.digits)}-${pad(b, p.digits)}.pdf`
-            : `${base}.${pdf ? "pdf" : "zip"}`,
-          blob
-        );
+        return Promise.all(jobs);
+      };
+
+      const closeFile = async (c) => {
+        const blob = c.pdf ? c.pdf.finish() : await c.zip.generateAsync({ type: "blob", compression: "STORE" });
+        saveBlob(`certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}.${c.pdf ? "pdf" : "zip"}`, blob);
+      };
+      /* takes the oldest encoded page (order is preserved) and adds it to the current output file */
+      const take = async () => {
+        const q = pending.shift();
+        const got = await q.work;
+        if (PDF ? got.some((t) => !t.blob) : !got) throw new Error("Could not encode a page (artwork too large for this browser).");
+        if (!cur) {
+          cur = { a: q.n, last: q.n, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : new JSZip() };
+          if (cur.pdf && bg) { cur.pdf.setBackground(bg.blob, S.w, S.h, bg.filter); cur.bytes += bg.blob.size; }
+        }
+        if (PDF) {
+          cur.pdf.addPage(got, K);
+          cur.bytes += got.reduce((s, t) => s + t.blob.size, 0);
+        } else {
+          cur.zip.file(`${pad(q.n, p.digits)}.jpg`, got);
+          cur.bytes += got.size;
+        }
+        cur.last = q.n;
+        done++;
+        if (done % 4 === 0 || done === total) {
+          setProgress((done / total) * 100);
+          say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
+          await tick();
+        }
+        if (cur.bytes >= MAX_FILE) { const c = cur; cur = null; await closeFile(c); }
+      };
+
+      for (let n = p.from; n <= p.to && !stopFlag.current; n++) {
+        if (pending.length >= INFLIGHT) await take();
+        const boxes = {};
+        render(S, ctx, n, 1, p, false, S.rows[n - p.from], boxes);
+        pending.push({ n, work: PDF ? patchesFor(boxes) : toBlob(off, "image/jpeg", JPG_Q) });
+      }
+      if (!stopFlag.current) {
+        while (pending.length) await take();
+        if (cur) await closeFile(cur);
       }
       if (stopFlag.current) say("Stopped.");
       else say(`Done. ${total.toLocaleString()} certificates generated${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
     } catch (err) {
       say("Failed: " + (err.message || err), "err");
     } finally {
+      if (S.bmp) { try { S.bmp.close(); } catch { /* ignore */ } S.bmp = null; }
       setRunning(false);
     }
   }
@@ -1040,13 +1100,12 @@ export default function CertificateNumbering() {
     <div className="cn-root">
       <style>{CSS}</style>
 
+      {/* loading overlay: blocks all input until the artwork is processed and painted */}
       {busy && (
-        <div className="cn-busy" role="alertdialog" aria-live="assertive" aria-busy="true">
-          <div className="cn-busy-box">
-            <div className="cn-spin" />
-            <b>{busy}</b>
-            <span>Please wait — you can continue once this finishes.</span>
-          </div>
+        <div className="cn-busy" role="status" aria-live="polite">
+          <div className="cn-spin" />
+          <b>{busy}</b>
+          <span>Please wait…</span>
         </div>
       )}
 
@@ -1378,12 +1437,26 @@ const CSS = `
   --bg:#f1f4f6;--surface:#ffffff;--ink:#0b2730;--muted:#5c737d;--line:#dce3e7;--line2:#c5d2d8;
   --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#137358;
   --shadow:0 1px 3px rgba(11,39,48,.05),0 6px 18px rgba(11,39,48,.06);
+  position:relative;
   display:flex;flex-direction:column;height:calc(100dvh - 16px);min-height:540px;width:100%;max-width:100%;
   background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;overflow:hidden;
   font:13px/1.4 "Figtree","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
 .cn-ic{flex:0 0 auto}
+
+/* loading overlay (artwork upload) */
+.cn-busy{
+  position:absolute;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  background:rgba(241,244,246,.82);backdrop-filter:blur(2px);cursor:progress;
+}
+.cn-busy b{font-size:14px}
+.cn-busy span{font-size:11.5px;color:var(--muted)}
+.cn-spin{
+  width:34px;height:34px;border-radius:50%;border:3px solid var(--line2);border-top-color:var(--accent);
+  animation:cn-rot .8s linear infinite;
+}
+@keyframes cn-rot{to{transform:rotate(360deg)}}
 
 /* workspace grid: defaults to 280px left, 1fr center, 225px right */
 .cn-work{
@@ -1558,15 +1631,6 @@ const CSS = `
 .cn-status{font-size:11.5px;color:var(--muted);min-height:14px}
 .cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
 .cn-gen-btns{display:flex;gap:6px;flex-wrap:wrap}
-
-/* loading overlay */
-.cn-busy{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(15,40,50,.45)}
-.cn-busy-box{background:#fff;border-radius:12px;padding:22px 32px;display:flex;flex-direction:column;align-items:center;gap:8px;
-  box-shadow:0 18px 50px rgba(11,39,48,.35);min-width:250px;text-align:center}
-.cn-busy-box b{font-size:14px;color:var(--ink,#10343d)}
-.cn-busy-box span{font-size:11.5px;color:var(--muted)}
-.cn-spin{width:38px;height:38px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:cn-spin .8s linear infinite}
-@keyframes cn-spin{to{transform:rotate(360deg)}}
 
 /* responsive adjustments */
 @media (max-width:1080px){
