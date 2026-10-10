@@ -170,6 +170,7 @@ function Productiondashboard() {
   const [editingReelId, setEditingReelId] = useState(null);
   const [loggedInUser, setLoggedInUser] = useState("");
   const [autoFetchedNet, setAutoFetchedNet] = useState(false);
+  const [fetchedWo, setFetchedWo] = useState(null); // WO number that was actually fetched
 
   // ✅ MATERIAL DERIVED VALUES
   // The material description in use: what the operator picked, or the only one available
@@ -441,6 +442,7 @@ function Productiondashboard() {
       const woData = res.data;
 
       setJob(woData);
+      setFetchedWo(Number(form.efiWoNumber));
       fetchReels(form.efiWoNumber);
 
       // ✅ auto-select mill + material description if only one material exists
@@ -507,6 +509,11 @@ function Productiondashboard() {
   // SAVE PRODUCTION
   const save = async () => {
     if (!job) return showAlert("Fetch Work Order first", "error");
+
+    if (Number(form.efiWoNumber) !== fetchedWo) {
+      showAlert("Work Order changed. Please click Fetch Work Order again", "error");
+      return;
+    }
 
     if (Number(form.reelWoNumber) !== Number(form.efiWoNumber)) {
       showAlert("WO Number does not match fetched Work Order", "error");
