@@ -408,38 +408,6 @@ export default function WelcomeBoardGenerator() {
         alignItems: "center",
       }}
     >
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 1200,
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 26,
-            fontWeight: 800,
-            color: "#1f2937",
-            margin: "0 0 4px",
-          }}
-        >
-          Welcome Board Generator
-        </h1>
-
-        <p
-          style={{
-            color: "#6b7280",
-            margin: 0,
-            fontSize: 14,
-          }}
-        >
-          Enter guest details and customize the text
-          appearance below.
-        </p>
-      </div>
 
       {/* =====================================================
           MAIN CONTENT — stacked: form on top, preview below

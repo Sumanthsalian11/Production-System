@@ -611,20 +611,7 @@ export default function SummaryReport() {
         }
       `}</style>
 
-      {/* HEADER WITH CENTERED TITLE & RIGHT-ALIGNED BUTTON */}
-      <div className="position-relative text-center mt-2 mb-4">
-        <h1 className="summary-title m-0">
-          <b>Reel Summary Report</b>
-        </h1>
 
-        {userRole !== "PLANNER" && (
-          <div className="position-absolute top-50 end-0 translate-middle-y">
-            <button className="btn btn-success px-4" onClick={exportExcel}>
-              Export Excel
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* FILTERS CARD */}
       <div className="card shadow-lg p-3 mb-4">
@@ -804,6 +791,15 @@ export default function SummaryReport() {
               Clear
             </button>
           </div>
+
+          {/* Export Excel */}
+          {userRole !== "PLANNER" && (
+            <div className="col-md-2 d-flex align-items-end">
+              <button className="btn btn-success w-100" onClick={exportExcel}>
+                Export Excel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

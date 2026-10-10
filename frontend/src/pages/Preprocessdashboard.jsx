@@ -684,14 +684,6 @@ function PreprocessDashboard() {
           </div>
 
           <div className="d-flex align-items-center gap-3 flex-wrap">
-            {loggedInUser && (
-              <div className="operator-pill-3d">
-                <span className="operator-pulse-dot"></span>
-                <Icons.User />
-                <span>{loggedInUser}</span>
-              </div>
-            )}
-
             {/* Header Notification Badge for Plate Requests */}
             {pendingPlateCount > 0 && (
               <button

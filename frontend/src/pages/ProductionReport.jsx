@@ -906,25 +906,10 @@ function ProductionReport() {
       `}</style>
 
       {/* ======================================================================
-          HEADER WITH DEAD-CENTER TITLE & RIGHT-ALIGNED EXCEL BUTTON
-          ====================================================================== */}
-      <div className="position-relative text-center mt-2 mb-4">
-        <h1 className="report-hero-title m-0">
-          <b>Production Report</b>
-        </h1>
-
-        <div className="position-absolute top-50 end-0 translate-middle-y">
-          <button className="btn btn-primary px-4" onClick={exportExcel}>
-            Export Excel
-          </button>
-        </div>
-      </div>
-
-      {/* ======================================================================
           FILTER BAR CARD
           ====================================================================== */}
       <div className="card shadow-lg p-3 mb-4">
-        <h5 className="mb-3" style={{ color: "#06324d" }}>
+        <h5 className="mb-2" style={{ color: "#06324d" }}>
           Filters
         </h5>
 
@@ -1013,6 +998,11 @@ function ProductionReport() {
               Clear
             </button>
           </div>
+  <div className="col-md-2 d-flex align-items-end mt-2">
+          <button className="btn btn-primary px-4" onClick={exportExcel}>
+            Export Excel
+          </button>
+        </div>
         </div>
       </div>
 
