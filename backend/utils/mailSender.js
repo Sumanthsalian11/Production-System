@@ -22,12 +22,13 @@ const sendMail = async ({
   attachments = [],
 }) => {
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: process.env.EMAIL_FROM,
       to: Array.isArray(to) ? to.join(",") : to,
       cc: Array.isArray(cc) ? cc.join(",") : cc,
       subject,
-      html,
+        html,
+      text: String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(),
       attachments,
     });
 

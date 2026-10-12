@@ -4,7 +4,10 @@ const ProductionReal = require("../models/ProductionReal");
 const Activity = require("../models/ActivityMaster"); // adjust to your model file names
 const Machine = require("../models/MachineMaster");   // adjust to your model file names
 const sendMail = require("../utils/mailSender");
-const { TO, CC } = require("../utils/productionMailConfig");
+const MailSettings = require("../models/MailSettings");
+const { TO: DEFAULT_TO, CC: DEFAULT_CC } = require("../utils/productionMailConfig");
+const pad = (n) => String(n).padStart(2, "0");
+let lastRunKey = "";
 
 
 
@@ -34,11 +37,27 @@ const isExcluded = (name) =>
   EXCLUDED_ACTIVITIES.includes(String(name || "").trim().replace(/\s+/g, " ").toLowerCase());
 
 // Runs daily at 6:00 AM, reports on the PREVIOUS calendar day (Day + Night shift complete)
-cron.schedule("0 10 * * *", async () => {
+cron.schedule("* * * * *", async () => {
   try {
-    // Window: 10:00 AM yesterday to 10:00 AM today
+    const settings = await MailSettings.findOne({ key: "floorProduction" }).lean();
+    const sendTime = settings?.sendTime || "10:00";
+
+    const now = new Date();
+    const nowHM = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (nowHM !== sendTime) return;
+
+    const runKey = `${now.toDateString()} ${sendTime}`;
+    if (lastRunKey === runKey) return;
+    lastRunKey = runKey;
+
+    // TO / CC from Admin (falls back to productionMailConfig if left empty)
+    const TO = settings?.toEmails?.length ? settings.toEmails : DEFAULT_TO;
+    const CC = settings?.ccEmails?.length ? settings.ccEmails : DEFAULT_CC;
+
+    // Window: set time yesterday to set time today
+    const [sh, sm] = sendTime.split(":").map(Number);
     const toTime = new Date();
-    toTime.setHours(10, 0, 0, 0); 
+    toTime.setHours(sh, sm, 0, 0);
 
     const fromTime = new Date(toTime);
     fromTime.setDate(fromTime.getDate() - 1);
@@ -106,7 +125,7 @@ cron.schedule("0 10 * * *", async () => {
         html: noEntryHtml,
       });
 
-      console.log(`⚠️ No production entries for ${dateStr} - "no entry" mail sent.`);
+      console.log(`⚠️ No production entries for ${dateStr} - "no entry" mail sent. TO: ${toList.join(", ")} | CC: ${ccNoEntry.join(", ")}`);
       return;
     }
 

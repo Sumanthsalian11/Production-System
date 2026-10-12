@@ -8,8 +8,11 @@ const XLSX = require("xlsx");
 const mailConfig = require("../utils/productionMailConfig") || {};
 const toArr = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 // accepts TO/CC or to/cc, array or single string
-const TO = toArr(mailConfig.TO ?? mailConfig.to);
-const CC = toArr(mailConfig.CC ?? mailConfig.cc);
+const DEFAULT_TO = toArr(mailConfig.TO ?? mailConfig.to);
+const DEFAULT_CC = toArr(mailConfig.CC ?? mailConfig.cc);
+const MailSettings = require("../models/MailSettings");
+const pad = (n) => String(n).padStart(2, "0");
+let lastRunKey = "";
 
 // ---- time helpers (same logic as the Perso consolidated report) ----
 // minutes between "HH:MM" from/to times; equal or earlier To time = crossed midnight (equal = 24h)
@@ -39,8 +42,22 @@ const escapeHtml = (v) =>
 
 // Runs daily at 10:00 AM and reports entries whose PRODUCTION DATE is yesterday
 // (TEST: change "0 10 * * *" to a time 2 minutes ahead, restart Node, then change it back)
-cron.schedule("0 10 * * *", async () => {
+cron.schedule("* * * * *", async () => {
   try {
+    const settings = await MailSettings.findOne({ key: "persoProduction" }).lean();
+    const sendTime = settings?.sendTime || "10:00";
+
+    const now = new Date();
+    const nowHM = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (nowHM !== sendTime) return;
+
+    const runKey = `${now.toDateString()} ${sendTime}`;
+    if (lastRunKey === runKey) return;
+    lastRunKey = runKey;
+
+    // TO / CC from Admin (falls back to productionMailConfig if left empty)
+    const TO = settings?.toEmails?.length ? settings.toEmails : DEFAULT_TO;
+    const CC = settings?.ccEmails?.length ? settings.ccEmails : DEFAULT_CC;
     // only entries whose PRODUCTION DATE is yesterday (not when they were saved)
     const yDay = new Date();
     yDay.setDate(yDay.getDate() - 1); // production date = yesterday

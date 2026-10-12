@@ -556,7 +556,86 @@ function AdminDashboard() {
     fetchMasters();
     fetchMachineCapacity();
   }, []);
+  // ---- Mail settings (TO / CC / send time) for the 3 report mails ----
+  const MAIL_REPORTS = [
+    { key: "indentSummary", label: "Indent Summary", defaultTime: "15:00" },
+    { key: "persoProduction", label: "Perso Production Report", defaultTime: "10:00" },
+    { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
+  ];
+  const [mailKey, setMailKey] = useState("indentSummary");
+  const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00" });
+  const [mailList, setMailList] = useState([]);
+  const [showMailList, setShowMailList] = useState(false);
+  const [editingMailKey, setEditingMailKey] = useState(null);
 
+  const mailLabel = (key) => MAIL_REPORTS.find((r) => r.key === key)?.label || key;
+  const mailDefaultTime = (key) => MAIL_REPORTS.find((r) => r.key === key)?.defaultTime || "10:00";
+
+  const parseEmails = (str) =>
+    String(str || "")
+      .split(/[,;\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const clearMailForm = (key = "indentSummary") => {
+    setMailKey(key);
+    setMailSettings({ toText: "", ccText: "", sendTime: mailDefaultTime(key) });
+    setEditingMailKey(null);
+  };
+
+  const fetchMailList = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/mail-settings`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setMailList(res.data || []);
+    } catch (err) {
+      console.error("Error fetching mail settings:", err);
+    }
+  };
+
+  const saveMailSettings = async () => {
+    const toEmails = parseEmails(mailSettings.toText);
+    const ccEmails = parseEmails(mailSettings.ccText);
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const bad = [...toEmails, ...ccEmails].find((e) => !emailRe.test(e));
+    if (bad) return showAlert(`Invalid email: ${bad}`);
+    if (!mailSettings.sendTime) return showAlert("Select the send time");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/mail-settings/${mailKey}`,
+        { toEmails, ccEmails, sendTime: mailSettings.sendTime },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Mail settings saved successfully");
+      clearMailForm(mailKey);
+      setShowMailList(true);
+      fetchMailList();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save mail settings");
+    }
+  };
+
+  const deleteMailSettings = async (key) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/mail-settings/${key}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (editingMailKey === key) clearMailForm(key);
+      fetchMailList();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "indentMail") {
+      clearMailForm();
+      setShowMailList(false);
+      fetchMailList();
+    }
+  }, [activeSection]);
      const GST_TYPES = ["GST", "SGST", "CGST", "IGST"];
 
   const fetchGst = async () => {
@@ -818,6 +897,7 @@ function AdminDashboard() {
     { id: "printerName", label: "Printer Master", icon: Factory },
     { id: "inspection", label: "RM-IQC Specs", icon: Layers },
     { id: "gstMaster", label: "GST Master", icon: Layers },
+    { id: "indentMail", label: "Mail Settings", icon: Activity },
   ];
 
   const fetchMasters = async () => {
@@ -3201,6 +3281,121 @@ function AdminDashboard() {
                 {gstTaxes.length === 0 && (
                   <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
                     No GST records found
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </motion.div>
+      )}
+        {/* MAIL SETTINGS (Indent / Perso Production / Floor Production) */}
+      {activeSection === "indentMail" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span>
+              <Activity size={18} /> Mail Settings
+            </span>
+          </div>
+
+          <div className="activity-name-field" style={{ marginBottom: "10px" }}>
+            <label>Report</label>
+            <select
+              className="pro-input"
+              value={mailKey}
+              disabled={editingMailKey !== null}
+              onChange={(e) => {
+                setMailKey(e.target.value);
+                setMailSettings({ ...mailSettings, sendTime: mailDefaultTime(e.target.value) });
+              }}
+            >
+              {MAIL_REPORTS.map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="activity-name-field" style={{ marginBottom: "10px" }}>
+            <label>TO (comma separated emails)</label>
+            <textarea
+              className="pro-input"
+              rows="2"
+              placeholder="a@company.com, b@company.com"
+              value={mailSettings.toText}
+              onChange={(e) => setMailSettings({ ...mailSettings, toText: e.target.value })}
+            />
+          </div>
+
+          <div className="activity-name-field" style={{ marginBottom: "10px" }}>
+            <label>CC (comma separated emails)</label>
+            <textarea
+              className="pro-input"
+              rows="2"
+              placeholder="c@company.com, d@company.com"
+              value={mailSettings.ccText}
+              onChange={(e) => setMailSettings({ ...mailSettings, ccText: e.target.value })}
+            />
+          </div>
+
+          <div className="activity-name-field" style={{ marginBottom: "12px" }}>
+            <label>Send Time (every day)</label>
+            <input
+              className="pro-input"
+              type="time"
+              value={mailSettings.sendTime}
+              onChange={(e) => setMailSettings({ ...mailSettings, sendTime: e.target.value })}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="pro-btn primary" onClick={saveMailSettings}>
+              {editingMailKey ? "Update Settings" : "Save Settings"}
+            </button>
+            {editingMailKey && (
+              <button className="pro-btn" onClick={() => clearMailForm()}>
+                Cancel
+              </button>
+            )}
+          </div>
+
+          <div className="material-toggle" onClick={() => setShowMailList(!showMailList)}>
+            {showMailList ? "Hide Stored Mail Settings ▲" : "Show Stored Mail Settings ▼"}
+          </div>
+
+          {showMailList && (
+            <div style={scrollContainerStyle}>
+              <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+                {mailList.map((m) => (
+                  <li key={m.key} className="d-flex justify-content-between align-items-center">
+                    <span>
+                      <strong>{mailLabel(m.key)}</strong> • Time: {m.sendTime} • TO:{" "}
+                      {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"}
+                    </span>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        className="pro-btn"
+                        onClick={() => {
+                          setMailKey(m.key);
+                          setMailSettings({
+                            toText: (m.toEmails || []).join(", "),
+                            ccText: (m.ccEmails || []).join(", "),
+                            sendTime: m.sendTime,
+                          });
+                          setEditingMailKey(m.key);
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button className="pro-btn" onClick={() => deleteMailSettings(m.key)}>
+                        Delete
+                      </button>
+                    </div>
+                  </li>
+                ))}
+                {mailList.length === 0 && (
+                  <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+                    No stored mail settings found
                   </li>
                 )}
               </ul>

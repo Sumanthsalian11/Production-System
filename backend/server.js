@@ -105,6 +105,8 @@ app.use("/api/click-report", clickReportRoutes);
 app.use("/api/master/gst", require("./routes/gstMaster"));
 app.use("/api/numbering-jobs", require("./routes/Numberingjobs"));
 app.use("/api/numbering-templates", require("./routes/Numberingtemplates"));
+
+app.use("/api/mail-settings", require("./routes/mailSettingsRoutes"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
