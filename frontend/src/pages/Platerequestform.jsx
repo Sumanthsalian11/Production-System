@@ -71,6 +71,24 @@ const Icons = {
   )
 };
 
+// Outlined floating-label field with a leading icon (Planner styling)
+function PoField({ icon, label, required, filled, alwaysFloat, caret, className = "", children }) {
+  return (
+    <div className={className}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className="po-field-label">
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
 function PlateRequestForm() {
   const token = localStorage.getItem("token");
   const loggedInUser = token ? jwtDecode(token).name : "";
@@ -320,7 +338,7 @@ function PlateRequestForm() {
       {/* 💅 LIGHT AQUA-GLASS DESIGN (scoped, no external CSS needed)               */}
       {/* ========================================================================= */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
 
         .pr-root {
           --ink: #1f2d3a; --muted: #5f6c7a; --hint: #9aa5b1;
@@ -481,39 +499,211 @@ function PlateRequestForm() {
           .pr-fields, .pr-kpis { grid-template-columns: 1fr; }
           .pr-root { padding: 10px; }
         }
+
+        /* =====================================================================
+           PLANNER PAGE LOOK (appended override, presentation only)
+           ===================================================================== */
+        .pr-root {
+          --ink: #000000; --muted: #000000; --hint: #4b5563;
+          --brand: #e4572e; --brand-dark: #c9461f; --brand-soft: #fdeee8;
+          --teal-mid: #0f5560; --field-line: #cfd6de; --line: #e3e7ec; --bg: #f4f6f8;
+          padding: 24px 28px 40px;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+          font-size: 12.5px;
+          color: #000000;
+        }
+        .pr-glass { border-radius: 8px; padding: 18px 22px 20px; box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06); }
+        .pr-icon { color: var(--brand); background: var(--brand-soft); border: 1px solid #f7d3c6; border-radius: 8px; }
+        .pr-title { font-size: 16px; color: #000000; }
+        .pr-glass h4 { font-size: 16px !important; color: #000000 !important; }
+        .pr-sec { font-size: 13px; color: #000000; margin: 14px 0 10px; }
+        .pr-sec::before { height: 15px; }
+        .pr-sec-ic { color: var(--brand); font-size: 14px; }
+        .pr-divider { margin: 14px 0 12px; }
+        .pr-small { font-size: 11px; color: #000000; }
+
+        /* outlined floating-label fields with leading icon */
+        .po-field {
+          position: relative; display: flex; align-items: center;
+          min-height: 36px; background: #ffffff;
+          border: 1px solid var(--field-line); border-radius: 6px;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .po-field:focus-within { border-color: var(--teal-mid); box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15); }
+        .po-field-icon {
+          position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+          color: #000000; font-size: 0.8rem; pointer-events: none; z-index: 1;
+        }
+        .po-field .po-input {
+          width: 100%; min-height: 34px; padding: 6px 8px 6px 32px;
+          border: none !important; outline: none; background: transparent !important;
+          box-shadow: none !important; border-radius: 6px;
+          font-family: inherit; font-size: 0.8rem; font-weight: 500; color: #000000;
+        }
+        .po-field .po-input::placeholder { color: #6b7685; }
+        .po-field .po-input:disabled { background: #f1f3f5 !important; cursor: not-allowed; }
+        .po-field select.po-input { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 28px; }
+        .po-caret { position: absolute; right: 10px; font-size: 0.7rem; color: #000000; pointer-events: none; }
+        .po-field-label {
+          position: absolute; left: 32px; top: 50%; transform: translateY(-50%);
+          padding: 0 4px; background: #ffffff; color: #000000;
+          font-size: 0.8rem; font-weight: 500; white-space: nowrap; pointer-events: none;
+          transition: all 0.15s ease;
+        }
+        .po-field:focus-within .po-field-label,
+        .po-field.is-floated .po-field-label {
+          top: 0; left: 24px; font-size: 0.62rem; font-weight: 700;
+          letter-spacing: 0.4px; text-transform: uppercase;
+        }
+        .po-req { color: #d64545; }
+
+        .pr-callrow .pr-callfield { width: 340px; max-width: 100%; }
+        .pr-fields { align-items: center; }
+        .pr-toolbar { gap: 12px 10px; padding: 14px 12px 12px; background: #ffffff; border: 1px solid var(--line); border-radius: 8px; }
+        .pr-toolbar .pr-tfield { flex: 1 1 160px; min-width: 150px; max-width: 220px; }
+
+        /* work order detail cards + KPI tiles */
+        .pr-info, .pr-kpi { border-radius: 8px; }
+        .pr-info-text > span, .pr-kpi small { font-size: 10px; color: #000000; }
+        .pr-info-text > b { font-size: 13px; color: #000000; }
+        .pr-kpi h5 { font-size: 20px; color: #000000 !important; }
+        .pr-bubble.lavender { background: #e3f1f4; color: var(--teal-mid); }
+
+        /* buttons: small, light, black text */
+        .pr-btn { height: 34px; padding: 0 14px; font-size: 12px; font-weight: 600; border-radius: 6px; color: #000000; box-shadow: none; }
+        .pr-btn-primary { background: #d5e9ee; border-color: #a9cdd6; color: #000000; }
+        .pr-btn-primary:hover:not(:disabled) { background: #c3dde4; border-color: #93bfca; }
+        .pr-btn-ghost { background: #ffffff; border-color: var(--field-line); color: #000000; }
+        .pr-btn-success { background: #d9f2e6; border-color: #a9dcc3; color: #000000; }
+        .pr-btn-success:hover:not(:disabled) { background: #c5ebd6; border-color: #8fceb0; }
+        .pr-fields .pr-btn-success {
+          height: 36px; background: var(--brand); border-color: var(--brand); color: #ffffff;
+          font-size: 12.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
+        }
+        .pr-fields .pr-btn-success:hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); }
+
+        /* table */
+        .pr-table-wrap { border-radius: 8px; }
+        .pr-table { font-size: 12px; }
+        .pr-table thead th {
+          background: #a9d0d9; color: #000000; font-size: 10.5px; font-weight: 700;
+          padding: 9px 12px; border: 1px solid #8fbcc7;
+        }
+        .pr-table tbody td { padding: 7px 12px; color: #000000; border-bottom: 1px solid #eef1f4; }
+        .pr-table tbody tr:nth-child(even) td { background: #fafbfc; }
+        .pr-table tbody tr:hover td { background: var(--brand-soft); }
+        .pr-mono, .pr-strong { color: #000000; font-weight: 600; }
+        .pr-badge { font-size: 11px; color: #000000; }
+        .pr-badge-blue { background: #e3f1f4; border-color: #b9d6dd; color: #000000; }
+        .pr-badge-warn { background: #fff3d6; border-color: #f2d291; color: #000000; }
+        .pr-badge-ok { background: #d9f2e6; border-color: #a9dcc3; color: #000000; }
+        .pr-badge-bad { background: #fbdcdc; border-color: #f0b4b4; color: #000000; }
+
+        /* ===== Create Plate Request: split layout like the Customer / Planner form ===== */
+        .pr-root .pr-split.pr-glass {
+          display: flex; padding: 0; overflow: hidden;
+          max-width: 1100px; margin-left: auto; margin-right: auto;
+        }
+        .pr-root .pr-split .po-side {
+          flex: 0 0 28%; position: relative; overflow: hidden;
+          display: flex; flex-direction: column; justify-content: space-between;
+          padding: 24px; color: #ffffff;
+          background: linear-gradient(170deg, #0b3a45 0%, #0f5560 100%);
+        }
+        .pr-root .pr-split .po-side::before {
+          content: ''; position: absolute; width: 260px; height: 260px; border-radius: 50%;
+          right: -110px; top: -90px; background: rgba(255, 255, 255, 0.06);
+        }
+        .pr-root .pr-split .po-side::after {
+          content: ''; position: absolute; width: 200px; height: 200px; border-radius: 50%;
+          left: -90px; bottom: -80px; background: rgba(228, 87, 46, 0.18);
+        }
+        .pr-root .pr-split .po-side > * { position: relative; z-index: 1; }
+        .pr-root .pr-split .po-side-brand {
+          font-weight: 700; font-size: 11.5px; letter-spacing: 1px;
+          text-transform: uppercase; color: #ffb59c;
+        }
+        .pr-root .pr-split .po-side-hero h2 {
+          margin: 0; padding: 0; color: #ffffff !important;
+          font-size: 21px; font-weight: 600; line-height: 1.15;
+        }
+        .pr-root .pr-split .po-side-hero h1 {
+          margin: 0 0 12px; color: #ffffff !important;
+          font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: -0.5px;
+        }
+        .pr-root .pr-split .po-side-hero p {
+          margin: 0; max-width: 210px; font-size: 12px; line-height: 1.55; color: #c9dde1;
+        }
+        .pr-root .pr-split .po-side-foot {
+          color: #ffb59c; font-size: 11px; font-weight: 700;
+          letter-spacing: 0.8px; text-transform: uppercase;
+        }
+        .pr-root .pr-split .po-main { flex: 1; min-width: 0; padding: 22px 28px 22px; background: #ffffff; }
+        .pr-root .pr-split .po-heading {
+          color: #000000; font-size: 17px; font-weight: 700;
+          padding-bottom: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--line);
+        }
+        .pr-root .pr-split .pr-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .pr-root .pr-split .pr-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .pr-root .pr-split .pr-info:last-child { grid-column: span 2; }
+        @media (max-width: 992px) {
+          .pr-root .pr-split.pr-glass { flex-direction: column; }
+          .pr-root .pr-split .po-side { flex: none; min-height: 150px; padding: 20px; gap: 14px; }
+          .pr-root .pr-split .po-side-hero h1 { font-size: 28px; margin-bottom: 6px; }
+          .pr-root .pr-split .po-main { padding: 18px 14px; }
+          .pr-root .pr-split .pr-fields, .pr-root .pr-split .pr-info-grid { grid-template-columns: 1fr; }
+          .pr-root .pr-split .pr-info:last-child { grid-column: auto; }
+        }
       `}</style>
 
       <div className="pr-shell">
         {/* ========================================================================= */}
         {/* 2. SUBMIT NEW PLATE REQUEST                                               */}
         {/* ========================================================================= */}
-        <div className="pr-glass">
-          <div className="pr-head">
-            <div className="pr-head-left">
-              <div className="pr-icon">
-                <Icons.Layers />
-              </div>
-              <div>
-                <h5 className="pr-title">Create New Plate Request</h5>
-              </div>
+        <div className="pr-glass pr-split">
+          {/* Left info panel */}
+          <div className="po-side">
+            <div className="po-side-brand">Plate Request</div>
+
+            <div className="po-side-hero">
+              <h2>Let's Send</h2>
+              <h1>Request</h1>
+              <p>
+                Call the work order, pick the activity and machine, then send
+                the plate request to Prepress for approval.
+              </p>
+            </div>
+
+            <div className="po-side-foot">
+              {selectedWoDetails ? "Work Order Loaded" : "New Request"}
             </div>
           </div>
+
+          {/* Right form panel */}
+          <div className="po-main">
+          <div className="po-heading">Create New Plate Request</div>
 
           <form onSubmit={handleSubmit}>
             {/* Step 1: Work Order Calling Box */}
             <div>
-              <label className="pr-label">
-                Work Order Number <i>*</i>
-              </label>
               <div className="pr-callrow">
-                <input
-                  type="text"
-                  placeholder="Enter WO number (e.g. 10452)"
-                  className="pr-input"
-                  value={woNumber}
-                  onChange={(e) => setWoNumber(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), fetchWorkOrder())}
-                />
+                <PoField
+                  className="pr-callfield"
+                  icon="bi-upc-scan"
+                  label="Work Order Number"
+                  required
+                  alwaysFloat
+                >
+                  <input
+                    type="text"
+                    placeholder="Enter WO number (e.g. 10452)"
+                    className="po-input"
+                    value={woNumber}
+                    onChange={(e) => setWoNumber(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), fetchWorkOrder())}
+                  />
+                </PoField>
                 <button
                   type="button"
                   className="pr-btn pr-btn-primary"
@@ -566,12 +756,9 @@ function PlateRequestForm() {
 
                 <div className="pr-sec" style={{ marginTop: 12 }}>Activity &amp; Machine Assignment</div>
                 <div className="pr-fields">
-                  <div>
-                    <label className="pr-label">
-                      Activity <i>*</i>
-                    </label>
+                  <PoField icon="bi-diagram-3" label="Activity" required alwaysFloat caret>
                     <select
-                      className="pr-input"
+                      className="po-input"
                       value={selectedActivity}
                       onChange={(e) => handleActivityChange(e.target.value)}
                       required
@@ -581,14 +768,11 @@ function PlateRequestForm() {
                         <option key={i} value={a}>{a}</option>
                       ))}
                     </select>
-                  </div>
+                  </PoField>
 
-                  <div>
-                    <label className="pr-label">
-                      Machine <i>*</i>
-                    </label>
+                  <PoField icon="bi-cpu" label="Machine" required alwaysFloat caret>
                     <select
-                      className="pr-input"
+                      className="po-input"
                       value={selectedMachine}
                       onChange={(e) => setSelectedMachine(e.target.value)}
                       disabled={!selectedActivity}
@@ -601,20 +785,17 @@ function PlateRequestForm() {
                         <option key={i} value={m}>{m}</option>
                       ))}
                     </select>
-                  </div>
+                  </PoField>
 
-                  <div>
-                    <label className="pr-label">
-                      Remarks / Notes (Optional)
-                    </label>
+                  <PoField icon="bi-chat-left-text" label="Remarks / Notes (Optional)" alwaysFloat>
                     <input
                       type="text"
-                      className="pr-input"
+                      className="po-input"
                       placeholder="Notes for Prepress team..."
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
                     />
-                  </div>
+                  </PoField>
 
                   <div>
                     <button
@@ -630,6 +811,7 @@ function PlateRequestForm() {
               </>
             )}
           </form>
+          </div>
         </div>
 
         {/* ========================================================================= */}
@@ -686,82 +868,86 @@ function PlateRequestForm() {
           </div>
 
           {/* Filter Toolbar */}
+          <div className="pr-sec"><i className="bi bi-funnel pr-sec-ic"></i> Filters &amp; Downloads</div>
           <div className="pr-toolbar">
-            <input
-              type="text"
-              placeholder="🔍 Search WO Number"
-              value={filterWoNo}
-              onChange={(e) => setFilterWoNo(e.target.value)}
-              className="pr-input"
-            />
+            <PoField className="pr-tfield" icon="bi-search" label="WO Number" filled={has(filterWoNo)}>
+              <input
+                type="text"
+                value={filterWoNo}
+                onChange={(e) => setFilterWoNo(e.target.value)}
+                className="po-input"
+              />
+            </PoField>
 
-            <select
-              value={filterCustomer}
-              onChange={(e) => setFilterCustomer(e.target.value)}
-              className="pr-input"
-              style={{ maxWidth: "200px" }}
-            >
-              <option value="">All Customers</option>
-              {customerOptions.map((c, i) => (
-                <option key={i} value={c}>{c}</option>
-              ))}
-            </select>
+            <PoField className="pr-tfield" icon="bi-person" label="Customer" alwaysFloat caret>
+              <select
+                value={filterCustomer}
+                onChange={(e) => setFilterCustomer(e.target.value)}
+                className="po-input"
+              >
+                <option value="">All Customers</option>
+                {customerOptions.map((c, i) => (
+                  <option key={i} value={c}>{c}</option>
+                ))}
+              </select>
+            </PoField>
 
-            <select
-              value={filterProductType}
-              onChange={(e) => setFilterProductType(e.target.value)}
-              className="pr-input"
-            >
-              <option value="">All Product Types</option>
-              {productTypeOptions.map((t, i) => (
-                <option key={i} value={t}>{t}</option>
-              ))}
-            </select>
+            <PoField className="pr-tfield" icon="bi-tag" label="Product Type" alwaysFloat caret>
+              <select
+                value={filterProductType}
+                onChange={(e) => setFilterProductType(e.target.value)}
+                className="po-input"
+              >
+                <option value="">All Product Types</option>
+                {productTypeOptions.map((t, i) => (
+                  <option key={i} value={t}>{t}</option>
+                ))}
+              </select>
+            </PoField>
 
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="pr-input"
-              style={{ fontWeight: "600" }}
-            >
-              <option value="">All Statuses</option>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
+            <PoField className="pr-tfield" icon="bi-flag" label="Status" alwaysFloat caret>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="po-input"
+              >
+                <option value="">All Statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+            </PoField>
 
-            <select
-              value={filterUserLocation}
-              onChange={(e) => setFilterUserLocation(e.target.value)}
-              className="pr-input"
-            >
-              <option value="">All Locations</option>
-              {userLocationOptions.map((loc, i) => (
-                <option key={i} value={loc}>{loc}</option>
-              ))}
-            </select>
+            <PoField className="pr-tfield" icon="bi-geo-alt" label="User Location" alwaysFloat caret>
+              <select
+                value={filterUserLocation}
+                onChange={(e) => setFilterUserLocation(e.target.value)}
+                className="po-input"
+              >
+                <option value="">All Locations</option>
+                {userLocationOptions.map((loc, i) => (
+                  <option key={i} value={loc}>{loc}</option>
+                ))}
+              </select>
+            </PoField>
 
-            <div className="pr-datebox">
-              <span>From:</span>
+            <PoField className="pr-tfield" icon="bi-calendar-event" label="From Date" alwaysFloat>
               <input
                 type="date"
                 value={filterFromDate}
                 onChange={(e) => setFilterFromDate(e.target.value)}
-                className="pr-input"
-                style={{ minWidth: 0 }}
+                className="po-input"
               />
-            </div>
+            </PoField>
 
-            <div className="pr-datebox">
-              <span>To:</span>
+            <PoField className="pr-tfield" icon="bi-calendar-check" label="To Date" alwaysFloat>
               <input
                 type="date"
                 value={filterToDate}
                 onChange={(e) => setFilterToDate(e.target.value)}
-                className="pr-input"
-                style={{ minWidth: 0 }}
+                className="po-input"
               />
-            </div>
+            </PoField>
 
             <button
               className="pr-btn pr-btn-success"

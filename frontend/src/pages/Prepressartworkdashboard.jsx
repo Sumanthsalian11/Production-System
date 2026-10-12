@@ -8,10 +8,11 @@ import BASE_URL from "../config/api";
 // Reel Register page (glossy header, 3D buttons, colorful table).
 // All data logic (fetch/send/status) is unchanged.
 
-const GLOSSY_BLUE = "#e4572e";
+const GLOSSY_BLUE = "#fde3d8"; // light orange (active chips / send)
+const BRAND = "#e4572e";
 
 const prepressArtworkStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
   .paw-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:16px 18px 28px;overflow:hidden;border:0;font-family:'Source Sans 3','Segoe UI',system-ui,-apple-system,sans-serif;color:#1f2d3a;background:#f3f5f7}
   .paw-container>*{position:relative}
   /* when shown inside the Prepress page it uses that page's backdrop */
@@ -65,13 +66,100 @@ const prepressArtworkStyles = `
   .paw-icon-btn{width:40px;height:40px;flex-shrink:0;border:1.5px solid #cfd6dd;border-radius:4px;background:#fff;color:#043a45;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none}
   .paw-icon-btn:disabled{opacity:.5;cursor:not-allowed}
   .paw-back-btn{width:34px;height:34px;border-radius:50%;border:1px solid transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:#0f6b7c;box-shadow:none}
+
+  /* =====================================================================
+     PLANNER PAGE LOOK (appended override, presentation only)
+     ===================================================================== */
+  .paw-container{font-family:'Noto Sans','Segoe UI',system-ui,-apple-system,Arial,sans-serif;font-size:12.5px;color:#000;background:#f4f6f8;padding:24px 28px 40px}
+  .dashboard-container .paw-container{background:none;padding:0;overflow:visible}
+  .paw-heading{border-radius:8px;border:1px solid #e3e7ec;box-shadow:0 1px 3px rgba(16,24,40,.06);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .paw-heading h3{font-size:17px;color:#000;letter-spacing:0}
+  .paw-heading p{font-size:12px;color:#000;font-weight:500}
+  .paw-avatar{background:#d5e9ee;color:#000;border:1px solid #a9cdd6}
+  .paw-userinfo,.paw-userinfo span{color:#000}
+  .paw-back-btn{background:#d5e9ee;color:#000;border:1px solid #a9cdd6}
+  .paw-detail-card{border-radius:8px;border-color:#e3e7ec}
+  .paw-detail-head{background:#fafbfc;border-bottom-color:#e3e7ec}
+  .paw-detail-head div,.paw-thread div{color:#000}
+  .paw-thread{background:#f4f6f8}
+  .paw-composer{border-top-color:#e3e7ec}
+  .paw-chip{color:#000;background:#e8f3f6;border-color:#b9d6dd}
+  .paw-icon-btn{width:38px;height:38px;border:1px solid #cfd6de;border-radius:6px;color:#000}
+  .paw-status{font-size:11px;color:#000}
+  .paw-fab{background:#e4572e;color:#fff}
+  .paw-composer .btn:disabled{color:#9DA2B0!important}
+
+  /* ---- outlined floating-label fields (Planner look) ---- */
+  .paw-container .po-field{position:relative;display:flex;align-items:center;min-height:36px;background:#fff;border:1px solid #cfd6de;border-radius:6px;transition:border-color .15s ease,box-shadow .15s ease}
+  .paw-container .po-field:focus-within{border-color:#0f5560;box-shadow:0 0 0 3px rgba(15,85,96,.15)}
+  .paw-container .po-field.po-invalid{border-color:#d64545}
+  .paw-container .po-field-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#000;font-size:.8rem;pointer-events:none;z-index:1}
+  .paw-container .po-field .po-input{width:100%;min-height:34px;padding:6px 8px 6px 32px;border:none!important;outline:none;background:transparent!important;box-shadow:none!important;border-radius:6px;font-family:inherit;font-size:.8rem;font-weight:500;color:#000}
+  .paw-container .po-field .po-input[readonly]{background:#f7f9fb!important}
+  .paw-container .po-field textarea.po-input{min-height:34px;padding-top:10px;resize:vertical}
+  .paw-container .po-field select.po-input{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:28px}
+  .paw-container .po-field .po-input:disabled{background:#f1f3f5!important;cursor:not-allowed}
+  .paw-container .po-field .po-input::placeholder{color:#6b7685;opacity:1}
+  .paw-container .po-caret{position:absolute;right:10px;font-size:.7rem;color:#000;pointer-events:none}
+  .paw-container .po-field-label{position:absolute;left:32px;top:50%;transform:translateY(-50%);max-width:calc(100% - 34px);overflow:hidden;text-overflow:ellipsis;padding:0 4px;background:#fff;color:#000;font-size:.8rem;font-weight:500;white-space:nowrap;pointer-events:none;transition:all .15s ease}
+  .paw-container .po-field:focus-within .po-field-label,.paw-container .po-field.is-floated .po-field-label{top:0;left:24px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .paw-container .po-req{color:#d64545}
+
+  /* ---- small light buttons, black text ---- */
+  .paw-container .btn{font-size:12px;font-weight:600;border-radius:6px;color:#000!important;box-shadow:none}
+  .paw-container .btn-sm{font-size:11px;min-height:26px;padding:3px 11px}
+  .paw-container .btn:hover:not(:disabled){filter:none;color:#000!important}
+  .paw-container .btn-primary{background:#fde3d8;border-color:#f5b9a1}
+  .paw-container .btn-primary:hover:not(:disabled){background:#fbd0bf}
+  .paw-container .btn-success{background:#d9f2e6;border-color:#a9dcc3}
+  .paw-container .btn-success:hover:not(:disabled){background:#c5ebd6}
+  .paw-container .btn-info{background:#e8f3f6;border-color:#b9d6dd}
+  .paw-container .btn-info:hover:not(:disabled){background:#d5e9ee}
+  .paw-container .btn-danger{background:#fbdcdc;border-color:#f0b4b4}
+  .paw-container .btn-danger:hover:not(:disabled){background:#f7c7c7}
+  .paw-container .btn-secondary,.paw-container .btn-outline{background:#fff;border-color:#cfd6de}
+
+  /* ---- table: column heading colour, black text ---- */
+  .paw-container .production-real-table{font-size:12px}
+  .paw-container .production-real-table thead th{background:#a9d0d9!important;color:#000!important;border:1px solid #8fbcc7!important;font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:9px 10px}
+  .paw-container .production-real-table tbody td{color:#000!important;padding:7px 10px;border-bottom:1px solid #eef1f4!important;border-right:1px solid #f3f5f7!important}
+  .paw-container .production-real-table tbody tr:nth-child(even) td{background:#fafbfc}
+  .paw-container .production-real-table tbody tr:hover td{background:#fdeee8!important}
+  .paw-container .production-real-table-wrap{border:1px solid #e3e7ec;border-radius:8px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .paw-container .production-real-table .empty-state{color:#000!important}
+
+  /* ---- filter bar ---- */
+  .paw-container .filter-bar{justify-content:flex-start;align-items:center;background:#fff;border:1px solid #e3e7ec;border-radius:8px;gap:12px 10px;padding:14px 16px 12px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .paw-container .filter-bar:before{display:none}
+  .paw-container .pp-filter-title{flex:0 0 100%;display:flex;align-items:center;gap:7px;padding-left:8px;border-left:3px solid #e4572e;font-size:13px;font-weight:700;color:#000;margin-bottom:2px}
+  .paw-container .pp-filter-title i{color:#e4572e;font-size:14px}
+  .paw-container .filter-bar .pp-ffield{flex:1 1 170px;min-width:150px;max-width:230px}
+  .paw-container .filter-bar .btn{height:34px}
 `;
 
+// Outlined floating-label field with a leading icon (Planner styling)
+function PoField({ icon, label, required, filled, alwaysFloat, caret, invalid, className = "", children }) {
+  return (
+    <div className={className}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${invalid ? "po-invalid" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className="po-field-label">
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
 const STATUS_META = {
-  open: { label: "New", fg: "#B4740D", bg: "#FCF1DC", dot: "#E3A63D" },
-  in_progress: { label: "In progress", fg: "#0f6b7c", bg: "#e6f1f3", dot: "#0f6b7c" },
-  changes_submitted: { label: "In review", fg: "#6D3FD1", bg: "#F1ECFD", dot: "#8B5CF6" },
-  closed: { label: "Closed", fg: "#12805E", bg: "#E6F6F0", dot: "#1FA37B" },
+  open: { label: "New", fg: "#000", bg: "#FCF1DC", dot: "#E3A63D" },
+  in_progress: { label: "In progress", fg: "#000", bg: "#e6f1f3", dot: "#0f6b7c" },
+  changes_submitted: { label: "In review", fg: "#000", bg: "#F1ECFD", dot: "#8B5CF6" },
+  closed: { label: "Closed", fg: "#000", bg: "#E6F6F0", dot: "#1FA37B" },
 };
 
 const FILTERS = [
@@ -301,12 +389,12 @@ export default function PrepressArtworkDashboard() {
                       </div>
                       <div
                         style={{
-                          background: mine ? "#0f6b7c" : "#fff",
-                          color: mine ? "#fff" : "#1f2d3a",
-                          border: mine ? "none" : "1px solid #dfe4e9",
+                          background: mine ? "#d5e9ee" : "#fff",
+                          color: "#000",
+                          border: mine ? "1px solid #a9cdd6" : "1px solid #e3e7ec",
                           borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                           padding: "10px 13px",
-                          boxShadow: mine ? "0 4px 10px rgba(30,130,190,.3)" : "0 1px 3px rgba(10,80,130,.1)",
+                          boxShadow: "0 1px 2px rgba(16,24,40,.06)",
                         }}
                       >
                         {m.text ? <div style={{ fontSize: 14, lineHeight: 1.5 }}>{m.text}</div> : null}
@@ -320,10 +408,10 @@ export default function PrepressArtworkDashboard() {
                                 rel="noreferrer"
                                 style={{
                                   display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
-                                  color: mine ? "#fff" : "#1f2d3a",
-                                  border: mine ? "1px solid rgba(255,255,255,0.35)" : "1px solid #dfe4e9",
+                                  color: "#000",
+                                  border: mine ? "1px solid #a9cdd6" : "1px solid #e3e7ec",
                                   borderRadius: 8, padding: "6px 10px",
-                                  background: mine ? "rgba(255,255,255,0.14)" : "#f1f7f8",
+                                  background: mine ? "rgba(255,255,255,0.6)" : "#f1f7f8",
                                   maxWidth: 220, overflow: "hidden", textDecoration: "none",
                                 }}
                               >
@@ -379,18 +467,18 @@ export default function PrepressArtworkDashboard() {
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder={isClosed ? "Ticket is closed" : "Write a note..."}
                   disabled={isClosed}
-                  style={{ flex: 1, height: 40, borderRadius: 4, border: "1.5px solid #cfd6dd", fontWeight: 600, color: "#1f2d3a", boxShadow: "none" }}
+                  style={{ flex: 1, height: 38, borderRadius: 6, border: "1px solid #cfd6de", fontWeight: 500, fontSize: 12.5, color: "#000", boxShadow: "none" }}
                 />
                 <button
                   className="btn"
                   onClick={sendMessage}
                   disabled={(!msgText.trim() && msgFiles.length === 0) || isClosed || sendingMsg}
                   style={{
-                    padding: "0 16px", height: 40, borderRadius: 4,
-                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid transparent" : "none",
+                    padding: "0 16px", height: 38, borderRadius: 6,
+                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid #f5b9a1" : "none",
                     background: (msgText.trim() || msgFiles.length > 0) && !isClosed ? GLOSSY_BLUE : "#e2e4ea",
                     boxShadow: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "none" : "none",
-                    color: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "#fff" : "#9DA2B0",
+                    color: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "#000" : "#9DA2B0",
                     display: "flex", alignItems: "center", flexShrink: 0,
                   }}
                 >
@@ -417,11 +505,11 @@ export default function PrepressArtworkDashboard() {
                 className="btn btn-sm"
                 onClick={() => setFilter(f.key)}
                 style={{
-                  border: "1px solid " + (filter === f.key ? "rgba(255,255,255,.6)" : "#cfd6dd"),
+                  border: "1px solid " + (filter === f.key ? "#f5b9a1" : "#cfd6de"),
                   background: filter === f.key ? GLOSSY_BLUE : "#fff",
-                  color: filter === f.key ? "#fff" : "#043a45",
+                  color: "#000",
                   textShadow: filter === f.key ? undefined : "none",
-                  boxShadow: filter === f.key ? "none" : "0 3px 8px rgba(10,80,130,.12)",
+                  boxShadow: "none",
                 }}
               >
                 {f.label}
@@ -439,22 +527,23 @@ export default function PrepressArtworkDashboard() {
         </div>
 
         <div className="filter-bar">
-          <input
-            type="text"
-            placeholder="Filter by customer..."
-            className="form-control form-control-sm"
-            style={{ width: "220px" }}
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Filter by ticket ID..."
-            className="form-control form-control-sm"
-            style={{ width: "220px" }}
-            value={ticketFilter}
-            onChange={(e) => setTicketFilter(e.target.value)}
-          />
+          <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filter Tickets</div>
+          <PoField className="pp-ffield" icon="bi-person" label="Customer" filled={has(customerFilter)}>
+            <input
+              type="text"
+              className="po-input"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+            />
+          </PoField>
+          <PoField className="pp-ffield" icon="bi-ticket-perforated" label="Ticket ID" filled={has(ticketFilter)}>
+            <input
+              type="text"
+              className="po-input"
+              value={ticketFilter}
+              onChange={(e) => setTicketFilter(e.target.value)}
+            />
+          </PoField>
           {(customerFilter || ticketFilter || filter !== "all") && (
             <button
               className="btn btn-sm btn-secondary"

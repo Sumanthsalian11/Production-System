@@ -57,8 +57,26 @@ const SectionHead = ({ icon: Icon, color = "blue", title, pill }) => (
   </div>
 );
 
+// Outlined floating-label field with a leading icon (Planner styling)
+function PoField({ icon, label, required, filled, alwaysFloat, caret, invalid, className = "", children }) {
+  return (
+    <div className={className}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${invalid ? "po-invalid" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className="po-field-label">
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
 const preprocessStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
   @keyframes pulseNotification {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
     50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
@@ -138,6 +156,98 @@ const preprocessStyles = `
   .pt-fab:active{transform:none}
 
   @media(max-width:768px){.dashboard-container{padding:12px}.dashboard-heading{flex-direction:column;align-items:flex-start;padding:14px}.dashboard-heading>div:last-child{width:100%;justify-content:flex-start;flex-wrap:wrap}.filter-bar{justify-content:stretch}.filter-bar .form-control,.filter-bar .form-select{width:100%!important}}
+
+  /* =====================================================================
+     PLANNER PAGE LOOK (appended override, presentation only)
+     ===================================================================== */
+  .dashboard-container{font-family:'Noto Sans','Segoe UI',system-ui,-apple-system,Arial,sans-serif;font-size:12.5px;color:#000;background:#f4f6f8;padding:24px 28px 40px}
+  .dashboard-heading{border-radius:8px;border:1px solid #e3e7ec;box-shadow:0 1px 3px rgba(16,24,40,.06);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .hero-emblem-3d{width:38px;height:38px;border-radius:8px;color:#e4572e;background:#fdeee8;border:1px solid #f7d3c6}
+  .dashboard-heading h3{font-size:17px;color:#000;letter-spacing:0}
+  .dashboard-heading p{font-size:12px;color:#000;font-weight:500}
+  .card-heading-row{margin:16px 0 8px}
+  .dashboard-container .heading-icon-badge,.dashboard-container .heading-icon-badge.blue,.dashboard-container .heading-icon-badge.purple,.dashboard-container .heading-icon-badge.amber,.dashboard-container .heading-icon-badge.green{width:26px;height:26px;border-radius:6px;background:#fdeee8;color:#e4572e;border:1px solid #f7d3c6}
+  .heading-icon-badge svg{width:14px;height:14px}
+  .card-heading-row h2{font-size:14px;font-weight:700;color:#000}
+  .section-pill-tag{font-size:10.5px;color:#000;background:#e3f1f4;border-color:#b9d6dd}
+  .status-pill{font-size:11px;color:#000!important;border-radius:999px;padding:2px 10px;text-transform:none}
+  .status-pending{background:#fff3d6;border-color:#f2d291}
+  .status-approved{background:#d9f2e6;border-color:#a9dcc3}
+  .status-rejected{background:#fbdcdc;border-color:#f0b4b4}
+  .pt-fab{background:#e4572e;color:#fff}
+  .pp-filter-title+.pp-ffield-wide{flex:2 1 240px;max-width:340px}
+  .pp-err{color:#d64545;font-weight:600;font-size:11.5px;margin-top:4px}
+  .pp-overlay{position:fixed;inset:0;background:rgba(11,58,69,.45);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:1050;padding:16px}
+  .pp-modal.po-split{width:100%;max-width:900px;max-height:92vh;overflow-y:auto}
+
+  /* ---- outlined floating-label fields (Planner look) ---- */
+  .dashboard-container .po-field{position:relative;display:flex;align-items:center;min-height:36px;background:#fff;border:1px solid #cfd6de;border-radius:6px;transition:border-color .15s ease,box-shadow .15s ease}
+  .dashboard-container .po-field:focus-within{border-color:#0f5560;box-shadow:0 0 0 3px rgba(15,85,96,.15)}
+  .dashboard-container .po-field.po-invalid{border-color:#d64545}
+  .dashboard-container .po-field-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#000;font-size:.8rem;pointer-events:none;z-index:1}
+  .dashboard-container .po-field .po-input{width:100%;min-height:34px;padding:6px 8px 6px 32px;border:none!important;outline:none;background:transparent!important;box-shadow:none!important;border-radius:6px;font-family:inherit;font-size:.8rem;font-weight:500;color:#000}
+  .dashboard-container .po-field .po-input[readonly]{background:#f7f9fb!important}
+  .dashboard-container .po-field textarea.po-input{min-height:34px;padding-top:10px;resize:vertical}
+  .dashboard-container .po-field select.po-input{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:28px}
+  .dashboard-container .po-field .po-input:disabled{background:#f1f3f5!important;cursor:not-allowed}
+  .dashboard-container .po-field .po-input::placeholder{color:#6b7685;opacity:1}
+  .dashboard-container .po-caret{position:absolute;right:10px;font-size:.7rem;color:#000;pointer-events:none}
+  .dashboard-container .po-field-label{position:absolute;left:32px;top:50%;transform:translateY(-50%);max-width:calc(100% - 34px);overflow:hidden;text-overflow:ellipsis;padding:0 4px;background:#fff;color:#000;font-size:.8rem;font-weight:500;white-space:nowrap;pointer-events:none;transition:all .15s ease}
+  .dashboard-container .po-field:focus-within .po-field-label,.dashboard-container .po-field.is-floated .po-field-label{top:0;left:24px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .dashboard-container .po-req{color:#d64545}
+
+  /* ---- small light buttons, black text ---- */
+  .dashboard-container .btn{font-size:12px;font-weight:600;border-radius:6px;color:#000!important;box-shadow:none}
+  .dashboard-container .btn-sm{font-size:11px;min-height:26px;padding:3px 11px}
+  .dashboard-container .btn:hover:not(:disabled){filter:none;color:#000!important}
+  .dashboard-container .btn-primary{background:#fde3d8;border-color:#f5b9a1}
+  .dashboard-container .btn-primary:hover:not(:disabled){background:#fbd0bf}
+  .dashboard-container .btn-success{background:#d9f2e6;border-color:#a9dcc3}
+  .dashboard-container .btn-success:hover:not(:disabled){background:#c5ebd6}
+  .dashboard-container .btn-info{background:#e8f3f6;border-color:#b9d6dd}
+  .dashboard-container .btn-info:hover:not(:disabled){background:#d5e9ee}
+  .dashboard-container .btn-danger{background:#fbdcdc;border-color:#f0b4b4}
+  .dashboard-container .btn-danger:hover:not(:disabled){background:#f7c7c7}
+  .dashboard-container .btn-secondary,.dashboard-container .btn-outline{background:#fff;border-color:#cfd6de}
+
+  /* ---- table: column heading colour, black text ---- */
+  .dashboard-container .production-real-table{font-size:12px}
+  .dashboard-container .production-real-table thead th{background:#a9d0d9!important;color:#000!important;border:1px solid #8fbcc7!important;font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:9px 10px}
+  .dashboard-container .production-real-table tbody td{color:#000!important;padding:7px 10px;border-bottom:1px solid #eef1f4!important;border-right:1px solid #f3f5f7!important}
+  .dashboard-container .production-real-table tbody tr:nth-child(even) td{background:#fafbfc}
+  .dashboard-container .production-real-table tbody tr:hover td{background:#fdeee8!important}
+  .dashboard-container .production-real-table-wrap{border:1px solid #e3e7ec;border-radius:8px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .dashboard-container .production-real-table .empty-state{color:#000!important}
+
+  /* ---- filter bar ---- */
+  .dashboard-container .filter-bar{justify-content:flex-start;align-items:center;background:#fff;border:1px solid #e3e7ec;border-radius:8px;gap:12px 10px;padding:14px 16px 12px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .dashboard-container .filter-bar:before{display:none}
+  .dashboard-container .pp-filter-title{flex:0 0 100%;display:flex;align-items:center;gap:7px;padding-left:8px;border-left:3px solid #e4572e;font-size:13px;font-weight:700;color:#000;margin-bottom:2px}
+  .dashboard-container .pp-filter-title i{color:#e4572e;font-size:14px}
+  .dashboard-container .filter-bar .pp-ffield{flex:1 1 170px;min-width:150px;max-width:230px}
+  .dashboard-container .filter-bar .btn{height:34px}
+
+  /* ---- split form card (teal info panel + white form) ---- */
+  .pp-modal.po-split{display:flex;background:#fff;border:1px solid #e3e7ec;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(16,24,40,.07)}
+  .pp-modal .po-side{flex:0 0 28%;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:24px;color:#fff;background:linear-gradient(170deg,#0b3a45 0%,#0f5560 100%)}
+  .pp-modal .po-side::before{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-110px;top:-90px;background:rgba(255,255,255,.06)}
+  .pp-modal .po-side::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;left:-90px;bottom:-80px;background:rgba(228,87,46,.18)}
+  .pp-modal .po-side>*{position:relative;z-index:1}
+  .pp-modal .po-side-brand{font-weight:700;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:#ffb59c}
+  .pp-modal .po-side-hero h2{margin:0;padding:0;color:#fff!important;font-size:21px;font-weight:600;line-height:1.15}
+  .pp-modal .po-side-hero h1{margin:0 0 12px;color:#fff!important;font-size:36px;font-weight:700;line-height:1;letter-spacing:-.5px}
+  .pp-modal .po-side-hero p{margin:0;max-width:210px;font-size:12px;line-height:1.55;color:#c9dde1}
+  .pp-modal .po-side-foot{color:#ffb59c;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+  .pp-modal .po-main{flex:1;min-width:0;padding:22px 28px;background:#fff}
+  .pp-modal .po-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#000;font-size:17px;font-weight:700;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid #e3e7ec}
+  .pp-modal .po-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
+  .pp-modal .po-grid .po-full{grid-column:1/-1}
+  .pp-modal .po-actions{display:flex;justify-content:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e3e7ec}
+  .pp-modal .po-actions .btn{min-width:150px;height:38px;padding:0 18px;font-size:12.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
+  .pp-modal .po-actions .btn-po-save{background:#e4572e!important;border:1px solid #e4572e!important;color:#fff!important;box-shadow:0 1px 2px rgba(228,87,46,.35)}
+  .pp-modal .po-actions .btn-po-save:hover:not(:disabled){background:#c9461f!important;border-color:#c9461f!important}
+  .pp-modal .po-actions .btn-po-save:disabled{background:#e2e4ea!important;border-color:#e2e4ea!important;color:#9DA2B0!important;box-shadow:none}
+  @media(max-width:992px){.pp-modal.po-split{flex-direction:column}.pp-modal .po-side{flex:none;min-height:150px;padding:20px;gap:14px}.pp-modal .po-side-hero h1{font-size:28px;margin-bottom:6px}.pp-modal .po-main{padding:18px 14px}.pp-modal .po-grid{grid-template-columns:1fr}}
 `;
 
 const emptyProductionForm = {
@@ -693,9 +803,9 @@ function PreprocessDashboard() {
                 className="d-flex align-items-center gap-2 border-0 shadow-sm"
                 style={{
                   background: activeView === "platerequests"
-                    ? "#2f9e60"
-                    : "#d64545",
-                  color: "#fff",
+                    ? "#d9f2e6"
+                    : "#fbdcdc",
+                  color: "#000",
                   borderRadius: "30px",
                   padding: "8px 16px",
                   fontWeight: "700",
@@ -711,7 +821,7 @@ function PreprocessDashboard() {
                 <span
                   className="badge rounded-pill bg-white"
                   style={{
-                    color: activeView === "platerequests" ? "#059669" : "#d64545",
+                    color: "#000",
                     fontWeight: "800",
                     fontSize: "11px",
                     padding: "3px 8px"
@@ -728,15 +838,15 @@ function PreprocessDashboard() {
                 value={activeView}
                 onChange={(e) => setActiveView(e.target.value)}
                 style={{
-                  border: "1.5px solid #cfd6dd",
-                  borderRadius: 4,
-                  padding: "8px 14px",
+                  border: "1px solid #cfd6de",
+                  borderRadius: 6,
+                  padding: "7px 14px",
                   paddingRight: "34px",
-                  fontSize: ".85rem",
-                  fontWeight: 700,
-                  color: "#1f2d3a",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#000",
                   background: "#fff",
-                  boxShadow: "0 4px 12px rgba(2, 60, 110, 0.2), inset 0 1px 0 #fff",
+                  boxShadow: "none",
                   cursor: "pointer",
                   outline: "none"
                 }}
@@ -777,25 +887,27 @@ function PreprocessDashboard() {
           <>
             {/* ===== FILTERS (Applies to both tables) ===== */}
             <div className="filter-bar production-real-filter-bar">
-              <input
-                type="text"
-                placeholder="WO Number"
-                className="form-control form-control-sm"
-                style={{ width: "160px" }}
-                value={filterWoNo}
-                onChange={(e) => setFilterWoNo(e.target.value)}
-              />
-              <select
-                className="form-select form-select-sm"
-                style={{ width: "180px" }}
-                value={filterCustomer}
-                onChange={(e) => setFilterCustomer(e.target.value)}
-              >
-                <option value="">All Customers</option>
-                {customerOptions.map((cust, i) => (
-                  <option key={i} value={cust}>{cust}</option>
-                ))}
-              </select>
+              <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filters</div>
+              <PoField className="pp-ffield" icon="bi-search" label="WO Number" filled={has(filterWoNo)}>
+                <input
+                  type="text"
+                  className="po-input"
+                  value={filterWoNo}
+                  onChange={(e) => setFilterWoNo(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-person" label="Customer" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={filterCustomer}
+                  onChange={(e) => setFilterCustomer(e.target.value)}
+                >
+                  <option value="">All Customers</option>
+                  {customerOptions.map((cust, i) => (
+                    <option key={i} value={cust}>{cust}</option>
+                  ))}
+                </select>
+              </PoField>
               {(filterWoNo || filterCustomer || filterMachine) && (
                 <button
                   className="btn btn-sm btn-secondary"
@@ -1026,63 +1138,67 @@ function PreprocessDashboard() {
             />
 
             <div className="filter-bar" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
-              <input
-                type="text"
-                placeholder="WO Number"
-                className="form-control form-control-sm"
-                style={{ width: "130px" }}
-                value={prFilterWoNo}
-                onChange={(e) => setPrFilterWoNo(e.target.value)}
-              />
-              <select
-                className="form-select form-select-sm"
-                style={{ width: "150px" }}
-                value={prFilterCustomer}
-                onChange={(e) => setPrFilterCustomer(e.target.value)}
-              >
-                <option value="">All Customers</option>
-                {prCustomerOptions.map((c, i) => (
-                  <option key={i} value={c}>{c}</option>
-                ))}
-              </select>
-              <select
-                className="form-select form-select-sm"
-                style={{ width: "150px" }}
-                value={prFilterProductType}
-                onChange={(e) => setPrFilterProductType(e.target.value)}
-              >
-                <option value="">All Product Types</option>
-                {prProductTypeOptions.map((t, i) => (
-                  <option key={i} value={t}>{t}</option>
-                ))}
-              </select>
-              <select
-                className="form-select form-select-sm"
-                style={{ width: "130px" }}
-                value={prFilterStatus}
-                onChange={(e) => setPrFilterStatus(e.target.value)}
-              >
-                <option value="">All Status</option>
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>From</span>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                style={{ width: "125px" }}
-                value={prFilterFromDate}
-                onChange={(e) => setPrFilterFromDate(e.target.value)}
-              />
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>To</span>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                style={{ width: "125px" }}
-                value={prFilterToDate}
-                onChange={(e) => setPrFilterToDate(e.target.value)}
-              />
+              <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filters &amp; Downloads</div>
+              <PoField className="pp-ffield" icon="bi-search" label="WO Number" filled={has(prFilterWoNo)}>
+                <input
+                  type="text"
+                  className="po-input"
+                  value={prFilterWoNo}
+                  onChange={(e) => setPrFilterWoNo(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-person" label="Customer" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={prFilterCustomer}
+                  onChange={(e) => setPrFilterCustomer(e.target.value)}
+                >
+                  <option value="">All Customers</option>
+                  {prCustomerOptions.map((c, i) => (
+                    <option key={i} value={c}>{c}</option>
+                  ))}
+                </select>
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-tag" label="Product Type" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={prFilterProductType}
+                  onChange={(e) => setPrFilterProductType(e.target.value)}
+                >
+                  <option value="">All Product Types</option>
+                  {prProductTypeOptions.map((t, i) => (
+                    <option key={i} value={t}>{t}</option>
+                  ))}
+                </select>
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-flag" label="Status" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={prFilterStatus}
+                  onChange={(e) => setPrFilterStatus(e.target.value)}
+                >
+                  <option value="">All Status</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPROVED">Approved</option>
+                  <option value="REJECTED">Rejected</option>
+                </select>
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-event" label="From Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={prFilterFromDate}
+                  onChange={(e) => setPrFilterFromDate(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-check" label="To Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={prFilterToDate}
+                  onChange={(e) => setPrFilterToDate(e.target.value)}
+                />
+              </PoField>
               {(prFilterWoNo || prFilterCustomer || prFilterProductType || prFilterStatus || prFilterFromDate || prFilterToDate) && (
                 <button
                   className="btn btn-sm btn-secondary"
@@ -1101,7 +1217,7 @@ function PreprocessDashboard() {
               <button
                 className="btn btn-sm btn-success"
                 onClick={exportPlateRequestsToExcel}
-                style={{ padding: "8px 17px", fontSize: "12px", whiteSpace: "nowrap" }}
+                style={{ whiteSpace: "nowrap" }}
               >
                 Export
               </button>
@@ -1205,41 +1321,43 @@ function PreprocessDashboard() {
           <>
             {/* ===== PRODUCTION LOG ===== */}
             <div className="filter-bar">
-              <input
-                type="text"
-                placeholder="Search WO, customer, job"
-                className="form-control form-control-sm"
-                style={{ flex: "2 1 220px", minWidth: "180px" }}
-                value={productionSearch}
-                onChange={(e) => setProductionSearch(e.target.value)}
-              />
-              <select
-                className="form-select form-select-sm"
-                style={{ flex: "1 1 160px", minWidth: "140px" }}
-                value={productionMachineFilter}
-                onChange={(e) => setProductionMachineFilter(e.target.value)}
-              >
-                <option value="all">All Machines</option>
-                {productionMachineOptions.map((m, i) => (
-                  <option key={i} value={m}>{m}</option>
-                ))}
-              </select>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>From</span>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                style={{ flex: "1 1 130px", minWidth: "120px", maxWidth: "160px" }}
-                value={productionFilterFromDate}
-                onChange={(e) => setProductionFilterFromDate(e.target.value)}
-              />
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>To</span>
-              <input
-                type="date"
-                className="form-control form-control-sm"
-                style={{ flex: "1 1 130px", minWidth: "120px", maxWidth: "160px" }}
-                value={productionFilterToDate}
-                onChange={(e) => setProductionFilterToDate(e.target.value)}
-              />
+              <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filters &amp; Downloads</div>
+              <PoField className="pp-ffield pp-ffield-wide" icon="bi-search" label="Search WO, customer, job" filled={has(productionSearch)}>
+                <input
+                  type="text"
+                  className="po-input"
+                  value={productionSearch}
+                  onChange={(e) => setProductionSearch(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-cpu" label="Machine" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={productionMachineFilter}
+                  onChange={(e) => setProductionMachineFilter(e.target.value)}
+                >
+                  <option value="all">All Machines</option>
+                  {productionMachineOptions.map((m, i) => (
+                    <option key={i} value={m}>{m}</option>
+                  ))}
+                </select>
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-event" label="From Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={productionFilterFromDate}
+                  onChange={(e) => setProductionFilterFromDate(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-check" label="To Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={productionFilterToDate}
+                  onChange={(e) => setProductionFilterToDate(e.target.value)}
+                />
+              </PoField>
               {(productionFilterFromDate || productionFilterToDate) && (
                 <button
                   className="btn btn-sm btn-secondary"
@@ -1325,349 +1443,187 @@ function PreprocessDashboard() {
             </button>
 
           {showProductionForm && (() => {
-  const tableBorderColor = "#dfe4e9";
-  const darkBlue = "#1f2d3a";
-  const labelBlue = "#043a45";
-
-  const labelCell = {
-    background: "#f1f7f8",
-    color: labelBlue,
-    fontSize: "13px",
-    fontWeight: "800",
-    padding: "12px 16px",
-    verticalAlign: "middle",
-    borderColor: tableBorderColor,
-    whiteSpace: "nowrap",
-    textAlign: "left"
-  };
-
-  const valueCell = {
-    background: "#ffffff",
-    color: darkBlue,
-    fontSize: "14px",
-    fontWeight: "600",
-    padding: "10px 16px",
-    verticalAlign: "middle",
-    borderColor: tableBorderColor
-  };
-
-  const cellInput = {
-    borderColor: "#cfd6dd",
-    borderWidth: "1.5px",
-    borderRadius: "12px",
-    fontSize: "14px",
-    fontWeight: "700",
-    color: darkBlue,
-    background: "#ffffff",
-    width: "100%",
-    padding: "8px 12px",
-    boxShadow: "none"
+  const closeForm = () => {
+    setShowProductionForm(false);
+    resetProductionForm();
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(10, 70, 120, 0.38)",
-        backdropFilter: "blur(6px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1050,
-        padding: "16px"
-      }}
-      onClick={() => {
-        setShowProductionForm(false);
-        resetProductionForm();
-      }}
-    >
+    <div className="pp-overlay" onClick={closeForm}>
       <div
         id="production-entry-modal"
         onClick={(e) => e.stopPropagation()}
-        className="card border-0 shadow-lg"
-        style={{
-          width: "100%",
-          maxWidth: "800px",
-          maxHeight: "92vh",
-          overflowY: "auto",
-          borderRadius: "24px",
-          border: "1px solid rgba(255,255,255,0.95)",
-          background: "#fff",
-          boxShadow: "0 24px 60px rgba(10, 80, 130, 0.35), inset 0 1px 0 #fff",
-          fontFamily: "inherit"
-        }}
+        className="pp-modal po-split"
       >
-        {/* Modal Header */}
-        <div
-          className="d-flex justify-content-between align-items-center px-4 py-3 position-sticky top-0"
-          style={{
-            zIndex: 2,
-            background: "#f4f6f8",
-            borderBottom: "2px solid #cfd6dd",
-            color: "#043a45"
-          }}
-        >
-          <div className="d-flex align-items-center gap-2">
-            <div className="hero-emblem-3d" style={{ width: 34, height: 34 }}>
-              <Icons.Gauge />
+        {/* Left info panel */}
+        <div className="po-side">
+          <div className="po-side-brand">Plate Tracker</div>
+
+          <div className="po-side-hero">
+            <h2>Let's Log</h2>
+            <h1>{editingProductionId ? "Update" : "Entry"}</h1>
+            <p>
+              Enter the work order number and press Enter. Customer, job and
+              machine are filled automatically from the work order.
+            </p>
+          </div>
+
+          <div className="po-side-foot">
+            {editingProductionId ? "Updating Entry" : "New Entry"}
+          </div>
+        </div>
+
+        {/* Right form panel */}
+        <div className="po-main">
+          <div className="po-heading">
+            <span>{editingProductionId ? "Edit PlateTracker Entry" : "New PlateTracker Entry"}</span>
+            <button
+              type="button"
+              className="btn-close"
+              aria-label="Close"
+              onClick={closeForm}
+            />
+          </div>
+
+          <div className="po-grid">
+            <PoField icon="bi-calendar-event" label="Date" required alwaysFloat>
+              <input
+                type="date"
+                className="po-input"
+                value={productionForm.date}
+                onChange={(e) => setProductionForm({ ...productionForm, date: e.target.value })}
+                required
+              />
+            </PoField>
+
+            <PoField icon="bi-person" label="Customer" required alwaysFloat>
+              <input
+                type="text"
+                className="po-input"
+                value={productionForm.customerName || "-"}
+                readOnly
+              />
+            </PoField>
+
+            <div>
+              <PoField icon="bi-upc-scan" label="WO No" required alwaysFloat>
+                <input
+                  className="po-input"
+                  value={productionForm.woNumber}
+                  onChange={(e) => handleProductionWoInput(e.target.value)}
+                  onBlur={lookupProductionWo}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      lookupProductionWo();
+                    }
+                  }}
+                  placeholder="Enter WO # & press Enter"
+                />
+              </PoField>
+              {productionWoMatched === false && (
+                <div className="pp-err">✕ No matching work order found</div>
+              )}
             </div>
-            <h5 className="fw-bold mb-0" style={{ fontSize: "17px", color: "#043a45" }}>
-              {editingProductionId ? "Edit PlateTracker Entry" : "New PlateTracker Entry"}
-            </h5>
-          </div>
-          <button
-            type="button"
-            className="btn-close"
-            aria-label="Close"
-            onClick={() => {
-              setShowProductionForm(false);
-              resetProductionForm();
-            }}
-          />
-        </div>
 
-        {/* Modal Content */}
-        <div className="p-3" style={{ background: "transparent" }}>
-          <div
-            className="bg-white overflow-hidden border-0 mb-0"
-            style={{ borderRadius: "16px", border: "1px solid #dfe4e9", boxShadow: "0 8px 20px rgba(10,100,160,.14)" }}
-          >
-            <table
-              className="table table-bordered mb-0"
-              style={{
-                borderColor: tableBorderColor,
-                verticalAlign: "middle",
-                tableLayout: "fixed",
-                width: "100%",
-                borderCollapse: "collapse",
-                borderSpacing: 0
-              }}
+            <PoField icon="bi-card-text" label="Job Name" required alwaysFloat>
+              <input
+                type="text"
+                className="po-input"
+                value={productionForm.jobName || "-"}
+                readOnly
+              />
+            </PoField>
+
+            <PoField icon="bi-layers" label="Fresh plate" required alwaysFloat>
+              <input
+                type="number"
+                min="0"
+                className="po-input"
+                value={productionForm.producedQty}
+                onChange={(e) => setProductionForm({ ...productionForm, producedQty: e.target.value })}
+                placeholder="0"
+                required
+              />
+            </PoField>
+
+            <PoField icon="bi-cpu" label="Machine" required alwaysFloat>
+              <input
+                type="text"
+                className="po-input"
+                value={productionForm.machine.join(", ") || "-"}
+                readOnly
+              />
+            </PoField>
+
+            <PoField icon="bi-trash3" label="Wastage plate" alwaysFloat>
+              <input
+                type="number"
+                min="0"
+                className="po-input"
+                value={productionForm.wastageQty}
+                onChange={(e) => setProductionForm({ ...productionForm, wastageQty: e.target.value })}
+                placeholder="0"
+              />
+            </PoField>
+
+            {Number(productionForm.wastageQty) > 0 ? (
+              <PoField icon="bi-exclamation-triangle" label="Reason" required alwaysFloat>
+                <input
+                  className="po-input"
+                  value={productionForm.reason}
+                  onChange={(e) => setProductionForm({ ...productionForm, reason: e.target.value })}
+                  placeholder="State reason for wastage"
+                />
+              </PoField>
+            ) : (
+              <PoField icon="bi-chat-left-text" label="Remark" alwaysFloat>
+                <input
+                  className="po-input"
+                  value={productionForm.remark}
+                  onChange={(e) => setProductionForm({ ...productionForm, remark: e.target.value })}
+                  placeholder="Optional"
+                />
+              </PoField>
+            )}
+
+            {Number(productionForm.wastageQty) > 0 && (
+              <div className="po-full">
+                <PoField icon="bi-chat-left-text" label="Remark" alwaysFloat>
+                  <input
+                    className="po-input"
+                    value={productionForm.remark}
+                    onChange={(e) => setProductionForm({ ...productionForm, remark: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </PoField>
+              </div>
+            )}
+          </div>
+
+          <div className="po-actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={closeForm}
             >
-              <colgroup>
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "32%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "32%" }} />
-              </colgroup>
-              <tbody>
-                {/* Row 1: Date & Customer */}
-                <tr>
-                  <th style={labelCell} className="fw-bold">
-                    Date <span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="date"
-                      className="form-control"
-                      style={cellInput}
-                      value={productionForm.date}
-                      onChange={(e) => setProductionForm({ ...productionForm, date: e.target.value })}
-                      required
-                    />
-                  </td>
-
-                  <th style={labelCell} className="fw-bold">
-                    Customer <span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="text"
-                      className="form-control-plaintext fw-bold p-0"
-                      style={{ fontSize: "14px", color: darkBlue }}
-                      value={productionForm.customerName || "-"}
-                      readOnly
-                    />
-                  </td>
-                </tr>
-
-                {/* Row 2: WO No & Job Name */}
-                <tr>
-                  <th style={labelCell} className="fw-bold">
-                    WO No <span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      className="form-control"
-                      style={cellInput}
-                      value={productionForm.woNumber}
-                      onChange={(e) => handleProductionWoInput(e.target.value)}
-                      onBlur={lookupProductionWo}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          lookupProductionWo();
-                        }
-                      }}
-                      placeholder="Enter WO # & press Enter"
-                    />
-                    {productionWoMatched === false && (
-                      <div className="text-danger fw-bold mt-1" style={{ fontSize: "12px" }}>
-                        ✕ No matching work order found
-                      </div>
-                    )}
-                  </td>
-
-                  <th style={labelCell} className="fw-bold">
-                    Job Name <span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="text"
-                      className="form-control-plaintext fw-bold p-0"
-                      style={{ fontSize: "14px", color: darkBlue }}
-                      value={productionForm.jobName || "-"}
-                      readOnly
-                    />
-                  </td>
-                </tr>
-
-                {/* Row 3: Produced & Machine */}
-                <tr>
-                  <th style={labelCell} className="fw-bold">
-                    Fresh plate<span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="number"
-                      min="0"
-                      className="form-control fw-bold"
-                      style={{
-                        ...cellInput,
-                        color: "#166534"
-                      }}
-                      value={productionForm.producedQty}
-                      onChange={(e) => setProductionForm({ ...productionForm, producedQty: e.target.value })}
-                      placeholder="0"
-                      required
-                    />
-                  </td>
-
-                  <th style={labelCell} className="fw-bold">
-                    Machine <span className="text-danger">*</span>
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="text"
-                      className="form-control-plaintext fw-bold p-0"
-                      style={{ fontSize: "14px", color: darkBlue }}
-                      value={productionForm.machine.join(", ") || "-"}
-                      readOnly
-                    />
-                  </td>
-                </tr>
-
-                {/* Row 4: Wastage & (Reason or Remark) */}
-                <tr>
-                  <th style={labelCell} className="fw-bold">
-                    Wastage plate
-                  </th>
-                  <td style={valueCell}>
-                    <input
-                      type="number"
-                      min="0"
-                      className="form-control fw-bold"
-                      style={{
-                        ...cellInput,
-                        color: Number(productionForm.wastageQty) > 0 ? "#d64545" : darkBlue
-                      }}
-                      value={productionForm.wastageQty}
-                      onChange={(e) => setProductionForm({ ...productionForm, wastageQty: e.target.value })}
-                      placeholder="0"
-                    />
-                  </td>
-
-                  {Number(productionForm.wastageQty) > 0 ? (
-                    <>
-                      <th style={labelCell} className="fw-bold">
-                        Reason <span className="text-danger">*</span>
-                      </th>
-                      <td style={valueCell}>
-                        <input
-                          className="form-control"
-                          style={{ ...cellInput, borderColor: "#f59e0b" }}
-                          value={productionForm.reason}
-                          onChange={(e) => setProductionForm({ ...productionForm, reason: e.target.value })}
-                          placeholder="State reason for wastage"
-                        />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <th style={labelCell} className="fw-bold">
-                        Remark
-                      </th>
-                      <td style={valueCell}>
-                        <input
-                          className="form-control"
-                          style={cellInput}
-                          value={productionForm.remark}
-                          onChange={(e) => setProductionForm({ ...productionForm, remark: e.target.value })}
-                          placeholder="Optional"
-                        />
-                      </td>
-                    </>
-                  )}
-                </tr>
-
-                {/* Row 5: Remark (Only when Wastage Qty > 0) */}
-                {Number(productionForm.wastageQty) > 0 && (
-                  <tr>
-                    <th style={labelCell} className="fw-bold">
-                      Remark
-                    </th>
-                    <td style={valueCell} colSpan={3}>
-                      <input
-                        className="form-control"
-                        style={cellInput}
-                        value={productionForm.remark}
-                        onChange={(e) => setProductionForm({ ...productionForm, remark: e.target.value })}
-                        placeholder="Optional"
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+              Cancel
+            </button>
+            <button
+              className="btn btn-po-save"
+              disabled={
+                !productionForm.date ||
+                !productionForm.woNumber.trim() ||
+                !productionForm.customerName.trim() ||
+                !productionForm.jobName.trim() ||
+                !productionForm.machine.length ||
+                productionForm.producedQty === ""
+              }
+              onClick={addProductionEntry}
+            >
+              {editingProductionId ? "Update Entry" : "Save Entry"}
+            </button>
           </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div
-          className="d-flex justify-content-end gap-2 px-4 py-3 position-sticky bottom-0"
-          style={{
-            zIndex: 2,
-            background: "#f8f9fa",
-            borderTop: "1px solid #dfe4e9",
-            marginTop: 0
-          }}
-        >
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary px-3 py-1"
-            style={{ fontSize: "13px" }}
-            onClick={() => {
-              setShowProductionForm(false);
-              resetProductionForm();
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            className="btn btn-sm btn-primary px-3 py-1"
-            style={{ fontSize: "13px" }}
-            disabled={
-              !productionForm.date ||
-              !productionForm.woNumber.trim() ||
-              !productionForm.customerName.trim() ||
-              !productionForm.jobName.trim() ||
-              !productionForm.machine.length ||
-              productionForm.producedQty === ""
-            }
-            onClick={addProductionEntry}
-          >
-            {editingProductionId ? "Update Entry" : "Save Entry"}
-          </button>
         </div>
       </div>
     </div>

@@ -7,10 +7,11 @@ import BASE_URL from "../config/api";
 // KAS (requester) view of the Artwork Docket — restyled to the aqua-glass look
 // of the Reel Register / Prepress pages. All data logic unchanged.
 
-const GLOSSY_BLUE = "#e4572e";
+const GLOSSY_BLUE = "#fde3d8"; // light orange (active chips / send)
+const BRAND = "#e4572e";
 
 const kasArtworkStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
   .paw-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:16px 18px 28px;overflow:hidden;border:0;font-family:'Source Sans 3','Segoe UI',system-ui,-apple-system,sans-serif;color:#1f2d3a;background:#f3f5f7}
   .paw-container>*{position:relative}
 
@@ -72,13 +73,128 @@ const kasArtworkStyles = `
   .paw-fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;color:#fff;border:1px solid transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#e4572e;box-shadow:0 4px 12px rgba(16,40,56,.25);transition:transform .12s ease}
   .paw-fab:hover{transform:none}
   .paw-fab:active{transform:none}
+
+  /* =====================================================================
+     PLANNER PAGE LOOK (appended override, presentation only)
+     ===================================================================== */
+  .paw-container{font-family:'Noto Sans','Segoe UI',system-ui,-apple-system,Arial,sans-serif;font-size:12.5px;color:#000;background:#f4f6f8;padding:24px 28px 40px}
+  .dashboard-container .paw-container{background:none;padding:0;overflow:visible}
+  .paw-heading{border-radius:8px;border:1px solid #e3e7ec;box-shadow:0 1px 3px rgba(16,24,40,.06);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .paw-heading h3{font-size:17px;color:#000;letter-spacing:0}
+  .paw-heading p{font-size:12px;color:#000;font-weight:500}
+  .paw-avatar{background:#d5e9ee;color:#000;border:1px solid #a9cdd6}
+  .paw-userinfo,.paw-userinfo span{color:#000}
+  .paw-back-btn{background:#d5e9ee;color:#000;border:1px solid #a9cdd6}
+  .paw-detail-card{border-radius:8px;border-color:#e3e7ec}
+  .paw-detail-head{background:#fafbfc;border-bottom-color:#e3e7ec}
+  .paw-detail-head div,.paw-thread div{color:#000}
+  .paw-thread{background:#f4f6f8}
+  .paw-composer{border-top-color:#e3e7ec}
+  .paw-chip{color:#000;background:#e8f3f6;border-color:#b9d6dd}
+  .paw-icon-btn{width:38px;height:38px;border:1px solid #cfd6de;border-radius:6px;color:#000}
+  .paw-status{font-size:11px;color:#000}
+  .paw-fab{background:#e4572e;color:#fff}
+  .paw-composer .btn:disabled{color:#9DA2B0!important}
+
+  /* ---- outlined floating-label fields (Planner look) ---- */
+  .paw-container .po-field{position:relative;display:flex;align-items:center;min-height:36px;background:#fff;border:1px solid #cfd6de;border-radius:6px;transition:border-color .15s ease,box-shadow .15s ease}
+  .paw-container .po-field:focus-within{border-color:#0f5560;box-shadow:0 0 0 3px rgba(15,85,96,.15)}
+  .paw-container .po-field.po-invalid{border-color:#d64545}
+  .paw-container .po-field-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#000;font-size:.8rem;pointer-events:none;z-index:1}
+  .paw-container .po-field .po-input{width:100%;min-height:34px;padding:6px 8px 6px 32px;border:none!important;outline:none;background:transparent!important;box-shadow:none!important;border-radius:6px;font-family:inherit;font-size:.8rem;font-weight:500;color:#000}
+  .paw-container .po-field .po-input[readonly]{background:#f7f9fb!important}
+  .paw-container .po-field textarea.po-input{min-height:34px;padding-top:10px;resize:vertical}
+  .paw-container .po-field select.po-input{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:28px}
+  .paw-container .po-field .po-input:disabled{background:#f1f3f5!important;cursor:not-allowed}
+  .paw-container .po-field .po-input::placeholder{color:#6b7685;opacity:1}
+  .paw-container .po-caret{position:absolute;right:10px;font-size:.7rem;color:#000;pointer-events:none}
+  .paw-container .po-field-label{position:absolute;left:32px;top:50%;transform:translateY(-50%);max-width:calc(100% - 34px);overflow:hidden;text-overflow:ellipsis;padding:0 4px;background:#fff;color:#000;font-size:.8rem;font-weight:500;white-space:nowrap;pointer-events:none;transition:all .15s ease}
+  .paw-container .po-field:focus-within .po-field-label,.paw-container .po-field.is-floated .po-field-label{top:0;left:24px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .paw-container .po-req{color:#d64545}
+
+  /* ---- small light buttons, black text ---- */
+  .paw-container .btn{font-size:12px;font-weight:600;border-radius:6px;color:#000!important;box-shadow:none}
+  .paw-container .btn-sm{font-size:11px;min-height:26px;padding:3px 11px}
+  .paw-container .btn:hover:not(:disabled){filter:none;color:#000!important}
+  .paw-container .btn-primary{background:#fde3d8;border-color:#f5b9a1}
+  .paw-container .btn-primary:hover:not(:disabled){background:#fbd0bf}
+  .paw-container .btn-success{background:#d9f2e6;border-color:#a9dcc3}
+  .paw-container .btn-success:hover:not(:disabled){background:#c5ebd6}
+  .paw-container .btn-info{background:#e8f3f6;border-color:#b9d6dd}
+  .paw-container .btn-info:hover:not(:disabled){background:#d5e9ee}
+  .paw-container .btn-danger{background:#fbdcdc;border-color:#f0b4b4}
+  .paw-container .btn-danger:hover:not(:disabled){background:#f7c7c7}
+  .paw-container .btn-secondary,.paw-container .btn-outline{background:#fff;border-color:#cfd6de}
+
+  /* ---- table: column heading colour, black text ---- */
+  .paw-container .production-real-table{font-size:12px}
+  .paw-container .production-real-table thead th{background:#a9d0d9!important;color:#000!important;border:1px solid #8fbcc7!important;font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:9px 10px}
+  .paw-container .production-real-table tbody td{color:#000!important;padding:7px 10px;border-bottom:1px solid #eef1f4!important;border-right:1px solid #f3f5f7!important}
+  .paw-container .production-real-table tbody tr:nth-child(even) td{background:#fafbfc}
+  .paw-container .production-real-table tbody tr:hover td{background:#fdeee8!important}
+  .paw-container .production-real-table-wrap{border:1px solid #e3e7ec;border-radius:8px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .paw-container .production-real-table .empty-state{color:#000!important}
+
+  /* ---- filter bar ---- */
+  .paw-container .filter-bar{justify-content:flex-start;align-items:center;background:#fff;border:1px solid #e3e7ec;border-radius:8px;gap:12px 10px;padding:14px 16px 12px;box-shadow:0 1px 3px rgba(16,24,40,.06)}
+  .paw-container .filter-bar:before{display:none}
+  .paw-container .pp-filter-title{flex:0 0 100%;display:flex;align-items:center;gap:7px;padding-left:8px;border-left:3px solid #e4572e;font-size:13px;font-weight:700;color:#000;margin-bottom:2px}
+  .paw-container .pp-filter-title i{color:#e4572e;font-size:14px}
+  .paw-container .filter-bar .pp-ffield{flex:1 1 170px;min-width:150px;max-width:230px}
+  .paw-container .filter-bar .btn{height:34px}
+
+  .paw-split.po-split{max-width:1000px;margin:0 auto 22px}
+  .paw-split .paw-attach{display:flex;align-items:center;gap:8px;width:100%;padding:10px 13px;border:1px dashed #8fbcc7;border-radius:6px;font-size:12px;font-weight:600;color:#000;cursor:pointer;background:#e8f3f6}
+  .paw-split .paw-attach:hover{background:#d5e9ee}
+  .paw-split .paw-sublabel{font-size:11px;font-weight:700;color:#000;text-transform:uppercase;letter-spacing:.4px;margin:2px 0 6px}
+  .paw-split .paw-codeerr{font-size:11.5px;color:#d64545;margin-top:5px;font-weight:600}
+
+  /* ---- split form card (teal info panel + white form) ---- */
+  .paw-split.po-split{display:flex;background:#fff;border:1px solid #e3e7ec;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(16,24,40,.07)}
+  .paw-split .po-side{flex:0 0 28%;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:24px;color:#fff;background:linear-gradient(170deg,#0b3a45 0%,#0f5560 100%)}
+  .paw-split .po-side::before{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-110px;top:-90px;background:rgba(255,255,255,.06)}
+  .paw-split .po-side::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;left:-90px;bottom:-80px;background:rgba(228,87,46,.18)}
+  .paw-split .po-side>*{position:relative;z-index:1}
+  .paw-split .po-side-brand{font-weight:700;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:#ffb59c}
+  .paw-split .po-side-hero h2{margin:0;padding:0;color:#fff!important;font-size:21px;font-weight:600;line-height:1.15}
+  .paw-split .po-side-hero h1{margin:0 0 12px;color:#fff!important;font-size:36px;font-weight:700;line-height:1;letter-spacing:-.5px}
+  .paw-split .po-side-hero p{margin:0;max-width:210px;font-size:12px;line-height:1.55;color:#c9dde1}
+  .paw-split .po-side-foot{color:#ffb59c;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+  .paw-split .po-main{flex:1;min-width:0;padding:22px 28px;background:#fff}
+  .paw-split .po-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#000;font-size:17px;font-weight:700;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid #e3e7ec}
+  .paw-split .po-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
+  .paw-split .po-grid .po-full{grid-column:1/-1}
+  .paw-split .po-actions{display:flex;justify-content:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e3e7ec}
+  .paw-split .po-actions .btn{min-width:150px;height:38px;padding:0 18px;font-size:12.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
+  .paw-split .po-actions .btn-po-save{background:#e4572e!important;border:1px solid #e4572e!important;color:#fff!important;box-shadow:0 1px 2px rgba(228,87,46,.35)}
+  .paw-split .po-actions .btn-po-save:hover:not(:disabled){background:#c9461f!important;border-color:#c9461f!important}
+  .paw-split .po-actions .btn-po-save:disabled{background:#e2e4ea!important;border-color:#e2e4ea!important;color:#9DA2B0!important;box-shadow:none}
+  @media(max-width:992px){.paw-split.po-split{flex-direction:column}.paw-split .po-side{flex:none;min-height:150px;padding:20px;gap:14px}.paw-split .po-side-hero h1{font-size:28px;margin-bottom:6px}.paw-split .po-main{padding:18px 14px}.paw-split .po-grid{grid-template-columns:1fr}}
 `;
 
+// Outlined floating-label field with a leading icon (Planner styling)
+function PoField({ icon, label, required, filled, alwaysFloat, caret, invalid, className = "", children }) {
+  return (
+    <div className={className}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${invalid ? "po-invalid" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className="po-field-label">
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
 const STATUS_META = {
-  open: { label: "New", fg: "#B4740D", bg: "#FCF1DC", dot: "#E3A63D" },
-  in_progress: { label: "In progress", fg: "#0f6b7c", bg: "#e6f1f3", dot: "#0f6b7c" },
-  changes_submitted: { label: "In review", fg: "#6D3FD1", bg: "#F1ECFD", dot: "#8B5CF6" },
-  closed: { label: "Closed", fg: "#12805E", bg: "#E6F6F0", dot: "#1FA37B" },
+  open: { label: "New", fg: "#000", bg: "#FCF1DC", dot: "#E3A63D" },
+  in_progress: { label: "In progress", fg: "#000", bg: "#e6f1f3", dot: "#0f6b7c" },
+  changes_submitted: { label: "In review", fg: "#000", bg: "#F1ECFD", dot: "#8B5CF6" },
+  closed: { label: "Closed", fg: "#000", bg: "#E6F6F0", dot: "#1FA37B" },
 };
 
 const FILTERS = [
@@ -313,100 +429,118 @@ export default function KasArtworkDashboard() {
         <div className="paw-container">
           <HeadingBar title="New ticket" subtitle="Raise a new artwork request." onBack={() => setView("list")} center />
 
-          <div className="paw-form-card">
-            <div style={{ marginBottom: 16 }}>
-              <label className="paw-field-label">Material code (item code)</label>
-              <input
-                className="paw-form-input"
-                list="item-code-options"
-                value={form.materialCode}
-                onChange={(e) => handleMaterialCodeChange(e.target.value)}
-                placeholder="e.g. MC-90112-B"
-                style={{ borderColor: codeNotFound ? "#d64545" : undefined, fontFamily: "monospace" }}
-              />
-              <datalist id="item-code-options">
-                {items.map((i) => (
-                  <option key={i._id} value={i.itemCode} />
-                ))}
-              </datalist>
-              {codeNotFound && (
-                <div style={{ fontSize: 11.5, color: "#d64545", marginTop: 5, fontWeight: 600 }}>
-                  No item found with this code — customer/variant won't auto-fill.
+          <div className="paw-split po-split">
+            {/* Left info panel */}
+            <div className="po-side">
+              <div className="po-side-brand">Artwork Docket</div>
+
+              <div className="po-side-hero">
+                <h2>Let's Raise</h2>
+                <h1>Ticket</h1>
+                <p>
+                  Enter the item code to auto-fill the customer and variant,
+                  describe the artwork change and attach the files.
+                </p>
+              </div>
+
+              <div className="po-side-foot">New Ticket</div>
+            </div>
+
+            {/* Right form panel */}
+            <div className="po-main">
+              <div className="po-heading">Raise a New Artwork Ticket</div>
+
+              <div className="po-grid">
+                <div className="po-full">
+                  <PoField
+                    icon="bi-upc-scan"
+                    label="Material code (item code)"
+                    required
+                    filled={has(form.materialCode)}
+                    invalid={codeNotFound}
+                  >
+                    <input
+                      className="po-input"
+                      list="item-code-options"
+                      value={form.materialCode}
+                      onChange={(e) => handleMaterialCodeChange(e.target.value)}
+                      placeholder="e.g. MC-90112-B"
+                    />
+                  </PoField>
+                  <datalist id="item-code-options">
+                    {items.map((i) => (
+                      <option key={i._id} value={i.itemCode} />
+                    ))}
+                  </datalist>
+                  {codeNotFound && (
+                    <div className="paw-codeerr">
+                      No item found with this code — customer/variant won't auto-fill.
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label className="paw-field-label">Customer name</label>
-              <input className="paw-form-input" value={form.customerName} readOnly placeholder="Auto-filled from item code" />
-            </div>
+                <PoField icon="bi-person" label="Customer name" alwaysFloat>
+                  <input className="po-input" value={form.customerName} readOnly placeholder="Auto-filled from item code" />
+                </PoField>
 
-            <div style={{ marginBottom: 16 }}>
-              <label className="paw-field-label">Variant (material type)</label>
-              <input className="paw-form-input" value={form.variant} readOnly placeholder="Auto-filled from item code" />
-            </div>
+                <PoField icon="bi-tag" label="Variant (material type)" alwaysFloat>
+                  <input className="po-input" value={form.variant} readOnly placeholder="Auto-filled from item code" />
+                </PoField>
 
-            <div style={{ marginBottom: 16 }}>
-              <label className="paw-field-label">Remarks</label>
-              <textarea
-                className="paw-form-input"
-                value={form.remarks}
-                onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                placeholder="Describe the new artwork or the change needed"
-                rows={4}
-                style={{ resize: "vertical", fontFamily: "inherit" }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 22 }}>
-              <label className="paw-field-label">Attachments (PDF, Excel, images)</label>
-              <button
-                type="button"
-                onClick={() => newFileInputRef.current?.click()}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "11px 13px",
-                  border: "1.5px dashed #cfd6dd", borderRadius: 4, fontSize: 13, fontWeight: 600, color: "#5f6c7a",
-                  cursor: "pointer", background: "#f1f7f8", width: "100%",
-                }}
-              >
-                <Paperclip size={14} />
-                {files.length > 0 ? files.length + " file" + (files.length !== 1 ? "s" : "") + " selected" : "Click to attach files"}
-              </button>
-              <input
-                ref={newFileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.xls,.xlsx,image/png,image/jpeg"
-                onChange={handleFileChange}
-                style={{ display: "none" }}
-              />
-              {files.length > 0 && (
-                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {files.map((f, i) => (
-                    <span key={i} className="paw-chip">
-                      <Paperclip size={12} />
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9aa5b1", padding: 0, marginLeft: 2 }}>×</button>
-                    </span>
-                  ))}
+                <div className="po-full">
+                  <PoField icon="bi-chat-left-text" label="Remarks" required alwaysFloat>
+                    <textarea
+                      className="po-input"
+                      value={form.remarks}
+                      onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+                      placeholder="Describe the new artwork or the change needed"
+                      rows={3}
+                    />
+                  </PoField>
                 </div>
-              )}
-            </div>
 
-            <button
-              className="btn"
-              onClick={createTicket}
-              disabled={!canSubmit}
-              style={{
-                width: "100%", padding: "12px", fontSize: 14,
-                border: canSubmit ? "1px solid transparent" : "none",
-                background: canSubmit ? GLOSSY_BLUE : "#e2e4ea",
-                color: canSubmit ? "#fff" : "#9DA2B0",
-                boxShadow: canSubmit ? "none" : "none",
-              }}
-            >
-              {uploading ? "Raising ticket…" : "Raise ticket"}
-            </button>
+                <div className="po-full">
+                  <div className="paw-sublabel">Attachments (PDF, Excel, images)</div>
+                  <button
+                    type="button"
+                    className="paw-attach"
+                    onClick={() => newFileInputRef.current?.click()}
+                  >
+                    <Paperclip size={14} />
+                    {files.length > 0 ? files.length + " file" + (files.length !== 1 ? "s" : "") + " selected" : "Click to attach files"}
+                  </button>
+                  <input
+                    ref={newFileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.xls,.xlsx,image/png,image/jpeg"
+                    onChange={handleFileChange}
+                    style={{ display: "none" }}
+                  />
+                  {files.length > 0 && (
+                    <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {files.map((f, i) => (
+                        <span key={i} className="paw-chip">
+                          <Paperclip size={12} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                          <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#000", padding: 0, marginLeft: 2 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="po-actions">
+                <button
+                  className="btn btn-po-save"
+                  onClick={createTicket}
+                  disabled={!canSubmit}
+                >
+                  {uploading ? "Raising ticket…" : "Raise ticket"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -495,12 +629,12 @@ export default function KasArtworkDashboard() {
                       </div>
                       <div
                         style={{
-                          background: mine ? "#0f6b7c" : "#fff",
-                          color: mine ? "#fff" : "#1f2d3a",
-                          border: mine ? "none" : "1px solid #dfe4e9",
+                          background: mine ? "#d5e9ee" : "#fff",
+                          color: "#000",
+                          border: mine ? "1px solid #a9cdd6" : "1px solid #e3e7ec",
                           borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                           padding: "10px 13px",
-                          boxShadow: mine ? "0 4px 10px rgba(30,130,190,.3)" : "0 1px 3px rgba(10,80,130,.1)",
+                          boxShadow: "0 1px 2px rgba(16,24,40,.06)",
                         }}
                       >
                         {m.text ? <div style={{ fontSize: 14, lineHeight: 1.5 }}>{m.text}</div> : null}
@@ -514,10 +648,10 @@ export default function KasArtworkDashboard() {
                                 rel="noreferrer"
                                 style={{
                                   display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
-                                  color: mine ? "#fff" : "#1f2d3a",
-                                  border: mine ? "1px solid rgba(255,255,255,0.35)" : "1px solid #dfe4e9",
+                                  color: "#000",
+                                  border: mine ? "1px solid #a9cdd6" : "1px solid #e3e7ec",
                                   borderRadius: 8, padding: "6px 10px",
-                                  background: mine ? "rgba(255,255,255,0.14)" : "#f1f7f8",
+                                  background: mine ? "rgba(255,255,255,0.6)" : "#f1f7f8",
                                   maxWidth: 220, overflow: "hidden", textDecoration: "none",
                                 }}
                               >
@@ -573,18 +707,18 @@ export default function KasArtworkDashboard() {
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder={isClosed ? "Ticket is closed" : "Write a note..."}
                   disabled={isClosed}
-                  style={{ flex: 1, height: 40, borderRadius: 4, border: "1.5px solid #cfd6dd", fontWeight: 600, color: "#1f2d3a", boxShadow: "none" }}
+                  style={{ flex: 1, height: 38, borderRadius: 6, border: "1px solid #cfd6de", fontWeight: 500, fontSize: 12.5, color: "#000", boxShadow: "none" }}
                 />
                 <button
                   className="btn"
                   onClick={sendMessage}
                   disabled={(!msgText.trim() && msgFiles.length === 0) || isClosed || sendingMsg}
                   style={{
-                    padding: "0 16px", height: 40, borderRadius: 4,
-                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid transparent" : "none",
+                    padding: "0 16px", height: 38, borderRadius: 6,
+                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid #f5b9a1" : "none",
                     background: (msgText.trim() || msgFiles.length > 0) && !isClosed ? GLOSSY_BLUE : "#e2e4ea",
                     boxShadow: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "none" : "none",
-                    color: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "#fff" : "#9DA2B0",
+                    color: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "#000" : "#9DA2B0",
                     display: "flex", alignItems: "center", flexShrink: 0,
                   }}
                 >
@@ -610,11 +744,11 @@ export default function KasArtworkDashboard() {
               className="btn btn-sm"
               onClick={() => setFilter(f.key)}
               style={{
-                border: "1px solid " + (filter === f.key ? "rgba(255,255,255,.6)" : "#cfd6dd"),
+                border: "1px solid " + (filter === f.key ? "#f5b9a1" : "#cfd6de"),
                 background: filter === f.key ? GLOSSY_BLUE : "#fff",
-                color: filter === f.key ? "#fff" : "#043a45",
+                color: "#000",
                 textShadow: filter === f.key ? undefined : "none",
-                boxShadow: filter === f.key ? "none" : "0 3px 8px rgba(10,80,130,.12)",
+                boxShadow: "none",
               }}
             >
               {f.label}
@@ -623,22 +757,23 @@ export default function KasArtworkDashboard() {
         </div>
 
         <div className="filter-bar">
-          <input
-            type="text"
-            placeholder="Filter by customer..."
-            className="form-control form-control-sm"
-            style={{ width: "220px" }}
-            value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Filter by ticket ID..."
-            className="form-control form-control-sm"
-            style={{ width: "220px" }}
-            value={ticketFilter}
-            onChange={(e) => setTicketFilter(e.target.value)}
-          />
+          <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filter Tickets</div>
+          <PoField className="pp-ffield" icon="bi-person" label="Customer" filled={has(customerFilter)}>
+            <input
+              type="text"
+              className="po-input"
+              value={customerFilter}
+              onChange={(e) => setCustomerFilter(e.target.value)}
+            />
+          </PoField>
+          <PoField className="pp-ffield" icon="bi-ticket-perforated" label="Ticket ID" filled={has(ticketFilter)}>
+            <input
+              type="text"
+              className="po-input"
+              value={ticketFilter}
+              onChange={(e) => setTicketFilter(e.target.value)}
+            />
+          </PoField>
           {(customerFilter || ticketFilter || filter !== "all") && (
             <button
               className="btn btn-sm btn-secondary"

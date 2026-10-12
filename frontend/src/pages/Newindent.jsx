@@ -5,6 +5,25 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
 
+// Outlined floating-label field with a leading icon (Planner styling)
+function PoField({ icon, label, required, filled, alwaysFloat, caret, area, className = "", after, children }) {
+  return (
+    <div className={className}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${area ? "po-area" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className="po-field-label">
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+      {after}
+    </div>
+  );
+}
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
 function NewIndent() {
   const [locations, setLocations] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState("");
@@ -18,6 +37,8 @@ function NewIndent() {
   const productCodeRef = useRef();
   const stageRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
+  // entry form is hidden until "Create New Indent" is clicked (or an indent is edited)
+  const [showForm, setShowForm] = useState(false);
   const quantityRef = useRef();
   const locationRef = useRef();
 
@@ -312,6 +333,7 @@ function NewIndent() {
     setExistingCustomerCopy(item.customerCopy?.filePath ? item.customerCopy : null);
     setExistingArtwork(item.artwork?.filePath ? item.artwork : null);
     setEditingId(ind._id);
+    setShowForm(true);
 
     // bring the whole form panel into view, then auto-focus first input field
     stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1139,6 +1161,112 @@ function NewIndent() {
   padding-right: 30px !important;
 }
 
+
+        /* =====================================================================
+           PLANNER PAGE LOOK (appended override, presentation only)
+           ===================================================================== */
+        .indent-app-container{--ink:#000;--ink-soft:#000;--ink-mute:#000;font-size:12.5px;padding:24px 28px 40px}
+        .indent-app-container .text-muted,.indent-app-container .text-primary,.indent-app-container small{color:#000!important}
+        .indent-app-container a{color:#0f5560}
+        .indent-app-container .gl-title{font-size:16px}
+        .indent-app-container .gl-pill{font-size:10.5px;color:#000;background:#e3f1f4;border-color:#b9d6dd}
+        .indent-error-text{color:#d64545!important}
+
+        /* split entry form */
+        .indent-app-container .gl-card.indent-split{display:flex;padding:0;overflow:hidden;max-width:1180px;margin-left:auto;margin-right:auto}
+        .indent-app-container .indent-split .po-main{padding:22px 28px 22px}
+        .indent-app-container .indent-split .gl-inner{border:0;padding:0;margin-top:14px;background:transparent}
+        .indent-app-container .indent-split .gl-inner.first{margin-top:0}
+        .indent-app-container .indent-split .gl-group{font-size:13px;margin-bottom:10px}
+        .indent-app-container .indent-split .gl-group i{font-size:.9rem}
+        .indent-app-container .indent-split .btn-submit-indent{font-size:12.5px;padding:9px 36px;min-width:190px}
+        .indent-app-container .indent-split .po-heading .gl-pill{font-size:10.5px}
+        .po-field.po-area .po-field-label{top:17px}
+        .po-field.po-area.is-floated .po-field-label,.po-field.po-area:focus-within .po-field-label{top:0}
+        .po-field.po-area .po-field-icon{top:15px;transform:none}
+
+        /* filter / table cards */
+        .bar-head h5{font-size:14px;padding-left:8px;border-left:3px solid #e4572e}
+        .bar-head h5 svg{color:#e4572e}
+        .bar-count{font-size:11px;color:#000}
+        .indent-app-container .btn-export{background:#d9f2e6;border-color:#a9dcc3;color:#000;box-shadow:none;font-size:12px;min-height:34px}
+        .indent-app-container .btn-export:hover{background:#c5ebd6;border-color:#8fceb0;color:#000}
+        .indent-app-container .btn-clear-filters{font-size:12px;min-height:34px;color:#000}
+        .btn-action-edit{background-color:#e8f3f6!important;color:#000!important;border:1px solid #b9d6dd!important}
+        .btn-action-edit:hover{background-color:#d5e9ee!important;color:#000!important}
+        .btn-action-delete{background-color:#fbdcdc!important;color:#000!important;border:1px solid #f0b4b4!important}
+        .btn-action-delete:hover{background-color:#f7c7c7!important;color:#000!important;border-color:#f0b4b4!important}
+
+        /* table */
+        .custom-table-container thead th{background:#a9d0d9!important;color:#000!important;border:1px solid #8fbcc7!important;font-size:10.5px}
+        .custom-table-container tbody td{font-size:12px;color:#000}
+        .custom-badge{font-size:11px;color:#000!important}
+        .badge-pending{background-color:#fff3d6}
+        .badge-approved{background-color:#d9f2e6;border-color:#a9dcc3}
+        .badge-rejected{background-color:#fbdcdc;border-color:#f0b4b4}
+
+  /* ---- outlined floating-label fields (Planner look) ---- */
+  .indent-app-container .po-field{position:relative;display:flex;align-items:center;min-height:36px;background:#fff;border:1px solid #cfd6de;border-radius:6px;transition:border-color .15s ease,box-shadow .15s ease}
+  .indent-app-container .po-field:focus-within{border-color:#0f5560;box-shadow:0 0 0 3px rgba(15,85,96,.15)}
+  .indent-app-container .po-field.po-invalid{border-color:#d64545}
+  .indent-app-container .po-field-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#000;font-size:.8rem;pointer-events:none;z-index:1}
+  .indent-app-container .po-field .po-input{width:100%;min-height:34px;padding:6px 8px 6px 32px;border:none!important;outline:none;background:transparent!important;box-shadow:none!important;border-radius:6px;font-family:inherit;font-size:.8rem;font-weight:500;color:#000}
+  .indent-app-container .po-field .po-input[readonly]{background:#f7f9fb!important}
+  .indent-app-container .po-field textarea.po-input{min-height:34px;padding-top:10px;resize:vertical}
+  .indent-app-container .po-field select.po-input{appearance:none;-webkit-appearance:none;cursor:pointer;padding-right:28px}
+  .indent-app-container .po-field .po-input:disabled{background:#f1f3f5!important;cursor:not-allowed}
+  .indent-app-container .po-field .po-input::placeholder{color:#6b7685;opacity:1}
+  .indent-app-container .po-caret{position:absolute;right:10px;font-size:.7rem;color:#000;pointer-events:none}
+  .indent-app-container .po-field-label{position:absolute;left:32px;top:50%;transform:translateY(-50%);max-width:calc(100% - 34px);overflow:hidden;text-overflow:ellipsis;padding:0 4px;background:#fff;color:#000;font-size:.8rem;font-weight:500;white-space:nowrap;pointer-events:none;transition:all .15s ease}
+  .indent-app-container .po-field:focus-within .po-field-label,.indent-app-container .po-field.is-floated .po-field-label{top:0;left:24px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .indent-app-container .po-req{color:#d64545}
+
+  /* ---- split form card (teal info panel + white form) ---- */
+  .indent-app-container .indent-split.po-split{display:flex;background:#fff;border:1px solid #e3e7ec;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(16,24,40,.07)}
+  .indent-app-container .indent-split .po-side{flex:0 0 28%;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:24px;color:#fff;background:linear-gradient(170deg,#0b3a45 0%,#0f5560 100%)}
+  .indent-app-container .indent-split .po-side::before{content:'';position:absolute;width:260px;height:260px;border-radius:50%;right:-110px;top:-90px;background:rgba(255,255,255,.06)}
+  .indent-app-container .indent-split .po-side::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;left:-90px;bottom:-80px;background:rgba(228,87,46,.18)}
+  .indent-app-container .indent-split .po-side>*{position:relative;z-index:1}
+  .indent-app-container .indent-split .po-side-brand{font-weight:700;font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:#ffb59c}
+  .indent-app-container .indent-split .po-side-hero h2{margin:0;padding:0;color:#fff!important;font-size:21px;font-weight:600;line-height:1.15}
+  .indent-app-container .indent-split .po-side-hero h1{margin:0 0 12px;color:#fff!important;font-size:36px;font-weight:700;line-height:1;letter-spacing:-.5px}
+  .indent-app-container .indent-split .po-side-hero p{margin:0;max-width:210px;font-size:12px;line-height:1.55;color:#c9dde1}
+  .indent-app-container .indent-split .po-side-foot{color:#ffb59c;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+  .indent-app-container .indent-split .po-main{flex:1;min-width:0;padding:22px 28px;background:#fff}
+  .indent-app-container .indent-split .po-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#000;font-size:17px;font-weight:700;padding-bottom:10px;margin-bottom:16px;border-bottom:1px solid #e3e7ec}
+  .indent-app-container .indent-split .po-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 12px}
+  .indent-app-container .indent-split .po-grid .po-full{grid-column:1/-1}
+  .indent-app-container .indent-split .po-actions{display:flex;justify-content:center;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid #e3e7ec}
+  .indent-app-container .indent-split .po-actions .btn{min-width:150px;height:38px;padding:0 18px;font-size:12.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase}
+  .indent-app-container .indent-split .po-actions .btn-po-save{background:#e4572e!important;border:1px solid #e4572e!important;color:#fff!important;box-shadow:0 1px 2px rgba(228,87,46,.35)}
+  .indent-app-container .indent-split .po-actions .btn-po-save:hover:not(:disabled){background:#c9461f!important;border-color:#c9461f!important}
+  .indent-app-container .indent-split .po-actions .btn-po-save:disabled{background:#e2e4ea!important;border-color:#e2e4ea!important;color:#9DA2B0!important;box-shadow:none}
+  @media(max-width:992px){.indent-app-container .indent-split.po-split{flex-direction:column}.indent-app-container .indent-split .po-side{flex:none;min-height:150px;padding:20px;gap:14px}.indent-app-container .indent-split .po-side-hero h1{font-size:28px;margin-bottom:6px}.indent-app-container .indent-split .po-main{padding:18px 14px}.indent-app-container .indent-split .po-grid{grid-template-columns:1fr}}
+
+        /* "Create New Indent" toggle button (same tab style as the Planner / Customer pages) */
+        .indent-app-container .mode-toggle-bar{display:flex;justify-content:center;gap:4px;width:fit-content;margin:0 auto 18px;padding:4px;border-radius:8px;background:#fff;border:1px solid #e3e7ec;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+        .indent-app-container .mode-pill-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:transparent;color:#000;border-radius:6px;padding:6px 18px;font-weight:600;font-size:12px;cursor:pointer;transition:all .15s ease}
+        .indent-app-container .mode-pill-btn:hover{background:#f4f6f8}
+        .indent-app-container .mode-pill-btn.active{background:#fde3d8;border-color:#f5b9a1;color:#000}
+        .indent-app-container .mode-pill-btn i{color:#e4572e}
+        .indent-app-container .gl-stage:empty{display:none}
+
+/* show the full label on hover/focus */
+.indent-app-container .po-field:hover .po-field-label,
+.indent-app-container .po-field:focus-within .po-field-label,
+.indent-app-container .po-field.is-floated .po-field-label {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  z-index: 3;
+}
+.indent-app-container .po-field .po-input {
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.indent-app-container .po-field input[type="date"].po-input {
+  padding-right: 6px;
+}
 `}</style>
 
       <div className="indent-app-container">
@@ -1146,13 +1274,42 @@ function NewIndent() {
         {/* HEADER SECTION */}
 
         {/* ===== ENTRY FORM (glass panel) ===== */}
+        <div className="mode-toggle-bar">
+          <button
+            type="button"
+            className={`mode-pill-btn ${showForm ? "active" : ""}`}
+            onClick={() => setShowForm((prev) => !prev)}
+          >
+            <i className="bi bi-plus-circle"></i> Create New Indent
+          </button>
+        </div>
+
         <div className="gl-stage" ref={stageRef}>
-          <div className="gl-card">
-            <div className="gl-head">
-              <h3 className="gl-title" style={{ textAlign: "center", width: "100%" }}>Indent Details</h3>
-              <span className="gl-pill" style={{ textAlign: "center", width: "100%" }}>
-                {editingId ? "Editing indent" : "New indent"}
-              </span>
+          {showForm && (
+          <div className="gl-card indent-split po-split">
+            {/* Left info panel */}
+            <div className="po-side">
+              <div className="po-side-brand">Indent</div>
+
+              <div className="po-side-hero">
+                <h2>Let's Raise</h2>
+                <h1>{editingId ? "Update" : "Indent"}</h1>
+                <p>
+                  Enter the product code to auto-fill the product details, then
+                  add the order, billing and file details.
+                </p>
+              </div>
+
+              <div className="po-side-foot">
+                {editingId ? "Updating Indent" : "New Indent"}
+              </div>
+            </div>
+
+            {/* Right form panel */}
+            <div className="po-main">
+            <div className="po-heading">
+              <span>Indent Details</span>
+              <span className="gl-pill">{editingId ? "Editing indent" : "New indent"}</span>
             </div>
 
             <form onSubmit={handleSubmit}>
@@ -1160,344 +1317,363 @@ function NewIndent() {
               {/* SECTION 1: PRODUCT INFO */}
               <div className="gl-inner first">
                 <div className="gl-group">
-                  <i className="bi bi-check-circle-fill"></i>
+                  <i className="bi bi-box-seam"></i>
                   <span>Product Details</span>
                 </div>
 
                 <div className="row g-2">
-                  <div className="col-6 col-md-3 col-xl-2">
-                    <label className="custom-label">
-                      Product Code<span className="required-star">*</span>
-                    </label>
+                  <PoField className="col-6 col-md-4"
+                    icon="bi-upc-scan"
+                    label="Product Code"
+                    required
+                    filled={has(form.productCode)}
+                    after={
+                    <>
+    {errors.productCode && <small className="indent-error-text">{errors.productCode}</small>}
+                    </>
+                  }
+                  >
                     <input
                       ref={productCodeRef}
                       type="text"
                       name="productCode"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.productCode}
+ title={form.productCode}
                       onChange={handleChange}
                       onKeyDown={(e) => e.key === "Enter" && quantityRef.current.focus()}
-                      placeholder="Enter code"
-                    />
-                    {errors.productCode && <small className="indent-error-text">{errors.productCode}</small>}
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-3 col-xl-2">
-                    <label className="custom-label">Product Type</label>
+                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Product Type" filled={has(form.materialType)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.materialType}
+ title={form.materialType}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-12 col-md-6 col-xl-3">
-                    <label className="custom-label">Customer</label>
+                  <PoField className="col-12 col-md-4" icon="bi-person" label="Customer" filled={has(form.customerName)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.customerName}
+ title={form.customerName}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-12 col-md-6 col-xl-5">
-                    <label className="custom-label">Description</label>
+                  <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(form.description)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.description}
+ title={form.description}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
-                  <div className="col-6 col-md-3 col-xl-2">
-                    <label className="custom-label">Color Front</label>
+                      />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" filled={has(form.colorFront)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.colorFront}
+ title={form.colorFront}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
-                  <div className="col-6 col-md-3 col-xl-2">
-                    <label className="custom-label">Color Back</label>
+                      />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(form.colorBack)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.colorBack}
+ title={form.colorBack}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
-                  <div className="col-12 col-md-6 col-xl-3">
-                    <label className="custom-label">Job Size</label>
+                      />
+                  </PoField>
+                  <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(form.jobSize)}>
                     <input
-                      className="form-control custom-input custom-input-readonly"
+                      className="po-input"
                       value={form.jobSize}
+ title={form.jobSize}
                       readOnly
-                      placeholder="Auto-filled"
-                    />
-                  </div>
+                      />
+                  </PoField>
                 </div>
               </div>
 
               {/* SECTION 2: ORDER INFO */}
               <div className="gl-inner">
                 <div className="gl-group">
-                  <i className="bi bi-check-circle-fill"></i>
+                  <i className="bi bi-list-check"></i>
                   <span>Order Specifications</span>
                 </div>
 
                 <div className="row g-2">
-                  <div className="col-6 col-md-3">
-                    <label className="custom-label">
-                      Order Quantity<span className="required-star">*</span>
-                    </label>
+                  <PoField className="col-6 col-md-3"
+                    icon="bi-123"
+                    label="Order Quantity"
+                    required
+                    filled={has(form.quantity)}
+                    after={
+                    <>
+    {errors.quantity && <small className="indent-error-text">{errors.quantity}</small>}
+                    </>
+                  }
+                  >
                     <input
                       ref={quantityRef}
                       type="number"
                       name="quantity"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.quantity}
+ title={form.quantity}
                       onChange={handleChange}
                       onKeyDown={(e) => e.key === "Enter" && locationRef.current.focus()}
-                      placeholder="Enter quantity"
-                    />
-                    {errors.quantity && <small className="indent-error-text">{errors.quantity}</small>}
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-3">
-                    <label className="custom-label">
-                      Location<span className="required-star">*</span>
-                    </label>
+                  <PoField className="col-6 col-md-3"
+                    icon="bi-geo-alt"
+                    label="Location"
+                    required
+                    alwaysFloat
+                    caret
+                    after={
+                    <>
+    {errors.location && <small className="indent-error-text">{errors.location}</small>}
+                    </>
+                  }
+                  >
                     <select
                       ref={locationRef}
                       name="location"
-                      className="form-select custom-input"
+                      className="po-input"
                       value={form.location}
+ title={locations.find(l => l._id === form.location)?.locationName || ""}
                       onChange={handleChange}
-                    >
+                      >
                       <option value="">Select Location</option>
                       {locations.map(loc => (
-                        <option key={loc._id} value={loc._id}>{loc.locationName}</option>
+                      <option key={loc._id} value={loc._id}>{loc.locationName}</option>
                       ))}
-                    </select>
-                    {errors.location && <small className="indent-error-text">{errors.location}</small>}
-                  </div>
+                      </select>
+                  </PoField>
 
-                  <div className="col-6 col-md-3">
-                    <label className="custom-label">Unit Rate</label>
+                  <PoField className="col-6 col-md-3" icon="bi-currency-rupee" label="Unit Rate" filled={has(form.unitRate)}>
                     <input
                       type="number"
                       name="unitRate"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.unitRate}
+ title={form.unitRate}
                       onChange={handleChange}
-                      placeholder="Enter rate"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-3">
-                    <label className="custom-label">Delivery Date</label>
+                  <PoField className="col-6 col-md-3" icon="bi-calendar-event" label="Delivery Date" alwaysFloat>
                     <input
                       type="date"
                       name="deliveryDate"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.deliveryDate}
+ title={form.deliveryDate}
                       onChange={handleChange}
-                    />
-                  </div>
+                      />
+                  </PoField>
                 </div>
               </div>
 
               {/* SECTION 3: SALES ORDER / BILLING DETAILS (NEW) */}
               <div className="gl-inner">
                 <div className="gl-group">
-                  <i className="bi bi-check-circle-fill"></i>
+                  <i className="bi bi-receipt-cutoff"></i>
                   <span>Sales Order / Billing Details</span>
                 </div>
 
                 <div className="row g-2">
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Lamination</label>
+                  <PoField className="col-6 col-md-4" icon="bi-layers" label="Lamination" filled={has(form.lamination)}>
                     <input
                       type="text"
                       name="lamination"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.lamination}
+ title={form.lamination}
                       onChange={handleChange}
-                      placeholder="Enter lamination"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Finish</label>
+                  <PoField className="col-6 col-md-4" icon="bi-stars" label="Finish" filled={has(form.finish)}>
                     <input
                       type="text"
                       name="finish"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.finish}
+ title={form.finish}
                       onChange={handleChange}
-                      placeholder="Enter finish"
-                    />
-                  </div>
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Job No</label>
+                      />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-hash" label="Job No" filled={has(form.jobNo)}>
                     <input
                       type="text"
                       name="jobNo"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.jobNo}
+ title={form.jobNo}
                       onChange={handleChange}
-                      placeholder="Enter job no"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">SO No</label>
+                  <PoField className="col-6 col-md-4" icon="bi-file-earmark-text" label="SO No" filled={has(form.soNo)}>
                     <input
                       type="text"
                       name="soNo"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.soNo}
+ title={form.soNo}
                       onChange={handleChange}
-                      placeholder="Enter SO no"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">SO Date</label>
+                  <PoField className="col-6 col-md-4" icon="bi-calendar-date" label="SO Date" alwaysFloat>
                     <input
                       type="date"
                       name="soDate"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.soDate}
+ title={form.soDate}
                       onChange={handleChange}
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Sample Type</label>
+                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Sample Type" alwaysFloat caret>
                     <select
                       name="sampleType"
-                      className="form-select custom-input"
+                      className="po-input"
                       value={form.sampleType}
+ title={form.sampleType}
                       onChange={handleChange}
-                    >
+                      >
                       <option value="">Select Type</option>
                       <option value="Offset">Offset</option>
                       <option value="Digital">Digital</option>
-                    </select>
-                  </div>
+                      </select>
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Costing Confirmation</label>
+                  <PoField className="col-6 col-md-4" icon="bi-check2-circle" label="Costing Confirmation" filled={has(form.costingConfirmation)}>
                     <input
                       type="text"
                       name="costingConfirmation"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.costingConfirmation}
+ title={form.costingConfirmation}
                       onChange={handleChange}
-                      placeholder="Enter confirmation"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Type of Billing</label>
+                  <PoField className="col-6 col-md-4" icon="bi-receipt" label="Type of Billing" alwaysFloat caret>
                     <select
                       name="typeOfBilling"
-                      className="form-select custom-input"
+                      className="po-input"
                       value={form.typeOfBilling}
+ title={form.typeOfBilling === "Billing" ? "Readiness Billing" : form.typeOfBilling}
                       onChange={handleChange}
-                    >
+                      >
                       <option value="">Select Billing</option>
                       <option value="Billing">Readiness Billing</option>
                       <option value="Kit Billing">Kit Billing</option>
-                    </select>
-                  </div>
+                      </select>
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Customer PO No</label>
+                  <PoField className="col-6 col-md-4" icon="bi-receipt" label="Customer PO No" filled={has(form.customerPoNo)}>
                     <input
                       type="text"
                       name="customerPoNo"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.customerPoNo}
+ title={form.customerPoNo}
                       onChange={handleChange}
-                      placeholder="Enter customer PO no"
-                    />
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-6 col-md-4 col-xl-2">
-                    <label className="custom-label">Customer PO Date</label>
+                  <PoField className="col-6 col-md-4" icon="bi-calendar-check" label="Customer PO Date" alwaysFloat>
                     <input
                       type="date"
                       name="customerPoDate"
-                      className="form-control custom-input"
+                      className="po-input"
                       value={form.customerPoDate}
+ title={form.customerPoDate}
                       onChange={handleChange}
-                    />
-                  </div>
+                      />
+                  </PoField>
                 </div>
               </div>
 
               {/* SECTION 4: ADDITIONAL INFO */}
               <div className="gl-inner">
                 <div className="gl-group">
-                  <i className="bi bi-check-circle-fill"></i>
+                  <i className="bi bi-info-circle"></i>
                   <span>Additional Information</span>
                 </div>
 
                 <div className="row g-2">
-                  <div className="col-md-6 col-xl-4">
-                    <label className="custom-label">PO Copy (Upload)</label>
+                  <PoField className="col-md-6"
+                    icon="bi-paperclip"
+                    label="PO Copy (Upload)"
+                    alwaysFloat
+                    after={
+                    <>
+    {customerCopyFile && (
+    <small className="text-muted d-block mt-1">Selected: {customerCopyFile.name}</small>
+    )}
+    {!customerCopyFile && existingCustomerCopy?.filePath && (
+    <small className="d-block mt-1">
+    Current: <a href={`${BASE_URL}${existingCustomerCopy.filePath}`} target="_blank" rel="noreferrer">{existingCustomerCopy.fileName}</a>
+    </small>
+    )}
+                    </>
+                  }
+                  >
                     <input
                       type="file"
                       name="customerCopy"
-                      className="form-control custom-input"
+                      className="po-input"
                       onChange={handleFileChange}
                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                    />
-                    {customerCopyFile && (
-                      <small className="text-muted d-block mt-1">Selected: {customerCopyFile.name}</small>
-                    )}
-                    {!customerCopyFile && existingCustomerCopy?.filePath && (
-                      <small className="d-block mt-1">
-                        Current: <a href={`${BASE_URL}${existingCustomerCopy.filePath}`} target="_blank" rel="noreferrer">{existingCustomerCopy.fileName}</a>
-                      </small>
-                    )}
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-md-6 col-xl-4">
-                    <label className="custom-label">Artwork (Upload)</label>
+                  <PoField className="col-md-6"
+                    icon="bi-image"
+                    label="Artwork (Upload)"
+                    alwaysFloat
+                    after={
+                    <>
+    {artworkFile && (
+    <small className="text-muted d-block mt-1">Selected: {artworkFile.name}</small>
+    )}
+    {!artworkFile && existingArtwork?.filePath && (
+    <small className="d-block mt-1">
+    Current: <a href={`${BASE_URL}${existingArtwork.filePath}`} target="_blank" rel="noreferrer">{existingArtwork.fileName}</a>
+    </small>
+    )}
+                    </>
+                  }
+                  >
                     <input
                       type="file"
                       name="artwork"
-                      className="form-control custom-input"
+                      className="po-input"
                       onChange={handleFileChange}
                       accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.doc,.docx"
-                    />
-                    {artworkFile && (
-                      <small className="text-muted d-block mt-1">Selected: {artworkFile.name}</small>
-                    )}
-                    {!artworkFile && existingArtwork?.filePath && (
-                      <small className="d-block mt-1">
-                        Current: <a href={`${BASE_URL}${existingArtwork.filePath}`} target="_blank" rel="noreferrer">{existingArtwork.fileName}</a>
-                      </small>
-                    )}
-                  </div>
+                      />
+                  </PoField>
 
-                  <div className="col-12 col-xl-4">
-                    <label className="custom-label">Remarks</label>
+                  <PoField className="col-12" icon="bi-chat-left-text" label="Remarks" filled={has(form.remark)} area>
                     <textarea
                       name="remark"
-                      className="form-control custom-input custom-textarea"
-                      rows="2"
+                      className="po-input"
                       value={form.remark}
+ title={form.remark}
                       onChange={handleChange}
-                      placeholder="Add indent notes or details..."
-                    />
-                  </div>
+                      />
+                  </PoField>
                 </div>
               </div>
 
@@ -1512,7 +1688,9 @@ function NewIndent() {
                 </button>
               </div>
             </form>
+            </div>
           </div>
+          )}
         </div>
 
         {/* ===== FILTERS ===== */}
@@ -1531,71 +1709,65 @@ function NewIndent() {
 
           <div className="bar-body">
             <div className="row g-2 align-items-end">
-              <div className="col-6 col-lg-2">
-                <label className="custom-label">Indent No</label>
+              <PoField className="col-6 col-lg-2" icon="bi-search" label="Indent No" filled={has(indentNoFilter)}>
                 <input
                   type="text"
-                  placeholder="Search Indent No"
-                  className="form-control custom-input"
+                  className="po-input"
                   value={indentNoFilter}
+ title={indentNoFilter}
                   onChange={(e) => setIndentNoFilter(e.target.value)}
-                />
-              </div>
+                  />
+              </PoField>
 
-              <div className="col-6 col-lg-2">
-                <label className="custom-label">Product Code</label>
+              <PoField className="col-6 col-lg-2" icon="bi-upc-scan" label="Product Code" filled={has(productCodeFilter)}>
                 <input
                   type="text"
-                  placeholder="Search Code"
-                  className="form-control custom-input"
+                  className="po-input"
                   value={productCodeFilter}
+ title={productCodeFilter}
                   onChange={(e) => setProductCodeFilter(e.target.value)}
-                />
-              </div>
+                  />
+              </PoField>
 
-              <div className="col-12 col-lg-3">
-                <label className="custom-label">Customer Name</label>
+              <PoField className="col-12 col-lg-3" icon="bi-person" label="Customer Name" filled={has(customerFilter)}>
                 <input
                   type="text"
-                  placeholder="Search Customer"
-                  className="form-control custom-input"
+                  className="po-input"
                   value={customerFilter}
+ title={customerFilter}
                   onChange={(e) => setCustomerFilter(e.target.value)}
-                />
-              </div>
+                  />
+              </PoField>
 
-              <div className="col-6 col-lg-2">
-                <label className="custom-label">Location</label>
+              <PoField className="col-6 col-lg-2" icon="bi-geo-alt" label="Location" alwaysFloat caret>
                 <select
-                  className="form-select custom-input"
+                  className="po-input"
                   value={locationFilter}
                   onChange={(e) => setLocationFilter(e.target.value)}
-                >
+                  >
                   <option value="">All Locations</option>
                   {locations.map(loc => (
-                    <option key={loc._id} value={loc._id}>{loc.locationName}</option>
+                  <option key={loc._id} value={loc._id}>{loc.locationName}</option>
                   ))}
-                </select>
-              </div>
-              <div className="col-6 col-lg-3">
-                <label className="custom-label">From Date</label>
+                  </select>
+              </PoField>
+              <PoField className="col-6 col-lg-3" icon="bi-calendar-event" label="From Date" alwaysFloat>
                 <input
                   type="date"
-                  className="form-control custom-input"
+                  className="po-input"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
-                />
-              </div>
+                  />
+              </PoField>
 
-              <div className="col-6 col-lg-3">
-                <label className="custom-label">To Date</label>
+              <PoField className="col-6 col-lg-3" icon="bi-calendar-check" label="To Date" alwaysFloat>
                 <input
                   type="date"
-                  className="form-control custom-input"
+                  className="po-input"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
-                />
-              </div>
+                  />
+              </PoField>
               <div className="col-6 col-lg-3">
                 <button
                   type="button"

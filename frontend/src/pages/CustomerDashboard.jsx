@@ -571,7 +571,7 @@ function CustomerDashboard() {
       className="container customer-dashboard-universe"
       style={{
         maxWidth: "100%",
-        fontSize: "14px"
+        fontSize: "12.5px"
       }}
     >
       {/* ======================================================================
@@ -1290,6 +1290,117 @@ function CustomerDashboard() {
 }
 
         .customer-dashboard-universe .po-field-icon { font-size: 0.78rem !important; }
+
+        /* =====================================================================
+           PLANNER PAGE LOOK: font, sizes, black text, light buttons,
+           column header colour (appended override, no logic change)
+           ===================================================================== */
+        .customer-dashboard-universe {
+          --ink: #000000;
+          --ink-soft: #000000;
+          --ink-mute: #000000;
+          --field-line: #cfd6de;
+          --teal-soft: #e3f1f4;
+          font-size: 12.5px !important;
+        }
+
+        /* headings / helper text */
+        .customer-dashboard-universe h4 { font-size: 16px; }
+        .customer-dashboard-universe h5 { font-size: 14px; }
+        .customer-dashboard-universe h6 { font-size: 13px; }
+        .customer-dashboard-universe small,
+        .customer-dashboard-universe .small { font-size: 11.5px; color: #000000 !important; }
+        .customer-dashboard-universe .form-label { font-size: 11.5px; }
+        .customer-dashboard-universe .text-primary,
+        .customer-dashboard-universe .text-muted,
+        .customer-dashboard-universe .text-dark { color: #000000 !important; }
+        .customer-dashboard-universe .card-header { font-size: 14px; }
+        .customer-dashboard-universe .dash-hero-title { font-size: 18px; }
+
+        /* top mode tabs: smaller, black text, light selected fill */
+        .customer-dashboard-universe .mode-pill-btn { font-size: 12px; padding: 5px 14px; color: #000000; }
+        .customer-dashboard-universe .mode-pill-btn:hover { color: #000000; }
+        .customer-dashboard-universe .mode-pill-btn.active {
+          background: #fde3d8; border-color: #f5b9a1; color: #000000; box-shadow: none;
+        }
+        .customer-dashboard-universe .mode-pill-btn.warning-active {
+          background: #d5e9ee; border-color: #a9cdd6; color: #000000; box-shadow: none;
+        }
+
+        /* buttons: size + light colours, black text */
+        .customer-dashboard-universe .btn { font-size: 12px; min-height: 32px; color: #000000; }
+        .customer-dashboard-universe .btn-sm { font-size: 11px; min-height: 26px; }
+        .customer-dashboard-universe .btn-primary,
+        .customer-dashboard-universe .btn-success {
+          background: #fde3d8 !important; border: 1px solid #f5b9a1 !important; color: #000000 !important;
+        }
+        .customer-dashboard-universe .btn-primary:hover,
+        .customer-dashboard-universe .btn-success:hover {
+          background: #fbd0bf !important; border-color: #f0a48a !important; color: #000000 !important;
+        }
+        .customer-dashboard-universe .btn-info {
+          background: #e8f3f6 !important; border: 1px solid #b9d6dd !important; color: #000000 !important;
+        }
+        .customer-dashboard-universe .btn-info:hover {
+          background: #d5e9ee !important; color: #000000 !important;
+        }
+        .customer-dashboard-universe .btn-secondary { color: #000000 !important; }
+        .customer-dashboard-universe .btn-warning { background: #fff3d6 !important; color: #000000 !important; }
+        .customer-dashboard-universe .btn-danger { background: #fdecec !important; color: #000000 !important; }
+        .customer-dashboard-universe .po-fbtn { font-size: 12px; min-height: 34px; }
+        .customer-dashboard-universe .po-fbtn.export {
+          background: #fde3d8; border-color: #f5b9a1; color: #000000; box-shadow: none;
+        }
+        .customer-dashboard-universe .po-fbtn.export:hover {
+          background: #fbd0bf; border-color: #f0a48a;
+        }
+        .customer-dashboard-universe .po-fbtn.clear { color: #000000; }
+        .customer-dashboard-universe .po-submit { font-size: 12.5px; }
+
+        /* badges */
+        .customer-dashboard-universe .badge.bg-primary { background: #d5e9ee !important; color: #000000 !important; }
+        .customer-dashboard-universe .badge.bg-warning { color: #000000 !important; }
+        .customer-dashboard-universe .badge.bg-info { color: #000000 !important; }
+        .customer-dashboard-universe .badge { font-size: 11px; }
+        .customer-dashboard-universe .cell-expandable { color: #000000; }
+
+        /* tables: column heading colour (slightly darker teal), black text */
+        .customer-dashboard-universe table { font-size: 12px; }
+        .customer-dashboard-universe thead th {
+          background: #a9d0d9 !important;
+          color: #000000 !important;
+          border: 1px solid #8fbcc7 !important;
+          font-size: 10.5px;
+          font-weight: 700;
+          padding: 9px 10px;
+        }
+        .customer-dashboard-universe tbody td { font-size: 12px; color: #000000; padding: 7px 10px; }
+
+        /* split entry form (same as Planner Create Work Order) */
+        .customer-dashboard-universe .po-heading { font-size: 17px; }
+        .customer-dashboard-universe .po-section { font-size: 13px; color: #000000; }
+        .customer-dashboard-universe .po-side-brand { font-size: 11.5px; }
+        .customer-dashboard-universe .po-side-hero h2 { font-size: 21px; }
+        .customer-dashboard-universe .po-side-hero h1 { font-size: 38px; }
+        .customer-dashboard-universe .po-side-hero p { font-size: 12px; }
+        .customer-dashboard-universe .po-side-foot { font-size: 11px; }
+        .customer-dashboard-universe .po-radio-row label { font-size: 12.5px; color: #000000; }
+
+        /* floating-label fields */
+        .customer-dashboard-universe .po-field { min-height: 36px; }
+        .customer-dashboard-universe .po-field .po-input { font-size: 0.8rem; min-height: 34px; color: #000000; }
+        .customer-dashboard-universe .po-field-icon { font-size: 0.8rem !important; }
+        .customer-dashboard-universe .po-field-label { font-size: 0.8rem; color: #000000; }
+        .customer-dashboard-universe .po-field:focus-within .po-field-label,
+        .customer-dashboard-universe .po-field.is-floated .po-field-label { font-size: 0.62rem; color: #000000; }
+        .customer-dashboard-universe .po-err { font-size: 0.7rem; }
+        .customer-dashboard-universe .form-control,
+        .customer-dashboard-universe .form-select,
+        .customer-dashboard-universe textarea { font-size: 12.5px; color: #000000; }
+
+        /* filter bar heading */
+        .customer-dashboard-universe .po-filter-title { font-size: 13.5px; }
+        .customer-dashboard-universe .po-filter-count { font-size: 11px; color: #000000; }
       `}</style>
 
       {/* Toast */}

@@ -102,13 +102,13 @@ const Pagination = ({ page, totalPages, pageSize, total, onPage, onPageSize }) =
             placeholder={`Page / ${totalPages.toLocaleString("en-IN")}`}
             onChange={(e) => setJump(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); goJump(); } }}
-            className="form-control form-control-sm border-dark"
+            className="form-control form-control-sm"
             aria-label="Jump to page"
           />
           <button type="button" className="btn btn-sm btn-primary" onClick={goJump}>Go</button>
         </span>
         <select
-          className="form-select form-select-sm border-dark"
+          className="form-select form-select-sm"
           value={pageSize}
           onChange={(e) => onPageSize(Number(e.target.value))}
           aria-label="Rows per page"
@@ -2241,8 +2241,8 @@ function ProductionRealDashboard() {
 
         /* ---------- Entry popup (split card) ---------- */
         .pd-overlay {
-          position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 14px;
-          background: rgba(11, 58, 69, 0.5); animation: pdFade .18s ease;
+          position: static; display: block; margin: 14px 0; padding: 0;
+          background: transparent; animation: none;
         }
         @keyframes pdFade { from { opacity: 0; } to { opacity: 1; } }
         @keyframes pdPop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -2303,11 +2303,11 @@ function ProductionRealDashboard() {
         .pd-close:hover { background: var(--brand-soft); color: var(--brand); border-color: #f7d3c6; }
         @media (max-width: 900px) { .pd-left { display: none; } .pd-right { padding: 14px; } .pd-modal { max-height: 96vh; border-radius: 8px; } }
 
-        /* ===== ENTRY FORM: FULL SCREEN + LARGER UI ===== */
-        .production-dashboard-page .pd-overlay { padding: 0; background: #ffffff; }
+        /* ===== ENTRY FORM: INLINE CARD UNDER "FIND WORK ORDER" ===== */
+        .production-dashboard-page .pd-overlay { padding: 0; background: transparent; }
         .production-dashboard-page .pd-modal {
-          max-width: none; width: 100vw; height: 100vh; max-height: 100vh;
-          border-radius: 0; border: none; box-shadow: none;
+          max-width: 100%; width: 100%; height: auto; max-height: none;
+          border-radius: 8px; border: 1px solid #e3e7ec; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
         }
         .production-dashboard-page .pd-right { padding: 18px 32px 20px 24px; }
         .production-dashboard-page .pd-close { top: 14px; right: 20px; width: 40px; height: 40px; font-size: 15px; }
@@ -2464,6 +2464,140 @@ function ProductionRealDashboard() {
           .production-dashboard-page .report-toggle { width: 100%; }
           .production-dashboard-page .report-toggle .btn { min-width: 0; flex: 1; }
         }
+
+        /* ===== PLANNER LOOK OVERRIDE ===== */
+        .production-dashboard-page.container { --ink:#000; --muted:#000; --hint:#000; font-size:12.5px; }
+        .production-dashboard-page .text-muted,
+        .production-dashboard-page .text-black,
+        .production-dashboard-page small { color:#000 !important; }
+
+        .production-dashboard-page .pd-section-head h5,
+        .production-dashboard-page .pd-section-head h6 { font-size:14px; padding-left:8px; border-left:3px solid #e4572e; }
+        .production-dashboard-page .card-header,
+        .production-dashboard-page .card-header.bg-primary { font-size:14px; color:#000 !important; }
+        .production-dashboard-page .card-header strong { font-size:14px; padding-left:8px; border-left:3px solid #e4572e; }
+        .production-dashboard-page .pd-count { font-size:11px; color:#000; }
+        .production-dashboard-page .gl-title { font-size:1.15rem; }
+        .production-dashboard-page .gl-pill { font-size:10.5px; color:#000; background:#e3f1f4; border-color:#b9d6dd; }
+        .production-dashboard-page .gl-group { font-size:12.5px; }
+
+        .production-dashboard-page .form-label { font-size:10.5px; color:#000 !important; }
+        .production-dashboard-page .form-control,
+        .production-dashboard-page .form-select,
+        .production-dashboard-page textarea,
+        .production-dashboard-page .pd-modal .form-control,
+        .production-dashboard-page .pd-modal .form-select,
+        .production-dashboard-page .pd-modal textarea,
+        .production-dashboard-page .pd-filter .form-control,
+        .production-dashboard-page .pd-filter .form-select {
+          min-height:36px; font-size:.8rem; font-weight:500; color:#000 !important;
+          border:1px solid #cfd6de !important; border-radius:6px;
+        }
+        .production-dashboard-page textarea,
+        .production-dashboard-page .pd-modal textarea { min-height:70px; height:70px; }
+        .production-dashboard-page .form-control::placeholder,
+        .production-dashboard-page textarea::placeholder { color:#6b7685; opacity:1; }
+        .production-dashboard-page .form-control:read-only { background:#f7f9fb !important; color:#000; font-weight:500; }
+        .production-dashboard-page .form-control:focus,
+        .production-dashboard-page .form-select:focus,
+        .production-dashboard-page textarea:focus {
+          border-color:#0f5560 !important; box-shadow:0 0 0 3px rgba(15,85,96,.15) !important;
+        }
+        .production-dashboard-page .pd-ico { color:#000; }
+
+        .production-dashboard-page .pd-modal .form-label { font-size:10.5px; }
+        .production-dashboard-page .pd-modal .pd-tile-label,
+        .production-dashboard-page .pd-modal .gl-inner.first .pd-tile-label { font-size:.62rem; color:#000; }
+        .production-dashboard-page .pd-modal .pd-tile-value,
+        .production-dashboard-page .pd-modal .gl-inner.first .pd-tile-value { font-size:.85rem; color:#000; }
+        .production-dashboard-page .pd-modal .gl-btn { min-height:40px; font-size:.9rem; }
+
+        .production-dashboard-page .btn { font-size:12px; }
+        .production-dashboard-page .btn-sm { font-size:11px; }
+        .production-dashboard-page .btn-primary {
+          background:#fde3d8 !important; border-color:#f5b9a1 !important; color:#000 !important; box-shadow:none;
+        }
+        .production-dashboard-page .btn-primary:hover { background:#fbd0bf !important; border-color:#f0a48a !important; }
+        .production-dashboard-page .btn-success {
+          background:#d9f2e6 !important; border-color:#a9dcc3 !important; color:#000 !important; box-shadow:none;
+        }
+        .production-dashboard-page .btn-success:hover { background:#c5ebd6 !important; border-color:#8fceb0 !important; }
+        .production-dashboard-page .btn-secondary { color:#000 !important; }
+        .production-dashboard-page .btn-warning {
+          background:#fff3d6 !important; border-color:#f2d291 !important; color:#000 !important;
+        }
+        .production-dashboard-page .btn-danger {
+          background:#fbdcdc !important; border-color:#f0b4b4 !important; color:#000 !important;
+        }
+        .production-dashboard-page .btn-danger:hover { background:#f7c7c7 !important; }
+        .production-dashboard-page .report-toggle .btn-secondary { color:#000 !important; }
+
+        .production-dashboard-page thead th {
+          background:#a9d0d9 !important; color:#000 !important; border:1px solid #8fbcc7 !important;
+          font-size:10.5px; font-weight:700;
+        }
+        .production-dashboard-page tbody td { font-size:12px; color:#000; }
+        .production-dashboard-page .production-summary-table th { font-size:10.5px; }
+        .production-dashboard-page .production-summary-table .report-group-cell,
+        .production-dashboard-page .production-summary-table .report-machine-cell { color:#000; }
+        .production-dashboard-page .pd-empty { color:#000; }
+        .production-dashboard-page .pd-pager-info { color:#000; font-size:12px; }
+        .production-dashboard-page .pd-pager-gap { color:#000; }
+
+        /* Work Order Summary tiles: light sky blue */
+        .production-dashboard-page .pd-modal .pd-right .gl-inner .row > div .pd-tile,
+        .production-dashboard-page .pd-modal .pd-tile {
+          background: #e6f3fa !important;
+          border: 1px solid #bcdcec !important;
+        }
+        .production-dashboard-page .pd-modal .pd-right .gl-inner .row > div .pd-tile-label .pd-ico,
+        .production-dashboard-page .pd-modal .pd-tile-label .pd-ico {
+          background: #ffffff !important;
+          color: #0f5560 !important;
+        }
+        .production-dashboard-page .pd-modal .pd-tile .form-select {
+          background-color: #ffffff !important;
+        }
+
+        /* ===== FLOATING LABELS (label sits inside the field, moves up on click / when filled) ===== */
+        .production-dashboard-page [class^="col-"]:has(> .form-label) { position: relative; }
+
+        .production-dashboard-page [class^="col-"] > .form-label {
+          position: absolute !important;
+          left: calc(var(--bs-gutter-x, 1.5rem) * .5 + 10px);
+          top: 18px;
+          transform: translateY(-50%);
+          z-index: 2;
+          display: block !important;
+          margin: 0 !important;
+          padding: 0 4px;
+          background: #ffffff;
+          font-size: .8rem !important;
+          font-weight: 500;
+          letter-spacing: 0;
+          text-transform: none;
+          white-space: nowrap !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          pointer-events: none;
+          transition: all .15s ease;
+        }
+
+        .production-dashboard-page [class^="col-"]:has(> :focus) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> .form-select) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> input[type="date"]) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> input[type="time"]) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> input[type="month"]) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> input[list]) > .form-label,
+        .production-dashboard-page [class^="col-"]:has(> input:not(:placeholder-shown)) > .form-label {
+          top: 0;
+          font-size: .62rem !important;
+          font-weight: 700;
+          letter-spacing: .4px;
+          text-transform: uppercase;
+        }
+
+        .production-dashboard-page [class^="col-"] > .form-label .pd-ico { display: inline-block; }
       `}</style>
 
 
@@ -2499,8 +2633,7 @@ function ProductionRealDashboard() {
                   name="workOrderNo"
                   value={form.workOrderNo}
                   onChange={handleChange}
-                  placeholder="Enter Work Order No"
-                  className="form-control border-dark"
+                  className="form-control" placeholder=" "
                 />
               </div>
               <div className="col-md-3 d-flex align-items-end">
@@ -2701,7 +2834,7 @@ function ProductionRealDashboard() {
                           value={form.productionDate}
                           onChange={handleChange}
                           required
-                          className="form-control"
+                          className="form-control" placeholder=" "
                         />
                       </div>
 
@@ -2751,7 +2884,7 @@ function ProductionRealDashboard() {
                               value={form.productionFromTime}
                               onChange={handleChange}
                               required
-                              className="form-control"
+                              className="form-control" placeholder=" "
                             />
                           </div>
                           <div className="col-6 col-md-4 col-xl-2">
@@ -2762,7 +2895,7 @@ function ProductionRealDashboard() {
                               value={form.productionToTime}
                               onChange={handleChange}
                               required
-                              className="form-control"
+                              className="form-control" placeholder=" "
                             />
                           </div>
 
@@ -2817,7 +2950,7 @@ function ProductionRealDashboard() {
                               name="productionImpression"
                               value={form.productionImpression}
                               onChange={handleChange}
-                              className="form-control"
+                              className="form-control" placeholder=" "
                               required
                             />
                           </div>
@@ -2829,7 +2962,7 @@ function ProductionRealDashboard() {
                               name="wasteImpression"
                               value={form.wasteImpression}
                               onChange={handleChange}
-                              className="form-control"
+                              className="form-control" placeholder=" "
                               required
                             />
                           </div>
@@ -2842,8 +2975,7 @@ function ProductionRealDashboard() {
                               list="production-ups-options"
                               value={form.productionUps}
                               onChange={handleChange}
-                              className="form-control"
-                              placeholder={allowedProductionUps.length ? `Allowed: ${allowedProductionUps.join(", ")}` : ""}
+                              className="form-control" placeholder=" "
                               required
                             />
                             <datalist id="production-ups-options">
@@ -2855,24 +2987,24 @@ function ProductionRealDashboard() {
 
                           <div className="col-6 col-md-4 col-xl-3">
                             <label className="form-label"><FieldIcon name="Production Qty" />Production Qty</label>
-                            <input type="number" value={form.productionQty} readOnly className="form-control" />
+                            <input type="number" value={form.productionQty} readOnly className="form-control" placeholder=" " />
                           </div>
 
                           {Number(form.pages) > 0 && (
                             <div className="col-6 col-md-4 col-xl-3">
                               <label className="form-label"><FieldIcon name="Booklet Quantity" />Booklet Quantity</label>
-                              <input type="number" value={form.quantity2} readOnly className="form-control" />
+                              <input type="number" value={form.quantity2} readOnly className="form-control" placeholder=" " />
                             </div>
                           )}
 
                           <div className="col-6 col-md-4 col-xl-3">
                             <label className="form-label"><FieldIcon name="Wastage Qty" />Wastage Qty</label>
-                            <input type="number" value={form.wastageQty} readOnly className="form-control" />
+                            <input type="number" value={form.wastageQty} readOnly className="form-control" placeholder=" " />
                           </div>
 
                           <div className="col-6 col-md-4 col-xl-3">
                             <label className="form-label"><FieldIcon name="Waste %" />Waste %</label>
-                            <input type="text" value={wastePercent + "%"} readOnly className="form-control" />
+                            <input type="text" value={wastePercent + "%"} readOnly className="form-control" placeholder=" " />
                           </div>
                         </>
                       )}
@@ -2890,7 +3022,7 @@ function ProductionRealDashboard() {
                           name="remarks"
                           value={form.remarks}
                           onChange={handleChange}
-                          className="form-control"
+                          className="form-control" placeholder=" "
                         />
                       </div>
                       <div className="col-md-3">
@@ -2924,31 +3056,31 @@ function ProductionRealDashboard() {
               <input
                 type="text"
                 name="workOrder"
-                placeholder="WO No"
+                placeholder=" "
                 value={filters.workOrder}
                 onChange={handleFilterChange}
-                className="form-control border-dark"
+                className="form-control"
               />
             </div>
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="From date" />From date</label>
-              <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="form-control border-dark" />
+              <input type="date" name="dateFrom" value={filters.dateFrom} onChange={handleFilterChange} className="form-control" placeholder=" " />
             </div>
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="To date" />To date</label>
-              <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="form-control border-dark" />
+              <input type="date" name="dateTo" value={filters.dateTo} onChange={handleFilterChange} className="form-control" placeholder=" " />
             </div>
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Month" />Month</label>
-              <input type="month" name="month" value={filters.month} onChange={handleFilterChange} className="form-control border-dark" />
+              <input type="month" name="month" value={filters.month} onChange={handleFilterChange} className="form-control" placeholder=" " />
             </div>
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Product Type" />Product Type</label>
-              <select name="productType" value={filters.productType} onChange={handleFilterChange} className="form-select border-dark">
+              <select name="productType" value={filters.productType} onChange={handleFilterChange} className="form-select">
                 <option value="">All Product Types</option>
                 {dropdownOptions.productTypes.map((type, i) => (
                   <option key={i} value={type}>{type}</option>
@@ -2958,7 +3090,7 @@ function ProductionRealDashboard() {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Customer" />Customer</label>
-              <select name="customer" value={filters.customer} onChange={handleFilterChange} className="form-select border-dark">
+              <select name="customer" value={filters.customer} onChange={handleFilterChange} className="form-select">
                 <option value="">All Customers</option>
                 {dropdownOptions.customerNames.map((cust, i) => (
                   <option key={i} value={cust}>{cust}</option>
@@ -2968,7 +3100,7 @@ function ProductionRealDashboard() {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="User Location" />User Location</label>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="form-select border-dark">
+              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="form-select">
                 <option value="">All Locations</option>
                 {locationOptions.map((loc, i) => (
                   <option key={i} value={loc}>{loc}</option>
@@ -2978,7 +3110,7 @@ function ProductionRealDashboard() {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Shifts" />Shifts</label>
-              <select name="shift" value={filters.shift} onChange={handleFilterChange} className="form-select border-dark">
+              <select name="shift" value={filters.shift} onChange={handleFilterChange} className="form-select">
                 <option value="">All Shifts</option>
                 <option value="Day">Day</option>
                 <option value="Night">Night</option>
@@ -2987,7 +3119,7 @@ function ProductionRealDashboard() {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Machines" />Machines</label>
-              <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select border-dark">
+              <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select">
                 <option value="">All Machines</option>
                 {dropdownOptions.machineNames.map((machine, i) => (
                   <option key={i} value={machine}>{machine}</option>
@@ -2997,7 +3129,7 @@ function ProductionRealDashboard() {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="Machine Status" />Machine Status</label>
-              <select name="machineStatus" value={filters.machineStatus} onChange={handleFilterChange} className="form-select border-dark">
+              <select name="machineStatus" value={filters.machineStatus} onChange={handleFilterChange} className="form-select">
                 <option value="">All Status</option>
                 {machineStatuses.map((s) => (
                   <option key={s._id} value={s.statusName}>{s.statusName}</option>
@@ -3157,8 +3289,8 @@ function ProductionRealDashboard() {
           </div>
 
           <div className="table-responsive" ref={tableWrapRef} style={{ maxHeight: "62vh", overflowY: "auto" }}>
-            <table className="table  border-dark table-striped table-bordered table-hover mb-0">
-              <thead className="table-dark sticky-top">
+            <table className="table  table-striped table-bordered table-hover mb-0">
+              <thead className="sticky-top">
                 <tr>
                   <th>SL NO</th>
                   <th>WO No</th>
