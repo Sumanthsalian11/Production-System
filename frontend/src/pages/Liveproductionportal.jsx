@@ -3556,12 +3556,6 @@ export default function LiveProductionPortal() {
         {activeTab === "customers" && <CustomersTab data={data} />}
         {activeTab === "perso" && <PersoTab data={data} />}
       </main>
-
-      <footer style={{ padding: "18px 4px", fontSize: 11, color: COLORS.slate, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        <span>Built live from ProductionReal and Reel Register (Production) source data. Refreshes on demand.</span>
-        <span>{data.overview.totalWorkOrders.toLocaleString("en-IN")} work orders logged</span>
-      </footer>
-
       {drawerWO && <StageDrawer wo={drawerWO} data={data} onClose={() => setDrawerWO(null)} onTrack={trackWO} />}
       {drillSpec && <DrillModal spec={drillSpec} data={data} realRows={deferredRealRows} reelRows={deferredReelRows} onClose={() => setDrillSpec(null)} />}
     </div>
