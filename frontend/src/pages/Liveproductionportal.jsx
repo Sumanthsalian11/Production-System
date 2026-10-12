@@ -1869,6 +1869,7 @@ function buildEntries(realRows) {
       customerKey: item.customerName || "",
       customer: item.customerName || "-",
       job: item.jobDescription || "-",
+      userLocations: Array.isArray(item.userLocations) ? item.userLocations.filter(Boolean) : [],
       dStr,
       date: dStr || "-",
       from: item.productionFromTime || "",
@@ -2241,6 +2242,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     status: e.status,
     machines: uniqJoin(e.pairs.map((p) => p.machine)),
     stages: uniqJoin(e.pairs.map((p) => p.stage)),
+    userLocations: uniqJoin(e.userLocations),
     time: e.from || e.to ? `${e.from || "—"} – ${e.to || "—"}` : "-",
     hours: Number(e.hours.toFixed(2)),
     orderQty: Math.round(e.orderQty),
@@ -2274,6 +2276,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     { key: "status", label: "Machine Status" },
     { key: "machines", label: "Machine(s)" },
     { key: "stages", label: "Stage(s)" },
+    { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
     { key: "time", label: "Time", sortable: false },
     { key: "hours", label: "Hours" },
     { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
@@ -2294,6 +2297,7 @@ function buildDrill(spec, data, realRows, reelRows) {
       { key: "status", label: "Statuses" },
       { key: "machines", label: "Machines", split: true },
       { key: "stages", label: "Stages", split: true },
+      { key: "userLocations", label: "User Locations", split: true },
     ],
     dateKey: "date",
     columns,
@@ -3232,12 +3236,13 @@ export default function LiveProductionPortal() {
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [selectedJobs, setSelectedJobs] = useState([]);
   const [selectedMachines, setSelectedMachines] = useState([]);
-  const [selectedLocations, setSelectedLocations] = useState([]);
+  const [selectedLocations, setSelectedLocations] = useState([]); // "User Locations" — production rows: userLocations
+  const [selectedOrderLocations, setSelectedOrderLocations] = useState([]); // "Location" — customer orders: location.locationName
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [drillSpec, setDrillSpec] = useState(null);
   const [activeTab, setActiveTab] = useState("overview"); // the one page currently shown
-  const [openFilter, setOpenFilter] = useState(null); // "customers" | "jobs" | "machines" | "locations" | null — only one open at a time
+  const [openFilter, setOpenFilter] = useState(null); // "orderLocations" | "locations" | "customers" | "jobs" | "machines" | "sections" | null — only one open at a time
 
   const [realRows, setRealRows] = useState([]);
   const [reelRows, setReelRows] = useState([]);
@@ -3307,6 +3312,14 @@ export default function LiveProductionPortal() {
     realRows.forEach((r) => { (r.userLocations || []).forEach((loc) => { if (loc) set.add(loc); }); });
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [realRows]);
+
+  // Location — customer-order location (order.location.locationName), the same
+  // field shown as "Location" in the customer-orders drill-down.
+  const orderLocationOptions = useMemo(() => {
+    const set = new Set();
+    customerOrders.forEach((o) => { const name = o.location?.locationName; if (name) set.add(name); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [customerOrders]);
 
   // Global WO# / Customer / Job filter — applied to the raw source rows so every
   // tab (Overview, Utilization, Production & Waste, Ledger, Job Completion,
@@ -3380,6 +3393,7 @@ export default function LiveProductionPortal() {
     const q = normWO(search).toLowerCase();
     return customerOrders.filter((o) => {
       if (selectedCustomers.length && !selectedCustomers.includes(o.customerName || "")) return false;
+      if (selectedOrderLocations.length && !selectedOrderLocations.includes(o.location?.locationName || "")) return false;
       if (dateFrom || dateTo) {
         const d = dateOnly(o.poDate);
         if (!d) return false;
@@ -3392,11 +3406,12 @@ export default function LiveProductionPortal() {
       }
       return true;
     });
-  }, [customerOrders, search, selectedCustomers, dateFrom, dateTo]);
+  }, [customerOrders, search, selectedCustomers, selectedOrderLocations, dateFrom, dateTo]);
 
   const hasActiveFilters =
     Boolean(search) || selectedCustomers.length > 0 || selectedJobs.length > 0 ||
-    selectedMachines.length > 0 || selectedLocations.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
+    selectedMachines.length > 0 || selectedLocations.length > 0 || selectedOrderLocations.length > 0 ||
+    Boolean(dateFrom) || Boolean(dateTo);
 
   const resetFilters = () => {
     setSearch("");
@@ -3404,6 +3419,7 @@ export default function LiveProductionPortal() {
     setSelectedJobs([]);
     setSelectedMachines([]);
     setSelectedLocations([]);
+    setSelectedOrderLocations([]);
     setDateFrom("");
     setDateTo("");
   };
@@ -3496,6 +3512,21 @@ export default function LiveProductionPortal() {
         </div>
 
               <div className="filters-row no-print">
+          {/* Location + User Locations — first two filters in the row */}
+          <div className="filter-field">
+            <span className="filter-label"> User Location</span>
+            <MultiSelectDropdown
+              label="Location" options={orderLocationOptions} selected={selectedOrderLocations} onChange={setSelectedOrderLocations}
+              isOpen={openFilter === "orderLocations"} onToggle={(o) => setOpenFilter(o ? "orderLocations" : null)}
+            />
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Locations</span>
+            <MultiSelectDropdown
+              label="User Locations" options={locationOptions} selected={selectedLocations} onChange={setSelectedLocations}
+              isOpen={openFilter === "locations"} onToggle={(o) => setOpenFilter(o ? "locations" : null)}
+            />
+          </div>
           <div className="filter-field">
             <label className="filter-label" htmlFor="portal-quick-search">Search WO</label>
             <form onSubmit={handleGlobalSearch} className="search-container">
@@ -3522,13 +3553,6 @@ export default function LiveProductionPortal() {
             <MultiSelectDropdown
               label="Machines" options={machineOptions} selected={selectedMachines} onChange={setSelectedMachines}
               isOpen={openFilter === "machines"} onToggle={(o) => setOpenFilter(o ? "machines" : null)}
-            />
-          </div>
-          <div className="filter-field">
-            <span className="filter-label">Locations</span>
-            <MultiSelectDropdown
-              label="Locations" options={locationOptions} selected={selectedLocations} onChange={setSelectedLocations} width={190}
-              isOpen={openFilter === "locations"} onToggle={(o) => setOpenFilter(o ? "locations" : null)}
             />
           </div>
     
