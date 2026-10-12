@@ -1,27 +1,35 @@
 const cron = require("node-cron");
 const IndentRequest = require("../models/Indentrequest");
+const MailSettings = require("../models/MailSettings");
 const sendMail = require("../utils/mailSender");
 const { CC } = require("../utils/mailConfig");
 
-// Runs every day at 3:00 PM
-cron.schedule("0 15 * * *", async () => {
+const pad = (n) => String(n).padStart(2, "0");
+let lastRunKey = ""; // prevents sending twice in the same minute/day
+
+// Checks every minute; sends when the time set in Admin arrives
+cron.schedule("* * * * *", async () => {
   try {
+    const settings = await MailSettings.findOne({ key: "indentSummary" }).lean();
+    const sendTime = settings?.sendTime || "15:00";
+
     const now = new Date();
-   // Yesterday 3:00 PM
-const fromTime = new Date(now);
-fromTime.setDate(fromTime.getDate() - 1);
-fromTime.setHours(15, 0, 0, 0);
+    const nowHM = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    if (nowHM !== sendTime) return;
 
-// Today 3:00 PM
-const toTime = new Date(now);
-toTime.setHours(15, 0, 0, 0);
-// Today 4:00 PM
-// const fromTime = new Date(now);
-// fromTime.setHours(16, 0, 0, 0);
+    const runKey = `${now.toDateString()} ${sendTime}`;
+    if (lastRunKey === runKey) return;
+    lastRunKey = runKey;
 
-// // Today 5:00 PM
-// const toTime = new Date(now);
-// toTime.setHours(17, 0, 0, 0);
+    const [sh, sm] = sendTime.split(":").map(Number);
+
+    // Today at the set time
+    const toTime = new Date(now);
+    toTime.setHours(sh, sm, 0, 0);
+
+    // Yesterday at the set time
+    const fromTime = new Date(toTime);
+    fromTime.setDate(fromTime.getDate() - 1);
 
     const indents = await IndentRequest.find({
       createdAt: { $gte: fromTime, $lte: toTime },
@@ -101,11 +109,18 @@ toTime.setHours(15, 0, 0, 0);
       <h3>Total Indents : ${totalCount}</h3>
     </div>`;
 
-    const toEmails = [...new Set(indents.map(i => i.userEmail).filter(Boolean))];
+    // TO / CC from Admin settings (falls back to the old behaviour if left empty)
+    const adminTo = settings?.toEmails || [];
+    const adminCc = settings?.ccEmails || [];
+
+    const toEmails = adminTo.length
+      ? adminTo
+      : [...new Set(indents.map((i) => i.userEmail).filter(Boolean))];
+    const ccEmails = adminCc.length ? adminCc : CC;
 
     await sendMail({
       to: toEmails,
-      cc: CC,
+      cc: ccEmails,
       subject: `Indent Summary`,
       html,
     });
