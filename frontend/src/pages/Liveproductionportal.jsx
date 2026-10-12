@@ -2156,10 +2156,11 @@ function buildDrill(spec, data, realRows, reelRows) {
       orderType: orderTypeOf(o.orderType) || o.orderType || "-",
       supplier: o.remarks || "-",
       user: o.user || "System",
+      status: o.status || "-",
     }));
     return {
       eyebrow: "Customer orders",
-      title: `Order Type — ${value}`,
+      title: spec.title || `Order Type — ${value}`,
       sub: "Customer orders",
       stats: (rs) => [
         ["Orders", rs.length.toLocaleString("en-IN")],
@@ -2188,6 +2189,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "orderType", label: "Order Type" },
         { key: "supplier", label: "Supplier Name" },
         { key: "user", label: "User" },
+        { key: "status", label: "Status" },
       ],
       rows,
       sort: { key: "poDate", dir: "desc" },
@@ -2663,6 +2665,21 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
     return ORDER_TYPES.map((t) => ({ name: t.name, value: groups[t.name].length, color: t.color, rows: groups[t.name] }));
   }, [customerOrders]);
   const orderTypeVisible = orderTypeData.filter((d) => !otFilter.hidden.has(d.name));
+    const ihFilter = useSeriesFilter();
+  const inhouseStatusData = useMemo(() => {
+    const received = [];
+    const converted = [];
+    customerOrders.forEach((o) => {
+      if (orderTypeOf(o.orderType) !== "Inhouse") return;
+      if (String(o.status || "").toUpperCase() === "ORDER_RECEIVED") received.push(o);
+      else converted.push(o);
+    });
+    return [
+      { name: "Order Received", value: received.length, color: COLORS.amber, rows: received },
+      { name: "Converted to WO", value: converted.length, color: COLORS.green, rows: converted },
+    ];
+  }, [customerOrders]);
+  const inhouseStatusVisible = inhouseStatusData.filter((d) => !ihFilter.hidden.has(d.name));
   const [statusFilter, setStatusFilter] = useState("All");
   const filtered = useMemo(() => {
     const q = normWO(search).toLowerCase();
@@ -2698,15 +2715,27 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
 
   return (
     <div>
-      <Panel title="Orders by Order Type" icon={PackageCheck} iconGrad={ACCENTS.purple.grad}
-        sub={`${orderTypeData.reduce((s, d) => s + d.value, 0).toLocaleString("en-IN")} customer orders — Inhouse / Out Source / PMS`}>
-        <DonutChart
-          data={orderTypeVisible.map((d) => ({ name: d.name, value: d.value, color: d.color }))}
-          height={240}
-          onDrill={(s) => openDrill({ kind: "orderType", value: s.name, rows: orderTypeData.find((d) => d.name === s.name)?.rows || [] })}
-        />
-        <PieLegend items={orderTypeData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={otFilter.hidden} toggle={otFilter.toggle} />
-      </Panel>
+      <div className="panel-grid-2">
+        <Panel title="Orders by Order Type" icon={PackageCheck} iconGrad={ACCENTS.purple.grad}
+          sub={`${orderTypeData.reduce((s, d) => s + d.value, 0).toLocaleString("en-IN")} customer orders — Inhouse / Out Source / PMS`}>
+          <DonutChart
+            data={orderTypeVisible.map((d) => ({ name: d.name, value: d.value, color: d.color }))}
+            height={240}
+            onDrill={(s) => openDrill({ kind: "orderType", value: s.name, rows: orderTypeData.find((d) => d.name === s.name)?.rows || [] })}
+          />
+          <PieLegend items={orderTypeData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={otFilter.hidden} toggle={otFilter.toggle} />
+        </Panel>
+
+        <Panel title="Inhouse Orders — Received vs Converted" icon={ClipboardList} iconGrad={ACCENTS.emerald.grad}
+          sub={`${inhouseStatusData.reduce((s, d) => s + d.value, 0).toLocaleString("en-IN")} Inhouse orders — Order Received / Converted to WO`}>
+          <DonutChart
+            data={inhouseStatusVisible.map((d) => ({ name: d.name, value: d.value, color: d.color }))}
+            height={240}
+            onDrill={(s) => openDrill({ kind: "orderType", value: s.name, title: `Inhouse — ${s.name}`, rows: inhouseStatusData.find((d) => d.name === s.name)?.rows || [] })}
+          />
+          <PieLegend items={inhouseStatusData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={ihFilter.hidden} toggle={ihFilter.toggle} />
+        </Panel>
+      </div>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
         {[["All", "All"], ["Under", "Under"], ["Exact", "Exact"], ["Over", "Over"], ["HighWaste", "High wastage (>10%)"]].map(([id, label]) => (
           <Chip key={id} active={statusFilter === id} onClick={() => setStatusFilter(id)}>{label}</Chip>
