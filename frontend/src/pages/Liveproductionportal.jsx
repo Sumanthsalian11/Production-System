@@ -81,9 +81,11 @@ const monthLabel = (dStr) => {
 const hoursBetween = (dStr, fromTime, toTime) => {
   if (!dStr || !fromTime || !toTime) return 0;
   const start = new Date(`${dStr}T${fromTime}`);
-  const end = new Date(`${dStr}T${toTime}`);
+  const end = String(toTime).startsWith("24")
+    ? new Date(`${dStr}T00:00`)
+    : new Date(`${dStr}T${toTime}`);
   if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
-  if (end < start) end.setDate(end.getDate() + 1);
+  if (end <= start) end.setDate(end.getDate() + 1);
   return (end - start) / (1000 * 60 * 60);
 };
 
@@ -3302,7 +3304,7 @@ export default function LiveProductionPortal() {
         <GlobalStyles />
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
           <div style={{ width: 50, height: 50, border: "4px solid #e2e8f0", borderTop: "4px solid #0284c7", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-          <p style={{ fontWeight: 800, color: COLORS.ink, fontSize: 15 }}>Connecting to Shop Floor API Feeds…</p>
+          <p style={{ fontWeight: 800, color: COLORS.ink, fontSize: 15 }}>Loading…</p>
           <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
