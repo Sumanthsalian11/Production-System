@@ -7,8 +7,7 @@ import BASE_URL from "../config/api";
 
 const PAGE_SIZES = [25, 50, 100];
 
-// Excel export fetches the matching records in chunks. A browser cannot build a
-// workbook of millions of rows, so the export stops at this many rows.
+// Excel export fetches the matching records in chunks.
 const EXPORT_CHUNK = 5000;
 const EXPORT_LIMIT = 200000;
 
@@ -25,7 +24,6 @@ const normalizeGroup = (name) => {
   return name;
 };
 
-// same per-record preparation as before (only for the records on screen)
 const normalizeRow = (item) => {
   const groups = [
     ...new Set(
@@ -55,11 +53,41 @@ function PagerBar({ pg }) {
       </span>
 
       <div className="pager-btns">
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage(1)}>«</button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
-        <span className="pager-page">Page {page} / {totalPages}</span>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page <= 1}
+          onClick={() => setPage(1)}
+        >
+          «
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page <= 1}
+          onClick={() => setPage(page - 1)}
+        >
+          Prev
+        </button>
+        <span className="pager-page">
+          Page {page} / {totalPages}
+        </span>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page >= totalPages}
+          onClick={() => setPage(page + 1)}
+        >
+          Next
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page >= totalPages}
+          onClick={() => setPage(totalPages)}
+        >
+          »
+        </button>
 
         <select
           className="form-select form-select-sm pager-size"
@@ -67,7 +95,9 @@ function PagerBar({ pg }) {
           onChange={(e) => setPageSize(Number(e.target.value))}
         >
           {PAGE_SIZES.map((n) => (
-            <option key={n} value={n}>{n} / page</option>
+            <option key={n} value={n}>
+              {n} / page
+            </option>
           ))}
         </select>
       </div>
@@ -76,12 +106,11 @@ function PagerBar({ pg }) {
 }
 
 export default function WastageReport() {
-  // the records currently on screen (one page) - the rest stay on the server
   const [rows, setRows] = useState([]);
-  const [total, setTotal] = useState(0); // records matching the applied filters (30 in the default view)
-  const [totalCount, setTotalCount] = useState(0); // all records
+  const [total, setTotal] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [latestMode, setLatestMode] = useState(true); // default view = latest 30
+  const [latestMode, setLatestMode] = useState(true);
   const [applied, setApplied] = useState({});
   const [page, setPageState] = useState(1);
   const [pageSize, setPageSizeState] = useState(50);
@@ -123,7 +152,6 @@ export default function WastageReport() {
     Authorization: `Bearer ${localStorage.getItem("token")}`
   });
 
-  // ask the server for records: the latest 30, or one page of everything matching the filters
   const requestRows = async ({ latest, filters, page: pageNo, limit }) => {
     const params = {};
     if (latest) {
@@ -149,7 +177,7 @@ export default function WastageReport() {
 
     try {
       const data = await requestRows(opts);
-      if (id !== requestId.current) return; // a newer request replaced this one
+      if (id !== requestId.current) return;
 
       setRows((data.rows || []).map(normalizeRow));
       setTotal(data.total || 0);
@@ -161,7 +189,6 @@ export default function WastageReport() {
     }
   };
 
-  // filter dropdown values (loaded once)
   const loadOptions = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/production/summary-options`, {
@@ -317,7 +344,6 @@ export default function WastageReport() {
     saveAs(new Blob([file]), "Wastage_Report.xlsx");
   };
 
-  // exports ALL records matching the applied filters (not only the page on screen)
   const exportExcel = async () => {
     if (exporting) return;
     setExporting(true);
@@ -371,250 +397,301 @@ export default function WastageReport() {
       style={{
         maxWidth: "100%",
         fontSize: "14px",
-        background: "#d8f1fb",
-        border: "px solid rgba(12, 90, 130, 0.38)",
-        borderRadius: "0px"
+        background: "transparent",
+        padding: "16px 20px 50px"
       }}
     >
-      {/* ======================================================================
-          🎨 MATCHING THE PRODUCTION-DASHBOARD-PAGE DESIGN SYSTEM
-          ====================================================================== */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap');
+
         .wastage-report-page {
-          min-height: 100vh;
-          padding: 18px;
-          color: #08283d;
-          background:
-            radial-gradient(circle at top left, rgba(34, 153, 204, 0.34), transparent 32%),
-            linear-gradient(135deg, #d6f1fb 0%, #edfaff 48%, #c7e9f7 100%) !important;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+          color: #000000;
         }
 
-        .wastage-report-page .report-title {
-          color: #06324d;
-          letter-spacing: 0;
-          font-size: 28px;
-          font-weight: 800;
-          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+        .wastage-report-page * {
+          box-sizing: border-box;
+          font-family: inherit;
         }
 
+        /* ── HEAVY 3D ELEVATION SHADOWS FOR EVERY GRID & CARD ── */
         .wastage-report-page .card {
-          border: 1px solid rgba(20, 111, 156, 0.42) !important;
-          border-radius: 12px !important;
-          background: rgba(221, 243, 252, 0.94) !important;
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22) !important;
+          background: #ffffff !important;
+          border: 1px solid #d1d5db !important;
+          border-radius: 10px !important;
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.14), 0 8px 16px -6px rgba(0, 0, 0, 0.08) !important;
+          margin-bottom: 24px;
+          overflow: hidden;
+          transition: box-shadow 0.25s ease, transform 0.2s ease;
         }
 
-        .wastage-report-page h5,
-        .wastage-report-page h6 {
-          color: #062b42 !important;
-          font-weight: 800;
-          padding: 8px 0;
+        .wastage-report-page .card:hover {
+          box-shadow: 0 22px 42px -4px rgba(0, 0, 0, 0.18), 0 12px 20px -6px rgba(0, 0, 0, 0.12) !important;
         }
 
-        .wastage-report-page .form-label,
-        .wastage-report-page small {
-          color: #092f47 !important;
-          font-weight: 700;
-          margin-bottom: 5px;
-        }
-
-        .wastage-report-page .form-control,
-        .wastage-report-page .form-select {
-          min-height: 38px;
-          border: 1px solid rgba(14, 94, 135, 0.62) !important;
-          border-radius: 8px;
-          background-color: rgba(255, 255, 255, 0.98) !important;
-          color: #071f31;
-          font-weight: 600;
-          box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.08);
-        }
-
-        .wastage-report-page .form-control:focus,
-        .wastage-report-page .form-select:focus {
-          border-color: #087fb5 !important;
-          box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22) !important;
-        }
-
-        .wastage-report-page .btn {
-          border: 0;
-          border-radius: 8px;
-          font-weight: 700;
-          min-height: 38px;
-          box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
-          transition: transform 0.12s ease, box-shadow 0.12s ease;
-        }
-
-        .wastage-report-page .btn:active {
-          transform: translateY(2px);
-          box-shadow: 0 2px 6px rgba(10, 78, 115, 0.2);
-        }
-
-        .wastage-report-page .btn-primary {
-          background: linear-gradient(135deg, #0877ad, #16a4dc) !important;
-          color: #ffffff !important;
-        }
-
-        .wastage-report-page .btn-success {
-          background: linear-gradient(135deg, #087f68, #18aa91) !important;
-          color: #ffffff !important;
-        }
-
-        .wastage-report-page .btn-secondary {
-          background: linear-gradient(135deg, #405f76, #6f91a6) !important;
-          color: #ffffff !important;
-        }
-
-        .wastage-report-page .card-header {
-          border: 0;
-          border-radius: 12px 12px 0 0 !important;
-          background: linear-gradient(135deg, #075f90, #119bd2) !important;
-          color: #ffffff;
-          padding: 12px 16px;
-        }
-
-        .wastage-report-page .table-responsive {
-          background: #d5edf8 !important;
-          border-radius: 0 0 12px 12px;
-        }
-
-        .wastage-report-page table {
-          color: #09283d;
-          background: #ffffff;
-        }
-
-        .wastage-report-page thead th {
-          background: #064c73 !important;
-          color: #ffffff !important;
-          border-color: rgba(255, 255, 255, 0.28) !important;
-          font-size: 13px;
-          vertical-align: middle;
-          white-space: nowrap;
-          text-align: center;
-        }
-
-        .wastage-report-page tbody td {
-          border-color: rgba(20, 93, 130, 0.28) !important;
-          vertical-align: middle;
-          text-align: center;
-          font-weight: 500;
-        }
-
-        .wastage-report-page tbody tr:hover td {
-          background: #d9f2fc !important;
-        }
-
-        /* 3D Visual Accents & Badges */
-        .report-header-box {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 14px;
-          margin-bottom: 20px;
+        /* ── COLOR ACCENT ON FILTER GRID CARD ── */
+        .wastage-report-page .filter-card-styled {
+          background: #e3f1f4 !important; /* Soft light teal background */
+          border: 1px solid #bdd9df !important;
+          border-top: 3.5px solid #0f5560 !important;
         }
 
         .filter-header-title {
           font-size: 16px;
           font-weight: 800;
-          color: #06324d;
+          color: #0b3a45;
           margin: 0;
         }
 
+        /* ── FILTER FIELDS: BLACK BORDER & HIGH VISIBILITY ── */
+        .wastage-report-page .form-label {
+          color: #000000 !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.04em;
+          margin-bottom: 5px;
+          display: block;
+        }
+
+        .wastage-report-page .form-control,
+        .wastage-report-page .form-select {
+          min-height: 40px;
+          height: 40px;
+          border: 1.5px solid #000000 !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-size: 13px !important;
+          font-weight: 700 !important;
+          outline: none;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+          transition: all 0.15s ease;
+        }
+
+        .wastage-report-page .form-control:focus,
+        .wastage-report-page .form-select:focus {
+          border-color: #0f5560 !important;
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.25) !important;
+        }
+
+        /* ── Action Buttons ── */
+        .wastage-report-page .btn {
+          height: 40px;
+          border-radius: 6px !important;
+          font-size: 12px !important;
+          font-weight: 800 !important;
+          letter-spacing: 0.02em;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border: 1px solid transparent !important;
+          transition: all 0.15s ease;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .wastage-report-page .btn-success {
+          background: #10b981 !important;
+          color: #ffffff !important;
+          border-color: #059669 !important;
+        }
+
+        .wastage-report-page .btn-success:hover {
+          background: #059669 !important;
+          border-color: #047857 !important;
+        }
+
+        .wastage-report-page .btn-secondary {
+          background: #475569 !important;
+          color: #ffffff !important;
+          border-color: #334155 !important;
+        }
+
+        .wastage-report-page .btn-secondary:hover {
+          background: #334155 !important;
+          border-color: #1e293b !important;
+        }
+
         .count-pill {
-          background: rgba(8, 119, 173, 0.15);
-          color: #064c73;
-          border: 1px solid rgba(8, 119, 173, 0.35);
+          background: #ffffff;
+          color: #0b3a45;
+          border: 1.5px solid #0f5560;
           padding: 4px 12px;
           border-radius: 20px;
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 800;
+        }
+
+        /* ── Table Card Header ── */
+        .wastage-report-page .card-header {
+          background: #f8fafc !important;
+          border-bottom: 1.5px solid #cbd5e1 !important;
+          color: #000000 !important;
+          padding: 12px 18px !important;
+          font-size: 14px;
+          font-weight: 800 !important;
+          letter-spacing: -0.01em;
+          text-align: center;
+        }
+
+        .wastage-report-page .table-responsive {
+          background: #ffffff !important;
+          border: none;
+        }
+
+        .wastage-report-page table {
+          width: 100%;
+          border-collapse: separate !important;
+          border-spacing: 0 !important;
+          font-size: 12.5px;
+          color: #000000;
+          background: #ffffff;
+        }
+
+        /* ── ATTRACTIVE COLORFUL TABLE HEADER (Teal Accent with White Text & Centered) ── */
+        .wastage-report-page thead tr th {
+          background: #0f5560 !important;
+          color: #ffffff !important;
+          font-weight: 700 !important;
+          font-size: 11px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          padding: 11px 12px !important;
+          border-bottom: 2px solid #0b3a45 !important;
+          border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+          border-top: none !important;
+          border-left: none !important;
+          white-space: nowrap;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+
+        .wastage-report-page thead tr th:last-child {
+          border-right: none !important;
+        }
+
+        .wastage-report-page tbody td {
+          padding: 9px 12px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #f1f5f9 !important;
+          border-left: none !important;
+          border-top: none !important;
+          color: #000000 !important;
+          font-weight: 600;
+          vertical-align: middle;
+          text-align: center !important;
+          white-space: nowrap;
+        }
+
+        .wastage-report-page tbody td:last-child {
+          border-right: none !important;
+        }
+
+        .wastage-report-page tbody tr:nth-child(even) td {
+          background: #fafbfc;
+        }
+
+        .wastage-report-page tbody tr:hover td {
+          background: #f1f5f9 !important;
         }
 
         .cell-expandable {
           cursor: pointer;
-          color: #0877ad;
-          font-weight: 600;
+          color: #0b3a45;
+          font-weight: 700;
           text-decoration: underline dotted;
         }
 
         .cell-expandable:hover {
-          color: #064c73;
+          color: #e4572e;
         }
 
         .reel-badge-pill {
-          background: #e0f2fe;
-          color: #0369a1;
-          border: 1px solid #bae6fd;
+          background: #e3f1f4;
+          color: #0b3a45;
+          border: 1px solid #bdd9df;
           padding: 3px 8px;
-          border-radius: 6px;
-          font-weight: 700;
+          border-radius: 4px;
+          font-weight: 800;
         }
 
+        /* ── Pager Bar ── */
         .wastage-report-page .pager-bar {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
           justify-content: space-between;
           gap: 10px;
-          padding: 10px 14px;
-          border-top: 1px solid rgba(20, 93, 130, 0.28);
-          background: rgba(247, 253, 255, 0.98);
-          border-radius: 0 0 12px 12px;
+          padding: 9px 16px;
+          border-top: 1px solid #e2e8f0;
+          background: #f8fafc;
         }
+
         .wastage-report-page .pager-info {
-          font-size: 12.5px;
+          font-size: 12px;
           font-weight: 700;
-          color: #092f47;
+          color: #334155;
         }
+
         .wastage-report-page .pager-btns {
           display: flex;
           align-items: center;
           flex-wrap: wrap;
           gap: 6px;
         }
+
         .wastage-report-page .pager-btns .btn {
-          min-height: 30px;
-          padding: 3px 10px;
-          box-shadow: none;
-        }
-        .wastage-report-page .pager-btns .btn:disabled {
-          opacity: 0.45;
-        }
-        .wastage-report-page .pager-page {
-          font-size: 12.5px;
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 0 10px !important;
+          font-size: 11.5px !important;
           font-weight: 800;
-          color: #064c73;
-          padding: 0 6px;
+          background: #ffffff !important;
+          color: #000000 !important;
+          border: 1.5px solid #000000 !important;
+          box-shadow: none !important;
         }
+
+        .wastage-report-page .pager-btns .btn:hover:not(:disabled) {
+          background: #f1f5f9 !important;
+          border-color: #000000 !important;
+        }
+
+        .wastage-report-page .pager-btns .btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+          border-color: #94a3b8 !important;
+        }
+
+        .wastage-report-page .pager-page {
+          font-size: 12px;
+          font-weight: 800;
+          color: #000000;
+          padding: 0 4px;
+        }
+
         .wastage-report-page .pager-size {
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 2px 24px 2px 8px !important;
+          font-size: 11.5px !important;
+          font-weight: 700 !important;
           width: auto;
-          min-height: 30px;
+          background-color: #ffffff !important;
+          border: 1.5px solid #000000 !important;
+          color: #000000 !important;
         }
 
         @media (max-width: 768px) {
           .wastage-report-page {
-            padding: 12px;
-            border-radius: 14px !important;
-          }
-
-          .wastage-report-page .report-title {
-            font-size: 23px;
-          }
-
-          .report-header-box {
-            flex-direction: column;
-            align-items: stretch;
+            padding: 10px;
           }
         }
       `}</style>
 
-
-
-      {/* FILTERS CARD */}
-      <div className="card shadow-lg p-3 mb-4">
+      {/* FILTERS CARD WITH SOFT TEAL COLOR ACCENT */}
+      <div className="card filter-card-styled p-3 mb-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h5 className="filter-header-title">Filters</h5>
           <div className="d-flex align-items-center gap-3">
@@ -812,8 +889,8 @@ export default function WastageReport() {
       </div>
 
       {/* TABLE CARD */}
-      <div className="card shadow-lg mb-4">
-        <div className="card-header text-center">
+      <div className="card mb-4">
+        <div className="card-header">
           <strong>Wastage Report Records</strong>
         </div>
 
@@ -822,10 +899,10 @@ export default function WastageReport() {
           style={{ maxHeight: "70vh", overflowY: "auto" }}
         >
           <table
-            className="table table-striped table-bordered table-hover mb-0 align-middle small"
+            className="table mb-0 align-middle small"
             style={{ minWidth: "1400px" }}
           >
-            <thead className="table-dark sticky-top">
+            <thead className="sticky-top">
               <tr>
                 <th>WO No</th>
                 <th>WO Date</th>
@@ -937,11 +1014,22 @@ export default function WastageReport() {
                     </td>
                     <td>
                       <span
-                        className={`badge ${
-                          item.productionType === "Make Ready"
-                            ? "bg-warning text-dark"
-                            : "bg-info text-dark"
-                        }`}
+                        className="badge"
+                        style={{
+                          backgroundColor:
+                            item.productionType === "Make Ready"
+                              ? "#fff3d6"
+                              : "#e3f1f4",
+                          color:
+                            item.productionType === "Make Ready"
+                              ? "#8a5a00"
+                              : "#0b3a45",
+                          border: `1px solid ${
+                            item.productionType === "Make Ready"
+                              ? "#f2d291"
+                              : "#bdd9df"
+                          }`
+                        }}
                       >
                         {item.productionType || "-"}
                       </span>
@@ -999,7 +1087,6 @@ export default function WastageReport() {
           </table>
         </div>
 
-        {/* paging appears once filters are applied (the default view is just the latest 30) */}
         {!latestMode && <PagerBar pg={pg} />}
       </div>
     </div>
