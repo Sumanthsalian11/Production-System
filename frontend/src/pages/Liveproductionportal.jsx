@@ -188,9 +188,11 @@ function buildDashboardData(realRows, reelRows) {
         events: 0,
         startDate: dStr,
         endDate: dStr,
+        userLocations: new Set(),
       });
     }
     const woEntry = woMap.get(wo);
+    (Array.isArray(item.userLocations) ? item.userLocations : []).forEach((l) => { if (l) woEntry.userLocations.add(l); });
     // work-order production / waste = its latest production entry only
     if (isLatestProd) {
       woEntry.totalProdQty += prodQty;
@@ -298,6 +300,7 @@ function buildDashboardData(realRows, reelRows) {
       events: w.events,
       startDate: w.startDate,
       endDate: w.endDate,
+      userLocations: Array.from(w.userLocations).join(", "),
     };
   });
 
@@ -2067,6 +2070,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customers" },
         { key: "job", label: "Jobs" },
         { key: "type", label: "Types" },
+        { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
       ],
       dateKey: null,
       columns: [
@@ -2074,6 +2078,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customer" },
         { key: "job", label: "Job Description" },
         { key: "type", label: "Product Type" },
+        { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
         { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
         { key: "finalOutputQty", label: "Production Qty", render: (r) => fmtFull(r.finalOutputQty) },
         { key: "totalWasteQty", label: "Wastage Qty", render: (r) => fmtFull(r.totalWasteQty) },
@@ -2094,13 +2099,20 @@ function buildDrill(spec, data, realRows, reelRows) {
   if (kind === "reelCustomer" || kind === "reelMill" || kind === "reelWO") {
     const recs = data.reel.records; // same order as the reel rows they were built from
     const rows = [];
+    const woLocs = new Map();
+    (Array.isArray(realRows) ? realRows : []).forEach((x) => {
+      const w = String(x.workOrder ?? "").trim();
+      if (!w) return;
+      if (!woLocs.has(w)) woLocs.set(w, new Set());
+      (Array.isArray(x.userLocations) ? x.userLocations : []).forEach((l) => { if (l) woLocs.get(w).add(l); });
+    });
     reelRows.forEach((r, i) => {
       const match =
         kind === "reelCustomer" ? (r.customerName || "Unknown") === value :
         kind === "reelMill" ? (r.mill || "Unknown") === value :
         String(r.efiWoNumber ?? "").trim() === value;
       if (!match || !recs[i]) return;
-      rows.push({ ...recs[i], output: toNum(r.productionOutput), plannedQty: toNum(r.liveOrderQty) });
+      rows.push({ ...recs[i], output: toNum(r.productionOutput), plannedQty: toNum(r.liveOrderQty), userLocations: Array.from(woLocs.get(recs[i].wo) || []).join(", ") });
     });
     const what = kind === "reelCustomer" ? "Customer" : kind === "reelMill" ? "Mill" : "Work Order";
     return {
@@ -2121,6 +2133,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customers" },
         { key: "mill", label: "Mills" },
         { key: "wo", label: "Work Orders" },
+        { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
       ],
       dateKey: null,
       columns: [
@@ -2134,6 +2147,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "wastePct", label: "Waste %", render: (r) => <span style={{ fontWeight: 700, color: wasteColor(r.wastePct, 3, 5) }}>{fmtPct(r.wastePct)}</span> },
         { key: "output", label: "Production Output", render: (r) => fmtFull(r.output) },
         { key: "plannedQty", label: "Planned Qty", render: (r) => fmtFull(r.plannedQty) },
+        { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
       ],
       rows,
       sort: { key: "actualNet", dir: "desc" },
@@ -2153,7 +2167,8 @@ function buildDrill(spec, data, realRows, reelRows) {
       description: o.description || "-",
       customer: o.customerName || "-",
       quantity: toNum(o.quantity),
-      location: o.location?.locationName || "-",
+          location: o.location?.locationName || "-",
+      userLocations: Array.isArray(o.userLocations) ? o.userLocations.filter(Boolean).join(", ") : String(o.userLocations || ""),
       orderType: orderTypeOf(o.orderType) || o.orderType || "-",
       supplier: o.remarks || "-",
       user: o.user || "System",
@@ -2171,7 +2186,8 @@ function buildDrill(spec, data, realRows, reelRows) {
       ],
       fields: [
         { key: "customer", label: "Customers" },
-        { key: "location", label: "Locations" },
+        { key: "location", label: "Locations", alwaysShow: true },
+        { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
         { key: "productType", label: "Product Types" },
         { key: "user", label: "Users" },
       ],
@@ -2187,6 +2203,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customer" },
         { key: "quantity", label: "Order Qty", render: (r) => fmtFull(r.quantity) },
         { key: "location", label: "Location" },
+        { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
         { key: "orderType", label: "Order Type" },
         { key: "supplier", label: "Supplier Name" },
         { key: "user", label: "User" },
@@ -2297,7 +2314,7 @@ function buildDrill(spec, data, realRows, reelRows) {
       { key: "status", label: "Statuses" },
       { key: "machines", label: "Machines", split: true },
       { key: "stages", label: "Stages", split: true },
-      { key: "userLocations", label: "User Locations", split: true },
+      { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
     ],
     dateKey: "date",
     columns,
@@ -2332,7 +2349,7 @@ function DrillModal({ spec, data, realRows, reelRows, onClose }) {
           built.rows.forEach((r) => fieldValues(r, f).forEach((v) => { if (v !== "") set.add(v); }));
           return { ...f, options: Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) };
         })
-        .filter((f) => f.options.length > 1),
+        .filter((f) => f.options.length > 1 || f.alwaysShow),
     [built]
   );
 
@@ -3514,14 +3531,14 @@ export default function LiveProductionPortal() {
               <div className="filters-row no-print">
           {/* Location + User Locations — first two filters in the row */}
           <div className="filter-field">
-            <span className="filter-label"> User Location</span>
+            <span className="filter-label">Location</span>
             <MultiSelectDropdown
               label="Location" options={orderLocationOptions} selected={selectedOrderLocations} onChange={setSelectedOrderLocations}
               isOpen={openFilter === "orderLocations"} onToggle={(o) => setOpenFilter(o ? "orderLocations" : null)}
             />
           </div>
           <div className="filter-field">
-            <span className="filter-label">Locations</span>
+            <span className="filter-label"> User Locations</span>
             <MultiSelectDropdown
               label="User Locations" options={locationOptions} selected={selectedLocations} onChange={setSelectedLocations}
               isOpen={openFilter === "locations"} onToggle={(o) => setOpenFilter(o ? "locations" : null)}
