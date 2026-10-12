@@ -1829,6 +1829,19 @@ const completionStatusOf = (name) => {
   return "Over";
 };
 
+const ORDER_TYPES = [
+  { name: "Inhouse", color: COLORS.indigo },
+  { name: "Out Source", color: COLORS.amber },
+  { name: "PMS", color: COLORS.violet },
+];
+const orderTypeOf = (t) => {
+  const s = String(t || "").toUpperCase().replace(/[^A-Z]/g, "");
+  if (s.startsWith("INHOUSE")) return "Inhouse";
+  if (s.startsWith("OUTSOURCE")) return "Out Source";
+  if (s === "PMS") return "PMS";
+  return null;
+};
+
 // Same status matching the dashboard builder uses (prefix based, typo tolerant).
 const statusKeyOf = (status) => {
   const s = String(status || "").toUpperCase().replace(/[^A-Z]/g, "");
@@ -2123,6 +2136,61 @@ function buildDrill(spec, data, realRows, reelRows) {
       ],
       rows,
       sort: { key: "actualNet", dir: "desc" },
+      note: null,
+    };
+  }
+
+  /* ---- Customer orders by order type ---- */
+  if (kind === "orderType") {
+    const rows = (spec.rows || []).map((o) => ({
+      ticketNo: o.ticketNo || "-",
+      poNo: o.purchaseOrderNo || "-",
+      poDate: dateOnly(o.poDate) || "-",
+      expDate: dateOnly(o.expectedDeliveryDate) || "-",
+      productCode: o.productCode || "-",
+      productType: o.materialType || "-",
+      description: o.description || "-",
+      customer: o.customerName || "-",
+      quantity: toNum(o.quantity),
+      location: o.location?.locationName || "-",
+      orderType: orderTypeOf(o.orderType) || o.orderType || "-",
+      supplier: o.remarks || "-",
+      user: o.user || "System",
+    }));
+    return {
+      eyebrow: "Customer orders",
+      title: `Order Type — ${value}`,
+      sub: "Customer orders",
+      stats: (rs) => [
+        ["Orders", rs.length.toLocaleString("en-IN")],
+        ["Total Qty", fmtFull(rs.reduce((s, r) => s + r.quantity, 0))],
+        ["Customers", new Set(rs.map((r) => r.customer)).size.toLocaleString("en-IN")],
+        ["Locations", new Set(rs.map((r) => r.location)).size.toLocaleString("en-IN")],
+      ],
+      fields: [
+        { key: "customer", label: "Customers" },
+        { key: "location", label: "Locations" },
+        { key: "productType", label: "Product Types" },
+        { key: "user", label: "Users" },
+      ],
+      dateKey: "poDate",
+      columns: [
+        { key: "ticketNo", label: "Ticket No" },
+        { key: "poNo", label: "PO No", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>{r.poNo}</span> },
+        { key: "poDate", label: "PO Date" },
+        { key: "expDate", label: "Expected Date" },
+        { key: "productCode", label: "Product Code" },
+        { key: "productType", label: "Product Type" },
+        { key: "description", label: "Description" },
+        { key: "customer", label: "Customer" },
+        { key: "quantity", label: "Order Qty", render: (r) => fmtFull(r.quantity) },
+        { key: "location", label: "Location" },
+        { key: "orderType", label: "Order Type" },
+        { key: "supplier", label: "Supplier Name" },
+        { key: "user", label: "User" },
+      ],
+      rows,
+      sort: { key: "poDate", dir: "desc" },
       note: null,
     };
   }
@@ -2583,7 +2651,18 @@ const chartData = useMemo(() => {
   );
 }
 
-function LedgerTab({ data, search, openWO, trackWO }) {
+function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
+  const openDrill = useDrill();
+  const otFilter = useSeriesFilter();
+  const orderTypeData = useMemo(() => {
+    const groups = { Inhouse: [], "Out Source": [], PMS: [] };
+    customerOrders.forEach((o) => {
+      const t = orderTypeOf(o.orderType);
+      if (t) groups[t].push(o);
+    });
+    return ORDER_TYPES.map((t) => ({ name: t.name, value: groups[t.name].length, color: t.color, rows: groups[t.name] }));
+  }, [customerOrders]);
+  const orderTypeVisible = orderTypeData.filter((d) => !otFilter.hidden.has(d.name));
   const [statusFilter, setStatusFilter] = useState("All");
   const filtered = useMemo(() => {
     const q = normWO(search).toLowerCase();
@@ -2619,6 +2698,15 @@ function LedgerTab({ data, search, openWO, trackWO }) {
 
   return (
     <div>
+      <Panel title="Orders by Order Type" icon={PackageCheck} iconGrad={ACCENTS.purple.grad}
+        sub={`${orderTypeData.reduce((s, d) => s + d.value, 0).toLocaleString("en-IN")} customer orders — Inhouse / Out Source / PMS`}>
+        <DonutChart
+          data={orderTypeVisible.map((d) => ({ name: d.name, value: d.value, color: d.color }))}
+          height={240}
+          onDrill={(s) => openDrill({ kind: "orderType", value: s.name, rows: orderTypeData.find((d) => d.name === s.name)?.rows || [] })}
+        />
+        <PieLegend items={orderTypeData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={otFilter.hidden} toggle={otFilter.toggle} />
+      </Panel>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
         {[["All", "All"], ["Under", "Under"], ["Exact", "Exact"], ["Over", "Over"], ["HighWaste", "High wastage (>10%)"]].map(([id, label]) => (
           <Chip key={id} active={statusFilter === id} onClick={() => setStatusFilter(id)}>{label}</Chip>
@@ -3101,7 +3189,7 @@ const TABS = [
   { id: "tracker", label: "Stage Tracker", icon: Route },
   { id: "utilization", label: "Machine Utilization", icon: Gauge },
   { id: "prodwaste", label: "Production & Waste", icon: Cpu },
-  { id: "ledger", label: "Work Order Ledger", icon: ClipboardList },
+  { id: "ledger", label: "Planning", icon: ClipboardList },
   { id: "jobperf", label: "Job Completion", icon: CheckCircle2 },
   { id: "customers", label: "Customer Breakdown", icon: Users },
   // { id: "perso", label: "Production Entry Activity", icon: FileStack },
@@ -3119,10 +3207,12 @@ export default function LiveProductionPortal() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [drillSpec, setDrillSpec] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview"); // the one page currently shown
   const [openFilter, setOpenFilter] = useState(null); // "customers" | "jobs" | "machines" | "locations" | null — only one open at a time
 
   const [realRows, setRealRows] = useState([]);
   const [reelRows, setReelRows] = useState([]);
+  const [customerOrders, setCustomerOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
@@ -3133,12 +3223,14 @@ export default function LiveProductionPortal() {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
-      const [realRes, reelRes] = await Promise.all([
+      const [realRes, reelRes, ordersRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/production-real`, { headers }),
         axios.get(`${BASE_URL}/api/production`, { headers }),
+        axios.get(`${BASE_URL}/api/customer-orders`, { headers }).catch(() => ({ data: [] })),
       ]);
       setRealRows(Array.isArray(realRes.data) ? realRes.data : []);
       setReelRows(Array.isArray(reelRes.data) ? reelRes.data : []);
+      setCustomerOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setLastSyncTime(new Date());
     } catch (err) {
       console.error("Error loading portal data:", err);
@@ -3255,6 +3347,24 @@ export default function LiveProductionPortal() {
     });
   }, [reelRows, search, selectedCustomers, hasWOGatingFilters, matchingWOSet]);
 
+  const filteredCustomerOrders = useMemo(() => {
+    const q = normWO(search).toLowerCase();
+    return customerOrders.filter((o) => {
+      if (selectedCustomers.length && !selectedCustomers.includes(o.customerName || "")) return false;
+      if (dateFrom || dateTo) {
+        const d = dateOnly(o.poDate);
+        if (!d) return false;
+        if (dateFrom && d < dateFrom) return false;
+        if (dateTo && d > dateTo) return false;
+      }
+      if (q) {
+        const hay = [o.purchaseOrderNo, o.ticketNo, o.customerName, o.productCode].map((v) => String(v || "").toLowerCase()).join(" ");
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [customerOrders, search, selectedCustomers, dateFrom, dateTo]);
+
   const hasActiveFilters =
     Boolean(search) || selectedCustomers.length > 0 || selectedJobs.length > 0 ||
     selectedMachines.length > 0 || selectedLocations.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
@@ -3282,7 +3392,7 @@ export default function LiveProductionPortal() {
     setTrackerWO(wo);
     setDrawerWO(null);
     setTabs((prev) => (prev.includes("tracker") ? prev : [...prev, "tracker"]));
-    setTimeout(() => document.getElementById("section-tracker")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    setActiveTab("tracker");
   };
 
 
@@ -3292,6 +3402,14 @@ export default function LiveProductionPortal() {
   // Reel Register, or the WO drawer) to open a specific work order's sequence.
   const onSearchChange = (value) => {
     setSearch(value);
+  };
+
+  const changeSections = (labels) => {
+    let ids = TABS.filter((t) => labels.includes(t.label)).map((t) => t.id);
+    if (!ids.length) ids = ["overview"]; // always keep at least Overview KPIs
+    const added = ids.find((id) => !tabs.includes(id));
+    setTabs(ids);
+    setActiveTab(added || (ids.includes(activeTab) ? activeTab : ids[0]));
   };
 
   const handleGlobalSearch = (e) => {
@@ -3384,18 +3502,7 @@ export default function LiveProductionPortal() {
               isOpen={openFilter === "locations"} onToggle={(o) => setOpenFilter(o ? "locations" : null)}
             />
           </div>
-          <div className="filter-field">
-            <span className="filter-label">Sections</span>
-            <MultiSelectDropdown
-              label="Sections" options={TABS.map((t) => t.label)} width={210} emptyText="None selected"
-              selected={TABS.filter((t) => tabs.includes(t.id)).map((t) => t.label)}
-              onChange={(labels) => {
-                const ids = TABS.filter((t) => labels.includes(t.label)).map((t) => t.id);
-                setTabs(ids.length ? ids : ["overview"]); // always keep at least Overview KPIs selected
-              }}
-              isOpen={openFilter === "sections"} onToggle={(o) => setOpenFilter(o ? "sections" : null)}
-            />
-          </div>
+    
           <div className="date-range-group">
             <div className="filter-field">
               <label className="filter-label" htmlFor="portal-date-from">From Date</label>
@@ -3406,9 +3513,32 @@ export default function LiveProductionPortal() {
               <label className="filter-label" htmlFor="portal-date-to">To Date</label>
               <input id="portal-date-to" name="portalDateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="select-3d" title="To date" />
             </div>
+                  <div className="filter-field">
+            <span className="filter-label">Sections</span>
+            <MultiSelectDropdown
+              label="Sections" options={TABS.map((t) => t.label)} width={210} emptyText="None selected"
+              selected={TABS.filter((t) => tabs.includes(t.id)).map((t) => t.label)}
+              onChange={changeSections}
+              isOpen={openFilter === "sections"} onToggle={(o) => setOpenFilter(o ? "sections" : null)}
+            />
+          </div>
           </div>
         </div>
 
+        {tabs.some((id) => id !== "overview") && (
+          <div className="no-print" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, paddingTop: 12, marginTop: 10, borderTop: "1.5px solid #f1f5f9" }}>
+            {TABS.filter((t) => tabs.includes(t.id) && t.id !== "overview").map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`tab-btn-3d ${activeTab === t.id ? "active" : "inactive"}`}
+                onClick={() => setActiveTab(t.id)}
+              >
+                <t.icon size={12} /> {t.label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <main>
@@ -3416,15 +3546,15 @@ export default function LiveProductionPortal() {
         {tabs.length === 0 && (
           <Panel><p style={{ fontSize: 13, color: COLORS.slate, margin: 0 }}>Select one or more sections from the Sections dropdown to show them.</p></Panel>
         )}
-        {tabs.includes("overview") && <OverviewTab data={data} />}
-        {tabs.includes("reel") && <ReelTab data={data} openWO={openWO} />}
-        {tabs.includes("tracker") && <div id="section-tracker"><StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} /></div>}
-        {tabs.includes("utilization") && <UtilizationTab data={data} />}
-        {tabs.includes("prodwaste") && <ProdWasteTab data={data} />}
-        {tabs.includes("ledger") && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} />}
-        {tabs.includes("jobperf") && <JobCompletionTab data={data} openWO={openWO} />}
-        {tabs.includes("customers") && <CustomersTab data={data} />}
-        {tabs.includes("perso") && <PersoTab data={data} />}
+        {activeTab === "overview" && <OverviewTab data={data} />}
+        {activeTab === "reel" && <ReelTab data={data} openWO={openWO} />}
+        {activeTab === "tracker" && <StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} />}
+        {activeTab === "utilization" && <UtilizationTab data={data} />}
+        {activeTab === "prodwaste" && <ProdWasteTab data={data} />}
+        {activeTab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} customerOrders={filteredCustomerOrders} />}
+        {activeTab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
+        {activeTab === "customers" && <CustomersTab data={data} />}
+        {activeTab === "perso" && <PersoTab data={data} />}
       </main>
 
       <footer style={{ padding: "18px 4px", fontSize: 11, color: COLORS.slate, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>

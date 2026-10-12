@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import {
   FaArrowRight,
   FaEye,
@@ -387,7 +388,21 @@ function InternalLogin() {
         return;
       }
 
-      const target = ROLE_ROUTES[role];
+      const roleTarget = ROLE_ROUTES[role];
+
+      // Modules assigned by admin (same source the dashboard sidebar uses)
+      let assigned = [];
+      try {
+        assigned = jwtDecode(res.data.token).modules || [];
+      } catch {
+        assigned = [];
+      }
+
+      let target = roleTarget;
+      if (role !== "ADMIN" && assigned.length > 0) {
+        target = assigned.includes(roleTarget) ? roleTarget : assigned[0];
+      }
+
       if (target) navigate(target);
       else setError("Your role is not recognised. Contact your administrator.");
     } catch (err) {
