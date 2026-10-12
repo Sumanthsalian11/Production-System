@@ -52,15 +52,13 @@ const CSS = `
 
   .pr-root {
     min-height: 100vh;
-    color: #0b2f4f;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    box-sizing: border-box;
+    color: #08283d;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: 14px;
-    background:
-      radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.85) 0, rgba(255, 255, 255, 0) 30%),
-      radial-gradient(circle at 88% 18%, rgba(160, 228, 255, 0.7) 0, rgba(160, 228, 255, 0) 32%),
-      radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
-      linear-gradient(165deg, #eaf8ff 0%, #c9ecfb 38%, #a6dcf5 72%, #d9f2fd 100%);
-    background-attachment: fixed;
+    padding: 18px;
+    background: #ffffff;
+    border: 1px solid rgba(12, 90, 130, 0.38);
   }
   .pr-root * { box-sizing: border-box; }
 
@@ -106,38 +104,35 @@ const CSS = `
   }
   .pr-export-btn {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 20px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.6);
-    font-size: 13px; font-weight: 800; color: #fff; cursor: pointer;
-    text-shadow: 0 1px 2px rgba(0, 60, 110, 0.35);
-    background: linear-gradient(180deg, #b9f5d6 0%, #5fdda6 48%, #2cc58a 52%, #14a870 100%);
-    box-shadow: 0 3px 0 #0d8a5a, 0 8px 14px rgba(20, 168, 112, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    padding: 9px 20px; border-radius: 8px; border: 0;
+    font-size: 14px; font-weight: 700; color: #fff; cursor: pointer;
+    background: linear-gradient(135deg, #0877ad, #16a4dc);
+    box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
     transition: transform .12s ease, filter .12s ease;
   }
   .pr-export-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
   .pr-export-btn:active { transform: translateY(2px); }
-    .pr-field .pr-export-btn { min-height: 36px; justify-content: center; }
+    .pr-field .pr-export-btn { min-height: 38px; justify-content: center; }
 
   /* ── body ── */
-  .pr-body { max-width: 1500px; margin: 0 auto; padding: 16px 18px 40px; }
+  .pr-body { max-width: 100%; margin: 0; padding: 0; }
 
   /* ── glass filter card ── */
   .pr-filter-card {
     position: relative;
-    margin-bottom: 18px;
-    padding: 14px 18px 16px;
-    border-radius: 22px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(226, 246, 255, 0.86) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    box-shadow: 0 14px 32px rgba(40, 120, 170, 0.18), inset 0 1px 0 #fff, inset 0 -12px 26px rgba(140, 210, 245, 0.2);
+    margin-bottom: 24px;
+    padding: 16px;
+    border-radius: 12px;
+    background: rgba(221, 243, 252, 0.94);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
   .pr-filter-title {
     display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-    font-size: 12px; font-weight: 800; color: #0a4f8c;
-    text-transform: uppercase; letter-spacing: 0.6px;
+    font-size: 18px; font-weight: 800; color: #062b42;
   }
   .pr-filter-title::before {
-    content: ''; display: inline-block; width: 4px; height: 14px; border-radius: 2px;
-    background: linear-gradient(180deg, #5cc4f2, #1b8fd6);
+    display: none;
   }
   .pr-filter-grid {
     display: grid;
@@ -146,41 +141,42 @@ const CSS = `
     align-items: end;
   }
   .pr-field { display: flex; flex-direction: column; gap: 4px; }
-  .pr-label { font-size: 11px; font-weight: 800; color: #0b2f4f; text-transform: uppercase; letter-spacing: 0.4px; }
+  .pr-label { font-size: 14px; font-weight: 700; color: #092f47; }
   .pr-input, .pr-select {
-    min-height: 36px; padding: 6px 12px; outline: none;
-    border: 1.5px solid #9ccbe6; border-radius: 12px;
-    background: #ffffff; color: #0b2f4f; font-size: 13px; font-weight: 700;
-    box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.12), 0 1px 0 rgba(255, 255, 255, 0.9);
+    min-height: 38px; padding: 6px 12px; outline: none;
+    border: 1px solid rgba(14, 94, 135, 0.62); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.98); color: #071f31; font-size: 14px; font-weight: 600;
+    box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.08);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .pr-input::placeholder { color: #7b9db5; font-weight: 600; }
   .pr-input:focus, .pr-select:focus {
-    border-color: #1b9be0;
-    box-shadow: inset 0 1px 2px rgba(10, 80, 130, 0.08), 0 0 0 4px rgba(27, 155, 224, 0.22);
+    border-color: #087fb5;
+    box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22);
   }
   .pr-clear-btn {
-    min-height: 36px; padding: 0 16px; cursor: pointer;
-    border: 1.5px solid #9ccbe6; border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
-    color: #0a4f8c; font-size: 13px; font-weight: 800;
-    box-shadow: 0 3px 8px rgba(10, 80, 130, 0.12), inset 0 1px 0 #fff;
-    transition: all 0.15s;
+    min-height: 38px; padding: 0 16px; cursor: pointer;
+    border: 0; border-radius: 8px;
+    background: linear-gradient(135deg, #e05252, #ff7b7b);
+    color: #ffffff; font-size: 14px; font-weight: 700;
+    box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
   }
-  .pr-clear-btn:hover { background: linear-gradient(180deg, #ffe9e9 0%, #ffc9c9 100%); border-color: #f1a1a1; color: #b91c1c; }
+  .pr-clear-btn:hover { filter: brightness(1.05); }
+  .pr-clear-btn:active { transform: translateY(2px); box-shadow: 0 2px 6px rgba(10, 78, 115, 0.2); }
 
   /* ── table visibility dropdown ── */
   .tv-wrapper { position: relative; }
   .tv-trigger {
     display: flex; align-items: center; gap: 8px; width: 100%;
-    min-height: 36px; padding: 0 14px; cursor: pointer; white-space: nowrap;
-    border: 1.5px solid #9ccbe6; border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
-    color: #0a4f8c; font-size: 13px; font-weight: 800;
-    box-shadow: 0 3px 8px rgba(10, 80, 130, 0.12), inset 0 1px 0 #fff;
+    min-height: 38px; padding: 0 14px; cursor: pointer; white-space: nowrap;
+    border: 0; border-radius: 8px;
+    background: linear-gradient(135deg, #0877ad, #16a4dc);
+    color: #ffffff; font-size: 14px; font-weight: 700;
+    box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
     transition: 0.15s;
   }
-  .tv-trigger:hover { border-color: #1b9be0; color: #0a5fa8; }
+  .tv-trigger:hover { filter: brightness(1.05); color: #ffffff; }
   .tv-trigger .tv-arrow { font-size: 10px; transition: transform 0.2s; margin-left: auto; }
   .tv-trigger .tv-arrow.open { transform: rotate(180deg); }
   .tv-dropdown {
@@ -240,7 +236,7 @@ const CSS = `
   .pr-heading-icon-badge.purple { background: radial-gradient(circle at 30% 25%, #d9ccff, #8b5cf6 50%, #5b21b6); }
   .pr-heading-icon-badge.amber  { background: radial-gradient(circle at 30% 25%, #ffe6a8, #f59e0b 50%, #b45309); }
   .pr-heading-icon-badge.green  { background: radial-gradient(circle at 30% 25%, #b4f5d0, #10b981 50%, #047857); }
-  .pr-section-title h2 { font-size: 15px; font-weight: 800; margin: 0; color: #0b2f4f; }
+  .pr-section-title h2 { font-size: 18px; font-weight: 800; margin: 0; color: #062b42; }
   .pr-section-pill {
     font-size: 11px; font-weight: 800; padding: 4px 11px; border-radius: 20px;
     text-transform: uppercase; letter-spacing: 0.5px;
@@ -255,24 +251,24 @@ const CSS = `
     margin-bottom: 8px;
   }
   .pr-kpi {
-    padding: 16px 16px; text-align: center; border-radius: 22px;
-    background: linear-gradient(180deg, #ffffff 0%, #eaf7fe 100%);
-    border: 1px solid #cfe8f6;
-    box-shadow: 0 12px 24px rgba(10, 100, 160, 0.14), inset 0 1px 0 #fff;
+    padding: 18px 14px; text-align: center; border-radius: 14px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(20, 111, 156, 0.35);
+    box-shadow: 0 8px 18px rgba(14, 86, 122, 0.15), inset 0 1px 0 #ffffff;
     transition: 0.2s;
   }
   .pr-kpi:hover { transform: translateY(-2px); box-shadow: 0 16px 28px rgba(10, 100, 160, 0.2), inset 0 1px 0 #fff; }
-  .pr-kpi-label { font-size: 11px; font-weight: 800; color: #4a7391; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; }
-  .pr-kpi-value { font-size: 28px; font-weight: 900; color: #0b2f4f; letter-spacing: -0.5px; }
+  .pr-kpi-label { font-size: 12px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .pr-kpi-value { font-size: 26px; font-weight: 900; color: #06324d; letter-spacing: -0.5px; }
   .pr-kpi-value.danger { color: #dc2626; }
   .pr-kpi-value.success { color: #059669; }
   .pr-kpi-value.info { color: #0a5fa8; }
 
   /* ── colorful table card ── */
   .pr-table-card {
-    margin-bottom: 8px; overflow: hidden; border-radius: 18px;
-    background: #ffffff; border: 1px solid #a6d6ee;
-    box-shadow: 0 8px 20px rgba(10, 100, 160, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    margin-bottom: 24px; overflow: hidden; border-radius: 12px;
+    background: rgba(221, 243, 252, 0.94); border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
   .pr-table-wrap {
     max-height: 280px; overflow: auto;
@@ -284,19 +280,18 @@ const CSS = `
   }
   .pr-table th {
     position: sticky; top: 0; z-index: 3;
-    padding: 11px 14px; text-align: left;
-    background: linear-gradient(180deg, #f4fbff 0%, #d9eefb 100%);
-    color: #0a4f8c; font-size: 11px; font-weight: 800;
-    text-transform: uppercase; letter-spacing: 0.4px;
-    border-bottom: 2px solid #9ccbe6;
-    border-right: 1px solid #e1f0f9;
+    padding: 11px 14px; text-align: center;
+    background: #bfe6f8;
+    color: #06324d; font-size: 13px; font-weight: 800;
+    border-bottom: 1px solid rgba(20, 111, 156, 0.25);
+    border-right: 1px solid rgba(20, 111, 156, 0.25);
   }
   .pr-table th:last-child { border-right: none; }
   .pr-table td {
-    padding: 10px 14px;
-    border-bottom: 1px solid #dcecf6;
-    border-right: 1px solid #f1f8fc;
-    color: #0b2f4f; font-weight: 600; background: #ffffff;
+    padding: 10px 14px; text-align: center;
+    border-bottom: 1px solid rgba(20, 93, 130, 0.28);
+    border-right: 1px solid rgba(20, 93, 130, 0.28);
+    color: #09283d; font-weight: 500; background: #ffffff;
   }
   .pr-table td:last-child { border-right: none; }
   .pr-table tbody tr:nth-child(even) td { background: #f3faff; }
@@ -333,7 +328,7 @@ const CSS = `
 
   .pr-empty {
     padding: 48px; text-align: center; color: #4a7391;
-    font-weight: 700; font-size: 14px;
+    font-weight: 700; font-size: 14px; background: #ffffff;
   }
 
   .waste-good  { color: #059669 !important; font-weight: 800; }
@@ -343,7 +338,7 @@ const CSS = `
 
   @media (max-width: 768px) {
     .pr-header { margin: 8px 10px 0; padding: 10px 14px; top: 0; position: relative; }
-    .pr-body { padding-left: 10px; padding-right: 10px; }
+    .pr-root { padding: 12px; }
     .pr-kpi-value { font-size: 22px; }
     .tv-dropdown { right: auto; left: 0; }
   }

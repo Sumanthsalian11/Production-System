@@ -725,7 +725,7 @@ function ProductionReport() {
       style={{
         maxWidth: "100%",
         fontSize: "14px",
-        background: "#d8f1fb",
+        background: "#ffffff",
         border: "1px solid rgba(12, 90, 130, 0.38)",
         borderRadius: "0px"
       }}
@@ -738,10 +738,7 @@ function ProductionReport() {
           min-height: 100vh;
           padding: 18px;
           color: #08283d;
-          background:
-            radial-gradient(circle at top left, rgba(34, 153, 204, 0.34), transparent 32%),
-            linear-gradient(135deg, #d6f1fb 0%, #edfaff 48%, #c7e9f7 100%) !important;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          background: #ffffff !important;
         }
 
         .production-report-universe .report-hero-title {
@@ -818,13 +815,13 @@ function ProductionReport() {
         .production-report-universe .card-header {
           border: 0;
           border-radius: 12px 12px 0 0 !important;
-          background: linear-gradient(135deg, #075f90, #119bd2) !important;
-          color: #ffffff !important;
+          background: #a9dcf3 !important;
+          color: #06324d !important;
           padding: 12px 16px;
         }
 
         .production-report-universe .table-responsive {
-          background: #d5edf8 !important;
+          background: #ffffff !important;
           border-radius: 0 0 12px 12px;
         }
 
@@ -834,9 +831,9 @@ function ProductionReport() {
         }
 
         .production-report-universe thead th {
-          background: #064c73 !important;
-          color: #ffffff !important;
-          border-color: rgba(255, 255, 255, 0.28) !important;
+          background: #bfe6f8 !important;
+          color: #06324d !important;
+          border-color: rgba(20, 111, 156, 0.25) !important;
           font-size: 13px;
           vertical-align: middle;
           white-space: nowrap;

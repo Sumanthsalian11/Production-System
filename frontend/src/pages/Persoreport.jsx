@@ -5,155 +5,138 @@ import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
 
 const CSS = `
-  /* ---------- Light aqua-glass design (same family as Reel Register) ---------- */
+  /* ---------- Production Report style (white page, light-blue cards) ---------- */
   .rpt-root {
-    --ink: #0b2f4f; --muted: #4a6f8c; --hint: #8fb0c8;
-    --accent: #0a6fb8; --line: #cfe8f6; --line-strong: #86c6e8;
-    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --sans: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    --ink: #08283d; --muted: #475569; --hint: #94a3b8;
+    --accent: #06324d; --line: rgba(20, 93, 130, 0.28); --line-strong: rgba(20, 111, 156, 0.42);
+    --mono: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     min-height: 100vh;
-    padding: 18px 20px 40px;
-    font-family: var(--sans); font-size: 13px; color: var(--ink);
-    background:
-      radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 30%),
-      radial-gradient(circle at 88% 18%, rgba(160, 222, 250, 0.7) 0, rgba(160, 222, 250, 0) 32%),
-      radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
-      linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-    background-attachment: fixed;
+    padding: 18px;
+    font-family: var(--sans); font-size: 14px; color: var(--ink);
+    background: #ffffff;
+    border: 1px solid rgba(12, 90, 130, 0.38);
   }
   .rpt-root * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ---------- Glass header with round emblem ---------- */
+  /* ---------- Header (unused in markup, kept for parity) ---------- */
   .rpt-header {
     display: flex; justify-content: space-between; align-items: center;
     flex-wrap: wrap; gap: 12px;
     padding: 12px 22px; margin: 0 auto 16px; max-width: 100%;
-    border-radius: 28px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(222, 244, 254, 0.8) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 14px 30px rgba(40, 120, 170, 0.18), inset 0 1px 0 #fff, inset 0 -10px 22px rgba(140, 210, 245, 0.2);
+    border-radius: 12px;
+    background: rgba(221, 243, 252, 0.94);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
   .rpt-brand { display: flex; align-items: center; gap: 14px; }
   .rpt-emblem {
     width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     color: #0a6fb8;
-    background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
-    border: 1px solid #86c6e8;
-    box-shadow: 0 6px 14px rgba(40, 120, 170, 0.22), inset 0 2px 3px rgba(255, 255, 255, 0.9);
+    background: #ffffff;
+    border: 1px solid rgba(20, 111, 156, 0.42);
   }
-  .rpt-header-title { font-size: 24px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
+  .rpt-header-title { font-size: 28px; font-weight: 800; letter-spacing: 0; color: #06324d; }
   .rpt-header-sub { color: var(--muted); font-size: 12px; font-weight: 600; margin-top: 2px; }
   .rpt-user-box {
     display: flex; align-items: center; gap: 9px;
-    padding: 7px 16px; border-radius: 30px; min-width: 160px;
-    background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
-    border: 1px solid #a9d9f2; color: var(--muted); font-size: 11px; font-weight: 700;
-    box-shadow: 0 4px 12px rgba(40, 120, 170, 0.15), inset 0 1px 0 #fff;
+    padding: 7px 16px; border-radius: 8px; min-width: 160px;
+    background: #ffffff;
+    border: 1px solid rgba(20, 111, 156, 0.42); color: var(--muted); font-size: 12px; font-weight: 700;
   }
   .rpt-user-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 10px #22c55e; flex-shrink: 0; }
-  .rpt-user-box strong { display: block; font-size: 14px; font-weight: 800; color: #0a4f8c; }
+  .rpt-user-box strong { display: block; font-size: 14px; font-weight: 800; color: #06324d; }
 
-  .rpt-body { max-width: 100%; margin: 0 auto; padding: 0; }
+  .rpt-body { max-width: 100%; margin: 0; padding: 0; }
 
   /* ---------- Filters ---------- */
   .rpt-filter-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(228, 246, 255, 0.9) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    border-radius: 22px; padding: 14px 18px 16px; margin-bottom: 16px;
-    box-shadow: 0 14px 32px rgba(40, 120, 170, 0.16), inset 0 1px 0 #fff;
+    background: rgba(221, 243, 252, 0.94);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    border-radius: 12px; padding: 16px; margin-bottom: 24px;
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
   .rpt-filter-title, .rpt-section-label {
-    display: inline-flex; align-items: center; gap: 9px;
-    font-size: 12px; font-weight: 800; color: #0a4f8c;
-    text-transform: uppercase; letter-spacing: 0.7px;
-    padding: 5px 16px 5px 12px; margin-bottom: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%);
-    border: 1px solid #a9d9f2; border-radius: 999px;
-    box-shadow: 0 3px 8px rgba(40, 120, 170, 0.12), inset 0 1px 0 #fff;
+    display: block;
+    font-size: 18px; font-weight: 800; color: #062b42;
+    padding: 6px 0; margin-bottom: 8px;
+    background: none; border: 0; border-radius: 0; box-shadow: none;
+    text-transform: none; letter-spacing: 0;
   }
   .rpt-filter-title::before, .rpt-section-label::before {
-    content: ""; width: 9px; height: 9px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 25%, #b6ecff, #2a9be0 70%);
-    box-shadow: 0 0 0 3px rgba(42, 155, 224, 0.2);
+    display: none;
   }
   .rpt-filter-grid { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
   .rpt-filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 160px; flex: 1; }
-  .rpt-filter-label { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; }
+  .rpt-filter-label { font-size: 14px; font-weight: 700; color: #092f47; }
   .rpt-filter-input, .rpt-filter-select {
-    height: 34px; border: 1.5px solid #9ccbe6; border-radius: 12px;
-    background: #fff; color: var(--ink); padding: 0 11px;
-    font-size: 13px; font-weight: 600; outline: none; font-family: var(--sans);
-    box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
+    height: 38px; border: 1px solid rgba(14, 94, 135, 0.62); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.98); color: #071f31; padding: 0 12px;
+    font-size: 14px; font-weight: 600; outline: none; font-family: var(--sans);
+    box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.08);
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
-  .rpt-filter-input:hover, .rpt-filter-select:hover { border-color: #5fb4de; }
+  .rpt-filter-input:hover, .rpt-filter-select:hover { border-color: #087fb5; }
   .rpt-filter-input:focus, .rpt-filter-select:focus {
-    border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27, 155, 224, 0.2), 0 6px 14px rgba(27, 155, 224, 0.12);
+    border-color: #087fb5; box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22);
   }
   .rpt-btn {
-    height: 34px; border: 1px solid transparent; border-radius: 12px; padding: 0 18px;
-    font-size: 12px; font-weight: 800; cursor: pointer;
-    font-family: var(--sans); letter-spacing: 0.3px; transition: all 0.15s ease;
+    height: 38px; border: 0; border-radius: 8px; padding: 0 18px;
+    font-size: 14px; font-weight: 700; cursor: pointer; color: #ffffff;
+    font-family: var(--sans); letter-spacing: 0;
+    box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   }
-  .rpt-btn:hover { transform: translateY(-1px); }
-  .rpt-btn:active { transform: translateY(2px); }
-  .rpt-btn-clear {
-    background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%); color: #8f1414; border-color: #ee8f8f;
-    box-shadow: 0 3px 0 #e08a8a, 0 7px 12px rgba(220, 38, 38, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  }
-  .rpt-btn-export {
-    background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab;
-    box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20, 168, 112, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  }
-  .rpt-btn-print {
-    background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border-color: #7fc3e8;
-    box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40, 120, 170, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  }
+  .rpt-btn:hover { filter: brightness(1.05); }
+  .rpt-btn:active { transform: translateY(2px); box-shadow: 0 2px 6px rgba(10, 78, 115, 0.2); }
+  .rpt-btn-clear  { background: linear-gradient(135deg, #e05252, #ff7b7b); }
+  .rpt-btn-export { background: linear-gradient(135deg, #0877ad, #16a4dc); }
+  .rpt-btn-print  { background: linear-gradient(135deg, #0877ad, #16a4dc); }
 
   /* ---------- Meta bar ---------- */
   .rpt-meta-bar {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(228, 246, 255, 0.85));
-    border: 1px solid rgba(255, 255, 255, 0.95); border-radius: 16px;
-    padding: 9px 18px; margin-bottom: 16px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(20, 111, 156, 0.35); border-radius: 14px;
+    padding: 12px 18px; margin-bottom: 24px;
     display: flex; flex-wrap: wrap; gap: 8px 26px;
-    font-size: 12px; font-weight: 700; color: var(--muted);
-    box-shadow: 0 6px 16px rgba(40, 120, 170, 0.1), inset 0 1px 0 #fff;
+    font-size: 14px; font-weight: 700; color: var(--muted);
+    box-shadow: 0 8px 18px rgba(14, 86, 122, 0.15), inset 0 1px 0 #ffffff;
   }
-  .rpt-meta-item span { color: #0a4f8c; font-weight: 800; font-family: var(--mono); }
+  .rpt-meta-item span { color: #06324d; font-weight: 900; font-family: var(--mono); }
 
   /* ---------- Tables ---------- */
   .rpt-table-wrap {
-    overflow-x: auto; border-radius: 18px; border: 1px solid #a9d9f2;
-    margin-bottom: 22px; box-shadow: 0 10px 24px rgba(40, 120, 170, 0.14); max-height: 400px;
-    background: #fff;
+    overflow-x: auto; border-radius: 12px;
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    margin-bottom: 24px; box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22); max-height: 400px;
+    background: rgba(221, 243, 252, 0.94);
   }
   .rpt-table {
     width: 100%; border-collapse: collapse; white-space: nowrap;
-    font-size: 12px; background: #fff;
+    font-size: 13px; background: #fff;
   }
   .rpt-table th {
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%); color: #08406b;
-    padding: 9px 10px; text-align: center; font-size: 11px; font-weight: 800;
-    letter-spacing: 0.3px; border: 1px solid #7fbfe4; vertical-align: middle;
+    background: #bfe6f8; color: #06324d;
+    padding: 10px 12px; text-align: center; font-size: 13px; font-weight: 800;
+    letter-spacing: 0; border: 1px solid rgba(20, 111, 156, 0.25); vertical-align: middle;
   }
   .rpt-table td {
-    padding: 7px 10px; border: 1px solid #d3e8f4; vertical-align: middle;
-    text-align: center; color: var(--ink); font-weight: 600; background: #fff;
+    padding: 8px 12px; border: 1px solid rgba(20, 93, 130, 0.28); vertical-align: middle;
+    text-align: center; color: #09283d; font-weight: 500; background: #fff;
   }
   .rpt-table tbody tr:nth-child(even) td { background: #f3faff; }
   .rpt-table tbody tr:hover td { background: #d9f2fc; }
   .rpt-table td.left { text-align: left; }
-  .rpt-table td.mono { font-family: var(--mono); font-size: 11.5px; }
+  .rpt-table td.mono { font-family: var(--mono); font-size: 13px; }
   .rpt-table tfoot td {
-    background: #d9f0fb; color: #08406b; font-weight: 800;
-    font-family: var(--mono); font-size: 12px; border: 1px solid #a9d9f2;
+    background: #bfe6f8; color: #06324d; font-weight: 800;
+    font-family: var(--mono); font-size: 13px; border: 1px solid rgba(20, 111, 156, 0.25);
   }
-  .rpt-thead-group { background: linear-gradient(180deg, #b3def6 0%, #82c8ee 100%) !important; font-size: 11.5px !important; letter-spacing: 0 !important; }
-  .rpt-con-machine { font-weight: 800; color: var(--ink); text-align: left; font-size: 12px; }
-  .rpt-con-num { font-family: var(--mono); font-size: 12px; text-align: right; }
-  .rpt-con-time { font-family: var(--mono); font-size: 12px; }
+  .rpt-thead-group { background: #a9dcf3 !important; font-size: 13px !important; letter-spacing: 0 !important; }
+  .rpt-con-machine { font-weight: 800; color: var(--ink); text-align: left; font-size: 13px; }
+  .rpt-con-num { font-family: var(--mono); font-size: 13px; text-align: right; }
+  .rpt-con-time { font-family: var(--mono); font-size: 13px; }
   .rpt-con-total { font-family: var(--mono); font-weight: 800; color: var(--accent); }
 
   .rpt-empty {
@@ -163,12 +146,13 @@ const CSS = `
   .rpt-muted { color: var(--hint); }
 
   @media (max-width: 768px) {
-    .rpt-root { padding: 10px; }
-    .rpt-header { border-radius: 20px; }
+    .rpt-root { padding: 12px; }
+    .rpt-header { border-radius: 12px; }
+    .rpt-filter-title, .rpt-section-label { font-size: 16px; }
   }
   @media print {
     .rpt-filter-card, .rpt-btn { display: none !important; }
-    .rpt-root { background: #fff; padding: 0; }
+    .rpt-root { background: #fff; padding: 0; border: 0; }
     .rpt-body { padding: 0; }
   }
 `;
