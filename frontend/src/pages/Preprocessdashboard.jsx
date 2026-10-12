@@ -58,6 +58,7 @@ const SectionHead = ({ icon: Icon, color = "blue", title, pill }) => (
 );
 
 const preprocessStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
   @keyframes pulseNotification {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
     50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
@@ -66,75 +67,75 @@ const preprocessStyles = `
   @keyframes glowPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } }
 
   /* ---------- Aqua glass backdrop ---------- */
-  .dashboard-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:14px 18px 28px;overflow:hidden;border:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#0b2f4f;background:radial-gradient(circle at 12% 6%,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 30%),radial-gradient(circle at 88% 18%,rgba(160,228,255,.7) 0,rgba(160,228,255,0) 32%),radial-gradient(circle at 50% 100%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 45%),linear-gradient(165deg,#eaf8ff 0%,#c9ecfb 38%,#a6dcf5 72%,#d9f2fd 100%)}
+  .dashboard-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:14px 18px 28px;overflow:hidden;border:0;font-family:'Source Sans 3','Segoe UI',system-ui,-apple-system,sans-serif;color:#1f2d3a;background:#f3f5f7}
   .dashboard-container>*{position:relative}
 
   /* ---------- Glossy hero header ---------- */
-  .dashboard-heading{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:0 0 12px;padding:9px 18px;border-radius:20px;color:#0b2f4f;background:linear-gradient(180deg,rgba(255,255,255,.92) 0%,rgba(222,244,254,.8) 100%);border:1px solid rgba(255,255,255,.95);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 30px rgba(40,120,170,.18),inset 0 1px 0 #fff,inset 0 -10px 22px rgba(140,210,245,.2)}
+  .dashboard-heading{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:0 0 12px;padding:9px 18px;border-radius:6px;color:#1f2d3a;background:#fff;border:1px solid #dfe4e9;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 1px 2px rgba(16,40,56,.06)}
   .hero-left-branding{display:flex;align-items:center;gap:14px}
-  .hero-emblem-3d{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:radial-gradient(circle at 30% 25%,#b6ecff 0%,#34b6f0 40%,#0a6fb8 100%);box-shadow:0 8px 18px rgba(2,60,110,.45),inset 0 2px 3px rgba(255,255,255,.8),inset 0 -4px 8px rgba(0,60,120,.35);flex-shrink:0}
-  .dashboard-heading h3{margin:0;font-size:21px;font-weight:800;letter-spacing:-.4px;color:#0a4f8c}
-  .dashboard-heading p{margin:1px 0 0;font-size:11.5px;font-weight:600;color:#4a7391}
-  .operator-pill-3d{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:30px;font-size:12px;font-weight:700;color:#0b2f4f;background:linear-gradient(180deg,#fff 0%,#dff6ff 100%);border:1px solid rgba(255,255,255,.9);box-shadow:0 4px 12px rgba(2,60,110,.25),inset 0 1px 0 #fff}
+  .hero-emblem-3d{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;background:#0f6b7c;box-shadow:none;flex-shrink:0}
+  .dashboard-heading h3{margin:0;font-size:21px;font-weight:700;letter-spacing:-.4px;color:#043a45}
+  .dashboard-heading p{margin:1px 0 0;font-size:11.5px;font-weight:600;color:#5f6c7a}
+  .operator-pill-3d{display:flex;align-items:center;gap:8px;padding:5px 12px;border-radius:30px;font-size:12px;font-weight:600;color:#1f2d3a;background:#fff;border:1px solid #dfe4e9;box-shadow:none}
   .operator-pulse-dot{width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e;animation:glowPulse 2s infinite}
 
   /* ---------- Section headings ---------- */
   .card-heading-row{display:flex;justify-content:space-between;align-items:center;margin:14px 0 8px}
   .heading-with-icon{display:flex;align-items:center;gap:10px}
-  .heading-icon-badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 5px 12px rgba(2,60,110,.3),inset 0 2px 2px rgba(255,255,255,.7)}
+  .heading-icon-badge{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:none}
   .heading-icon-badge svg{width:16px;height:16px}
-  .heading-icon-badge.blue{background:radial-gradient(circle at 30% 25%,#b6ecff,#34b6f0 45%,#0a6fb8)}
-  .heading-icon-badge.purple{background:radial-gradient(circle at 30% 25%,#d9ccff,#8b5cf6 50%,#5b21b6)}
-  .heading-icon-badge.amber{background:radial-gradient(circle at 30% 25%,#ffe6a8,#f59e0b 50%,#b45309)}
-  .heading-icon-badge.green{background:radial-gradient(circle at 30% 25%,#b4f5d0,#10b981 50%,#047857)}
-  .card-heading-row h2{font-size:15px;font-weight:800;margin:0;color:#0b2f4f}
-  .section-pill-tag{font-size:11px;font-weight:800;padding:4px 11px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;background:linear-gradient(180deg,#fff,#d4f0fd);color:#0a4f8c;border:1px solid #a6d6ee}
+  .heading-icon-badge.blue{background:#0f6b7c}
+  .heading-icon-badge.purple{background:#6d4fd6}
+  .heading-icon-badge.amber{background:#d98a00}
+  .heading-icon-badge.green{background:#2f9e60}
+  .card-heading-row h2{font-size:15px;font-weight:700;margin:0;color:#1f2d3a}
+  .section-pill-tag{font-size:11px;font-weight:700;padding:4px 11px;border-radius:6px;text-transform:uppercase;letter-spacing:.5px;background:#e6f1f3;color:#043a45;border:1px solid #dfe4e9}
 
   /* ---------- Glass filter bar + inset inputs ---------- */
-  .filter-bar{display:flex;justify-content:flex-start;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.92) 0%,rgba(226,246,255,.86) 100%);border:1px solid rgba(255,255,255,.95);box-shadow:0 10px 24px rgba(40,120,170,.16),inset 0 1px 0 #fff,inset 0 -8px 18px rgba(140,210,245,.18)}
-  .filter-bar .form-control,.filter-bar .form-select{min-height:36px;padding:6px 12px;border:1.5px solid #9ccbe6;border-radius:12px;color:#0b2f4f;background:#fff;font-size:13px;font-weight:700;box-shadow:inset 0 2px 5px rgba(10,80,130,.12),0 1px 0 rgba(255,255,255,.9);flex:1 1 150px;min-width:110px;max-width:230px;transition:all .2s cubic-bezier(.4,0,.2,1)}
-  .filter-bar .form-control::placeholder{color:#7b9db5;font-weight:600;opacity:1}
-  .filter-bar .form-control:focus,.filter-bar .form-select:focus{border-color:#1b9be0;outline:none;box-shadow:inset 0 1px 2px rgba(10,80,130,.08),0 0 0 4px rgba(27,155,224,.22)}
+  .filter-bar{display:flex;justify-content:flex-start;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;border-radius:6px;background:#f8f9fa;border:1px solid #dfe4e9;box-shadow:0 1px 2px rgba(16,40,56,.06)}
+  .filter-bar .form-control,.filter-bar .form-select{min-height:36px;padding:6px 12px;border:1.5px solid #cfd6dd;border-radius:4px;color:#1f2d3a;background:#fff;font-size:13px;font-weight:600;box-shadow:none;flex:1 1 150px;min-width:110px;max-width:230px;transition:all .2s cubic-bezier(.4,0,.2,1)}
+  .filter-bar .form-control::placeholder{color:#9aa5b1;font-weight:600;opacity:1}
+  .filter-bar .form-control:focus,.filter-bar .form-select:focus{border-color:#0f6b7c;outline:none;box-shadow:0 0 0 3px rgba(15,107,124,.15)}
   .filter-bar .btn,.filter-bar span{flex:0 0 auto;white-space:nowrap}
 
   /* ---------- Glossy 3D aqua buttons ---------- */
-  .dashboard-container .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(255,255,255,.6);border-radius:12px;font-weight:800;color:#fff;text-decoration:none;text-shadow:0 1px 2px rgba(0,60,110,.35);cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
-  .dashboard-container .btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.04);color:#fff}
-  .dashboard-container .btn:active:not(:disabled){transform:translateY(2px)}
+  .dashboard-container .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid transparent;border-radius:4px;font-weight:700;color:#fff;text-decoration:none;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
+  .dashboard-container .btn:hover:not(:disabled){transform:none;filter:brightness(1.04);color:#fff}
+  .dashboard-container .btn:active:not(:disabled){transform:none}
   .dashboard-container .btn:disabled{opacity:.5;cursor:not-allowed}
-  .dashboard-container .btn-primary{background:linear-gradient(180deg,#b4ecff 0%,#5cc4f2 48%,#2ea4e6 52%,#1b8fd6 100%);box-shadow:0 3px 0 #1479b8,0 8px 14px rgba(30,130,190,.28),inset 0 1px 0 rgba(255,255,255,.85)}
-  .dashboard-container .btn-info{background:linear-gradient(180deg,#a8e6ff 0%,#4fb8ee 55%,#2a9be0 100%);box-shadow:0 3px 0 #1479b8,0 6px 10px rgba(30,130,190,.25),inset 0 1px 0 rgba(255,255,255,.8)}
-  .dashboard-container .btn-success{background:linear-gradient(180deg,#b9f5d6 0%,#5fdda6 48%,#2cc58a 52%,#14a870 100%);box-shadow:0 3px 0 #0d8a5a,0 8px 14px rgba(20,168,112,.26),inset 0 1px 0 rgba(255,255,255,.85)}
-  .dashboard-container .btn-danger{background:linear-gradient(180deg,#ff9d9d 0%,#ef4444 50%,#b91c1c 100%);box-shadow:0 3px 0 #991b1b,0 6px 10px rgba(185,28,28,.25),inset 0 1px 0 rgba(255,255,255,.6)}
-  .dashboard-container .btn-secondary{background:linear-gradient(180deg,#d3e2ee 0%,#9bb6ca 50%,#6f8fa6 100%);box-shadow:0 3px 0 #587588,0 6px 10px rgba(80,110,135,.25),inset 0 1px 0 rgba(255,255,255,.8)}
+  .dashboard-container .btn-primary{background:#043a45;border-color:#043a45;box-shadow:none}
+  .dashboard-container .btn-info{background:#0f6b7c;border-color:#0f6b7c;box-shadow:none}
+  .dashboard-container .btn-success{background:#e4572e;border-color:#e4572e;box-shadow:none}
+  .dashboard-container .btn-danger{background:#d64545;border-color:#d64545;box-shadow:none}
+  .dashboard-container .btn-secondary{background:#fff;color:#1f2d3a;border-color:#cfd6dd;box-shadow:none}
 
   /* ---------- Colorful 3D tables ---------- */
-  .scrollable-table-container{width:100%;overflow:auto;border-radius:18px;background:#fff}
-  .production-real-table-wrap{background:#fff;border:1px solid #a6d6ee;border-radius:18px;box-shadow:0 8px 20px rgba(10,100,160,.14),inset 0 1px 0 rgba(255,255,255,.9)}
+  .scrollable-table-container{width:100%;overflow:auto;border-radius:6px;background:#fff}
+  .production-real-table-wrap{background:#fff;border:1px solid #dfe4e9;border-radius:6px;box-shadow:0 1px 2px rgba(16,40,56,.06)}
   .production-real-table-wrap::-webkit-scrollbar{width:8px;height:8px}
-  .production-real-table-wrap::-webkit-scrollbar-track{background:#e8f4fa;border-radius:8px}
-  .production-real-table-wrap::-webkit-scrollbar-thumb{background:#84b5ce;border-radius:8px}
-  .production-real-table-wrap::-webkit-scrollbar-thumb:hover{background:#5a9bbd}
-  .production-real-table{width:100%;min-width:0;margin:0;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:.81rem;color:#0b2f4f;background:#fff}
+  .production-real-table-wrap::-webkit-scrollbar-track{background:#f1f3f5;border-radius:8px}
+  .production-real-table-wrap::-webkit-scrollbar-thumb{background:#c2ccd4;border-radius:8px}
+  .production-real-table-wrap::-webkit-scrollbar-thumb:hover{background:#9fb0bd}
+  .production-real-table{width:100%;min-width:0;margin:0;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:.81rem;color:#1f2d3a;background:#fff}
   .production-real-table th,.production-real-table td{overflow-wrap:anywhere;word-break:break-word;vertical-align:middle}
-  .production-real-table thead th{position:sticky;top:0;z-index:1;padding:11px 10px;background:linear-gradient(180deg,#f4fbff 0%,#d9eefb 100%)!important;color:#0a4f8c!important;border:0!important;border-bottom:2px solid #9ccbe6!important;font-size:.68rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
-  .production-real-table tbody td{padding:9px 10px;border:0!important;border-bottom:1px solid #dcecf6!important;border-right:1px solid #f1f8fc!important;font-weight:600;color:#0b2f4f;background:#fff}
-  .production-real-table tbody tr:nth-child(even) td{background:#f3faff}
-  .production-real-table tbody tr:hover td{background:#d9f2fc!important}
-  .production-real-table .empty-state{padding:42px!important;color:#4a7391!important;font-weight:700;text-align:center}
+  .production-real-table thead th{position:sticky;top:0;z-index:1;padding:11px 10px;background:#f4f6f8!important;color:#5f6c7a!important;border:0!important;border-bottom:1px solid #dfe4e9!important;font-size:.7rem;font-weight:600;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+  .production-real-table tbody td{padding:9px 10px;border:0!important;border-bottom:1px solid #edf0f3!important;border-right:1px solid #f3f5f7!important;font-weight:400;color:#1f2d3a;background:#fff}
+  .production-real-table tbody tr:nth-child(even) td{background:#fff}
+  .production-real-table tbody tr:hover td{background:#f1f7f8!important}
+  .production-real-table .empty-state{padding:42px!important;color:#5f6c7a!important;font-weight:600;text-align:center}
   .planned-workorders-table th,.planned-workorders-table td{overflow-wrap:anywhere;word-break:break-word}
-  .empty-state{padding:42px!important;color:#4a7391!important;font-weight:700;text-align:center}
+  .empty-state{padding:42px!important;color:#5f6c7a!important;font-weight:600;text-align:center}
 
   /* ---------- Status pills ---------- */
-  .status-pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:.7rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+  .status-pill{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.7rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
   .status-pending{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
   .status-approved{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
   .status-rejected{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
 
   /* ---------- Floating "+" button ---------- */
-  .pt-fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;color:#fff;border:1px solid rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100;background:linear-gradient(180deg,#b4ecff 0%,#5cc4f2 48%,#2ea4e6 52%,#1b8fd6 100%);box-shadow:0 4px 0 #1479b8,0 12px 22px rgba(30,130,190,.35),inset 0 1px 0 rgba(255,255,255,.85);transition:transform .12s ease}
-  .pt-fab:hover{transform:translateY(-2px)}
-  .pt-fab:active{transform:translateY(2px)}
+  .pt-fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;color:#fff;border:1px solid transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100;background:#e4572e;box-shadow:0 4px 12px rgba(16,40,56,.25);transition:transform .12s ease}
+  .pt-fab:hover{transform:none}
+  .pt-fab:active{transform:none}
 
   @media(max-width:768px){.dashboard-container{padding:12px}.dashboard-heading{flex-direction:column;align-items:flex-start;padding:14px}.dashboard-heading>div:last-child{width:100%;justify-content:flex-start;flex-wrap:wrap}.filter-bar{justify-content:stretch}.filter-bar .form-control,.filter-bar .form-select{width:100%!important}}
 `;
@@ -206,7 +207,7 @@ function PreprocessDashboard() {
       title,
       text,
       icon,
-      confirmButtonColor: "#3085d6",
+      confirmButtonColor: "#043a45",
       width: "350px"
     });
   };
@@ -337,8 +338,8 @@ function PreprocessDashboard() {
       text: `WO ${entry.woNumber} — this cannot be undone.`,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      cancelButtonColor: "#6c757d",
+      confirmButtonColor: "#d64545",
+      cancelButtonColor: "#5f6c7a",
       confirmButtonText: "Yes, delete",
       width: "350px"
     });
@@ -454,8 +455,8 @@ function PreprocessDashboard() {
       text: `Work Order ${wo.efiWoNumber} will be saved to the Prepress record.`,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#16a34a",
-      cancelButtonColor: "#6c757d",
+      confirmButtonColor: "#2f9e60",
+      cancelButtonColor: "#5f6c7a",
       confirmButtonText: "Yes, done",
       width: "350px"
     });
@@ -494,8 +495,8 @@ function PreprocessDashboard() {
       text: `Job "${request.jobName}" for WO ${request.efiWoNumber}`,
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: isApprove ? "#16a34a" : "#dc2626",
-      cancelButtonColor: "#6c757d",
+      confirmButtonColor: isApprove ? "#2f9e60" : "#d64545",
+      cancelButtonColor: "#5f6c7a",
       confirmButtonText: isApprove ? "Yes, approve" : "Yes, reject",
       input: "text",
       inputPlaceholder: "Optional remarks",
@@ -692,8 +693,8 @@ function PreprocessDashboard() {
                 className="d-flex align-items-center gap-2 border-0 shadow-sm"
                 style={{
                   background: activeView === "platerequests"
-                    ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-                    : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                    ? "#2f9e60"
+                    : "#d64545",
                   color: "#fff",
                   borderRadius: "30px",
                   padding: "8px 16px",
@@ -710,7 +711,7 @@ function PreprocessDashboard() {
                 <span
                   className="badge rounded-pill bg-white"
                   style={{
-                    color: activeView === "platerequests" ? "#059669" : "#dc2626",
+                    color: activeView === "platerequests" ? "#059669" : "#d64545",
                     fontWeight: "800",
                     fontSize: "11px",
                     padding: "3px 8px"
@@ -727,25 +728,25 @@ function PreprocessDashboard() {
                 value={activeView}
                 onChange={(e) => setActiveView(e.target.value)}
                 style={{
-                  border: "1.5px solid #9ccbe6",
-                  borderRadius: 12,
+                  border: "1.5px solid #cfd6dd",
+                  borderRadius: 4,
                   padding: "8px 14px",
                   paddingRight: "34px",
                   fontSize: ".85rem",
-                  fontWeight: 800,
-                  color: "#0b2f4f",
-                  background: "linear-gradient(180deg, #ffffff 0%, #dff6ff 100%)",
+                  fontWeight: 700,
+                  color: "#1f2d3a",
+                  background: "#fff",
                   boxShadow: "0 4px 12px rgba(2, 60, 110, 0.2), inset 0 1px 0 #fff",
                   cursor: "pointer",
                   outline: "none"
                 }}
               >
-                <option value="workorders" style={{ color: "#172238" }}>Work Orders</option>
-                <option value="platerequests" style={{ color: "#172238" }}>
+                <option value="workorders" style={{ color: "#1f2d3a" }}>Work Orders</option>
+                <option value="platerequests" style={{ color: "#1f2d3a" }}>
                   Plate Requests {pendingPlateCount > 0 ? `(${pendingPlateCount})` : ""}
                 </option>
-                <option value="production" style={{ color: "#172238" }}>Plate Tracker</option>
-                <option value="prepressartwork" style={{ color: "#172238" }}>Prepress Artwork</option>
+                <option value="production" style={{ color: "#1f2d3a" }}>Plate Tracker</option>
+                <option value="prepressartwork" style={{ color: "#1f2d3a" }}>Prepress Artwork</option>
               </select>
 
               {/* Floating Alert Pill on Dropdown when viewing other tabs */}
@@ -837,7 +838,7 @@ function PreprocessDashboard() {
                       return (
                         <tr key={wo._id}>
                           <td style={{ textAlign: "center", fontWeight: "700" }}>{wo.slNo}</td>
-                          <td style={{ textAlign: "center", fontWeight: "700", color: "#0a4f8c" }}>{wo.efiWoNumber}</td>
+                          <td style={{ textAlign: "center", fontWeight: "700", color: "#043a45" }}>{wo.efiWoNumber}</td>
                           <td style={{ textAlign: "left" }}>{wo.productCode}</td>
                           <td
                             style={{ ...truncCellStyle(`${wo._id}-customer`), textAlign: "left" }}
@@ -915,7 +916,7 @@ function PreprocessDashboard() {
                       return (
                         <tr key={rowKey}>
                           <td style={{ textAlign: "center", fontWeight: "700" }}>{rec.slNo}</td>
-                          <td style={{ textAlign: "center", fontWeight: "700", color: "#0a4f8c" }}>{rec.efiWoNumber}</td>
+                          <td style={{ textAlign: "center", fontWeight: "700", color: "#043a45" }}>{rec.efiWoNumber}</td>
                           <td style={{ textAlign: "left" }}>{rec.productCode}</td>
                           <td
                             style={{ ...truncCellStyle(`${rowKey}-customer`), textAlign: "left", fontWeight: "600" }}
@@ -1066,7 +1067,7 @@ function PreprocessDashboard() {
                 <option value="APPROVED">Approved</option>
                 <option value="REJECTED">Rejected</option>
               </select>
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#0a4f8c", textTransform: "uppercase" }}>From</span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>From</span>
               <input
                 type="date"
                 className="form-control form-control-sm"
@@ -1074,7 +1075,7 @@ function PreprocessDashboard() {
                 value={prFilterFromDate}
                 onChange={(e) => setPrFilterFromDate(e.target.value)}
               />
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#0a4f8c", textTransform: "uppercase" }}>To</span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>To</span>
               <input
                 type="date"
                 className="form-control form-control-sm"
@@ -1184,7 +1185,7 @@ function PreprocessDashboard() {
                         </td>
                         <td>
                           <div style={{ fontWeight: 600 }}>{req.requestedBy || "-"}</div>
-                          <div style={{ fontSize: "11px", color: "#4a7391" }}>
+                          <div style={{ fontSize: "11px", color: "#5f6c7a" }}>
                             {req.createdAt ? new Date(req.createdAt).toLocaleString("en-IN") : "-"}
                           </div>
                         </td>
@@ -1223,7 +1224,7 @@ function PreprocessDashboard() {
                   <option key={i} value={m}>{m}</option>
                 ))}
               </select>
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#0a4f8c", textTransform: "uppercase" }}>From</span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>From</span>
               <input
                 type="date"
                 className="form-control form-control-sm"
@@ -1231,7 +1232,7 @@ function PreprocessDashboard() {
                 value={productionFilterFromDate}
                 onChange={(e) => setProductionFilterFromDate(e.target.value)}
               />
-              <span style={{ fontSize: "11px", fontWeight: 800, color: "#0a4f8c", textTransform: "uppercase" }}>To</span>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#043a45", textTransform: "uppercase" }}>To</span>
               <input
                 type="date"
                 className="form-control form-control-sm"
@@ -1324,12 +1325,12 @@ function PreprocessDashboard() {
             </button>
 
           {showProductionForm && (() => {
-  const tableBorderColor = "#cfe6f5";
-  const darkBlue = "#0b2f4f";
-  const labelBlue = "#0a4f8c";
+  const tableBorderColor = "#dfe4e9";
+  const darkBlue = "#1f2d3a";
+  const labelBlue = "#043a45";
 
   const labelCell = {
-    background: "#eaf6fd",
+    background: "#f1f7f8",
     color: labelBlue,
     fontSize: "13px",
     fontWeight: "800",
@@ -1351,7 +1352,7 @@ function PreprocessDashboard() {
   };
 
   const cellInput = {
-    borderColor: "#9ccbe6",
+    borderColor: "#cfd6dd",
     borderWidth: "1.5px",
     borderRadius: "12px",
     fontSize: "14px",
@@ -1360,7 +1361,7 @@ function PreprocessDashboard() {
     background: "#ffffff",
     width: "100%",
     padding: "8px 12px",
-    boxShadow: "inset 0 2px 5px rgba(10, 80, 130, 0.12)"
+    boxShadow: "none"
   };
 
   return (
@@ -1392,7 +1393,7 @@ function PreprocessDashboard() {
           overflowY: "auto",
           borderRadius: "24px",
           border: "1px solid rgba(255,255,255,0.95)",
-          background: "linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(226,246,255,0.95) 100%)",
+          background: "#fff",
           boxShadow: "0 24px 60px rgba(10, 80, 130, 0.35), inset 0 1px 0 #fff",
           fontFamily: "inherit"
         }}
@@ -1402,16 +1403,16 @@ function PreprocessDashboard() {
           className="d-flex justify-content-between align-items-center px-4 py-3 position-sticky top-0"
           style={{
             zIndex: 2,
-            background: "linear-gradient(180deg, #f4fbff 0%, #d9eefb 100%)",
-            borderBottom: "2px solid #9ccbe6",
-            color: "#0a4f8c"
+            background: "#f4f6f8",
+            borderBottom: "2px solid #cfd6dd",
+            color: "#043a45"
           }}
         >
           <div className="d-flex align-items-center gap-2">
             <div className="hero-emblem-3d" style={{ width: 34, height: 34 }}>
               <Icons.Gauge />
             </div>
-            <h5 className="fw-bold mb-0" style={{ fontSize: "17px", color: "#0a4f8c" }}>
+            <h5 className="fw-bold mb-0" style={{ fontSize: "17px", color: "#043a45" }}>
               {editingProductionId ? "Edit PlateTracker Entry" : "New PlateTracker Entry"}
             </h5>
           </div>
@@ -1430,7 +1431,7 @@ function PreprocessDashboard() {
         <div className="p-3" style={{ background: "transparent" }}>
           <div
             className="bg-white overflow-hidden border-0 mb-0"
-            style={{ borderRadius: "16px", border: "1px solid #a6d6ee", boxShadow: "0 8px 20px rgba(10,100,160,.14)" }}
+            style={{ borderRadius: "16px", border: "1px solid #dfe4e9", boxShadow: "0 8px 20px rgba(10,100,160,.14)" }}
           >
             <table
               className="table table-bordered mb-0"
@@ -1568,7 +1569,7 @@ function PreprocessDashboard() {
                       className="form-control fw-bold"
                       style={{
                         ...cellInput,
-                        color: Number(productionForm.wastageQty) > 0 ? "#dc2626" : darkBlue
+                        color: Number(productionForm.wastageQty) > 0 ? "#d64545" : darkBlue
                       }}
                       value={productionForm.wastageQty}
                       onChange={(e) => setProductionForm({ ...productionForm, wastageQty: e.target.value })}
@@ -1636,8 +1637,8 @@ function PreprocessDashboard() {
           className="d-flex justify-content-end gap-2 px-4 py-3 position-sticky bottom-0"
           style={{
             zIndex: 2,
-            background: "linear-gradient(180deg, #eaf8ff 0%, #d4f0fd 100%)",
-            borderTop: "1px solid #bfe0f2",
+            background: "#f8f9fa",
+            borderTop: "1px solid #dfe4e9",
             marginTop: 0
           }}
         >

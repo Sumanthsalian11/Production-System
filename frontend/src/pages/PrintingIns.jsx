@@ -15,21 +15,26 @@ import BASE_URL from "../config/api";
 function Field({ col = "col-md-2", icon, label, error, children }) {
   return (
     <div className={col}>
-      <label className="pi-label">
-        {icon && <i className={`bi bi-${icon} me-1`}></i>}
-        {label}
-      </label>
-      {children}
+      <label className="pi-label">{label}</label>
+      <div className={icon ? "pi-ifield" : ""}>
+        {icon && <i className={`bi bi-${icon} pi-ficon`}></i>}
+        {children}
+      </div>
       {error}
     </div>
   );
 }
 
-function SectionHead({ icon, title }) {
+function SectionHead({ icon, title, chip, required }) {
   return (
     <div className="pi-sec-head">
       <span className="pi-sec-icon"><i className={`bi bi-${icon}`}></i></span>
       <h5 className="pi-sec-title">{title}</h5>
+      {chip && (
+        <span className={`pi-chip ${required ? "req" : ""}`}>
+          <span className="dot"></span>{chip}
+        </span>
+      )}
     </div>
   );
 }
@@ -38,7 +43,8 @@ function Toggle({ checked, onChange, label }) {
   return (
     <label className="pi-toggle">
       <input type="checkbox" checked={checked} onChange={onChange} />
-      <i className="bi bi-eye"></i> {label}
+      <span className="pi-switch"></span>
+      {label}
     </label>
   );
 }
@@ -47,20 +53,32 @@ const selectStyles = {
   control: (base, state) => ({
     ...base,
     minHeight: "38px",
-    borderRadius: "10px",
+    borderRadius: "6px",
     fontSize: "14px",
-    background: "rgba(255,255,255,0.88)",
-    borderColor: state.isFocused ? "#4b83b8" : "rgba(110,140,170,0.28)",
-    boxShadow: state.isFocused ? "0 0 0 3px rgba(75,131,184,0.18)" : "none",
-    "&:hover": { borderColor: "#4b83b8" }
+    fontFamily: "inherit",
+    background: "#fff",
+    borderColor: state.isFocused ? "#0e7c86" : "#d3dbe0",
+    boxShadow: state.isFocused ? "0 0 0 3px rgba(14,124,134,0.15)" : "none",
+    "&:hover": { borderColor: state.isFocused ? "#0e7c86" : "#b9c5cc" }
   }),
-  valueContainer: (base) => ({ ...base, padding: "0 10px" }),
-  indicatorsContainer: (base) => ({ ...base, height: "32px" }),
-  menu: (base) => ({ ...base, borderRadius: "12px", overflow: "hidden", fontSize: "14px", zIndex: 50 }),
+  valueContainer: (base) => ({ ...base, padding: "0 10px 0 33px" }),
+  indicatorsContainer: (base) => ({ ...base, height: "36px" }),
+  indicatorSeparator: () => ({ display: "none" }),
+  placeholder: (base) => ({ ...base, color: "#a3afb5" }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: "8px",
+    overflow: "hidden",
+    fontSize: "14px",
+    zIndex: 50,
+    border: "1px solid #e3e8eb",
+    boxShadow: "0 8px 24px rgba(16,40,48,0.12)"
+  }),
   option: (base, state) => ({
     ...base,
-    background: state.isSelected ? "#3b6fa8" : state.isFocused ? "rgba(75,131,184,0.12)" : "#fff",
-    color: state.isSelected ? "#fff" : "#1b2a3c"
+    cursor: "pointer",
+    background: state.isSelected ? "#0e7c86" : state.isFocused ? "#e8f4f5" : "#fff",
+    color: state.isSelected ? "#fff" : "#000"
   })
 };
 
@@ -1479,7 +1497,7 @@ if (order.orderMode !== "PERSOW" && hasMaterial) {
 };
 const renderFieldError = (field) =>
   errors[field] ? (
-    <small className="text-danger fw-semibold d-block mt-1">
+    <small className="pi-err">
       {errors[field]}
     </small>
   ) : null;
@@ -1506,1322 +1524,1299 @@ const expandTd = (order, key, value) => {
   );
 };
 
+// 🎨 presentation only
+const userInitials = String(loggedInUser || "U")
+  .split(" ")
+  .filter(Boolean)
+  .map(s => s[0])
+  .join("")
+  .slice(0, 2)
+  .toUpperCase();
+const sectionChip = isPersow ? "Required" : "Optional";
+
   return (
 <div className="pi-root">
-  {/* ===================================================================== */}
-  {/* 💅 SCOPED SKY-BLUE FROSTED-GLASS STYLES (no separate CSS file needed)  */}
-  {/* ===================================================================== */}
   <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     .pi-root {
-      background: radial-gradient(circle at 10% 20%, #d8f1fb 0%, #edf9fe 90.2%);
+      --teal-900: #0f3d47;
+      --teal: #0e7c86;
+      --teal-50: #e8f4f5;
+      --accent: #e8622c;
+      --accent-d: #cf5220;
+      --ink: #000000;
+      --muted: #000000;
+      --line: #e3e8eb;
+      --line-2: #d3dbe0;
+      --bg: #f3f5f7;
+      background: var(--bg);
       min-height: 100vh;
-      padding: 18px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      color: #1b2a3c;
+      padding: 20px 24px 32px;
+      font-family: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 14px;
+      color: var(--ink);
     }
-    .pi-container {
-      max-width: 100%;
-      margin: 0 auto;
-      background: #d8f1fb;
-      border: 1px solid rgba(12, 90, 130, 0.38);
-      border-radius: 20px;
-      padding: 20px 22px;
-      box-shadow: 0 16px 36px rgba(4, 52, 78, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    .pi-container { max-width: 1600px; margin: 0 auto; }
+
+    /* Top bar */
+    .pi-topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--teal-900);
+      border-radius: 10px; padding: 14px 20px; margin-bottom: 18px;
+      box-shadow: 0 1px 2px rgba(16,40,48,.04);
+    }
+    .pi-brand { display: flex; align-items: center; gap: 12px; }
+    .pi-logo {
+      width: 40px; height: 40px; border-radius: 8px;
+      background: var(--teal-900); color: #fff; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pi-brand h1 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -0.2px; }
+    .pi-brand p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+    .pi-userchip { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; }
+    .pi-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
     }
 
-    /* Page title */
-    .pi-hero { text-align: center; margin-bottom: 14px; }
-    .pi-hero h1 { margin: 0; font-size: 26px; font-weight: 700; color: #064c73; letter-spacing: -0.4px; }
-    .pi-hero p { margin: 3px 0 0; font-size: 12.5px; color: #5f7487; }
+    /* Cards */
+    .pi-card {
+      background: #fff; border: 1px solid var(--line); border-radius: 10px;
+      margin-bottom: 16px; box-shadow: 0 1px 2px rgba(16,40,48,.04);
+    }
+    .pi-card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap; padding: 14px 20px;
+    }
+    .pi-card-body { padding: 16px 20px 18px; border-top: 1px solid var(--line); }
+    .pi-sec-head { display: flex; align-items: center; gap: 10px; }
+    .pi-sec-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--teal-50); color: var(--teal); font-size: 15px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .pi-sec-title { margin: 0; font-size: 16px; font-weight: 600; color: var(--ink); }
+    .pi-chip {
+      display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;
+      font-size: 12px; font-weight: 500; color: var(--muted);
+    }
+    .pi-chip .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; }
+    .pi-chip.req { color: var(--accent); }
+    .pi-chip.req .dot { background: currentColor; }
+    .pi-count {
+      font-size: 12px; font-weight: 600; color: var(--teal);
+      background: var(--teal-50); padding: 4px 10px; border-radius: 999px;
+    }
 
     /* Master / Perso segmented control */
     .pi-seg {
-      display: inline-flex; gap: 6px; padding: 4px;
-      background: rgba(12, 90, 130, 0.08);
-      border: 1px solid rgba(12, 90, 130, 0.25);
-      border-radius: 14px;
+      display: inline-flex; gap: 2px; padding: 3px;
+      background: var(--bg); border: 1px solid var(--line-2); border-radius: 8px;
     }
     .pi-seg-btn {
-      position: relative;
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 7px 22px; margin: 0;
-      border-radius: 10px;
-      font-size: 13.5px; font-weight: 700; color: #0c4a6e;
-      cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative; display: inline-flex; align-items: center; gap: 6px;
+      margin: 0; padding: 6px 16px; border-radius: 6px;
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: all .15s ease;
     }
-    .pi-seg-btn:hover { background: rgba(255, 255, 255, 0.6); }
     .pi-seg-btn input { position: absolute; opacity: 0; pointer-events: none; }
-    .pi-seg-btn.on {
-      background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
-      color: #fff;
-      box-shadow: 0 3px 0 #075985, 0 6px 14px rgba(3, 105, 161, 0.35);
-    }
+    .pi-seg-btn:hover { color: var(--ink); }
+    .pi-seg-btn.on { background: #fff; color: var(--teal); box-shadow: 0 1px 3px rgba(16,40,48,.14); }
 
-    /* Frosted glass panels */
-    .pi-panel {
-      background: rgba(255, 255, 255, 0.55);
-      backdrop-filter: blur(18px) saturate(140%);
-      -webkit-backdrop-filter: blur(18px) saturate(140%);
-      border: 1px solid rgba(255, 255, 255, 0.85);
-      border-radius: 20px;
-      padding: 14px 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 12px 30px rgba(40, 70, 110, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-    }
+    /* Product sub-blocks */
     .pi-sub {
-      background: rgba(255, 255, 255, 0.55);
-      border: 1px solid rgba(255, 255, 255, 0.9);
-      border-radius: 14px;
-      padding: 10px 12px;
-      margin-bottom: 10px;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 3px 10px rgba(40, 70, 110, 0.05);
+      border: 1px solid var(--line); border-radius: 8px;
+      background: #fcfdfd; padding: 12px 14px 14px; margin-bottom: 12px;
     }
-    .pi-sub-title { font-size: 13px; font-weight: 700; color: #2f5d8c; margin-bottom: 6px; }
-
-    /* Section headers */
-    .pi-sec-head {
-      display: flex; align-items: center; gap: 10px;
-      margin: 20px 4px 10px;
-    }
-    .pi-sec-icon {
-      width: 32px; height: 32px; border-radius: 10px;
-      display: inline-flex; align-items: center; justify-content: center;
-      background: rgba(255, 255, 255, 0.85); color: #2f5d8c; font-size: 15px;
-      box-shadow: 0 2px 8px rgba(40, 70, 110, 0.12), inset 0 1px 0 #fff;
-    }
-    .pi-sec-title { margin: 0; font-size: 16.5px; font-weight: 650; color: #064c73; letter-spacing: -0.1px; }
-    .pi-sec-head::after {
-      content: ""; flex: 1; height: 1px;
-      background: linear-gradient(90deg, rgba(12, 90, 130, 0.25), transparent);
-    }
-
-    /* Show/Hide toggle chip */
-    .pi-toggle {
-      display: inline-flex; align-items: center; gap: 7px;
-      margin: 0 0 10px 4px; padding: 5px 12px;
-      font-size: 12px; font-weight: 600; color: #2f5d8c;
-      background: rgba(255, 255, 255, 0.7);
-      border: 1px solid rgba(110, 140, 170, 0.28);
-      border-radius: 999px; cursor: pointer;
-    }
-    .pi-toggle input { width: 15px; height: 15px; cursor: pointer; accent-color: #3b6fa8; margin: 0; }
-    .pi-toggle-wrap { display: block; }
+    .pi-sub-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 30px; }
+    .pi-sub-title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
 
     /* Labels + inputs */
     .pi-label {
-      display: block; margin: 0 0 3px 2px;
-      font-size: 13.5px; font-weight: 600; color: #000;
+      display: block; margin: 0 0 5px;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.45px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    .pi-ifield { position: relative; }
+    .pi-ficon {
+      position: absolute; left: 11px; top: 12px; z-index: 2;
+      font-size: 14px; line-height: 1; color: #8a99a1;
+      pointer-events: none; transition: color .15s ease;
+    }
+    .pi-ifield:focus-within .pi-ficon { color: var(--teal); }
     .pi-input {
-      display: block; width: 100%;
-      min-height: 38px; padding: 7px 10px;
-      font-size: 14px; color: #1b2a3c;
-      background: rgba(255, 255, 255, 0.88);
-      border: 1px solid rgba(110, 140, 170, 0.28);
-      border-radius: 10px; outline: none;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      display: block; width: 100%; min-height: 38px; padding: 8px 10px;
+      font-family: inherit; font-size: 14px; color: var(--ink);
+      background: #fff; border: 1px solid var(--line-2); border-radius: 6px;
+      outline: none; transition: border-color .15s ease, box-shadow .15s ease;
     }
-    textarea.pi-input { min-height: 34px; resize: vertical; line-height: 1.35; }
-    .pi-input:focus { border-color: #4b83b8; box-shadow: 0 0 0 3px rgba(75, 131, 184, 0.18); }
-    .pi-input:disabled { opacity: 0.55; cursor: not-allowed; }
-    .pi-input[readonly] {
-      background: rgba(255, 255, 255, 0.45);
-      color: #2f5d8c; font-weight: 600;
+    .pi-ifield .pi-input { padding-left: 33px; }
+    select.pi-input {
+      appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%235f6f77' stroke-width='2' d='M3 6l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; background-size: 12px;
     }
-    .pi-input::placeholder { color: #9aa8b6; }
+    textarea.pi-input { min-height: 38px; resize: vertical; line-height: 1.4; }
+    .pi-input:hover:not(:disabled):not([readonly]) { border-color: #b9c5cc; }
+    .pi-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(14,124,134,.15); }
+    .pi-input:disabled { background: #f0f3f5; color: #9aa7ad; cursor: not-allowed; }
+    .pi-input[readonly] { background: #f5f7f8; color: var(--ink); }
+    .pi-input::placeholder { color: #a3afb5; }
+    .pi-err { display: block; margin-top: 4px; font-size: 12px; font-weight: 500; color: #c0392b; }
+
+    /* Switch toggle */
+    .pi-toggle {
+      position: relative; display: inline-flex; align-items: center; gap: 8px; margin: 0;
+      font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; user-select: none;
+    }
+    .pi-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .pi-switch {
+      position: relative; flex-shrink: 0; width: 34px; height: 20px;
+      border-radius: 999px; background: #cfd8dc; transition: background .2s ease;
+    }
+    .pi-switch::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 16px; height: 16px; border-radius: 50%; background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .2s ease;
+    }
+    .pi-toggle input:checked + .pi-switch { background: var(--teal); }
+    .pi-toggle input:checked + .pi-switch::after { transform: translateX(14px); }
+    .pi-toggle input:focus-visible + .pi-switch { box-shadow: 0 0 0 3px rgba(14,124,134,.25); }
 
     /* Buttons */
     .pi-btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-      height: 32px; padding: 0 14px;
-      font-size: 13.5px; font-weight: 600;
-      border-radius: 10px; border: 1px solid transparent;
-      cursor: pointer; white-space: nowrap; transition: all 0.15s ease;
+      height: 36px; padding: 0 14px;
+      font-family: inherit; font-size: 13.5px; font-weight: 600;
+      border-radius: 6px; border: 1px solid transparent;
+      cursor: pointer; white-space: nowrap; transition: all .15s ease;
     }
-    .pi-btn:active { transform: translateY(1px); }
-    .pi-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .pi-btn-lg { height: 38px; padding: 0 34px; font-size: 13.5px; }
-    .pi-btn-primary {
-      background: linear-gradient(180deg, #3b6fa8 0%, #2c527f 100%); color: #fff;
-      box-shadow: 0 4px 12px rgba(44, 82, 127, 0.28);
-    }
-    .pi-btn-primary:hover:not(:disabled) { box-shadow: 0 6px 16px rgba(44, 82, 127, 0.38); }
-    .pi-btn-soft { background: rgba(255, 255, 255, 0.85); color: #2f5d8c; border-color: rgba(110, 140, 170, 0.28); }
-    .pi-btn-soft:hover { background: #fff; }
-    .pi-btn-ghost { background: rgba(255, 255, 255, 0.55); color: #4a5b6e; border-color: rgba(110, 140, 170, 0.28); }
-    .pi-btn-ghost:hover { background: rgba(255, 255, 255, 0.9); }
-    .pi-btn-danger { background: rgba(255, 255, 255, 0.85); color: #c0392b; border-color: rgba(192, 57, 43, 0.3); }
-    .pi-btn-danger:hover { background: #fff1f0; }
-    .pi-btn-success { background: linear-gradient(180deg, #10b981 0%, #059669 100%); color: #fff; box-shadow: 0 3px 10px rgba(16, 185, 129, 0.28); }
-    .pi-btn-red { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); color: #fff; box-shadow: 0 3px 10px rgba(239, 68, 68, 0.28); }
-    .pi-btn-icon { width: 32px; padding: 0; font-size: 18px; line-height: 1; }
-    .pi-btn-xs { height: 24px; padding: 0 9px; font-size: 11px; border-radius: 8px; }
+    .pi-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .pi-btn-lg { height: 40px; padding: 0 32px; font-size: 14px; }
+    .pi-btn-primary { background: var(--accent); color: #fff; }
+    .pi-btn-primary:hover:not(:disabled) { background: var(--accent-d); }
+    .pi-btn-soft { background: #fff; color: var(--ink); border-color: var(--line-2); }
+    .pi-btn-soft:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+    .pi-btn-ghost { background: #fff; color: var(--muted); border-color: var(--line-2); }
+    .pi-btn-ghost:hover:not(:disabled) { color: var(--ink); background: var(--bg); }
+    .pi-btn-danger, .pi-btn-red { background: #fff; color: #c0392b; border-color: #f1c8c3; }
+    .pi-btn-danger:hover:not(:disabled), .pi-btn-red:hover:not(:disabled) { background: #fdf1ef; }
+    .pi-btn-success { background: #fff; color: #1e7a46; border-color: #bfe3cd; }
+    .pi-btn-success:hover:not(:disabled) { background: #eef8f2; }
+    .pi-btn-icon { width: 30px; height: 30px; padding: 0; font-size: 15px; border-radius: 50%; }
+    .pi-btn-xs { height: 28px; padding: 0 10px; font-size: 12px; gap: 4px; }
     .pi-linkbtn {
-      background: none; border: none; padding: 0; margin-top: 4px;
-      font-size: 12.5px; font-weight: 700; color: #2f5d8c;
-      text-decoration: underline; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 5px;
+      background: none; border: none; padding: 0; margin-top: 6px;
+      font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--teal); cursor: pointer;
     }
-    .pi-addbranch {
-      background: rgba(255, 255, 255, 0.75);
-      border: 1px dashed #4b83b8; border-radius: 12px; padding: 10px;
+    .pi-linkbtn:hover { text-decoration: underline; }
+    .pi-addbranch { background: #fafcfc; border: 1px dashed var(--line-2); border-radius: 8px; padding: 12px; }
+
+    /* Save bar */
+    .pi-actions {
+      display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+      background: #fff; border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 20px; margin-bottom: 20px;
     }
 
     /* Filter bar */
     .pi-filter {
-      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
-      padding: 12px 14px; margin: 18px 0 12px;
-      background: rgba(255, 255, 255, 0.55);
-      backdrop-filter: blur(18px);
-      border: 1px solid rgba(255, 255, 255, 0.85);
-      border-radius: 16px;
-      box-shadow: 0 8px 22px rgba(40, 70, 110, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
+      padding: 14px 20px 16px; border-top: 1px solid var(--line);
     }
-    .pi-filter .pi-fgroup { width: 170px; }
+    .pi-filter .pi-fgroup { width: 180px; }
+    .pi-filter-actions { display: flex; gap: 8px; margin-left: auto; }
 
-    /* Registry table */
+    /* Table */
     .pi-table-wrap {
-      overflow: auto; max-height: 450px;
-      border-radius: 14px;
-      border: 1px solid rgba(12, 90, 130, 0.32);
-      background: #fff;
-      box-shadow: 0 8px 20px rgba(4, 52, 78, 0.08);
+      overflow: auto; max-height: 480px;
+      border-top: 1px solid var(--line); border-radius: 0 0 10px 10px;
     }
-    .pi-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; margin: 0; }
+    .pi-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; margin: 0; }
     .pi-table thead th {
       position: sticky; top: 0; z-index: 5;
-      background: #064c73; color: #fff;
-      font-weight: 700; font-size: 12.5px; letter-spacing: 0.3px;
-      padding: 9px 12px; text-align: center; white-space: nowrap;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: #f5f7f8; color: var(--muted);
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.45px;
+      padding: 10px 12px; text-align: left; white-space: nowrap;
+      border-bottom: 1px solid var(--line-2); border-right: 1px solid var(--line);
     }
     .pi-table tbody td {
-      padding: 7px 10px; color: #0f172a; white-space: nowrap; vertical-align: middle;
-      border: 1px solid #dce8ef;
+      padding: 9px 12px; color: var(--ink); white-space: nowrap; vertical-align: middle;
+      background: #fff; border-bottom: 1px solid var(--line); border-right: 1px solid #eef1f3;
     }
-    .pi-table tbody tr:nth-child(even) td { background: #f3faff; }
-    .pi-table tbody tr:hover td { background: #d9f2fc; }
-    /* ===== Customer-page look ===== */
-    .pi-root {
-      background:
-        radial-gradient(circle at 12% 6%, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 30%),
-        radial-gradient(circle at 88% 18%, rgba(160,222,250,.7) 0, rgba(160,222,250,0) 32%),
-        radial-gradient(circle at 50% 100%, rgba(255,255,255,.7) 0, rgba(255,255,255,0) 45%),
-        linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-      background-attachment: fixed;
-      color: #0b2f4f;
+    .pi-table tbody tr:hover td { background: #f2f9f9; }
+    .pi-table th:last-child, .pi-table td:last-child {
+      position: sticky; right: 0; box-shadow: -4px 0 6px -4px rgba(16,40,48,.12);
     }
-    .pi-container { background: none; border: none; box-shadow: none; padding: 0; }
-
-    /* Hero */
-    .pi-hero {
-      position: relative; z-index: 0;
-      display: flex; align-items: center; justify-content: center; gap: 14px;
-      margin: 0 0 16px; padding: 12px 22px; text-align: left;
-    }
-    .pi-hero::before {
-      content: ""; position: absolute; inset: 0; z-index: -1;
-      transform: skewX(-20deg); border-radius: 14px;
-      background: linear-gradient(180deg, #c9eafb 0%, #b5dff6 100%);
-      border: 1px solid #6fb5dc;
-      box-shadow: 0 8px 20px rgba(40,120,170,.25);
-    }
-    .pi-hero-emblem {
-      width: 46px; height: 46px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      color: #0a6fb8; font-size: 21px;
-      background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
-      border: 1px solid #86c6e8;
-      box-shadow: 0 6px 14px rgba(40,120,170,.18), inset 0 2px 3px rgba(255,255,255,.9);
-    }
-    .pi-hero-title { margin: 0; color: #0a4f8c; letter-spacing: -0.3px; font-size: 26px; font-weight: 800; }
-    .pi-user-pill {
-      position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 14px; border-radius: 30px;
-      font-size: 13px; font-weight: 700; color: #0b2f4f;
-      background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%);
-      border: 1px solid #a9d9f2;
-      box-shadow: 0 4px 12px rgba(40,120,170,.15), inset 0 1px 0 #fff;
-    }
-    .pi-user-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-    @media (max-width: 768px) {
-      .pi-user-pill { position: static; transform: none; }
-      .pi-hero { flex-wrap: wrap; }
-    }
-
-    /* Master / Perso toggle */
-    .pi-seg {
-      border-radius: 22px; padding: 6px; gap: 8px;
-      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(214,240,252,.8));
-      border: 1px solid #ffffff;
-      box-shadow: 0 10px 24px rgba(40,120,170,.18), inset 0 1px 0 #fff;
-    }
-    .pi-seg-btn { color: #0a4f8c; font-weight: 800; border-radius: 16px; border: 1px solid transparent; }
-    .pi-seg-btn.on {
-      color: #0a4f8c;
-      background: linear-gradient(180deg, #d2eefc 0%, #8fd0f3 100%);
-      border-color: #7fc3e8;
-      box-shadow: 0 3px 0 #6fb5dc, 0 8px 16px rgba(40,120,170,.15), inset 0 1px 0 #fff;
-    }
-
-    /* Glass panels */
-    .pi-panel, .pi-filter {
-      background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(228,246,255,.9) 100%);
-      border: 1px solid rgba(255,255,255,.95);
-      border-radius: 22px;
-      box-shadow: 0 12px 28px rgba(40,120,170,.12), inset 0 1px 0 #fff;
-    }
-    .pi-sub { background: rgba(255,255,255,.85); border-radius: 16px; }
-    .pi-sub-title, .pi-sec-title { color: #0a4f8c; font-weight: 800; }
-    .pi-sec-icon {
-      color: #0a6fb8;
-      background: radial-gradient(circle at 30% 25%, #ffffff, #bfe5f8 55%, #8fd0f0);
-      border: 1px solid #86c6e8;
-    }
-    .pi-label { color: #0b2f4f; font-weight: 700; }
-
-    /* Inputs */
-    .pi-input {
-      border: 1.5px solid #9ccbe6; border-radius: 12px;
-      background: #ffffff; color: #0b2f4f; font-weight: 600;
-      box-shadow: inset 0 2px 5px rgba(10,80,130,.1);
-    }
-    .pi-input:focus { border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27,155,224,.2); }
-    .pi-input[readonly] { background: #f1faff; color: #0a6fb8; }
-    .pi-toggle { background: linear-gradient(180deg, #ffffff, #e3f2fb); border: 1px solid #a9d9f2; color: #0a4f8c; font-weight: 800; }
-
-    /* Glossy light buttons */
-    .pi-btn { border-radius: 12px; font-weight: 800; border: 1px solid rgba(255,255,255,.6); }
-    .pi-btn-primary, .pi-btn-primary:hover:not(:disabled) {
-      background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%);
-      color: #08406b; border-color: #7fc3e8;
-      box-shadow: 0 2px 0 #7fbbe0, 0 6px 12px rgba(40,120,170,.14), inset 0 1px 0 #fff;
-    }
-    .pi-btn-success {
-      background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%);
-      color: #07583b; border-color: #7fd3ab;
-      box-shadow: 0 2px 0 #84cba9, 0 6px 12px rgba(20,168,112,.14), inset 0 1px 0 #fff;
-    }
-    .pi-btn-red, .pi-btn-danger {
-      background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%);
-      color: #8f1414; border-color: #ee8f8f;
-      box-shadow: 0 2px 0 #e08a8a, 0 6px 12px rgba(220,38,38,.12), inset 0 1px 0 #fff;
-    }
-    .pi-btn-soft, .pi-btn-ghost {
-      background: linear-gradient(180deg, #ffffff, #e3f2fb);
-      color: #0a4f8c; border-color: #a9d9f2;
-      box-shadow: 0 3px 8px rgba(40,120,170,.12);
-    }
-
-    /* Light table header */
-    .pi-table thead th {
-      background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
-      color: #08406b; border: 1px solid #7fbfe4; font-weight: 800;
-    }
-    .pi-exp { cursor: pointer; transition: all 0.2s ease; }
+    .pi-table th:last-child { z-index: 6; }
+    .pi-exp { cursor: pointer; transition: all .2s ease; }
     .pi-strong { font-weight: 600; }
-    .pi-accent { font-weight: 600; color: #0369a1; }
-    .pi-pos { font-weight: 600; color: #15803d; }
-    .pi-neg { font-weight: 600; color: #dc2626; }
+    .pi-accent { font-weight: 600; color: var(--teal); }
+    .pi-pos { font-weight: 600; color: #1e7a46; }
+    .pi-neg { font-weight: 600; color: #c0392b; }
+
+    /* Badges */
     .pi-badge {
       display: inline-block; padding: 2px 9px; border-radius: 999px;
-      font-size: 12px; font-weight: 700; border: 1px solid transparent;
+      font-size: 12px; font-weight: 600; border: 1px solid transparent;
     }
-    .pi-badge-blue { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
-    .pi-badge-gray { background: #eef2f6; color: #475569; border-color: #cbd5e1; }
-    .pi-badge-green { background: #dcfce7; color: #15803d; border-color: #86efac; }
-    .pi-badge-red { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
-    .pi-badge-purple { background: #ede9fe; color: #6d28d9; border-color: #c4b5fd; }
-    .pi-badge-orange { background: #ffedd5; color: #c2410c; border-color: #fdba74; }
+    .pi-badge-blue { background: #e8f4f5; color: #0e7c86; border-color: #b9dfe2; }
+    .pi-badge-gray { background: #f1f4f6; color: #4a5a63; border-color: #d9e0e4; }
+    .pi-badge-green { background: #eaf7ef; color: #1e7a46; border-color: #bfe3cd; }
+    .pi-badge-red { background: #fdf0ee; color: #c0392b; border-color: #f1c8c3; }
+    .pi-badge-purple { background: #f1eefb; color: #5b3fb5; border-color: #d6cdf3; }
+    .pi-badge-orange { background: #fdf0e9; color: #c4511f; border-color: #f6cdb7; }
 
     @media (max-width: 768px) {
-      .pi-root { padding: 8px; }
-      .pi-container { padding: 12px; }
+      .pi-root { padding: 10px; }
+      .pi-card-head, .pi-card-body, .pi-filter, .pi-actions { padding-left: 14px; padding-right: 14px; }
       .pi-filter .pi-fgroup { width: 100%; }
+      .pi-filter-actions { margin-left: 0; flex-wrap: wrap; }
+      .pi-actions { justify-content: stretch; }
+      .pi-actions .pi-btn { width: 100%; }
     }
   `}</style>
 
   <div className="pi-container">
 
-  {/* PAGE TITLE */}
+  {/* PAGE HEADER */}
+  <div className="pi-topbar">
+    <div className="pi-brand">
+      <span className="pi-logo"><i className="bi bi-printer"></i></span>
+      <div>
+        <h1>Printing Instruction</h1>
+        <p>Create, edit and track printing instructions</p>
+      </div>
+    </div>
+    {loggedInUser && (
+      <div className="pi-userchip">
+        <span className="pi-avatar">{userInitials}</span>
+        {loggedInUser}
+      </div>
+    )}
+  </div>
 
   <form onSubmit={handleSubmit}>
 
-    {/* MASTER / PERSO TOGGLE */}
-    <div className="d-flex justify-content-center mb-3">
-      <div className="pi-seg">
-        <label className={`pi-seg-btn ${orderMode === "MASTER" ? "on" : ""}`}>
-          <input
-            type="radio"
-            name="orderMode"
-            value="MASTER"
-            checked={orderMode === "MASTER"}
-            onChange={(e) => setOrderMode(e.target.value)}
-          />
-          <i className="bi bi-journal-text"></i> Master
-        </label>
-        <label className={`pi-seg-btn ${orderMode === "PERSOW" ? "on" : ""}`}>
-          <input
-            type="radio"
-            name="orderMode"
-            value="PERSOW"
-            checked={orderMode === "PERSOW"}
-            onChange={(e) => setOrderMode(e.target.value)}
-          />
-          <i className="bi bi-person-vcard"></i> Perso
-        </label>
+    {/* ───────────────── PRODUCT DETAILS ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="box-seam" title="Product Details" chip="Required" required />
+
+        {/* MASTER / PERSO TOGGLE */}
+        <div className="pi-seg">
+          <label className={`pi-seg-btn ${orderMode === "MASTER" ? "on" : ""}`}>
+            <input
+              type="radio"
+              name="orderMode"
+              value="MASTER"
+              checked={orderMode === "MASTER"}
+              onChange={(e) => setOrderMode(e.target.value)}
+            />
+            <i className="bi bi-journal-text"></i> Master
+          </label>
+          <label className={`pi-seg-btn ${orderMode === "PERSOW" ? "on" : ""}`}>
+            <input
+              type="radio"
+              name="orderMode"
+              value="PERSOW"
+              checked={orderMode === "PERSOW"}
+              onChange={(e) => setOrderMode(e.target.value)}
+            />
+            <i className="bi bi-person-vcard"></i> Perso
+          </label>
+        </div>
       </div>
-    </div>
 
-    {/* MAIN PRODUCT CARD */}
-    <div className="pi-panel">
+      <div className="pi-card-body">
 
-      {/* ── PRODUCT ROWS ── */}
-      {productRows.map((row, index) => (
-        <div key={index} className="pi-sub">
-          <div className="pi-sub-title">Product {index + 1}</div>
-          <div className="row g-2 align-items-end">
+        {/* ── PRODUCT ROWS ── */}
+        {productRows.map((row, index) => (
+          <div key={index} className="pi-sub">
+            <div className="pi-sub-head">
+              <div className="pi-sub-title">Product {index + 1}</div>
+              {productRows.length > 1 && (
+                <button type="button" onClick={() => removeProductRow(index)}
+                  className="pi-btn pi-btn-danger pi-btn-icon" title="Remove product">
+                  <i className="bi bi-dash-lg"></i>
+                </button>
+              )}
+            </div>
+            <div className="row g-2 align-items-start">
 
-            <Field col="col-md-2" icon="upc-scan" label="Product Code" error={renderFieldError(`productCode_${index}`)}>
-              <input
-                type="number" min={0}
-                name="productCode"
-                className="pi-input"
-                value={row.productCode}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setErrors(prev => ({
-                    ...prev,
-                    productCode: "",
-                    [`productCode_${index}`]: ""
-                  }));
-                  updateProductRow(index, "productCode", val);
+              <Field col="col-md-2" icon="upc-scan" label="Product Code" error={renderFieldError(`productCode_${index}`)}>
+                <input
+                  type="number" min={0}
+                  name="productCode"
+                  className="pi-input"
+                  value={row.productCode}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setErrors(prev => ({
+                      ...prev,
+                      productCode: "",
+                      [`productCode_${index}`]: ""
+                    }));
+                    updateProductRow(index, "productCode", val);
 
-                  fetchProductDetailsForRow(val, index);
+                    fetchProductDetailsForRow(val, index);
 
-                  const updatedRows = productRows.map((r, i) =>
-                    i === index
-                      ? { ...r, productCode: val }
-                      : r
-                  );
+                    const updatedRows = productRows.map((r, i) =>
+                      i === index
+                        ? { ...r, productCode: val }
+                        : r
+                    );
 
-                  if (orderMode === "PERSOW") {
-                    fetchWOListForMultipleProducts(updatedRows);
-                  }
+                    if (orderMode === "PERSOW") {
+                      fetchWOListForMultipleProducts(updatedRows);
+                    }
+                  }}
+                />
+              </Field>
+
+              <Field col="col-md-2" icon="box-seam" label="Material">
+                <input className="pi-input" value={row.materialType} readOnly />
+              </Field>
+
+              <Field col="col-md-4" icon="card-text" label="Description">
+                <input className="pi-input" value={row.description} readOnly />
+              </Field>
+
+              <Field col="col-md-2" icon="person" label="Customer">
+                <input className="pi-input" value={row.customerName} readOnly />
+              </Field>
+
+              <Field col="col-md-2" icon="aspect-ratio" label="Job Size">
+                <input className="pi-input" value={row.jobSize} readOnly />
+              </Field>
+
+            </div>
+          </div>
+        ))}
+
+        {/* Add Product Row button */}
+        <button type="button" onClick={addProductRow} className="pi-btn pi-btn-soft mb-3">
+          <i className="bi bi-plus-circle"></i> Add Product
+        </button>
+
+        {/* ── REMAINING SINGLE FIELDS ── */}
+        <div className="row g-2">
+
+          {orderMode === "MASTER" && (
+            <>
+              <Field col="col-md-2" icon="collection" label="Material Group" error={errors.materialGroup && <small className="pi-err">{errors.materialGroup}</small>}>
+                <select
+                  name="materialGroup"
+                  className="pi-input"
+                  value={form.materialGroup}
+                  onChange={(e) => handleMaterialGroupChange(e.target.value)}>
+                  <option value="">Select</option>
+                  {materialGroupOptions.map((g, i) => (
+                    <option key={i} value={g}>{g}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field col="col-md-2" icon="layers-half" label="GSM">
+                <input className="pi-input" value={form.materialGsm} readOnly />
+              </Field>
+            </>
+          )}
+
+          <Field col="col-md-2" icon="tag" label="Order Type">
+            <input className="pi-input" value="Inhouse" readOnly />
+          </Field>
+
+          {orderMode === "PERSOW" && (
+            <Field col="col-md-3" icon="list-check" label="Select WO" error={renderFieldError("workorder2")}>
+              <Select
+                value={selectedWO}
+                options={woList.map(wo => ({ value: wo._id, label: `WO: ${wo.workorder2 || wo.efiWoNumber}` }))}
+                onChange={async (selected) => {
+                  if (!selected) return;
+                  setErrors(prev => ({ ...prev, workorder2: "" }));
+                  const selectedData = woList.find(w => w._id === selected.value);
+                  const exactOption = woList.map(wo => ({ value: wo._id, label: `WO: ${wo.workorder2 || wo.efiWoNumber}` })).find(opt => opt.value === selected.value);
+                  setSelectedWO(exactOption);
+                  setForm(prev => ({ ...prev, workorder2: selectedData.workorder2 || selectedData.efiWoNumber }));
+                  const res = await axios.get(`${BASE_URL}/api/printing-instructions/remaining-by-wo/${selected.value}`);
+                  const remaining = Number(res.data.remainingQty || 0);
+                  setBaseRemaining(remaining);
+                  setLiveRemaining(remaining);
                 }}
+                styles={selectStyles}
               />
             </Field>
+          )}
 
-            <Field col="col-md-2" icon="box-seam" label="Material">
-              <input className="pi-input" value={row.materialType} readOnly />
+          <Field col="col-md-2" icon="123" label="Quantity" error={errors.quantity && <small className="pi-err">{errors.quantity}</small>}>
+            <input type="number" min={0} name="quantity" className="pi-input"
+              disabled={orderMode === "PERSOW" && !selectedWO}
+              value={form.quantity} onChange={handleChange} />
+          </Field>
+
+          {orderMode === "PERSOW" && (
+            <Field col="col-md-2" icon="hourglass-split" label="Remaining Qty">
+              <input type="number" className="pi-input" value={liveRemaining} readOnly />
             </Field>
+          )}
 
-            <Field col="col-md-3" icon="card-text" label="Description">
-              <input className="pi-input" value={row.description} readOnly />
-            </Field>
+          <Field col="col-md-2" icon="geo-alt" label="Location" error={errors.location && <small className="pi-err">{errors.location}</small>}>
+            <select name="location" className="pi-input"
+              value={form.location} onChange={handleChange}>
+              <option value="">Select</option>
+              {locations.map(loc => <option key={loc._id} value={loc.locationName}>{loc.locationName}</option>)}
+            </select>
+          </Field>
 
-            <Field col="col-md-2" icon="person" label="Customer">
-              <input className="pi-input" value={row.customerName} readOnly />
-            </Field>
+          <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("remarks")}>
+            <textarea name="remarks" className="pi-input"
+              value={form.remarks} onChange={handleChange} />
+          </Field>
 
-            <Field col="col-md-1" icon="aspect-ratio" label="Job Size">
-              <input className="pi-input" value={row.jobSize} readOnly />
-            </Field>
-
-            {productRows.length > 1 && (
-              <div className="col-md-auto d-flex align-items-end">
-                <button type="button" onClick={() => removeProductRow(index)}
-                  className="pi-btn pi-btn-danger pi-btn-icon" title="Remove product">×</button>
-              </div>
-            )}
-
-          </div>
         </div>
-      ))}
-
-      {/* Add Product Row button */}
-      <button type="button" onClick={addProductRow} className="pi-btn pi-btn-soft mb-3">
-        + Add Product
-      </button>
-
-      {/* ── REMAINING SINGLE FIELDS ── */}
-      <div className="row g-2">
-
-        {orderMode === "MASTER" && (
-          <>
-            <Field col="col-md-2" label="Material Group" error={errors.materialGroup && <small className="text-danger">{errors.materialGroup}</small>}>
-              <select
-                name="materialGroup"
-                className="pi-input"
-                value={form.materialGroup}
-                onChange={(e) => handleMaterialGroupChange(e.target.value)}>
-                <option value="">Select</option>
-                {materialGroupOptions.map((g, i) => (
-                  <option key={i} value={g}>{g}</option>
-                ))}
-              </select>
-            </Field>
-            <Field col="col-md-2" label="GSM">
-              <input className="pi-input" value={form.materialGsm} readOnly />
-            </Field>
-          </>
-        )}
-
-        <Field col="col-md-2" icon="tag" label="Order Type">
-          <input className="pi-input" value="Inhouse" readOnly />
-        </Field>
-
-        {orderMode === "PERSOW" && (
-          <Field col="col-md-3" icon="list-check" label="Select WO" error={renderFieldError("workorder2")}>
-            <Select
-              value={selectedWO}
-              options={woList.map(wo => ({ value: wo._id, label: `WO: ${wo.workorder2 || wo.efiWoNumber}` }))}
-              onChange={async (selected) => {
-                if (!selected) return;
-                setErrors(prev => ({ ...prev, workorder2: "" }));
-                const selectedData = woList.find(w => w._id === selected.value);
-                const exactOption = woList.map(wo => ({ value: wo._id, label: `WO: ${wo.workorder2 || wo.efiWoNumber}` })).find(opt => opt.value === selected.value);
-                setSelectedWO(exactOption);
-                setForm(prev => ({ ...prev, workorder2: selectedData.workorder2 || selectedData.efiWoNumber }));
-                const res = await axios.get(`${BASE_URL}/api/printing-instructions/remaining-by-wo/${selected.value}`);
-                const remaining = Number(res.data.remainingQty || 0);
-                setBaseRemaining(remaining);
-                setLiveRemaining(remaining);
-              }}
-              styles={selectStyles}
-            />
-          </Field>
-        )}
-
-        <Field col="col-md-2" icon="123" label="Quantity" error={errors.quantity && <small className="text-danger">{errors.quantity}</small>}>
-          <input type="number" min={0} name="quantity" className="pi-input"
-            disabled={orderMode === "PERSOW" && !selectedWO}
-            value={form.quantity} onChange={handleChange} />
-        </Field>
-
-        {orderMode === "PERSOW" && (
-          <Field col="col-md-2" icon="calculator" label="Remaining Qty">
-            <input type="number" className="pi-input" value={liveRemaining} readOnly />
-          </Field>
-        )}
-
-        <Field col="col-md-2" icon="geo-alt" label="Location" error={errors.location && <small className="text-danger">{errors.location}</small>}>
-          <select name="location" className="pi-input"
-            value={form.location} onChange={handleChange}>
-            <option value="">Select</option>
-            {locations.map(loc => <option key={loc._id} value={loc.locationName}>{loc.locationName}</option>)}
-          </select>
-        </Field>
-
-        <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("remarks")}>
-          <textarea name="remarks" className="pi-input"
-            value={form.remarks} onChange={handleChange} />
-        </Field>
-
       </div>
     </div>
 
-
-{/* ───────────────── NUMBERING DETAILS ───────────────── */}
-<SectionHead icon="hash" title="Numbering Details" />
-
-{orderMode !== "PERSOW" && (
-  <div className="pi-toggle-wrap">
-    <Toggle
-      checked={showBankDetails}
-      onChange={(e) => setShowBankDetails(e.target.checked)}
-      label="Show Details"
-    />
-  </div>
-)}
-
-{(orderMode === "PERSOW" || showBankDetails) && (
-  <div className="pi-panel">
-    <div className="row g-2">
-
-      <Field col="col-md-2" icon="type" label="Prefix" error={renderFieldError("prefix")}>
-        <input name="prefix" className="pi-input" value={form.prefix} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="credit-card" label="Account Number" error={renderFieldError("accountNumber")}>
-        <input name="accountNumber" className="pi-input" value={form.accountNumber} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="123" label="Cheque From" error={renderFieldError("chequeFrom")}>
-        <input type="text" name="chequeFrom" className="pi-input" value={form.chequeFrom} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="123" label="Cheque To" error={renderFieldError("chequeTo")}>
-        <input type="text" name="chequeTo" className="pi-input" value={form.chequeTo} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="upc" label="Non MICR Digits" error={renderFieldError("nonMicrDigits")}>
-        <input name="nonMicrDigits" className="pi-input" value={form.nonMicrDigits} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="code" label="Account Code" error={renderFieldError("accountCode")}>
-        <input name="accountCode" className="pi-input" value={form.accountCode} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="qr-code" label="Sort Code / MICR" error={renderFieldError("sortCode")}>
-        <input name="sortCode" className="pi-input" value={form.sortCode} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="arrow-left-right" label="Transaction Code" error={renderFieldError("transactionCode")}>
-        <input name="transactionCode" className="pi-input" value={form.transactionCode} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("numberingRemarks")}>
-        <textarea name="numberingRemarks" className="pi-input" value={form.numberingRemarks} onChange={handleChange} />
-      </Field>
-
-    </div>
-  </div>
-)}
-
-{/* ───────────────── PACKING STANDARD ───────────────── */}
-<SectionHead icon="boxes" title="Packing Standard" />
-
-{!isPersow && (
-  <div className="pi-toggle-wrap">
-    <Toggle
-      checked={showPacking}
-      onChange={(e) => setShowPacking(e.target.checked)}
-      label="Show Packing Details"
-    />
-  </div>
-)}
-
-{(isPersow || showPacking) && (
-  <div className="pi-panel">
-    <div className="row g-2">
-
-      <Field col="col-md-2" icon="box-seam" label="Type of Inner Packing" error={renderFieldError("innerPackingType")}>
-        <select name="innerPackingType" className="pi-input" value={form.innerPackingType} onChange={handleChange}>
-          <option value="">Select</option>
-          {innerPackingList.map(item => (
-            <option key={item._id} value={item.type}>
-              {item.type}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      <Field col="col-md-2" icon="layers" label="Leaves per Inner Pack">
-        <input type="number" className="pi-input" value={form.leavesPerInner} readOnly />
-      </Field>
-
-      <Field col="col-md-2" icon="box" label="No. of Inner Pack">
-        <input className="pi-input" value={form.innerPack} readOnly />
-      </Field>
-
-      <Field col="col-md-2" icon="archive" label="No. of Outer Pack">
-        <input type="number" className="pi-input" value={form.outerPack} readOnly />
-      </Field>
-
-      <Field col="col-md-3" icon="diagram-3" label="Inner Pack per Outer Pack">
-        <input type="number" className="pi-input" value={form.innerPerOuter} readOnly />
-      </Field>
-
-      <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("packingRemarks")}>
-        <textarea name="packingRemarks" className="pi-input" value={form.packingRemarks} onChange={handleChange} />
-      </Field>
-
-    </div>
-  </div>
-)}
-
-{/* ───────────────── DISPATCH DETAILS ───────────────── */}
-<SectionHead icon="truck" title="Dispatch Details" />
-
-{!isPersow && (
-  <div className="pi-toggle-wrap">
-    <Toggle
-      checked={showDispatch}
-      onChange={(e) => setShowDispatch(e.target.checked)}
-      label="Show Dispatch Details"
-    />
-  </div>
-)}
-
-{(isPersow || showDispatch) && (
-  <div className="pi-panel">
-    <div className="row g-2">
-
-      <Field col="col-md-2" icon="calendar-event" label="Delivery Date" error={renderFieldError("deliveryDate")}>
-        <input type="date" name="deliveryDate" className="pi-input" value={form.deliveryDate} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="truck-front" label="Mode of Transport" error={renderFieldError("modeOfTransport")}>
-        <select name="modeOfTransport" className="pi-input" value={form.modeOfTransport} onChange={handleChange}>
-          <option value="">Select</option>
-          {transportList.map(t => (
-            <option key={t._id} value={t.name}>{t.name}</option>
-          ))}
-        </select>
-      </Field>
-
-      <Field col="col-md-2" icon="cash-stack" label="Freight Charge Type" error={renderFieldError("freightChargeType")}>
-        <select name="freightChargeType" className="pi-input" value={form.freightChargeType} onChange={handleChange}>
-          <option value="">Select</option>
-          {freightChargeList.map(f => (
-            <option key={f._id} value={f.name}>{f.name}</option>
-          ))}
-        </select>
-      </Field>
-
-      <Field col="col-md-2" icon="box-arrow-right" label="Freight Type" error={renderFieldError("freightType")}>
-        <select name="freightType" className="pi-input" value={form.freightType} onChange={handleChange}>
-          <option value="">Select</option>
-          {freightTypeList.map(f => (
-            <option key={f._id} value={f.name}>{f.name}</option>
-          ))}
-        </select>
-      </Field>
-
-      <div className="col-md-2">
-        <label className="pi-label">
-          <i className="bi bi-building me-1"></i>Branch Code
-        </label>
-
-        <select
-          name="branchCode"
-          className="pi-input"
-          value={form.branchCode}
-          onChange={async (e) => {
-
-            const value = e.target.value;
-            setErrors(prev => ({ ...prev, branchCode: "", address: "" }));
-
-            // ✅ CLEAR
-            if (!value) {
-
-              setForm(prev => ({
-                ...prev,
-                branchCode: "",
-                address: ""
-              }));
-
-              return;
-            }
-
-            try {
-
-              // ✅ FETCH ADDRESS
-              const res = await axios.get(
-                `${BASE_URL}/api/master/branch/${value}`
-              );
-
-              setForm(prev => ({
-                ...prev,
-
-                branchCode: value,
-
-                // ✅ AUTO FILL ADDRESS
-                address: res.data.dispatchAddress || ""
-
-              }));
-
-            } catch (err) {
-
-              console.log("Branch not found");
-
-            }
-
-          }}
-        >
-
-          <option value="">
-            Select
-          </option>
-
-          {branchList.map(branch => (
-
-            <option
-              key={branch._id}
-              value={branch.branchCode}
-            >
-              {branch.branchCode}
-            </option>
-
-          ))}
-
-        </select>
-        {renderFieldError("branchCode")}
-        <button
-          type="button"
-          onClick={() => setShowAddBranch(!showAddBranch)}
-          className="pi-linkbtn"
-        >
-          {showAddBranch ? "Cancel New Branch" : "+ Add New Branch"}
-        </button>
+    {/* ───────────────── NUMBERING DETAILS ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="hash" title="Numbering Details" chip={sectionChip} required={isPersow} />
+        {orderMode !== "PERSOW" && (
+          <Toggle
+            checked={showBankDetails}
+            onChange={(e) => setShowBankDetails(e.target.checked)}
+            label="Show Details"
+          />
+        )}
       </div>
 
-      {showAddBranch && (
-        <div className="col-md-4">
-          <div className="pi-addbranch">
-            <label className="pi-label">New Branch Code</label>
-            <input
-              className="pi-input mb-2"
-              placeholder="Branch Code"
-              value={newBranch.branchCode}
-              onChange={(e) => setNewBranch(prev => ({ ...prev, branchCode: e.target.value }))}
-            />
-            <label className="pi-label">New Dispatch Address</label>
-            <textarea
-              className="pi-input mb-2"
-              placeholder="Dispatch Address"
-              value={newBranch.dispatchAddress}
-              onChange={(e) => setNewBranch(prev => ({ ...prev, dispatchAddress: e.target.value }))}
-            />
-            <div className="d-flex gap-2">
-              <button
-                type="button"
-                onClick={addNewBranch}
-                disabled={savingBranch}
-                className="pi-btn pi-btn-primary pi-btn-xs"
-              >
-                {savingBranch ? "Saving..." : "Save Branch"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowAddBranch(false); setNewBranch({ branchCode: "", dispatchAddress: "" }); }}
-                className="pi-btn pi-btn-ghost pi-btn-xs"
-              >
-                Cancel
-              </button>
-            </div>
+      {(orderMode === "PERSOW" || showBankDetails) && (
+        <div className="pi-card-body">
+          <div className="row g-2">
+
+            <Field col="col-md-2" icon="type" label="Prefix" error={renderFieldError("prefix")}>
+              <input name="prefix" className="pi-input" value={form.prefix} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="credit-card" label="Account Number" error={renderFieldError("accountNumber")}>
+              <input name="accountNumber" className="pi-input" value={form.accountNumber} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="journal-arrow-down" label="Cheque From" error={renderFieldError("chequeFrom")}>
+              <input type="text" name="chequeFrom" className="pi-input" value={form.chequeFrom} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="journal-arrow-up" label="Cheque To" error={renderFieldError("chequeTo")}>
+              <input type="text" name="chequeTo" className="pi-input" value={form.chequeTo} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="upc" label="Non MICR Digits" error={renderFieldError("nonMicrDigits")}>
+              <input name="nonMicrDigits" className="pi-input" value={form.nonMicrDigits} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="code" label="Account Code" error={renderFieldError("accountCode")}>
+              <input name="accountCode" className="pi-input" value={form.accountCode} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="qr-code" label="Sort Code / MICR" error={renderFieldError("sortCode")}>
+              <input name="sortCode" className="pi-input" value={form.sortCode} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="arrow-left-right" label="Transaction Code" error={renderFieldError("transactionCode")}>
+              <input name="transactionCode" className="pi-input" value={form.transactionCode} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("numberingRemarks")}>
+              <textarea name="numberingRemarks" className="pi-input" value={form.numberingRemarks} onChange={handleChange} />
+            </Field>
+
           </div>
         </div>
       )}
-
-      <Field col="col-md-3" icon="geo-alt" label="Dispatch Address" error={renderFieldError("address")}>
-        <textarea name="address" className="pi-input" value={form.address} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("dispatchRemarks")}>
-        <textarea name="dispatchRemarks" className="pi-input" value={form.dispatchRemarks} onChange={handleChange} />
-      </Field>
-
-    </div>
-  </div>
-)}
-
-{/* ───────────────── BILLING INSTRUCTIONS ───────────────── */}
-<SectionHead icon="receipt-cutoff" title="Billing Instructions" />
-
-{!isPersow && (
-  <div className="pi-toggle-wrap">
-    <Toggle
-      checked={showBilling}
-      onChange={(e) => setShowBilling(e.target.checked)}
-      label="Show Billing Details"
-    />
-  </div>
-)}
-
-{(isPersow || showBilling) && (
-  <div className="pi-panel">
-    <div className="row g-2">
-
-      <Field col="col-md-2" icon="file-earmark-text" label="Quotation/Contract Ref No" error={renderFieldError("quotationRefNo")}>
-        <input name="quotationRefNo" className="pi-input" value={form.quotationRefNo} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="receipt" label="PO Number" error={renderFieldError("purchaseOrderNo")}>
-        <input name="purchaseOrderNo" className="pi-input" value={form.purchaseOrderNo} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="calendar-date" label="PO Date" error={renderFieldError("poDate")}>
-        <input type="date" name="poDate" className="pi-input" value={form.poDate} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="currency-rupee" label="Rate / Unit" error={renderFieldError("ratePerUnit")}>
-        <input type="number" min={0} step="any" name="ratePerUnit" className="pi-input" value={form.ratePerUnit} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="calculator" label="Total Billable Amount" error={renderFieldError("totalBillableAmount")}>
-        <input type="number" min={0} name="totalBillableAmount" className="pi-input" value={form.totalBillableAmount} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" label="Billing Type" error={renderFieldError("billingType")}>
-        <select name="billingType" className="pi-input" value={form.billingType} onChange={handleChange}>
-          <option value="">Select</option>
-          <option value="INTERNAL">INTERNAL</option>
-          <option value="EXTERNAL">EXTERNAL</option>
-        </select>
-      </Field>
-
-      <Field col="col-md-3" icon="person-lines-fill" label="Bill To" error={renderFieldError("planningInstruction")}>
-        <textarea name="planningInstruction" className="pi-input" value={form.planningInstruction} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-3" icon="send" label="Bill Send" error={renderFieldError("billSend")}>
-        <textarea name="billSend" className="pi-input" value={form.billSend} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("billingRemarks")}>
-        <textarea name="billingRemarks" className="pi-input" value={form.billingRemarks} onChange={handleChange} />
-      </Field>
-
-    </div>
-  </div>
-)}
-
-{/* ───────────────── INSTRUCTIONS ───────────────── */}
-<SectionHead icon="clipboard-check" title="Instructions" />
-
-{!isPersow && (
-  <div className="pi-toggle-wrap">
-    <Toggle
-      checked={showInstructions}
-      onChange={(e) => setShowInstructions(e.target.checked)}
-      label="Show Instruction Details"
-    />
-  </div>
-)}
-
-{(isPersow || showInstructions) && (
-  <div className="pi-panel">
-    <div className="row g-2">
-
-      <Field col="col-md-2" icon="person-badge" label="KAM" error={renderFieldError("kam")}>
-        <input name="kam" className="pi-input" value={form.kam} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="diagram-2" label="KAM Branch" error={renderFieldError("kamBranch")}>
-        <input name="kamBranch" className="pi-input" value={form.kamBranch} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="file-earmark-text" label="Payment Terms" error={renderFieldError("paymentTerms")}>
-        <input name="paymentTerms" className="pi-input" value={form.paymentTerms} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-2" icon="cash-coin" label="Advance Payment" error={renderFieldError("advancePayment")}>
-        <select name="advancePayment" className="pi-input" value={form.advancePayment} onChange={handleChange}>
-          <option value="">Select</option>
-          <option value="YES">YES</option>
-          <option value="NO">NO</option>
-        </select>
-      </Field>
-
-      <Field col="col-md-2" icon="percent" label="Tax Type" error={renderFieldError("taxType")}>
-        <select name="taxType" className="pi-input" value={form.taxType} onChange={handleChange}>
-          <option value="">Select</option>
-          <option value="TAX INCLUSIVE">TAX INCLUSIVE</option>
-          <option value="TAX EXCLUSIVE">TAX EXCLUSIVE</option>
-        </select>
-      </Field>
-
-      <Field col="col-md-3" icon="exclamation-circle" label="Special Instruction" error={renderFieldError("specialInstruction")}>
-        <textarea name="specialInstruction" className="pi-input" value={form.specialInstruction} onChange={handleChange} />
-      </Field>
-
-      <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("instructionRemarks")}>
-        <textarea name="instructionRemarks" className="pi-input" value={form.instructionRemarks} onChange={handleChange} />
-      </Field>
-
-    </div>
-  </div>
-)}
-
-<div className="d-flex justify-content-center mt-3">
-  <button
-    type="submit"
-    className="pi-btn pi-btn-primary pi-btn-lg"
-    disabled={saving}
-    onClick={(e) => {
-      if (saving) e.preventDefault();
-    }}
-  >
-    Save
-  </button>
-</div>
-  </form>
-
-  {/* ───────────────── FILTER BAR ───────────────── */}
-  <div className="pi-filter">
-
-    {/* WO Number */}
-    <div className="pi-fgroup">
-      <label className="pi-label"><i className="bi bi-hash me-1"></i>WO Number</label>
-      <input
-        type="text"
-        placeholder="Search WO..."
-        className="pi-input"
-        value={filters.wo}
-        onChange={(e) => setFilters({ ...filters, wo: e.target.value })}
-      />
     </div>
 
-    {/* Sub WO */}
-    <div className="pi-fgroup">
-      <label className="pi-label"><i className="bi bi-diagram-2 me-1"></i>Sub WO</label>
-      <input
-        type="text"
-        placeholder="Search Sub WO..."
-        className="pi-input"
-        value={filters.subWo}
-        onChange={(e) => setFilters({ ...filters, subWo: e.target.value })}
-      />
+    {/* ───────────────── PACKING STANDARD ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="boxes" title="Packing Standard" chip={sectionChip} required={isPersow} />
+        {!isPersow && (
+          <Toggle
+            checked={showPacking}
+            onChange={(e) => setShowPacking(e.target.checked)}
+            label="Show Packing Details"
+          />
+        )}
+      </div>
+
+      {(isPersow || showPacking) && (
+        <div className="pi-card-body">
+          <div className="row g-2">
+
+            <Field col="col-md-2" icon="box-seam" label="Type of Inner Packing" error={renderFieldError("innerPackingType")}>
+              <select name="innerPackingType" className="pi-input" value={form.innerPackingType} onChange={handleChange}>
+                <option value="">Select</option>
+                {innerPackingList.map(item => (
+                  <option key={item._id} value={item.type}>
+                    {item.type}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field col="col-md-2" icon="layers" label="Leaves per Inner Pack">
+              <input type="number" className="pi-input" value={form.leavesPerInner} readOnly />
+            </Field>
+
+            <Field col="col-md-2" icon="box" label="No. of Inner Pack">
+              <input className="pi-input" value={form.innerPack} readOnly />
+            </Field>
+
+            <Field col="col-md-2" icon="archive" label="No. of Outer Pack">
+              <input type="number" className="pi-input" value={form.outerPack} readOnly />
+            </Field>
+
+            <Field col="col-md-2" icon="diagram-3" label="Inner Pack per Outer Pack">
+              <input type="number" className="pi-input" value={form.innerPerOuter} readOnly />
+            </Field>
+
+            <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("packingRemarks")}>
+              <textarea name="packingRemarks" className="pi-input" value={form.packingRemarks} onChange={handleChange} />
+            </Field>
+
+          </div>
+        </div>
+      )}
     </div>
 
-    {/* Customer */}
-    <div className="pi-fgroup">
-      <label className="pi-label"><i className="bi bi-person me-1"></i>Customer</label>
-      <select
-        className="pi-input"
-        value={filters.customer}
-        onChange={(e) => setFilters({ ...filters, customer: e.target.value })}
-      >
-        <option value="">All Customers</option>
-        {customerOptions.map((cust, i) => (
-          <option key={i} value={cust}>{cust}</option>
-        ))}
-      </select>
-    </div>
+    {/* ───────────────── DISPATCH DETAILS ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="truck" title="Dispatch Details" chip={sectionChip} required={isPersow} />
+        {!isPersow && (
+          <Toggle
+            checked={showDispatch}
+            onChange={(e) => setShowDispatch(e.target.checked)}
+            label="Show Dispatch Details"
+          />
+        )}
+      </div>
 
-    {/* Product Code */}
-    <div className="pi-fgroup">
-      <label className="pi-label"><i className="bi bi-upc-scan me-1"></i>Product Code</label>
-      <input
-        type="text"
-        placeholder="Search code..."
-        className="pi-input"
-        value={filters.productCode}
-        onChange={(e) => setFilters({ ...filters, productCode: e.target.value })}
-      />
-    </div>
+      {(isPersow || showDispatch) && (
+        <div className="pi-card-body">
+          <div className="row g-2">
 
-    {/* Ticket ID */}
-    <div className="pi-fgroup">
-      <label className="pi-label"><i className="bi bi-ticket-perforated me-1"></i>Ticket ID</label>
-      <input
-        type="text"
-        placeholder="Ticket ID"
-        className="pi-input"
-        value={filters.ticketId || ""}
-        onChange={(e) => setFilters({ ...filters, ticketId: e.target.value })}
-      />
-    </div>
+            <Field col="col-md-2" icon="calendar-event" label="Delivery Date" error={renderFieldError("deliveryDate")}>
+              <input type="date" name="deliveryDate" className="pi-input" value={form.deliveryDate} onChange={handleChange} />
+            </Field>
 
-    {/* Buttons */}
-    <div className="d-flex gap-2">
-      <button
-        className="pi-btn pi-btn-ghost"
-        onClick={() => setFilters({ wo: "", subWo: "", customer: "", productCode: "", ticketId: "" })}
-      >
-        <i className="bi bi-x-circle"></i> Clear
-      </button>
+            <Field col="col-md-2" icon="truck-front" label="Mode of Transport" error={renderFieldError("modeOfTransport")}>
+              <select name="modeOfTransport" className="pi-input" value={form.modeOfTransport} onChange={handleChange}>
+                <option value="">Select</option>
+                {transportList.map(t => (
+                  <option key={t._id} value={t.name}>{t.name}</option>
+                ))}
+              </select>
+            </Field>
 
-      <button className="pi-btn pi-btn-success" onClick={exportToExcel}>
-        <i className="bi bi-file-earmark-excel"></i> Excel
-      </button>
+            <Field col="col-md-2" icon="cash-stack" label="Freight Charge Type" error={renderFieldError("freightChargeType")}>
+              <select name="freightChargeType" className="pi-input" value={form.freightChargeType} onChange={handleChange}>
+                <option value="">Select</option>
+                {freightChargeList.map(f => (
+                  <option key={f._id} value={f.name}>{f.name}</option>
+                ))}
+              </select>
+            </Field>
 
-      <button className="pi-btn pi-btn-red" onClick={viewPDF}>
-        <i className="bi bi-file-earmark-pdf"></i> PDF
-      </button>
-    </div>
+            <Field col="col-md-2" icon="box-arrow-right" label="Freight Type" error={renderFieldError("freightType")}>
+              <select name="freightType" className="pi-input" value={form.freightType} onChange={handleChange}>
+                <option value="">Select</option>
+                {freightTypeList.map(f => (
+                  <option key={f._id} value={f.name}>{f.name}</option>
+                ))}
+              </select>
+            </Field>
 
-  </div>
+            <div className="col-md-2">
+              <label className="pi-label">Branch Code</label>
 
-  {/* ───────────────── TABLE ───────────────── */}
-  <div className="pi-table-wrap">
-    <table className="pi-table">
+              <div className="pi-ifield">
+                <i className="bi bi-building pi-ficon"></i>
+                <select
+                  name="branchCode"
+                  className="pi-input"
+                  value={form.branchCode}
+                  onChange={async (e) => {
 
-      <thead>
-        <tr>
-          <th>Ticket ID</th>
-          <th>Work order</th>
-          <th>Sub work order</th>
-          <th>Product</th>
-          <th>Material</th>
-          <th>Description</th>
-          <th>Customer</th>
+                    const value = e.target.value;
+                    setErrors(prev => ({ ...prev, branchCode: "", address: "" }));
 
-          <th>Color Front</th>
-          <th>Color Back</th>
-          <th>Waste Qty</th>
-          <th>Job Size</th>
-          <th>Ink</th>
+                    // ✅ CLEAR
+                    if (!value) {
 
-          <th>Qty</th>
-          <th>Remaining Qty</th>
-          <th>Location</th>
+                      setForm(prev => ({
+                        ...prev,
+                        branchCode: "",
+                        address: ""
+                      }));
 
-          <th>Material Group</th>
-          <th>GSM</th>
+                      return;
+                    }
 
-          <th>Inner Type</th>
-          <th>Leaves</th>
-          <th>Inner Pack</th>
-          <th>Outer Pack</th>
-          <th>Inner/Outer</th>
+                    try {
 
-          <th>Delivery</th>
-          <th>Transport</th>
-          <th>Freight Charge</th>
-          <th>Freight Type</th>
-          <th>Dispatch Address</th>
+                      // ✅ FETCH ADDRESS
+                      const res = await axios.get(
+                        `${BASE_URL}/api/master/branch/${value}`
+                      );
 
-          <th>Quotation</th>
-          <th>PO No</th>
-          <th>PO Date</th>
-          <th>Rate</th>
-          <th>Total</th>
+                      setForm(prev => ({
+                        ...prev,
 
-          <th>Prefix</th>
-          <th>Non MICR Digit</th>
-          <th>Account No</th>
-          <th>MICR</th>
-          <th>Account Code</th>
-          <th>Transaction Code</th>
+                        branchCode: value,
 
-          <th>Cheque From</th>
-          <th>Cheque To</th>
+                        // ✅ AUTO FILL ADDRESS
+                        address: res.data.dispatchAddress || ""
 
-          <th>Bill Send</th>
-          <th>Bill To</th>
-          <th>KAM</th>
-          <th>KAM Branch</th>
-          <th>Payment</th>
-          <th>Advance</th>
-          <th>Tax</th>
-          <th>Billing Type</th>
+                      }));
 
-          <th>Special</th>
+                    } catch (err) {
 
-          <th>Type</th>
-          <th>Remarks</th>
-          <th>User Locations</th>
-          <th>User</th>
-          <th>Action</th>
-        </tr>
-      </thead>
+                      console.log("Branch not found");
 
-      <tbody>
-        {filteredOrders.map((order) => (
-          <tr key={order._id}>
-            <td>
-              <span className="pi-badge pi-badge-blue">{order.ticketId || "--"}</span>
-            </td>
+                    }
 
-            <td>
-              {order.workOrders?.map((wo, i) => {
-                if (!wo.workorder2 || wo.workorder2 === "") return <div key={i}>{wo.efiWoNumber}</div>;
-                if (Number(wo.workorder2) < Number(wo.efiWoNumber)) return <div key={i}>{wo.workorder2}</div>;
-                return <div key={i}>{wo.efiWoNumber}</div>;
-              })}
-            </td>
-
-            <td>
-              {order.workOrders?.map((wo, i) => {
-                if (!wo.workorder2 || wo.workorder2 === "") return <div key={i}>-</div>;
-                if (Number(wo.workorder2) < Number(wo.efiWoNumber)) return <div key={i}>{wo.efiWoNumber || "--"}</div>;
-                return <div key={i}>{wo.workorder2 || "--"}</div>;
-              })}
-            </td>
-
-            {/* Product Code — show all from products array, fallback to top-level */}
-            <td className="pi-accent">
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.productCode || "--"}</div>)
-                : order.productCode || "--"}
-            </td>
-
-            {/* Material */}
-            <td>
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.materialType || "--"}</div>)
-                : order.materialType || "--"}
-            </td>
-
-            {/* Description */}
-            <td
-              className="pi-exp"
-              style={{
-                maxWidth: expandedCell === `desc-${order._id}` ? "350px" : "180px",
-                whiteSpace: expandedCell === `desc-${order._id}` ? "normal" : "nowrap",
-                wordBreak: "break-word",
-                overflowWrap: "anywhere"
-              }}
-              onClick={() =>
-                setExpandedCell(
-                  expandedCell === `desc-${order._id}`
-                    ? null
-                    : `desc-${order._id}`
-                )
-              }
-            >
-              {order.products?.length
-                ? order.products.map((p, pi) => (
-                    <div key={pi}>{expandedCell === `desc-${order._id}` ? p.description : truncateText(p.description || "--")}</div>
-                  ))
-                : (expandedCell === `desc-${order._id}` ? order.description : truncateText(order.description || "--"))}
-            </td>
-
-            {/* Customer */}
-            <td
-              className="pi-exp"
-              style={{
-                maxWidth: expandedCell === `customer-${order._id}` ? "300px" : "150px",
-                whiteSpace: expandedCell === `customer-${order._id}` ? "normal" : "nowrap",
-                wordBreak: "break-word",
-                overflowWrap: "anywhere"
-              }}
-              onClick={() => setExpandedCell(expandedCell === `customer-${order._id}` ? null : `customer-${order._id}`)}>
-              {order.products?.length
-                ? order.products.map((p, pi) => (
-                    <div key={pi}>{expandedCell === `customer-${order._id}` ? p.customerName : truncateText(p.customerName || "--")}</div>
-                  ))
-                : (expandedCell === `customer-${order._id}` ? order.customerName : truncateText(order.customerName || "--"))}
-            </td>
-
-            {/* Color Front */}
-            <td>
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.colorFront || "--"}</div>)
-                : order.colorFront || "--"}
-            </td>
-
-            {/* Color Back */}
-            <td>
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.colorBack || "--"}</div>)
-                : order.colorBack || "--"}
-            </td>
-
-            {/* Waste Qty */}
-            <td>
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.wasteQty ?? "--"}</div>)
-                : order.wasteQty ?? "--"}
-            </td>
-
-            {/* Job Size */}
-            <td>
-              {order.products?.length
-                ? order.products.map((p, pi) => <div key={pi}>{p.jobSize || "--"}</div>)
-                : order.jobSize || "--"}
-            </td>
-
-            {/* Ink Details */}
-            <td
-              className="pi-exp"
-              style={{
-                maxWidth: expandedCell === `ink-${order._id}` ? "350px" : "150px",
-                whiteSpace: expandedCell === `ink-${order._id}` ? "normal" : "nowrap",
-                wordBreak: "break-word",
-                overflowWrap: "anywhere"
-              }}
-              onClick={() => setExpandedCell(expandedCell === `ink-${order._id}` ? null : `ink-${order._id}`)}>
-              {order.products?.length
-                ? order.products.map((p, pi) => (
-                    <div key={pi}>{expandedCell === `ink-${order._id}` ? p.inkDetails : truncateText(p.inkDetails || "--")}</div>
-                  ))
-                : (expandedCell === `ink-${order._id}` ? order.inkDetails : truncateText(order.inkDetails || "--"))}
-            </td>
-
-            <td className="pi-strong">{order.quantity || "--"}</td>
-            <td className={Number(order.remainingQty) > 0 ? "pi-pos" : "pi-neg"}>
-              {order.remainingQty ?? "--"}
-            </td>
-            <td>
-              <span className="pi-badge pi-badge-gray">{order.location || "--"}</span>
-            </td>
-
-            <td>{order.materialGroup || "--"}</td>
-            <td>{order.materialGsm || "--"}</td>
-
-            <td>{order.innerPackingType || "--"}</td>
-            <td>{order.leavesPerInner || "--"}</td>
-            <td>{order.innerPack || "--"}</td>
-            <td>{order.outerPack || "--"}</td>
-            <td>{order.innerPerOuter || "--"}</td>
-
-            <td>{order.deliveryDate?.substring(0, 10) || "--"}</td>
-            <td>{order.modeOfTransport || "--"}</td>
-            <td>{order.freightChargeType || "--"}</td>
-            <td>{order.freightType || "--"}</td>
-
-            {expandTd(order, "address", order.address)}
-
-            <td>{order.quotationRefNo || "--"}</td>
-            <td>{order.purchaseOrderNo || "--"}</td>
-            <td>{order.poDate?.substring(0, 10) || "--"}</td>
-            <td>{order.ratePerUnit || "--"}</td>
-            <td className="pi-strong">{order.totalBillableAmount || "--"}</td>
-
-            <td>{order.prefix || "--"}</td>
-            <td>{order.nonMicrDigits || "--"}</td>
-            <td>{order.accountNumber || "--"}</td>
-            <td>{order.sortCode || "--"}</td>
-            <td>{order.accountCode || "--"}</td>
-            <td>{order.transactionCode || "--"}</td>
-            <td>{order.chequeFrom || "--"}</td>
-            <td>{order.chequeTo || "--"}</td>
-
-            {expandTd(order, "billsend", order.billSend)}
-            {expandTd(order, "billto", order.planningInstruction)}
-
-            <td>{order.kam || "--"}</td>
-            <td>{order.kamBranch || "--"}</td>
-            <td>{order.paymentTerms || "--"}</td>
-            <td>
-              {order.advancePayment && (
-                <span className={`pi-badge ${order.advancePayment === "YES" ? "pi-badge-green" : "pi-badge-red"}`}>
-                  {order.advancePayment}
-                </span>
-              )}
-            </td>
-            <td>{order.taxType || "--"}</td>
-            <td>
-              {order.billingType && (
-                <span className={`pi-badge ${order.billingType === "INTERNAL" ? "pi-badge-purple" : "pi-badge-orange"}`}>
-                  {order.billingType || "--"}
-                </span>
-              )}
-            </td>
-
-            {expandTd(order, "special", order.specialInstruction)}
-
-            <td>{order.orderType || "--"}</td>
-
-            {expandTd(order, "remarks", order.remarks)}
-
-            <td>{order.userLocations?.join(", ") || "--"}</td>
-            <td className="pi-strong">{order.user}</td>
-
-            <td>
-              <span title={order.status === "PLANNED" ? "Work order already created" : ""} style={{ cursor: order.status === "PLANNED" ? "not-allowed" : "pointer" }}>
-                <button
-                  onClick={() => handleEdit(order)}
-                  className="pi-btn pi-btn-soft pi-btn-xs me-1"
-                  disabled={order.workOrders && order.workOrders.length > 0}
-                  style={{
-                    cursor:
-                      order.workOrders && order.workOrders.length > 0
-                        ? "not-allowed"
-                        : "pointer",
-                    opacity:
-                      order.workOrders && order.workOrders.length > 0 ? 0.5 : 1
                   }}
                 >
-                  <i className="bi bi-pencil-fill"></i>
-                  Edit
-                </button>
-              </span>
+
+                  <option value="">
+                    Select
+                  </option>
+
+                  {branchList.map(branch => (
+
+                    <option
+                      key={branch._id}
+                      value={branch.branchCode}
+                    >
+                      {branch.branchCode}
+                    </option>
+
+                  ))}
+
+                </select>
+              </div>
+              {renderFieldError("branchCode")}
               <button
-                className="pi-btn pi-btn-danger pi-btn-xs"
-                onClick={() => handleDelete(order._id)}
+                type="button"
+                onClick={() => setShowAddBranch(!showAddBranch)}
+                className="pi-linkbtn"
               >
-                <i className="bi bi-trash-fill"></i>Del
+                <i className={`bi bi-${showAddBranch ? "x-circle" : "plus-circle"}`}></i>
+                {showAddBranch ? "Cancel New Branch" : "Add New Branch"}
               </button>
-            </td>
+            </div>
+
+            {showAddBranch && (
+              <div className="col-md-4">
+                <div className="pi-addbranch">
+                  <label className="pi-label">New Branch Code</label>
+                  <div className="pi-ifield mb-2">
+                    <i className="bi bi-signpost pi-ficon"></i>
+                    <input
+                      className="pi-input"
+                      placeholder="Branch Code"
+                      value={newBranch.branchCode}
+                      onChange={(e) => setNewBranch(prev => ({ ...prev, branchCode: e.target.value }))}
+                    />
+                  </div>
+                  <label className="pi-label">New Dispatch Address</label>
+                  <div className="pi-ifield mb-2">
+                    <i className="bi bi-geo pi-ficon"></i>
+                    <textarea
+                      className="pi-input"
+                      placeholder="Dispatch Address"
+                      value={newBranch.dispatchAddress}
+                      onChange={(e) => setNewBranch(prev => ({ ...prev, dispatchAddress: e.target.value }))}
+                    />
+                  </div>
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      onClick={addNewBranch}
+                      disabled={savingBranch}
+                      className="pi-btn pi-btn-primary pi-btn-xs"
+                    >
+                      {savingBranch ? "Saving..." : "Save Branch"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddBranch(false); setNewBranch({ branchCode: "", dispatchAddress: "" }); }}
+                      className="pi-btn pi-btn-ghost pi-btn-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <Field col="col-md-3" icon="geo-alt" label="Dispatch Address" error={renderFieldError("address")}>
+              <textarea name="address" className="pi-input" value={form.address} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("dispatchRemarks")}>
+              <textarea name="dispatchRemarks" className="pi-input" value={form.dispatchRemarks} onChange={handleChange} />
+            </Field>
+
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* ───────────────── BILLING INSTRUCTIONS ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="receipt-cutoff" title="Billing Instructions" chip={sectionChip} required={isPersow} />
+        {!isPersow && (
+          <Toggle
+            checked={showBilling}
+            onChange={(e) => setShowBilling(e.target.checked)}
+            label="Show Billing Details"
+          />
+        )}
+      </div>
+
+      {(isPersow || showBilling) && (
+        <div className="pi-card-body">
+          <div className="row g-2">
+
+            <Field col="col-md-2" icon="file-earmark-text" label="Quotation/Contract Ref No" error={renderFieldError("quotationRefNo")}>
+              <input name="quotationRefNo" className="pi-input" value={form.quotationRefNo} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="receipt" label="PO Number" error={renderFieldError("purchaseOrderNo")}>
+              <input name="purchaseOrderNo" className="pi-input" value={form.purchaseOrderNo} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="calendar-date" label="PO Date" error={renderFieldError("poDate")}>
+              <input type="date" name="poDate" className="pi-input" value={form.poDate} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="currency-rupee" label="Rate / Unit" error={renderFieldError("ratePerUnit")}>
+              <input type="number" min={0} step="any" name="ratePerUnit" className="pi-input" value={form.ratePerUnit} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="calculator" label="Total Billable Amount" error={renderFieldError("totalBillableAmount")}>
+              <input type="number" min={0} name="totalBillableAmount" className="pi-input" value={form.totalBillableAmount} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="tags" label="Billing Type" error={renderFieldError("billingType")}>
+              <select name="billingType" className="pi-input" value={form.billingType} onChange={handleChange}>
+                <option value="">Select</option>
+                <option value="INTERNAL">INTERNAL</option>
+                <option value="EXTERNAL">EXTERNAL</option>
+              </select>
+            </Field>
+
+            <Field col="col-md-3" icon="person-lines-fill" label="Bill To" error={renderFieldError("planningInstruction")}>
+              <textarea name="planningInstruction" className="pi-input" value={form.planningInstruction} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-3" icon="send" label="Bill Send" error={renderFieldError("billSend")}>
+              <textarea name="billSend" className="pi-input" value={form.billSend} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("billingRemarks")}>
+              <textarea name="billingRemarks" className="pi-input" value={form.billingRemarks} onChange={handleChange} />
+            </Field>
+
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* ───────────────── INSTRUCTIONS ───────────────── */}
+    <div className="pi-card">
+      <div className="pi-card-head">
+        <SectionHead icon="clipboard-check" title="Instructions" chip={sectionChip} required={isPersow} />
+        {!isPersow && (
+          <Toggle
+            checked={showInstructions}
+            onChange={(e) => setShowInstructions(e.target.checked)}
+            label="Show Instruction Details"
+          />
+        )}
+      </div>
+
+      {(isPersow || showInstructions) && (
+        <div className="pi-card-body">
+          <div className="row g-2">
+
+            <Field col="col-md-2" icon="person-badge" label="KAM" error={renderFieldError("kam")}>
+              <input name="kam" className="pi-input" value={form.kam} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="diagram-2" label="KAM Branch" error={renderFieldError("kamBranch")}>
+              <input name="kamBranch" className="pi-input" value={form.kamBranch} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="file-earmark-text" label="Payment Terms" error={renderFieldError("paymentTerms")}>
+              <input name="paymentTerms" className="pi-input" value={form.paymentTerms} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-2" icon="cash-coin" label="Advance Payment" error={renderFieldError("advancePayment")}>
+              <select name="advancePayment" className="pi-input" value={form.advancePayment} onChange={handleChange}>
+                <option value="">Select</option>
+                <option value="YES">YES</option>
+                <option value="NO">NO</option>
+              </select>
+            </Field>
+
+            <Field col="col-md-2" icon="percent" label="Tax Type" error={renderFieldError("taxType")}>
+              <select name="taxType" className="pi-input" value={form.taxType} onChange={handleChange}>
+                <option value="">Select</option>
+                <option value="TAX INCLUSIVE">TAX INCLUSIVE</option>
+                <option value="TAX EXCLUSIVE">TAX EXCLUSIVE</option>
+              </select>
+            </Field>
+
+            <Field col="col-md-3" icon="exclamation-circle" label="Special Instruction" error={renderFieldError("specialInstruction")}>
+              <textarea name="specialInstruction" className="pi-input" value={form.specialInstruction} onChange={handleChange} />
+            </Field>
+
+            <Field col="col-md-4" icon="chat-left-text" label="Remarks" error={renderFieldError("instructionRemarks")}>
+              <textarea name="instructionRemarks" className="pi-input" value={form.instructionRemarks} onChange={handleChange} />
+            </Field>
+
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* SAVE BAR */}
+    <div className="pi-actions">
+      <button
+        type="submit"
+        className="pi-btn pi-btn-primary pi-btn-lg"
+        disabled={saving}
+        onClick={(e) => {
+          if (saving) e.preventDefault();
+        }}
+      >
+        <i className="bi bi-check2-circle"></i> Save
+      </button>
+    </div>
+  </form>
+
+  {/* ───────────────── RECORDS (FILTER + TABLE) ───────────────── */}
+  <div className="pi-card">
+    <div className="pi-card-head">
+      <SectionHead icon="table" title="Printing Instruction Records" />
+      <span className="pi-count">{filteredOrders.length} records</span>
+    </div>
+
+    <div className="pi-filter">
+
+      {/* WO Number */}
+      <div className="pi-fgroup">
+        <label className="pi-label">WO Number</label>
+        <div className="pi-ifield">
+          <i className="bi bi-hash pi-ficon"></i>
+          <input
+            type="text"
+            placeholder="Search WO..."
+            className="pi-input"
+            value={filters.wo}
+            onChange={(e) => setFilters({ ...filters, wo: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Sub WO */}
+      <div className="pi-fgroup">
+        <label className="pi-label">Sub WO</label>
+        <div className="pi-ifield">
+          <i className="bi bi-diagram-2 pi-ficon"></i>
+          <input
+            type="text"
+            placeholder="Search Sub WO..."
+            className="pi-input"
+            value={filters.subWo}
+            onChange={(e) => setFilters({ ...filters, subWo: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Customer */}
+      <div className="pi-fgroup">
+        <label className="pi-label">Customer</label>
+        <div className="pi-ifield">
+          <i className="bi bi-person pi-ficon"></i>
+          <select
+            className="pi-input"
+            value={filters.customer}
+            onChange={(e) => setFilters({ ...filters, customer: e.target.value })}
+          >
+            <option value="">All Customers</option>
+            {customerOptions.map((cust, i) => (
+              <option key={i} value={cust}>{cust}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Product Code */}
+      <div className="pi-fgroup">
+        <label className="pi-label">Product Code</label>
+        <div className="pi-ifield">
+          <i className="bi bi-upc-scan pi-ficon"></i>
+          <input
+            type="text"
+            placeholder="Search code..."
+            className="pi-input"
+            value={filters.productCode}
+            onChange={(e) => setFilters({ ...filters, productCode: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Ticket ID */}
+      <div className="pi-fgroup">
+        <label className="pi-label">Ticket ID</label>
+        <div className="pi-ifield">
+          <i className="bi bi-ticket-perforated pi-ficon"></i>
+          <input
+            type="text"
+            placeholder="Ticket ID"
+            className="pi-input"
+            value={filters.ticketId || ""}
+            onChange={(e) => setFilters({ ...filters, ticketId: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Buttons */}
+      <div className="pi-filter-actions">
+        <button
+          className="pi-btn pi-btn-ghost"
+          onClick={() => setFilters({ wo: "", subWo: "", customer: "", productCode: "", ticketId: "" })}
+        >
+          <i className="bi bi-x-circle"></i> Clear
+        </button>
+
+        <button className="pi-btn pi-btn-success" onClick={exportToExcel}>
+          <i className="bi bi-file-earmark-excel"></i> Excel
+        </button>
+
+        <button className="pi-btn pi-btn-red" onClick={viewPDF}>
+          <i className="bi bi-file-earmark-pdf"></i> PDF
+        </button>
+      </div>
+
+    </div>
+
+    {/* ───────────────── TABLE ───────────────── */}
+    <div className="pi-table-wrap">
+      <table className="pi-table">
+
+        <thead>
+          <tr>
+            <th>Ticket ID</th>
+            <th>Work order</th>
+            <th>Sub work order</th>
+            <th>Product</th>
+            <th>Material</th>
+            <th>Description</th>
+            <th>Customer</th>
+
+            <th>Color Front</th>
+            <th>Color Back</th>
+            <th>Waste Qty</th>
+            <th>Job Size</th>
+            <th>Ink</th>
+
+            <th>Qty</th>
+            <th>Remaining Qty</th>
+            <th>Location</th>
+
+            <th>Material Group</th>
+            <th>GSM</th>
+
+            <th>Inner Type</th>
+            <th>Leaves</th>
+            <th>Inner Pack</th>
+            <th>Outer Pack</th>
+            <th>Inner/Outer</th>
+
+            <th>Delivery</th>
+            <th>Transport</th>
+            <th>Freight Charge</th>
+            <th>Freight Type</th>
+            <th>Dispatch Address</th>
+
+            <th>Quotation</th>
+            <th>PO No</th>
+            <th>PO Date</th>
+            <th>Rate</th>
+            <th>Total</th>
+
+            <th>Prefix</th>
+            <th>Non MICR Digit</th>
+            <th>Account No</th>
+            <th>MICR</th>
+            <th>Account Code</th>
+            <th>Transaction Code</th>
+
+            <th>Cheque From</th>
+            <th>Cheque To</th>
+
+            <th>Bill Send</th>
+            <th>Bill To</th>
+            <th>KAM</th>
+            <th>KAM Branch</th>
+            <th>Payment</th>
+            <th>Advance</th>
+            <th>Tax</th>
+            <th>Billing Type</th>
+
+            <th>Special</th>
+
+            <th>Type</th>
+            <th>Remarks</th>
+            <th>User Locations</th>
+            <th>User</th>
+            <th>Action</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+
+        <tbody>
+          {filteredOrders.map((order) => (
+            <tr key={order._id}>
+              <td>
+                <span className="pi-badge pi-badge-blue">{order.ticketId || "--"}</span>
+              </td>
+
+              <td>
+                {order.workOrders?.map((wo, i) => {
+                  if (!wo.workorder2 || wo.workorder2 === "") return <div key={i}>{wo.efiWoNumber}</div>;
+                  if (Number(wo.workorder2) < Number(wo.efiWoNumber)) return <div key={i}>{wo.workorder2}</div>;
+                  return <div key={i}>{wo.efiWoNumber}</div>;
+                })}
+              </td>
+
+              <td>
+                {order.workOrders?.map((wo, i) => {
+                  if (!wo.workorder2 || wo.workorder2 === "") return <div key={i}>-</div>;
+                  if (Number(wo.workorder2) < Number(wo.efiWoNumber)) return <div key={i}>{wo.efiWoNumber || "--"}</div>;
+                  return <div key={i}>{wo.workorder2 || "--"}</div>;
+                })}
+              </td>
+
+              {/* Product Code — show all from products array, fallback to top-level */}
+              <td className="pi-accent">
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.productCode || "--"}</div>)
+                  : order.productCode || "--"}
+              </td>
+
+              {/* Material */}
+              <td>
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.materialType || "--"}</div>)
+                  : order.materialType || "--"}
+              </td>
+
+              {/* Description */}
+              <td
+                className="pi-exp"
+                style={{
+                  maxWidth: expandedCell === `desc-${order._id}` ? "350px" : "180px",
+                  whiteSpace: expandedCell === `desc-${order._id}` ? "normal" : "nowrap",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere"
+                }}
+                onClick={() =>
+                  setExpandedCell(
+                    expandedCell === `desc-${order._id}`
+                      ? null
+                      : `desc-${order._id}`
+                  )
+                }
+              >
+                {order.products?.length
+                  ? order.products.map((p, pi) => (
+                      <div key={pi}>{expandedCell === `desc-${order._id}` ? p.description : truncateText(p.description || "--")}</div>
+                    ))
+                  : (expandedCell === `desc-${order._id}` ? order.description : truncateText(order.description || "--"))}
+              </td>
+
+              {/* Customer */}
+              <td
+                className="pi-exp"
+                style={{
+                  maxWidth: expandedCell === `customer-${order._id}` ? "300px" : "150px",
+                  whiteSpace: expandedCell === `customer-${order._id}` ? "normal" : "nowrap",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere"
+                }}
+                onClick={() => setExpandedCell(expandedCell === `customer-${order._id}` ? null : `customer-${order._id}`)}>
+                {order.products?.length
+                  ? order.products.map((p, pi) => (
+                      <div key={pi}>{expandedCell === `customer-${order._id}` ? p.customerName : truncateText(p.customerName || "--")}</div>
+                    ))
+                  : (expandedCell === `customer-${order._id}` ? order.customerName : truncateText(order.customerName || "--"))}
+              </td>
+
+              {/* Color Front */}
+              <td>
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.colorFront || "--"}</div>)
+                  : order.colorFront || "--"}
+              </td>
+
+              {/* Color Back */}
+              <td>
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.colorBack || "--"}</div>)
+                  : order.colorBack || "--"}
+              </td>
+
+              {/* Waste Qty */}
+              <td>
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.wasteQty ?? "--"}</div>)
+                  : order.wasteQty ?? "--"}
+              </td>
+
+              {/* Job Size */}
+              <td>
+                {order.products?.length
+                  ? order.products.map((p, pi) => <div key={pi}>{p.jobSize || "--"}</div>)
+                  : order.jobSize || "--"}
+              </td>
+
+              {/* Ink Details */}
+              <td
+                className="pi-exp"
+                style={{
+                  maxWidth: expandedCell === `ink-${order._id}` ? "350px" : "150px",
+                  whiteSpace: expandedCell === `ink-${order._id}` ? "normal" : "nowrap",
+                  wordBreak: "break-word",
+                  overflowWrap: "anywhere"
+                }}
+                onClick={() => setExpandedCell(expandedCell === `ink-${order._id}` ? null : `ink-${order._id}`)}>
+                {order.products?.length
+                  ? order.products.map((p, pi) => (
+                      <div key={pi}>{expandedCell === `ink-${order._id}` ? p.inkDetails : truncateText(p.inkDetails || "--")}</div>
+                    ))
+                  : (expandedCell === `ink-${order._id}` ? order.inkDetails : truncateText(order.inkDetails || "--"))}
+              </td>
+
+              <td className="pi-strong">{order.quantity || "--"}</td>
+              <td className={Number(order.remainingQty) > 0 ? "pi-pos" : "pi-neg"}>
+                {order.remainingQty ?? "--"}
+              </td>
+              <td>
+                <span className="pi-badge pi-badge-gray">{order.location || "--"}</span>
+              </td>
+
+              <td>{order.materialGroup || "--"}</td>
+              <td>{order.materialGsm || "--"}</td>
+
+              <td>{order.innerPackingType || "--"}</td>
+              <td>{order.leavesPerInner || "--"}</td>
+              <td>{order.innerPack || "--"}</td>
+              <td>{order.outerPack || "--"}</td>
+              <td>{order.innerPerOuter || "--"}</td>
+
+              <td>{order.deliveryDate?.substring(0, 10) || "--"}</td>
+              <td>{order.modeOfTransport || "--"}</td>
+              <td>{order.freightChargeType || "--"}</td>
+              <td>{order.freightType || "--"}</td>
+
+              {expandTd(order, "address", order.address)}
+
+              <td>{order.quotationRefNo || "--"}</td>
+              <td>{order.purchaseOrderNo || "--"}</td>
+              <td>{order.poDate?.substring(0, 10) || "--"}</td>
+              <td>{order.ratePerUnit || "--"}</td>
+              <td className="pi-strong">{order.totalBillableAmount || "--"}</td>
+
+              <td>{order.prefix || "--"}</td>
+              <td>{order.nonMicrDigits || "--"}</td>
+              <td>{order.accountNumber || "--"}</td>
+              <td>{order.sortCode || "--"}</td>
+              <td>{order.accountCode || "--"}</td>
+              <td>{order.transactionCode || "--"}</td>
+              <td>{order.chequeFrom || "--"}</td>
+              <td>{order.chequeTo || "--"}</td>
+
+              {expandTd(order, "billsend", order.billSend)}
+              {expandTd(order, "billto", order.planningInstruction)}
+
+              <td>{order.kam || "--"}</td>
+              <td>{order.kamBranch || "--"}</td>
+              <td>{order.paymentTerms || "--"}</td>
+              <td>
+                {order.advancePayment && (
+                  <span className={`pi-badge ${order.advancePayment === "YES" ? "pi-badge-green" : "pi-badge-red"}`}>
+                    {order.advancePayment}
+                  </span>
+                )}
+              </td>
+              <td>{order.taxType || "--"}</td>
+              <td>
+                {order.billingType && (
+                  <span className={`pi-badge ${order.billingType === "INTERNAL" ? "pi-badge-purple" : "pi-badge-orange"}`}>
+                    {order.billingType || "--"}
+                  </span>
+                )}
+              </td>
+
+              {expandTd(order, "special", order.specialInstruction)}
+
+              <td>{order.orderType || "--"}</td>
+
+              {expandTd(order, "remarks", order.remarks)}
+
+              <td>{order.userLocations?.join(", ") || "--"}</td>
+              <td className="pi-strong">{order.user}</td>
+
+              <td>
+                <span title={order.status === "PLANNED" ? "Work order already created" : ""} style={{ cursor: order.status === "PLANNED" ? "not-allowed" : "pointer" }}>
+                  <button
+                    onClick={() => handleEdit(order)}
+                    className="pi-btn pi-btn-soft pi-btn-xs me-1"
+                    disabled={order.workOrders && order.workOrders.length > 0}
+                    style={{
+                      cursor:
+                        order.workOrders && order.workOrders.length > 0
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        order.workOrders && order.workOrders.length > 0 ? 0.5 : 1
+                    }}
+                  >
+                    <i className="bi bi-pencil-fill"></i>
+                    Edit
+                  </button>
+                </span>
+                <button
+                  className="pi-btn pi-btn-danger pi-btn-xs"
+                  onClick={() => handleDelete(order._id)}
+                >
+                  <i className="bi bi-trash-fill"></i>Del
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   </div>

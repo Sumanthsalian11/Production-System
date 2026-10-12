@@ -10,49 +10,49 @@ const APP_CATEGORIES = [
   {
     title: "Admin & Setup",
     icon: "bi-shield-lock",
-    color: "#0e7490",
-    bgLight: "#ecfeff",
-    borderGlow: "#a5f3fc",
+    color: "#3b7ddd",
+    bgLight: "#eef4fd",
+    borderGlow: "#c7dbf7",
     routes: ["/internal-register", "/admin"]
   },
   {
     title: "Planning & Prepress",
     icon: "bi-calendar2-range",
-    color: "#2563eb",
-    bgLight: "#eff6ff",
-    borderGlow: "#bfdbfe",
+    color: "#1cbb8c",
+    bgLight: "#e8f8f3",
+    borderGlow: "#b5ead9",
     routes: ["/customer-dashboard", "/planner", "/scheduler", "/print", "/preprocess", "/plate-request", "/kas"]
   },
   {
     title: "Production",
     icon: "bi-gear-wide-connected",
-    color: "#0369a1",
-    bgLight: "#f0f9ff",
-    borderGlow: "#bae6fd",
+    color: "#f59f00",
+    bgLight: "#fff6e5",
+    borderGlow: "#fde3a7",
     routes: ["/new-in", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
   },
   {
     title: "Reports & Analytics",
     icon: "bi-bar-chart-line",
-    color: "#db2777",
-    bgLight: "#fdf2f8",
-    borderGlow: "#fbcfe8",
+    color: "#6f42c1",
+    bgLight: "#f2edfa",
+    borderGlow: "#d6c7f0",
     routes: ["/waste", "/summary", "/production-report", "/perso-report", "/perso-machine-report", "/billing-report", "/welcome-board", "/production-portal"]
   },
   {
     title: "Inward & Quality Control",
     icon: "bi-clipboard2-check",
-    color: "#059669",
-    bgLight: "#ecfdf5",
-    borderGlow: "#a7f3d0",
+    color: "#17a2b8",
+    bgLight: "#e7f6f8",
+    borderGlow: "#b3e3ea",
     routes: ["/inward-register", "/receiving-inspection", "/inventory-dashboard", "/calibration", "/new-inspection", "/certificate-numbering"]
   },
   {
     title: "Dispatch & Logistics",
     icon: "bi-truck",
-    color: "#7c3aed",
-    bgLight: "#f5f3ff",
-    borderGlow: "#ddd6fe",
+    color: "#e8590c",
+    bgLight: "#fdeee6",
+    borderGlow: "#f8c9ad",
     routes: ["/dispatch", "/manual-box", "/po-details", "/scan"]
   }
 ];
@@ -123,7 +123,7 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
-  // Theme (light aqua-glass / dark aqua-glass)
+  // Theme (teal sidebar / deeper teal sidebar). Header + page area stay white.
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("mpi-theme") === "dark" ? "dark" : "light";
@@ -303,15 +303,15 @@ export default function DashboardLayout() {
     const t = announcementData?.type || "broadcast";
     switch (t) {
       case "critical":
-        return { primary: "#dc2626", secondary: "#991b1b", glow: "rgba(220, 38, 38, 0.25)", bg: "#fef2f2" };
+        return { primary: "#dc3545", secondary: "#a71d2a", glow: "rgba(220, 53, 69, 0.25)", bg: "#fdecee" };
       case "maintenance":
-        return { primary: "#0284c7", secondary: "#0369a1", glow: "rgba(2, 132, 199, 0.25)", bg: "#f0f9ff" };
+        return { primary: "#f59f00", secondary: "#c77f00", glow: "rgba(245, 159, 0, 0.25)", bg: "#fff6e5" };
       case "celebration":
-        return { primary: "#16a34a", secondary: "#15803d", glow: "rgba(22, 163, 74, 0.25)", bg: "#f0fdf4" };
+        return { primary: "#1cbb8c", secondary: "#14916c", glow: "rgba(28, 187, 140, 0.25)", bg: "#e8f8f3" };
       case "info":
-        return { primary: "#7c3aed", secondary: "#6d28d9", glow: "rgba(124, 58, 237, 0.25)", bg: "#faf5ff" };
+        return { primary: "#17a2b8", secondary: "#117a8b", glow: "rgba(23, 162, 184, 0.25)", bg: "#e7f6f8" };
       default:
-        return { primary: "#1d4ed8", secondary: "#1e40af", glow: "rgba(29, 78, 216, 0.25)", bg: "#eff6ff" };
+        return { primary: "#3b7ddd", secondary: "#2f64b1", glow: "rgba(59, 125, 221, 0.25)", bg: "#eef4fd" };
     }
   }, [announcementData?.type]);
 
@@ -406,7 +406,7 @@ export default function DashboardLayout() {
     return {
       title: match?.label || "Dashboard",
       icon: match?.icon || "bi-speedometer2",
-      color: cat?.color || "#1d4ed8"
+      color: cat?.color || "#3b7ddd"
     };
   }, [location.pathname]);
 
@@ -446,70 +446,100 @@ export default function DashboardLayout() {
     >
       <style>{`
         /* =====================================================
-           AQUA-GLASS DESIGN TOKENS  (light + dark)
+           DESIGN TOKENS
+           Shell (sidebar + popups) = dark teal
+           .mpi-light-scope (header, ticker, page area) = white
            Child pages can reuse these via var(--token)
            ===================================================== */
         .mpi-shell {
-          --page-bg: linear-gradient(160deg, #eafaff 0%, #d6f2fc 42%, #bde6f6 100%);
-          --glass: rgba(255, 255, 255, 0.62);
-          --glass-strong: rgba(255, 255, 255, 0.88);
-          --glass-soft: rgba(255, 255, 255, 0.42);
-          --surface: #ffffff;
-          --surface-2: rgba(232, 248, 255, 0.92);
-          --border: rgba(103, 200, 226, 0.55);
-          --border-strong: rgba(56, 170, 205, 0.7);
-          --text: #0b3a52;
-          --text-2: #2c5a70;
-          --muted: #5b8397;
-          --accent: #0891b2;
-          --accent-2: #0ea5e9;
-          --accent-grad: linear-gradient(135deg, #1fb6d4 0%, #0e9bd8 100%);
-          --accent-soft: rgba(14, 165, 233, 0.16);
-          --hover: rgba(14, 165, 233, 0.10);
-          --active-bg: rgba(14, 165, 233, 0.17);
-          --shadow: 0 10px 30px rgba(8, 110, 150, 0.14);
-          --shadow-sm: 0 2px 8px rgba(8, 110, 150, 0.10);
-          --overlay: rgba(8, 47, 73, 0.36);
-          --danger: #dc2626;
-          --danger-soft: rgba(239, 68, 68, 0.12);
-          --ok: #059669;
-          --scroll: rgba(8, 145, 178, 0.35);
+          --page-bg: #0d4654;
+          --sidebar-bg: #0d4654;
+          --header-bg: #ffffff;
+          --glass: rgba(255, 255, 255, 0.07);
+          --glass-strong: #0f4f5e;
+          --glass-soft: rgba(255, 255, 255, 0.05);
+          --surface: #11596a;
+          --surface-2: rgba(255, 255, 255, 0.08);
+          --border: rgba(255, 255, 255, 0.14);
+          --border-strong: rgba(255, 255, 255, 0.3);
+          --text: #ffffff;
+          --text-2: #f1f7f8;
+          --muted: #c3d9dd;
+          --accent: #5fe0d6;
+          --accent-2: #8aeae2;
+          --accent-grad: linear-gradient(135deg, #1fb5ba 0%, #0f8a93 100%);
+          --accent-soft: rgba(95, 224, 214, 0.18);
+          --hover: rgba(255, 255, 255, 0.1);
+          --active-bg: rgba(255, 255, 255, 0.16);
+          --shadow: 0 10px 30px rgba(2, 20, 26, 0.5);
+          --shadow-sm: 0 1px 4px rgba(2, 20, 26, 0.35);
+          --overlay: rgba(3, 18, 24, 0.6);
+          --danger: #f87171;
+          --danger-soft: rgba(248, 113, 113, 0.16);
+          --ok: #86efac;
+          --scroll: rgba(255, 255, 255, 0.3);
           --logo-bg: transparent;
-          --avatar-bg: linear-gradient(135deg, #1fb6d4 0%, #0b86b8 100%);
+          --avatar-bg: linear-gradient(135deg, #1fb5ba 0%, #0f8a93 100%);
+          --deco-1: transparent;
+          --deco-2: transparent;
           background: var(--page-bg);
-          background-attachment: fixed;
           min-height: 100vh;
-          color-scheme: light;
+          color-scheme: dark;
         }
 
         .mpi-shell[data-theme="dark"] {
-          --page-bg: linear-gradient(160deg, #04121c 0%, #072232 45%, #0a2d40 100%);
-          --glass: rgba(11, 38, 54, 0.66);
-          --glass-strong: rgba(8, 28, 42, 0.9);
-          --glass-soft: rgba(255, 255, 255, 0.045);
-          --surface: #0c2a3b;
-          --surface-2: rgba(14, 48, 68, 0.85);
-          --border: rgba(56, 189, 248, 0.2);
-          --border-strong: rgba(56, 189, 248, 0.42);
-          --text: #e3f8ff;
-          --text-2: #b6dbe8;
-          --muted: #7fa9bb;
-          --accent: #22d3ee;
-          --accent-2: #38bdf8;
-          --accent-grad: linear-gradient(135deg, #0e9bb8 0%, #0b79b0 100%);
-          --accent-soft: rgba(34, 211, 238, 0.16);
-          --hover: rgba(56, 189, 248, 0.10);
-          --active-bg: rgba(34, 211, 238, 0.16);
-          --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
-          --overlay: rgba(1, 10, 18, 0.62);
-          --danger: #f87171;
-          --danger-soft: rgba(248, 113, 113, 0.15);
-          --ok: #34d399;
-          --scroll: rgba(56, 189, 248, 0.35);
-          --logo-bg: rgba(255, 255, 255, 0.92);
-          --avatar-bg: linear-gradient(135deg, #0e9bb8 0%, #0b6a9c 100%);
+          --page-bg: #082b35;
+          --sidebar-bg: #082b35;
+          --glass: rgba(255, 255, 255, 0.06);
+          --glass-strong: #0a3440;
+          --glass-soft: rgba(255, 255, 255, 0.04);
+          --surface: #0d3f4d;
+          --surface-2: rgba(255, 255, 255, 0.07);
+          --border: rgba(255, 255, 255, 0.11);
+          --border-strong: rgba(255, 255, 255, 0.26);
+          --muted: #b6cfd4;
+          --hover: rgba(255, 255, 255, 0.09);
+          --active-bg: rgba(255, 255, 255, 0.14);
+          --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+          --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.4);
+          --overlay: rgba(1, 10, 14, 0.66);
           color-scheme: dark;
+        }
+
+        /* WHITE AREAS: top header, announcement ticker, and the middle page area.
+           Tokens are re-pinned to light values here so everything inside stays readable. */
+        .mpi-shell .mpi-light-scope,
+        .mpi-shell .mpi-page-white {
+          --header-bg: #ffffff;
+          --glass: #f8f9fc;
+          --glass-strong: #ffffff;
+          --glass-soft: #f8f9fc;
+          --surface: #ffffff;
+          --surface-2: #f5f7fb;
+          --border: #e5e9f0;
+          --border-strong: #ced4da;
+          --text: #1f2d3d;
+          --text-2: #3e4c5c;
+          --muted: #6c757d;
+          --accent: #3b7ddd;
+          --accent-2: #5a93e6;
+          --accent-grad: linear-gradient(135deg, #3b7ddd 0%, #2f64b1 100%);
+          --accent-soft: rgba(59, 125, 221, 0.1);
+          --hover: rgba(59, 125, 221, 0.07);
+          --active-bg: rgba(59, 125, 221, 0.12);
+          --shadow: 0 10px 30px rgba(33, 40, 50, 0.12);
+          --shadow-sm: 0 1px 4px rgba(33, 40, 50, 0.08);
+          --danger: #dc3545;
+          --danger-soft: rgba(220, 53, 69, 0.1);
+          --ok: #1cbb8c;
+          --scroll: rgba(108, 117, 125, 0.35);
+          --logo-bg: transparent;
+          --avatar-bg: linear-gradient(135deg, #3b7ddd 0%, #2f64b1 100%);
+          color-scheme: light;
+        }
+        .mpi-shell .mpi-page-white {
+          background: #ffffff;
+          color: var(--text);
         }
 
         /* Bootstrap helper overrides so they follow the theme */
@@ -531,6 +561,35 @@ export default function DashboardLayout() {
         .mpi-shell .dropdown-item:hover,
         .mpi-shell .dropdown-item:focus { background-color: var(--hover); color: var(--text); }
 
+        /* Sidebar decorative circles (disabled via transparent tokens) */
+        .mpi-sidebar-deco {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          pointer-events: none;
+          z-index: -1;
+        }
+        .mpi-sidebar-deco::before {
+          content: "";
+          position: absolute;
+          width: 190px;
+          height: 190px;
+          border-radius: 50%;
+          top: -70px;
+          right: -80px;
+          background: var(--deco-1);
+        }
+        .mpi-sidebar-deco::after {
+          content: "";
+          position: absolute;
+          width: 170px;
+          height: 170px;
+          border-radius: 50%;
+          bottom: -70px;
+          left: -80px;
+          background: var(--deco-2);
+        }
+
         /* Seamless Infinite Ticker */
         @keyframes infiniteTicker {
           0% { transform: translate3d(0, 0, 0); }
@@ -543,7 +602,7 @@ export default function DashboardLayout() {
           100% { transform: scale(1); opacity: 1; }
         }
 
-        /* ===== AQUA-GLASS TOP BAR ===== */
+        /* ===== TOP BAR (white) ===== */
         .page-header-bar {
           position: fixed;
           display: flex;
@@ -551,9 +610,7 @@ export default function DashboardLayout() {
           justify-content: space-between;
           padding: 8px 24px;
           min-height: 58px;
-          background: var(--glass-strong);
-          backdrop-filter: blur(16px) saturate(140%);
-          -webkit-backdrop-filter: blur(16px) saturate(140%);
+          background: var(--header-bg);
           border-bottom: 1px solid var(--border);
           box-shadow: var(--shadow-sm);
           overflow: visible;
@@ -599,7 +656,7 @@ export default function DashboardLayout() {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          background: var(--glass-strong);
+          background: var(--glass);
           border: 1px solid var(--border);
           color: var(--accent);
           box-shadow: var(--shadow-sm);
@@ -617,7 +674,7 @@ export default function DashboardLayout() {
         .header-user-logout-pill {
           display: inline-flex;
           align-items: center;
-          background: var(--glass-strong);
+          background: var(--glass);
           border: 1px solid var(--border);
           border-radius: 50px;
           padding: 4px 12px 4px 4px;
@@ -735,8 +792,6 @@ export default function DashboardLayout() {
         }
         .launcher-panel-3d-smooth {
           background: var(--glass-strong);
-          backdrop-filter: blur(18px) saturate(140%);
-          -webkit-backdrop-filter: blur(18px) saturate(140%);
           border: 1px solid var(--border);
           border-radius: 16px;
           width: 100%;
@@ -775,7 +830,7 @@ export default function DashboardLayout() {
           box-shadow: var(--shadow-sm);
         }
         .app-keycap-3d {
-          background: var(--glass-strong);
+          background: var(--surface-2);
           border: 1px solid var(--border);
           border-radius: 8px;
           padding: 8px 12px;
@@ -802,7 +857,7 @@ export default function DashboardLayout() {
 
         /* Ticker Action Buttons */
         .ticker-action-btn {
-          background: var(--glass-strong);
+          background: var(--glass);
           border: 1px solid var(--border-strong);
           color: var(--accent);
           border-radius: 5px;
@@ -851,14 +906,15 @@ export default function DashboardLayout() {
           left: isMobile ? (collapsed ? "-260px" : "0") : "0",
           top: 0,
           height: "100vh",
-          background: "var(--glass-strong)",
-          backdropFilter: "blur(16px) saturate(140%)",
-          WebkitBackdropFilter: "blur(16px) saturate(140%)",
+          background: "var(--sidebar-bg)",
           color: "var(--text)",
           borderRight: "1px solid var(--border)",
-          boxShadow: "none"
+          boxShadow: "var(--shadow-sm)"
         }}
       >
+        {/* Decorative circles (visual only) */}
+        <div className="mpi-sidebar-deco" />
+
         {/* BRAND HEADER + COLLAPSE TOGGLE */}
         <div
           className="d-flex align-items-center"
@@ -871,7 +927,7 @@ export default function DashboardLayout() {
           }}
         >
           {!collapsed && (
-            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "var(--text)", letterSpacing: "0.8px" }}>
+            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "var(--text)", letterSpacing: "1px" }}>
               MPI CONSOLE
             </span>
           )}
@@ -913,7 +969,7 @@ export default function DashboardLayout() {
               alignItems: "center",
               justifyContent: "center",
               padding: 0,
-              background: toggleHover ? "var(--accent)" : "var(--glass-strong)",
+              background: toggleHover ? "#1fb5ba" : "var(--glass-strong)",
               color: toggleHover ? "#ffffff" : "var(--text-2)",
               border: "1px solid var(--border-strong)",
               boxShadow: "var(--shadow-sm)",
@@ -968,7 +1024,7 @@ export default function DashboardLayout() {
             <div className="d-flex align-items-center justify-content-between px-2 py-1 mb-1">
               <div
                 className="small fw-bold text-uppercase d-flex align-items-center gap-1"
-                style={{ fontSize: "0.66rem", letterSpacing: "0.6px", color: "var(--muted)" }}
+                style={{ fontSize: "0.66rem", letterSpacing: "0.8px", color: "var(--muted)" }}
               >
                 <i className="bi bi-grid-fill" style={{ color: "var(--accent)", fontSize: "0.7rem" }}></i>
                 <span>Active Category</span>
@@ -1003,7 +1059,7 @@ export default function DashboardLayout() {
                   justifyContent: collapsed ? "center" : "flex-start"
                 }}
               >
-                <i className={`bi ${item.icon}`} style={{ fontSize: "0.95rem", color: isActive ? "var(--accent)" : "var(--muted)" }}></i>
+                <i className={`bi ${item.icon}`} style={{ fontSize: "0.95rem", color: isActive ? "var(--accent)" : "var(--text-2)" }}></i>
                 {!collapsed && <span className="text-truncate">{item.label}</span>}
               </NavLink>
             );
@@ -1080,8 +1136,6 @@ export default function DashboardLayout() {
               className="dropdown-menu py-2 shadow-sm"
               style={{
                 backgroundColor: "var(--glass-strong)",
-                backdropFilter: "blur(14px)",
-                WebkitBackdropFilter: "blur(14px)",
                 minWidth: "200px",
                 borderRadius: "10px",
                 border: "1px solid var(--border-strong)",
@@ -1155,7 +1209,8 @@ export default function DashboardLayout() {
           transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           width: "100%",
           minHeight: "100vh",
-          overflowX: "hidden"
+          overflowX: "hidden",
+          backgroundColor: "#ffffff"
         }}
       >
         {/* Mobile only: floating button to open the sidebar */}
@@ -1168,7 +1223,7 @@ export default function DashboardLayout() {
               top: "8px",
               left: "8px",
               zIndex: 1045,
-              backgroundColor: "var(--glass-strong)",
+              background: "var(--sidebar-bg)",
               border: "1px solid var(--border-strong)",
               color: "var(--text)",
               padding: "7px 11px",
@@ -1185,15 +1240,14 @@ export default function DashboardLayout() {
             ========================================================================= */}
         {announcementData?.text && !isMinimized && (
           <div
+            className="mpi-light-scope"
             style={{
               position: "fixed",
               top: `${topOffset}px`,
               left: isMobile ? 0 : sidebarWidth,
               right: 0,
               height: "36px",
-              backgroundColor: `color-mix(in srgb, ${themeColors.primary} 12%, var(--glass-strong))`,
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
+              backgroundColor: `color-mix(in srgb, ${themeColors.primary} 12%, #ffffff)`,
               borderBottom: `1px solid ${themeColors.primary}`,
               boxShadow: `0 2px 10px ${themeColors.glow}`,
               zIndex: 1029,
@@ -1271,7 +1325,7 @@ export default function DashboardLayout() {
                   >
                     {announcementData.text}
                   </span>
-                  <span style={{ color: "var(--muted)", margin: "0 26px" }}>❖</span>
+                  <span style={{ color: "var(--accent)", margin: "0 26px" }}>❖</span>
                 </div>
 
                 {/* Track 2 */}
@@ -1287,7 +1341,7 @@ export default function DashboardLayout() {
                   >
                     {announcementData.text}
                   </span>
-                  <span style={{ color: "var(--muted)", margin: "0 26px" }}>❖</span>
+                  <span style={{ color: "var(--accent)", margin: "0 26px" }}>❖</span>
                 </div>
               </div>
             </div>
@@ -1398,7 +1452,7 @@ export default function DashboardLayout() {
                 width: "6px",
                 height: "6px",
                 borderRadius: "50%",
-                background: "#22c55e",
+                background: "#ffffff",
                 animation: "pulsePingLive 1.4s infinite"
               }}
             />
@@ -1416,10 +1470,10 @@ export default function DashboardLayout() {
           }}
         >
           {/* =========================================================================
-              CLEAN TOP PAGE HEADER
+              CLEAN TOP PAGE HEADER (always white)
               ========================================================================= */}
           <div
-            className="page-header-bar"
+            className="page-header-bar mpi-light-scope"
             style={{
               top: `${topOffset + (announcementData?.text && !isMinimized ? 36 : 0)}px`,
               left: isMobile ? 0 : sidebarWidth,
@@ -1486,7 +1540,9 @@ export default function DashboardLayout() {
           {/* Spacer for header */}
           <div style={{ height: isMobile ? 64 : 58 }} />
 
-          <Outlet />
+          <div className="mpi-page-white">
+            <Outlet />
+          </div>
         </div>
       </div>
 
@@ -1513,8 +1569,6 @@ export default function DashboardLayout() {
               width: "92%",
               maxWidth: "500px",
               background: "var(--glass-strong)",
-              backdropFilter: "blur(18px) saturate(140%)",
-              WebkitBackdropFilter: "blur(18px) saturate(140%)",
               borderRadius: "14px",
               border: "1px solid var(--border)",
               boxShadow: "var(--shadow)",
@@ -1570,7 +1624,7 @@ export default function DashboardLayout() {
                 className="btn btn-sm fw-bold d-flex align-items-center gap-2"
                 onClick={copyAnnouncement}
                 style={{
-                  background: "var(--glass-strong)",
+                  background: "var(--glass)",
                   color: copiedNotification ? "var(--ok)" : "var(--text)",
                   border: "1px solid var(--border-strong)",
                   borderRadius: "8px",
@@ -1600,7 +1654,7 @@ export default function DashboardLayout() {
         </>
       )}
 
-      {/* 3D LIGHT APPLICATION LAUNCHER MODAL */}
+      {/* 3D APPLICATION LAUNCHER MODAL */}
       {isAdmin && showAppLauncher && (
         <div className="launcher-overlay-3d" onClick={() => setShowAppLauncher(false)}>
           <div className="launcher-panel-3d-smooth" onClick={(e) => e.stopPropagation()}>
@@ -1654,7 +1708,7 @@ export default function DashboardLayout() {
 
                 if (catItems.length === 0) return null;
 
-                const catText = `color-mix(in srgb, ${cat.color} 62%, var(--text))`;
+                const catText = `color-mix(in srgb, ${cat.color} 60%, var(--text))`;
 
                 return (
                   <div key={cat.title} className="col-lg-4 col-md-6">
@@ -1722,8 +1776,6 @@ export default function DashboardLayout() {
               width: "90%",
               maxWidth: "400px",
               background: "var(--glass-strong)",
-              backdropFilter: "blur(18px) saturate(140%)",
-              WebkitBackdropFilter: "blur(18px) saturate(140%)",
               borderRadius: "14px",
               border: "1px solid var(--border)",
               boxShadow: "var(--shadow)",

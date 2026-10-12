@@ -457,19 +457,39 @@ function NewIndent() {
   return (
     <>
       <style>{`
-        /* ============ Page shell (sky blue + white) ============ */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+        /* ============ Theme tokens ============ */
+        .indent-app-container {
+          --brand: #e4572e;
+          --brand-dark: #c9461f;
+          --brand-soft: #fdeee8;
+          --teal: #0b3a45;
+          --teal-mid: #0f5560;
+          --teal-soft: #e3f1f4;
+          --ink: #1f2937;
+          --ink-soft: #5b6676;
+          --ink-mute: #8a94a3;
+          --line: #e3e7ec;
+          --line-soft: #eef1f4;
+          --field-line: #cfd6de;
+          --page: #f4f6f8;
+          --ok: #1f9d6b;
+          --danger: #d64545;
+        }
+
+        /* ============ Page shell ============ */
         .indent-app-container {
           max-width: 100%;
           min-height: 100vh;
-          padding: 12px 24px 28px;
+          padding: 20px 28px 36px;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
           font-size: 14px;
-          color: #08283d;
-          border: 1px solid rgba(12, 90, 130, 0.38);
+          color: var(--ink);
+          border: none;
           border-radius: 0px;
-          background:
-            radial-gradient(circle at top left, rgba(34, 153, 204, 0.34), transparent 32%),
-            linear-gradient(135deg, #d6f1fb 0%, #edfaff 48%, #c7e9f7 100%);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          background: var(--page);
+          box-shadow: none;
         }
 
         /* ============ Page header ============ */
@@ -478,18 +498,18 @@ function NewIndent() {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 0 4px 6px;
-          margin-bottom: 10px;
-          border-bottom: 2px solid rgba(6, 76, 115, 0.22);
+          padding: 0 4px 8px;
+          margin-bottom: 12px;
+          border-bottom: 1px solid var(--line);
         }
 
         .indent-title {
           margin: 0;
-          color: #06324d;
-          font-size: 21px;
-          font-weight: 800;
+          color: var(--ink);
+          font-size: 20px;
+          font-weight: 700;
           line-height: 1.15;
-          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+          text-shadow: none;
         }
 
         .user-pill {
@@ -500,108 +520,84 @@ function NewIndent() {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 3px 12px;
-          border: 1px solid rgba(14, 94, 135, 0.45);
+          padding: 4px 12px;
+          border: 1px solid var(--line);
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.72);
-          box-shadow: 0 2px 6px rgba(10, 78, 115, 0.14);
-          color: #06324d;
+          background: #ffffff;
+          box-shadow: none;
+          color: var(--ink);
           font-size: 0.78rem;
-          font-weight: 700;
+          font-weight: 600;
         }
 
-        /* ============ Light glass entry panel ============ */
+        /* ============ Entry panel ============ */
         .indent-app-container .gl-stage {
           position: relative;
-          overflow: hidden;
-          margin-bottom: 14px;
-          padding: 14px;
-          border-radius: 22px;
-          border: 1px solid rgba(255, 255, 255, 0.85);
-          background: linear-gradient(160deg, #e3f2fd 0%, #c6e0f5 55%, #acd3ee 100%);
-          box-shadow: 0 12px 28px rgba(14, 86, 122, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+          overflow: visible;
+          margin-bottom: 16px;
+          padding: 0;
+          border-radius: 0;
+          border: none;
+          background: transparent;
+          box-shadow: none;
         }
 
         .indent-app-container .gl-stage::before,
         .indent-app-container .gl-stage::after {
-          content: "";
-          position: absolute;
-          pointer-events: none;
-          border-radius: 50% 50% 48% 48% / 60% 60% 40% 40%;
-          filter: blur(8px);
-        }
-
-        .indent-app-container .gl-stage::before {
-          width: 190px;
-          height: 240px;
-          left: -50px;
-          top: -80px;
-          transform: rotate(-18deg);
-          background: radial-gradient(circle at 35% 30%, #a9d0ee, #7fb4e0);
-          opacity: 0.7;
-        }
-
-        .indent-app-container .gl-stage::after {
-          width: 210px;
-          height: 260px;
-          right: -50px;
-          bottom: -90px;
-          transform: rotate(16deg);
-          background: radial-gradient(circle at 60% 30%, #f4faff, #c3dff4);
-          opacity: 0.85;
+          content: none;
         }
 
         .indent-app-container .gl-card {
           position: relative;
           z-index: 1;
-          padding: 14px 16px 16px;
-          color: #0b2a45;
-          border-radius: 20px;
-          border: 1.5px solid rgba(255, 255, 255, 0.95);
-          background: linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42));
-          backdrop-filter: blur(16px) saturate(130%);
-          -webkit-backdrop-filter: blur(16px) saturate(130%);
-          box-shadow: 0 10px 26px rgba(14, 86, 122, 0.16), inset 0 1px 0 rgba(255, 255, 255, 1);
+          padding: 18px 22px 20px;
+          color: var(--ink);
+          border-radius: 8px;
+          border: 1px solid var(--line);
+          background: #ffffff;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          box-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
         }
 
         .indent-app-container .gl-head {
           display: flex;
           align-items: center;
           flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 10px;
-          padding-bottom: 8px;
-          border-bottom: 2px dotted rgba(14, 94, 135, 0.35);
+          gap: 8px;
+          margin-bottom: 12px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--line);
         }
 
         .indent-app-container .gl-title {
           margin: 0;
-          color: #0b3a5e;
-          font-size: 1.3rem;
-          font-weight: 800;
+          color: var(--ink);
+          font-size: 1.25rem;
+          font-weight: 700;
           line-height: 1.1;
-          letter-spacing: -0.2px;
+          letter-spacing: -0.1px;
         }
 
         .indent-app-container .gl-pill {
           display: inline-block;
-          padding: 2px 14px;
-          border-radius: 999px;
-          border: 1px solid rgba(8, 119, 173, 0.35);
-          background: rgba(8, 119, 173, 0.12);
-          color: #075f90;
+          padding: 3px 14px;
+          border-radius: 4px;
+          border: 1px solid #bdd9df;
+          background: var(--teal-soft);
+          color: var(--teal-mid);
           font-size: 11px;
           font-weight: 700;
           letter-spacing: 0.3px;
         }
 
         .indent-app-container .gl-inner {
-          margin-top: 10px;
-          padding: 10px 12px 12px;
-          border-radius: 14px;
-          border: 1px solid rgba(14, 94, 135, 0.18);
-          background: rgba(255, 255, 255, 0.5);
-          box-shadow: inset 0 1px 4px rgba(14, 86, 122, 0.08);
+          margin-top: 12px;
+          padding: 12px 14px 14px;
+          border-radius: 8px;
+          border: 1px solid var(--line);
+          background: #ffffff;
+          box-shadow: none;
         }
 
         .indent-app-container .gl-inner.first {
@@ -612,16 +608,18 @@ function NewIndent() {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-bottom: 8px;
-          color: #062b42;
+          margin-bottom: 10px;
+          color: var(--ink);
           font-size: 13px;
           font-weight: 700;
+          padding-left: 8px;
+          border-left: 3px solid var(--brand);
         }
 
         .indent-app-container .gl-group i {
-          color: #119bd2;
-          font-size: 1.05rem;
-          background: #ffffff;
+          color: var(--brand);
+          font-size: 0.95rem;
+          background: transparent;
           border-radius: 50%;
           line-height: 1;
         }
@@ -629,19 +627,20 @@ function NewIndent() {
         /* ============ Labels / inputs ============ */
         .custom-label {
           display: block !important;
-          margin-bottom: 3px !important;
+          margin-bottom: 4px !important;
           overflow: hidden;
-          color: #1d4f86 !important;
+          color: var(--ink-soft) !important;
           font-size: 11px !important;
-          font-weight: 700 !important;
-          letter-spacing: 0.2px;
+          font-weight: 600 !important;
+          letter-spacing: 0.3px;
+          text-transform: uppercase;
           white-space: nowrap;
           text-overflow: ellipsis;
         }
 
         .required-star {
           margin-left: 0.2rem;
-          color: #ef4444;
+          color: var(--danger);
           font-weight: 700;
         }
 
@@ -650,16 +649,17 @@ function NewIndent() {
         .indent-app-container textarea.custom-input {
           display: block;
           width: 100%;
-          min-height: 32px;
-          padding: 4px 10px !important;
-          border: 1px solid rgba(14, 94, 135, 0.35) !important;
-          border-radius: 8px !important;
-          background-color: rgba(255, 255, 255, 0.92) !important;
-          color: #0b2a45 !important;
-          font-size: 0.8rem !important;
-          font-weight: 600 !important;
+          min-height: 36px;
+          padding: 5px 10px !important;
+          border: 1px solid var(--field-line) !important;
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          color: var(--ink) !important;
+          font-family: inherit;
+          font-size: 0.82rem !important;
+          font-weight: 500 !important;
           line-height: 1.5 !important;
-          box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.06);
+          box-shadow: none;
           transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
           color-scheme: light;
         }
@@ -671,21 +671,22 @@ function NewIndent() {
         .indent-app-container .custom-input:focus,
         .indent-app-container select.custom-input:focus,
         .indent-app-container textarea.custom-input:focus {
-          border-color: #087fb5 !important;
+          border-color: var(--teal-mid) !important;
           background-color: #ffffff !important;
           outline: none !important;
-          box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22) !important;
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15) !important;
         }
 
         .indent-app-container .custom-input-readonly {
-          border: 1px solid rgba(14, 94, 135, 0.25) !important;
-          background-color: rgba(228, 241, 250, 0.95) !important;
-          color: #0b2a45 !important;
+          border: 1px solid var(--line) !important;
+          background-color: #f7f9fb !important;
+          color: var(--ink-soft) !important;
           cursor: not-allowed !important;
         }
 
         .indent-app-container .custom-input::placeholder {
-          color: rgba(11, 42, 69, 0.5) !important;
+          color: var(--ink-mute) !important;
+          font-weight: 400 !important;
           opacity: 1 !important;
         }
 
@@ -695,20 +696,24 @@ function NewIndent() {
         }
 
         .indent-app-container input[type="file"].custom-input {
-          padding: 3px 8px !important;
+          padding: 4px 8px !important;
         }
 
         .indent-app-container small,
         .indent-app-container .text-muted {
           font-size: 0.72rem;
         }
+        .indent-app-container .text-muted { color: var(--ink-mute) !important; }
+        .indent-app-container .text-primary { color: var(--teal-mid) !important; }
+        .indent-app-container a { color: var(--teal-mid); font-weight: 600; }
+        .indent-app-container a:hover { color: var(--brand); }
 
         .indent-error-text {
           display: block;
           margin-top: 0.2rem;
-          color: #dc2626;
+          color: var(--danger);
           font-size: 0.72rem;
-          font-weight: 700;
+          font-weight: 600;
         }
 
         .indent-app-container .btn-submit-indent {
@@ -717,33 +722,36 @@ function NewIndent() {
           gap: 0.5rem;
           min-width: 200px;
           justify-content: center;
-          padding: 8px 28px;
-          border: 0;
-          border-radius: 8px;
-          background: linear-gradient(135deg, #0877ad, #16a4dc);
+          padding: 9px 28px;
+          border: 1px solid var(--brand);
+          border-radius: 6px;
+          background: var(--brand);
           color: #ffffff;
-          font-size: 0.9rem;
+          font-size: 0.88rem;
           font-weight: 700;
-          letter-spacing: 0.4px;
-          box-shadow: 0 6px 14px rgba(10, 78, 115, 0.28);
-          transition: transform 0.12s ease, filter 0.12s ease;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
+          transition: all 0.15s ease;
           cursor: pointer;
         }
 
         .indent-app-container .btn-submit-indent:hover {
           color: #ffffff;
-          filter: brightness(1.06);
-          transform: translateY(-1px);
+          background: var(--brand-dark);
+          border-color: var(--brand-dark);
+          filter: none;
+          transform: none;
         }
 
         /* ============ Section cards (filters / table) ============ */
         .bar-card {
-          margin-top: 14px;
+          margin-top: 16px;
           overflow: hidden;
-          border: 1px solid rgba(20, 111, 156, 0.42);
-          border-radius: 12px;
-          background: rgba(221, 243, 252, 0.94);
-          box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: #ffffff;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
         }
 
         .bar-head {
@@ -751,9 +759,10 @@ function NewIndent() {
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding: 8px 18px;
-          background: linear-gradient(135deg, #075f90, #119bd2);
-          color: #ffffff;
+          padding: 12px 20px;
+          background: #ffffff;
+          border-bottom: 1px solid var(--line);
+          color: var(--ink);
         }
 
         .bar-head h5 {
@@ -761,92 +770,100 @@ function NewIndent() {
           align-items: center;
           gap: 8px;
           margin: 0;
-          color: #ffffff;
-          font-size: 15px;
+          color: var(--ink);
+          font-size: 16px;
           font-weight: 700;
-          letter-spacing: 0.2px;
+          letter-spacing: 0;
         }
 
+        .bar-head h5 svg { color: var(--brand); }
+
         .bar-body {
-          padding: 12px 18px 14px;
+          padding: 14px 20px 16px;
         }
 
         .bar-count {
           padding: 3px 12px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.22);
-          color: #ffffff;
+          background: var(--page);
+          border: 1px solid var(--line);
+          color: var(--ink-soft);
           font-size: 12px;
           font-weight: 600;
           white-space: nowrap;
         }
 
         .indent-app-container .btn-export {
-          min-height: 32px;
-          border: 0;
-          border-radius: 8px;
-          background: linear-gradient(135deg, #087f68, #18aa91);
+          min-height: 36px;
+          border: 1px solid var(--brand);
+          border-radius: 6px;
+          background: var(--brand);
           color: #ffffff;
           font-size: 0.82rem;
-          font-weight: 700;
-          box-shadow: 0 5px 12px rgba(10, 78, 115, 0.24);
+          font-weight: 600;
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
         }
 
         .indent-app-container .btn-export:hover {
           color: #ffffff;
-          filter: brightness(1.06);
+          background: var(--brand-dark);
+          border-color: var(--brand-dark);
+          filter: none;
         }
 
         .indent-app-container .btn-clear-filters {
-          min-height: 32px;
-          border: 0;
-          border-radius: 8px;
-          background: linear-gradient(135deg, #405f76, #6f91a6);
-          color: #ffffff;
+          min-height: 36px;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          background: #ffffff;
+          color: var(--ink);
           font-size: 0.82rem;
-          font-weight: 700;
-          box-shadow: 0 5px 12px rgba(10, 78, 115, 0.24);
+          font-weight: 600;
+          box-shadow: none;
           cursor: pointer;
         }
 
         .indent-app-container .btn-clear-filters:hover {
-          color: #ffffff;
-          filter: brightness(1.06);
+          color: var(--teal-mid);
+          background: var(--page);
+          border-color: var(--teal-mid);
+          filter: none;
         }
 
         /* Action Buttons */
         .btn-action-edit {
-          background-color: #fef3c7 !important;
-          color: #d97706 !important;
-          border: 1px solid #fde68a !important;
+          background-color: #ffffff !important;
+          color: var(--teal-mid) !important;
+          border: 1px solid var(--teal-mid) !important;
           font-weight: 600 !important;
           font-size: 0.75rem !important;
-          padding: 0.25rem 0.6rem !important;
-          border-radius: 4px !important;
+          padding: 0.25rem 0.7rem !important;
+          border-radius: 6px !important;
           cursor: pointer;
           transition: all 0.15s ease;
         }
 
         .btn-action-edit:hover {
-          background-color: #1eb4f4 !important;
-          color: #000000 !important;
+          background-color: var(--teal-mid) !important;
+          color: #ffffff !important;
         }
 
         .btn-action-delete {
-          background-color: #fee2e2 !important;
-          color: #dc2626 !important;
-          border: 1px solid #fecaca !important;
+          background-color: #fdecec !important;
+          color: #b42323 !important;
+          border: 1px solid #f3c1c1 !important;
           font-weight: 600 !important;
           font-size: 0.75rem !important;
-          padding: 0.25rem 0.6rem !important;
-          border-radius: 4px !important;
+          padding: 0.25rem 0.7rem !important;
+          border-radius: 6px !important;
           cursor: pointer;
           transition: all 0.15s ease;
         }
 
         .btn-action-delete:hover {
-          background-color: #fb0505 !important;
-          color: #fdfdfd !important;
+          background-color: var(--danger) !important;
+          color: #ffffff !important;
+          border-color: var(--danger) !important;
         }
 
         /* ============ Table ============ */
@@ -855,12 +872,12 @@ function NewIndent() {
           max-height: 400px;
           overflow-y: auto;
           overflow-x: auto;
-          background: #d5edf8;
+          background: #ffffff;
         }
 
         .custom-table-container table {
           margin-bottom: 0;
-          color: #09283d;
+          color: var(--ink);
           background: #ffffff;
         }
 
@@ -868,25 +885,32 @@ function NewIndent() {
           position: sticky;
           top: 0;
           z-index: 2;
-          padding: 0.6rem 0.8rem;
-          background: #064c73 !important;
-          color: #ffffff !important;
-          border-color: rgba(255, 255, 255, 0.28) !important;
-          font-size: 0.78rem;
+          padding: 0.7rem 0.8rem;
+          background: #f7f9fb !important;
+          color: var(--ink-soft) !important;
+          border-color: var(--line) !important;
+          font-size: 0.72rem;
           font-weight: 700;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
           white-space: nowrap;
           vertical-align: middle;
         }
 
         .custom-table-container tbody td {
-          padding: 0.5rem 0.8rem;
-          border-color: rgba(20, 93, 130, 0.28) !important;
+          padding: 0.55rem 0.8rem;
+          border-color: var(--line-soft) !important;
           font-size: 0.82rem;
+          font-weight: 500;
           vertical-align: middle;
+          background-color: #ffffff;
+          color: var(--ink);
         }
 
+        .custom-table-container tbody tr:nth-child(even) td { background-color: #fafbfc; }
+
         .custom-table-container tbody tr:hover td {
-          background: #d9f2fc !important;
+          background: var(--brand-soft) !important;
         }
 
         .custom-badge {
@@ -898,21 +922,21 @@ function NewIndent() {
         }
 
         .badge-pending {
-          background-color: #fef3c7;
-          color: #d97706;
-          border: 1px solid #fde68a;
+          background-color: #fff3d6;
+          color: #8a5a00;
+          border: 1px solid #f2d291;
         }
 
         .badge-approved {
-          background-color: #d1fae5;
-          color: #065f46;
-          border: 1px solid #a7f3d0;
+          background-color: #e4f6ee;
+          color: #167a52;
+          border: 1px solid #b7e4d0;
         }
 
         .badge-rejected {
-          background-color: #fee2e2;
-          color: #b91c1c;
-          border: 1px solid #fecaca;
+          background-color: #fdecec;
+          color: #b42323;
+          border: 1px solid #f3c1c1;
         }
 
         .badge-secondary {
@@ -922,24 +946,24 @@ function NewIndent() {
         }
 
         .custom-table-container::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
+          width: 8px;
+          height: 8px;
         }
         .custom-table-container::-webkit-scrollbar-track {
-          background: #e8f4fb;
+          background: #f1f3f6;
         }
         .custom-table-container::-webkit-scrollbar-thumb {
-          background: #8fb8d1;
-          border-radius: 4px;
+          background: #c5ccd5;
+          border-radius: 8px;
         }
         .custom-table-container::-webkit-scrollbar-thumb:hover {
-          background: #5f95b5;
+          background: #a9b4c0;
         }
 
         @media (max-width: 768px) {
           .indent-app-container {
-            padding: 10px;
-            border-radius: 14px;
+            padding: 12px;
+            border-radius: 0;
           }
 
           .indent-header {
@@ -952,17 +976,170 @@ function NewIndent() {
             transform: none;
           }
 
-          .indent-app-container .gl-stage {
-            padding: 10px;
-            border-radius: 18px;
-          }
-
           .indent-app-container .gl-card {
-            padding: 12px;
-            border-radius: 16px;
+            padding: 14px;
+            border-radius: 8px;
           }
         }
-      `}</style>
+
+        /* ---------- Small field icons (CSS-only, no markup changes) ---------- */
+.indent-app-container select.custom-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px;
+  padding-right: 30px !important;
+}
+
+.indent-app-container input.custom-input[name="productCode"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3L8 21M16 3l-2 18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[name="quantity"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7z'/%3E%3Cpath d='M3.3 7L12 12l8.7-5M12 22V12'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container select.custom-input[name="location"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 10px center, right 10px center;
+  background-size: 15px, 14px;
+  padding-left: 33px !important;
+  padding-right: 30px !important;
+}
+
+.indent-app-container input.custom-input[name="unitRate"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12M6 8h12M6 13l8.5 8M6 13h3a4.5 4.5 0 0 0 0-10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[name="lamination"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2l10 5-10 5L2 7z'/%3E%3Cpath d='M2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[name="finish"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[name="jobNo"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3L8 21M16 3l-2 18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[name="soNo"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container select.custom-input[name="sampleType"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8z'/%3E%3Ccircle cx='7' cy='7' r='1.5'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 10px center, right 10px center;
+  background-size: 15px, 14px;
+  padding-left: 33px !important;
+  padding-right: 30px !important;
+}
+
+.indent-app-container input.custom-input[name="costingConfirmation"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container select.custom-input[name="typeOfBilling"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 2v20l3-2 2 2 3-2 3 2 2-2 3 2V2l-3 2-2-2-3 2-3-2-2 2z'/%3E%3Cpath d='M8 8h8M8 12h8'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 10px center, right 10px center;
+  background-size: 15px, 14px;
+  padding-left: 33px !important;
+  padding-right: 30px !important;
+}
+
+.indent-app-container input.custom-input[name="customerPoNo"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container textarea.custom-input[name="remark"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px 11px;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[type="date"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[placeholder*="Indent No"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.3-4.3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[placeholder*="Search Code"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 9h16M4 15h16M10 3L8 21M16 3l-2 18'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container input.custom-input[placeholder*="Customer"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  background-size: 15px;
+  padding-left: 33px !important;
+}
+
+.indent-app-container .bar-body select.custom-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat, no-repeat;
+  background-position: 10px center, right 10px center;
+  background-size: 15px, 14px;
+  padding-left: 33px !important;
+  padding-right: 30px !important;
+}
+
+`}</style>
 
       <div className="indent-app-container">
 

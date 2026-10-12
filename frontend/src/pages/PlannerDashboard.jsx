@@ -104,6 +104,41 @@ const Icons = {
   )
 };
 
+// Outlined floating-label field with a leading icon (same as Customer Dashboard)
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
+function PoField({
+  icon,
+  label,
+  required,
+  filled,
+  alwaysFloat,
+  caret,
+  area,
+  className = "",
+  style,
+  labelClass = "",
+  children
+}) {
+  return (
+    <div className={className} style={style}>
+      <div
+        className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${
+          area ? "po-area" : ""
+        }`}
+      >
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className={`po-field-label ${labelClass}`}>
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
+
 function PlannerDashboard() {
   const navigate = useNavigate();
   const [printingTypeFilter, setPrintingTypeFilter] = useState("");
@@ -2237,166 +2272,217 @@ function PlannerDashboard() {
   return (
     <div className="planner-dashboard-root">
       {/* ========================================================================= */}
-      {/* 💅 SCOPED 3D ENTERPRISE DESIGN STYLES (No separate CSS file required)     */}
+      {/* SCOPED ENTERPRISE TEAL / ORANGE THEME (No separate CSS file required) */}
       {/* ========================================================================= */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+        /* ---------- Theme tokens ---------- */
         .planner-dashboard-root {
-          background: radial-gradient(circle at 10% 20%, #d8f1fb 0%, #edf9fe 90.2%);
+          --brand: #e4572e;
+          --brand-dark: #c9461f;
+          --brand-soft: #fdeee8;
+          --teal: #0b3a45;
+          --teal-mid: #0f5560;
+          --teal-soft: #e3f1f4;
+          --ink: #1f2937;
+          --ink-soft: #5b6676;
+          --ink-mute: #8a94a3;
+          --line: #e3e7ec;
+          --line-soft: #eef1f4;
+          --field-line: #cfd6de;
+          --surface: #ffffff;
+          --page: #f4f6f8;
+          --ok: #1f9d6b;
+          --warn: #d98a00;
+          --danger: #d64545;
+        }
+
+        .planner-dashboard-root {
+          background: var(--page);
           min-height: 100vh;
-          padding: 18px;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          color: #0c4a6e;
+          padding: 24px 28px 40px;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+          font-size: 14px;
+          color: var(--ink);
         }
 
         .planner-container-3d {
           max-width: 100%;
           margin: 0 auto;
-          background: #d8f1fb;
-          border: 1px solid rgba(12, 90, 130, 0.38);
-          border-radius: 20px;
-          padding: 22px 24px;
-          box-shadow: 0 16px 36px rgba(4, 52, 78, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          padding: 0;
+          box-shadow: none;
         }
 
-        /* Glass Card Chassis */
+        /* ---------- Bootstrap overrides (scoped to this page) ---------- */
+        .planner-dashboard-root h1,
+        .planner-dashboard-root h4,
+        .planner-dashboard-root h5,
+        .planner-dashboard-root h6 {
+          color: var(--ink) !important;
+          font-weight: 700;
+          letter-spacing: -0.1px;
+        }
+        .planner-dashboard-root [style*="rgb(6, 76, 115)"] { color: var(--ink) !important; }
+        .planner-dashboard-root [style*="rgb(2, 132, 199)"] { color: var(--teal-mid) !important; }
+        .planner-dashboard-root .border[style*="rgb(184, 217, 235)"] { border-color: var(--line) !important; }
+        .planner-dashboard-root .text-primary { color: var(--teal-mid) !important; }
+        .planner-dashboard-root .text-muted { color: var(--ink-mute) !important; }
+        .planner-dashboard-root .text-success { color: var(--ok) !important; }
+        .planner-dashboard-root .bg-white.border { border-color: var(--line) !important; border-radius: 8px !important; }
+        .planner-dashboard-root .shadow-sm { box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06) !important; }
+        .planner-dashboard-root .form-label,
+        .planner-dashboard-root small {
+          color: var(--ink-soft);
+          font-weight: 600;
+        }
+        .planner-dashboard-root .form-label {
+          font-size: 11.5px;
+          letter-spacing: 0.3px;
+          text-transform: uppercase;
+        }
+        .planner-dashboard-root .form-control,
+        .planner-dashboard-root .form-select {
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          font-size: 13.5px;
+          color: var(--ink);
+          box-shadow: none;
+        }
+        .planner-dashboard-root .form-control:focus,
+        .planner-dashboard-root .form-select:focus {
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
+        }
+        .planner-dashboard-root .form-check-input:checked {
+          background-color: var(--brand);
+          border-color: var(--brand);
+        }
+        .planner-dashboard-root .table-responsive::-webkit-scrollbar,
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar,
+        .planner-dashboard-root .wo-table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
+        .planner-dashboard-root .table-responsive::-webkit-scrollbar-thumb,
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar-thumb,
+        .planner-dashboard-root .wo-table-wrap::-webkit-scrollbar-thumb { background: #c5ccd5; border-radius: 8px; }
+        .planner-dashboard-root .table-responsive::-webkit-scrollbar-track,
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar-track,
+        .planner-dashboard-root .wo-table-wrap::-webkit-scrollbar-track { background: #f1f3f6; }
+
+        /* ---------- Cards ---------- */
         .card-glass-3d {
-          background: rgba(221, 243, 252, 0.94);
-          backdrop-filter: blur(14px);
-          border: 1px solid rgba(12, 90, 130, 0.26);
-          border-radius: 16px;
-          box-shadow: 0 10px 25px rgba(4, 52, 78, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
           overflow: hidden;
-          transition: all 0.25s ease;
+          transition: box-shadow 0.2s ease;
         }
 
-        /* Tactile 3D Buttons */
+        /* ---------- Buttons (flat, enterprise) ---------- */
         .btn-3d {
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 7px;
-          font-weight: 700;
-          border-radius: 9px;
+          font-weight: 600;
+          border-radius: 6px;
           padding: 7px 16px;
           cursor: pointer;
-          transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.15s ease;
           text-decoration: none;
           font-size: 13px;
-          border: none;
+          border: 1px solid transparent;
           line-height: 1.3;
           white-space: nowrap;
         }
-        .btn-3d:active {
-          transform: translateY(2px) !important;
-        }
-        .btn-3d-primary {
-          background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #075985, 0 6px 12px rgba(3, 105, 161, 0.28);
-        }
-        .btn-3d-primary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #075985, 0 8px 16px rgba(3, 105, 161, 0.35);
-          color: #fff;
-        }
-        .btn-3d-success {
-          background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #047857, 0 6px 12px rgba(16, 185, 129, 0.28);
-        }
-        .btn-3d-success:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #047857, 0 8px 16px rgba(16, 185, 129, 0.35);
-          color: #fff;
-        }
-        .btn-3d-warning {
-          background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #b45309, 0 6px 12px rgba(245, 158, 11, 0.28);
-        }
-        .btn-3d-warning:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #b45309, 0 8px 16px rgba(245, 158, 11, 0.35);
-          color: #fff;
-        }
-        .btn-3d-danger {
-          background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #b91c1c, 0 6px 12px rgba(239, 68, 68, 0.28);
-        }
-        .btn-3d-danger:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #b91c1c, 0 8px 16px rgba(239, 68, 68, 0.35);
-          color: #fff;
-        }
-        .btn-3d-info {
-          background: linear-gradient(180deg, #06b6d4 0%, #0891b2 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #0e7490, 0 6px 12px rgba(6, 182, 212, 0.28);
-        }
-        .btn-3d-info:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #0e7490, 0 8px 16px rgba(6, 182, 212, 0.35);
-          color: #fff;
-        }
-        .btn-3d-dark {
-          background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #0f172a, 0 6px 12px rgba(30, 41, 59, 0.28);
-        }
-        .btn-3d-dark:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #0f172a, 0 8px 16px rgba(30, 41, 59, 0.35);
-          color: #fff;
-        }
-        .btn-3d-secondary {
-          background: linear-gradient(180deg, #64748b 0%, #475569 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #334155, 0 6px 12px rgba(100, 116, 139, 0.25);
-        }
-        .btn-3d-secondary:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 0 #334155, 0 8px 16px rgba(100, 116, 139, 0.3);
-          color: #fff;
-        }
+        .btn-3d:active { transform: translateY(1px) !important; }
+        .btn-3d:disabled { opacity: 0.55; cursor: not-allowed; }
 
-        /* Mode Toggle Tabs */
-        .mode-toggle-group {
-          background: rgba(12, 90, 130, 0.08);
-          border: 1px solid rgba(12, 90, 130, 0.25);
-          border-radius: 14px;
+        .btn-3d-primary { background: var(--brand); border-color: var(--brand); color: #ffffff; box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35); }
+        .btn-3d-primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
+
+        .btn-3d-success { background: var(--ok); border-color: var(--ok); color: #ffffff; box-shadow: 0 1px 2px rgba(31, 157, 107, 0.35); }
+        .btn-3d-success:hover { background: #178158; border-color: #178158; color: #fff; }
+
+        .btn-3d-warning { background: #fff7e6; border-color: #f2d291; color: #9a6200; }
+        .btn-3d-warning:hover { background: #ffecc2; color: #7d4f00; }
+
+        .btn-3d-danger { background: #fdecec; border-color: #f3c1c1; color: #b42323; }
+        .btn-3d-danger:hover { background: #f9d4d4; color: #8f1a1a; }
+
+        .btn-3d-info { background: #ffffff; border-color: var(--teal-mid); color: var(--teal-mid); }
+        .btn-3d-info:hover { background: var(--teal-mid); color: #fff; }
+
+        .btn-3d-dark { background: var(--teal); border-color: var(--teal); color: #ffffff; box-shadow: 0 1px 2px rgba(11, 58, 69, 0.35); }
+        .btn-3d-dark:hover { background: #072a33; border-color: #072a33; color: #fff; }
+
+        .btn-3d-secondary { background: #ffffff; border-color: var(--field-line); color: var(--ink); }
+        .btn-3d-secondary:hover { background: var(--page); color: var(--ink); }
+
+        /* ---------- Mode toggle / quick-nav (segmented tabs) ---------- */
+        .mode-toggle-group,
+        .quick-nav-group {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
           padding: 4px;
           display: inline-flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+        }
+        .mode-toggle-btn,
+        .quick-nav-btn {
+          display: inline-flex;
+          align-items: center;
           gap: 6px;
-        }
-        .mode-toggle-btn {
-          border: none;
-          padding: 8px 22px;
-          border-radius: 10px;
-          font-weight: 700;
-          font-size: 13.5px;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          cursor: pointer;
-        }
-        .mode-toggle-btn.active-planner {
-          background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #075985, 0 6px 14px rgba(3, 105, 161, 0.35);
-        }
-        .mode-toggle-btn.active-outer {
-          background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #b91c1c, 0 6px 14px rgba(239, 68, 68, 0.35);
-        }
-        .mode-toggle-btn.inactive {
+          border: 1px solid transparent;
           background: transparent;
-          color: #0c4a6e;
+          color: #000000;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 11px;
+          cursor: pointer;
+          transition: all 0.15s ease;
         }
-        .mode-toggle-btn.inactive:hover {
-          background: rgba(255, 255, 255, 0.6);
+        .quick-nav-btn svg { width: 12px; height: 12px; }
+        .mode-toggle-btn.inactive { background: transparent; color: #000000; }
+        .mode-toggle-btn.inactive:hover,
+        .quick-nav-btn:hover { background: var(--page); color: #000000; }
+        .quick-nav-cta { padding: 4px 10px; font-size: 11px; }
+        .quick-nav-cta svg { width: 12px; height: 12px; }
+
+        .mode-toggle-btn.active-planner,
+        .quick-nav-btn.active-received {
+          background: var(--brand);
+          border-color: var(--brand);
+          color: #ffffff;
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
+        }
+        .quick-nav-btn.active-all {
+          background: var(--teal);
+          border-color: var(--teal);
+          color: #ffffff;
+          box-shadow: 0 1px 2px rgba(11, 58, 69, 0.35);
+        }
+        .quick-nav-btn.active-planned {
+          background: var(--ok);
+          border-color: var(--ok);
+          color: #ffffff;
+          box-shadow: 0 1px 2px rgba(31, 157, 107, 0.35);
+        }
+        .mode-toggle-btn.active-outer,
+        .quick-nav-btn.active-outer {
+          background: var(--danger);
+          border-color: var(--danger);
+          color: #ffffff;
+          box-shadow: 0 1px 2px rgba(214, 69, 69, 0.35);
         }
 
-        /* Quick-Nav Tabs (All / Received / Planned / Outer Label) */
         .quick-nav {
           display: flex;
           flex-wrap: wrap;
@@ -2405,91 +2491,48 @@ function PlannerDashboard() {
           gap: 12px;
           margin-bottom: 18px;
         }
-        .quick-nav-group {
-          background: rgba(12, 90, 130, 0.08);
-          border: 1px solid rgba(12, 90, 130, 0.25);
-          border-radius: 14px;
-          padding: 4px;
-          display: inline-flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .quick-nav-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          border: none;
-          background: transparent;
-          color: #0c4a6e;
-          padding: 8px 18px;
-          border-radius: 10px;
-          font-weight: 700;
-          font-size: 13.5px;
-          cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .quick-nav-btn:hover {
-          background: rgba(255, 255, 255, 0.6);
-        }
-        .quick-nav-btn.active-all {
-          background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #0f172a, 0 6px 14px rgba(30, 41, 59, 0.35);
-        }
-        .quick-nav-btn.active-received {
-          background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #075985, 0 6px 14px rgba(3, 105, 161, 0.35);
-        }
-        .quick-nav-btn.active-planned {
-          background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #047857, 0 6px 14px rgba(16, 185, 129, 0.35);
-        }
-        .quick-nav-btn.active-outer {
-          background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
-          color: #ffffff;
-          box-shadow: 0 3px 0 #b91c1c, 0 6px 14px rgba(239, 68, 68, 0.35);
-        }
         .quick-nav-count {
-          min-width: 22px;
-          padding: 1px 7px;
+          min-width: 18px;
+          padding: 0 5px;
           border-radius: 9999px;
-          font-size: 11.5px;
+          font-size: 9.5px;
           font-weight: 700;
           text-align: center;
-          background: rgba(12, 90, 130, 0.14);
-          color: #0c4a6e;
+          background: var(--page);
+          color: #000000;
+          border: 1px solid var(--line);
         }
         .quick-nav-btn[class*="active-"] .quick-nav-count {
-          background: rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.22);
+          border-color: transparent;
           color: #ffffff;
         }
 
-        /* Inset Recessed Inputs */
+        /* ---------- Inputs ---------- */
         .input-3d {
           background: #ffffff;
-          border: 1.5px solid #94b8cc;
-          border-radius: 8px;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
           padding: 6px 12px;
+          font-family: inherit;
           font-size: 13px;
-          color: #0f172a;
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
-          transition: all 0.2s ease;
+          color: var(--ink);
+          box-shadow: none;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         .input-3d:focus {
           outline: none;
-          border-color: #0284c7;
-          box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.2), inset 0 1px 2px rgba(0,0,0,0.04);
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
         }
 
-        /* 3D Data Tables */
+        /* ---------- Data tables ---------- */
         .scrollable-table-container {
-          border-radius: 12px;
+          border-radius: 8px;
           overflow-x: auto;
           overflow-y: auto;
-          border: 1px solid rgba(12, 90, 130, 0.32);
-          box-shadow: 0 8px 20px rgba(4, 52, 78, 0.08);
+          border: 1px solid var(--line);
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
           background: #ffffff;
           max-height: 520px;
         }
@@ -2497,38 +2540,43 @@ function PlannerDashboard() {
         .planned-workorders-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 12.5px;
+          font-size: 13px;
           margin-bottom: 0;
           white-space: nowrap;
         }
         .table-modern thead th,
         .planned-workorders-table thead th {
-          background: #064c73 !important;
-          color: #ffffff !important;
+          background: #f7f9fb !important;
+          color: var(--ink-soft) !important;
           font-weight: 700;
-          padding: 10px 12px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
+          font-size: 11.5px;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          padding: 12px 12px;
+          border: 1px solid var(--line);
+          border-bottom: 1px solid var(--line);
           position: sticky;
           top: 0;
           z-index: 5;
-          letter-spacing: 0.3px;
           text-align: center;
           white-space: nowrap;
         }
         .table-modern tbody td,
         .planned-workorders-table tbody td {
-          padding: 8px 11px;
-          border: 1px solid #dce8ef;
-          color: #0f172a;
+          padding: 9px 12px;
+          border: 1px solid var(--line-soft);
+          color: var(--ink);
+          font-weight: 500;
           vertical-align: middle;
           transition: background 0.15s ease;
         }
+        .table-modern tbody tr:nth-child(even) td,
+        .planned-workorders-table tbody tr:nth-child(even) td { background: #fafbfc; }
         .table-modern tbody tr:hover td,
         .planned-workorders-table tbody tr:hover td {
-          background-color: #d9f2fc !important;
+          background-color: var(--brand-soft) !important;
         }
 
-        /* Truncate & Expanded cell */
         .truncate {
           max-width: 170px;
           white-space: nowrap;
@@ -2541,164 +2589,164 @@ function PlannerDashboard() {
           max-width: 300px;
           word-break: break-word;
           cursor: pointer;
-          background: #eef8fc;
+          background: var(--teal-soft);
         }
 
-        /* Status & Quick Badges */
+        /* ---------- Badges ---------- */
         .badge-3d {
           display: inline-flex;
           align-items: center;
           padding: 4px 10px;
-          border-radius: 9999px;
+          border-radius: 4px;
           font-size: 11.5px;
-          font-weight: 700;
-          letter-spacing: 0.3px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+          font-weight: 600;
+          letter-spacing: 0.2px;
+          box-shadow: none;
         }
-        .badge-3d-success {
-          background: #dcfce7;
-          color: #15803d;
-          border: 1px solid #86efac;
-        }
-        .badge-3d-primary {
-          background: #e0f2fe;
-          color: #0369a1;
-          border: 1px solid #7dd3fc;
-        }
-        .badge-3d-warning {
-          background: #fef3c7;
-          color: #b45309;
-          border: 1px solid #fde68a;
-        }
+        .badge-3d-success { background: #e4f6ee; color: #167a52; border: 1px solid #b7e4d0; }
+        .badge-3d-primary { background: var(--teal-soft); color: var(--teal-mid); border: 1px solid #bdd9df; }
+        .badge-3d-warning { background: #fff3d6; color: #8a5a00; border: 1px solid #f2d291; }
 
-        /* Toolbar Styling */
+        /* ---------- Toolbar ---------- */
         .premium-toolbar {
-          background: rgba(255, 255, 255, 0.78);
-          border: 1px solid rgba(12, 90, 130, 0.3);
-          border-radius: 12px;
-          padding: 14px 16px;
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 14px 18px;
           margin-bottom: 16px;
-          box-shadow: 0 6px 16px rgba(4, 52, 78, 0.06);
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
         }
         .premium-select,
         .premium-date {
           background: #ffffff;
-          border: 1.5px solid #94b8cc;
-          border-radius: 8px;
-          padding: 5px 10px;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-family: inherit;
           font-size: 13px;
-          color: #0f172a;
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04);
+          color: var(--ink);
+          box-shadow: none;
+        }
+        .premium-select:focus,
+        .premium-date:focus {
+          outline: none;
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
         }
         .clear-btn {
-          background: #64748b;
-          color: #ffffff;
-          border: none;
-          border-radius: 8px;
+          background: #ffffff;
+          color: var(--ink);
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
           padding: 6px 14px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s ease;
-          box-shadow: 0 2px 0 #334155;
+          transition: all 0.15s ease;
+          box-shadow: none;
         }
-        .clear-btn:hover {
-          background: #475569;
-          transform: translateY(-1px);
-        }
+        .clear-btn:hover { background: var(--page); border-color: var(--teal-mid); color: var(--teal-mid); transform: none; }
 
-        /* ===== Work Order Form — compact frosted glass ===== */
+        /* ===== Work Order Form — clean white panels ===== */
         .wo-glass {
-          background: rgba(255, 255, 255, 0.55);
-          backdrop-filter: blur(18px) saturate(140%);
-          -webkit-backdrop-filter: blur(18px) saturate(140%);
-          border: 1px solid rgba(255, 255, 255, 0.8);
-          border-radius: 22px;
-          box-shadow: 0 14px 34px rgba(40, 70, 110, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.95);
-          padding: 14px;
-          color: #1b2a3c;
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
+          padding: 18px;
+          color: var(--ink);
         }
         .wo-head {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding: 2px 4px 12px;
+          padding: 2px 4px 14px;
+          margin-bottom: 12px;
+          border-bottom: 1px solid var(--line);
         }
-        .wo-head-left { display: flex; align-items: center; gap: 10px; }
+        .wo-head-left { display: flex; align-items: center; gap: 12px; }
         .wo-icon {
-          width: 34px; height: 34px;
-          border-radius: 11px;
+          width: 36px; height: 36px;
+          border-radius: 8px;
           display: flex; align-items: center; justify-content: center;
-          background: rgba(255, 255, 255, 0.85);
-          color: #2f5d8c;
-          box-shadow: 0 2px 8px rgba(40, 70, 110, 0.12), inset 0 1px 0 #fff;
+          background: var(--brand-soft);
+          color: var(--brand);
+          border: 1px solid #f7d3c6;
+          box-shadow: none;
         }
-        .wo-title { margin: 0; font-size: 15px; font-weight: 650; color: #1b2a3c; letter-spacing: -0.1px; }
-        .wo-sub { font-size: 11.5px; color: #6b7b8e; }
+        .wo-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); letter-spacing: -0.1px; }
+        .wo-sub { font-size: 12px; color: var(--ink-mute); }
         .wo-pill {
-          font-size: 11px; font-weight: 600;
-          padding: 3px 11px;
+          font-size: 11.5px; font-weight: 600;
+          padding: 3px 12px;
           border-radius: 999px;
-          background: rgba(255, 255, 255, 0.8);
-          border: 1px solid rgba(255, 255, 255, 0.95);
-          box-shadow: 0 1px 4px rgba(40, 70, 110, 0.08);
+          background: var(--page);
+          border: 1px solid var(--line);
+          box-shadow: none;
         }
-        .wo-pill-blue { color: #2f5d8c; }
-        .wo-pill-amber { color: #a16207; }
+        .wo-pill-blue { color: var(--teal-mid); background: var(--teal-soft); border-color: #bdd9df; }
+        .wo-pill-amber { color: #8a5a00; background: #fff3d6; border-color: #f2d291; }
         .wo-close {
-          width: 28px; height: 28px;
-          border-radius: 50%;
-          border: none;
-          background: rgba(255, 255, 255, 0.8);
-          color: #4a5b6e;
+          width: 30px; height: 30px;
+          border-radius: 6px;
+          border: 1px solid var(--line);
+          background: #ffffff;
+          color: var(--ink-soft);
           font-size: 12px;
           cursor: pointer;
-          box-shadow: 0 1px 4px rgba(40, 70, 110, 0.12);
+          box-shadow: none;
         }
-        .wo-close:hover { background: #fff; }
+        .wo-close:hover { background: var(--brand-soft); color: var(--brand); border-color: #f7d3c6; }
 
         .wo-panel {
-          background: rgba(255, 255, 255, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.85);
-          border-radius: 16px;
-          padding: 11px 13px;
-          margin-bottom: 10px;
-          box-shadow: 0 4px 14px rgba(40, 70, 110, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 14px 16px;
+          margin-bottom: 12px;
+          box-shadow: none;
         }
         .wo-panel-head {
           display: flex; align-items: center; justify-content: space-between;
-          gap: 8px; margin-bottom: 8px;
+          gap: 8px; margin-bottom: 10px;
         }
-        .wo-panel-title { font-size: 12.5px; font-weight: 650; color: #1b2a3c; }
-        .wo-panel-note { font-size: 11px; color: #7a8999; }
+        .wo-panel-title {
+          font-size: 13px; font-weight: 700; color: var(--ink);
+          padding-left: 8px; border-left: 3px solid var(--brand);
+        }
+        .wo-panel-note { font-size: 11.5px; color: var(--ink-mute); }
 
         .wo-info-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 6px 8px;
+          gap: 8px 10px;
         }
         .wo-info {
-          background: rgba(255, 255, 255, 0.7);
-          border-radius: 11px;
-          padding: 6px 10px;
+          background: #fafbfc;
+          border: 1px solid var(--line-soft);
+          border-radius: 6px;
+          padding: 7px 11px;
           min-width: 0;
         }
         .wo-info.wide { grid-column: span 2; }
-        .wo-info > span { display: block; font-size: 10.5px; color: #7a8999; font-weight: 500; }
+        .wo-info > span {
+          display: block; font-size: 10.5px; color: var(--ink-mute);
+          font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+        }
         .wo-info > b {
           display: block;
-          font-size: 12.5px; font-weight: 600; color: #1b2a3c;
+          font-size: 13px; font-weight: 600; color: var(--ink);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
-        .wo-accent { color: #2f5d8c !important; }
-        .wo-good { color: #1c7a52 !important; }
-        .wo-muted { color: #8a98a8; }
+        .wo-accent { color: var(--teal-mid) !important; }
+        .wo-good { color: var(--ok) !important; }
+        .wo-muted { color: var(--ink-mute); }
 
         .wo-fields {
           display: grid;
           grid-template-columns: repeat(12, minmax(0, 1fr));
-          gap: 8px 10px;
+          gap: 10px 12px;
           align-items: end;
         }
         .fs-2 { grid-column: span 2; }
@@ -2707,156 +2755,167 @@ function PlannerDashboard() {
         .wo-field { min-width: 0; }
         .wo-field > label {
           display: block;
-          font-size: 10.5px; font-weight: 600; color: #6b7b8e;
-          margin: 0 0 3px 2px;
+          font-size: 11px; font-weight: 600; color: var(--ink-soft);
+          text-transform: uppercase; letter-spacing: 0.3px;
+          margin: 0 0 4px 1px;
         }
-        .wo-field > label i { color: #d64545; font-style: normal; }
+        .wo-field > label i { color: var(--danger); font-style: normal; }
 
         .wo-input {
           width: 100%;
-          height: 34px;
-          padding: 0 10px;
-          font-size: 12.5px;
-          color: #1b2a3c;
-          background: rgba(255, 255, 255, 0.88);
-          border: 1px solid rgba(110, 140, 170, 0.28);
-          border-radius: 10px;
+          height: 36px;
+          padding: 0 11px;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--ink);
+          background: #ffffff;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
           outline: none;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
         .wo-input:focus {
-          border-color: #4b83b8;
-          box-shadow: 0 0 0 3px rgba(75, 131, 184, 0.18);
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
         }
-        .wo-input:disabled { opacity: 0.55; cursor: not-allowed; }
+        .wo-input:disabled { opacity: 0.6; cursor: not-allowed; background: #f7f9fb; }
         .wo-select-btn {
           display: flex; align-items: center; justify-content: space-between;
           gap: 6px; text-align: left; cursor: pointer;
         }
         .wo-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .wo-ro {
-          height: 34px;
+          height: 36px;
           display: flex; align-items: center;
-          padding: 0 10px;
-          font-size: 12.5px; font-weight: 600; color: #1b2a3c;
-          background: rgba(255, 255, 255, 0.45);
-          border-radius: 10px;
+          padding: 0 11px;
+          font-size: 13px; font-weight: 600; color: var(--ink-soft);
+          background: #f7f9fb;
+          border: 1px solid var(--line-soft);
+          border-radius: 6px;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .wo-check {
           display: flex; align-items: center; gap: 8px;
-          height: 34px; margin: 0;
-          font-size: 12.5px; font-weight: 600; color: #1b2a3c;
+          height: 38px; margin: 0;
+          padding: 0 10px;
+          font-size: 0.82rem; font-weight: 600; color: var(--ink);
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          background: #ffffff;
           cursor: pointer;
         }
-        .wo-check input { width: 16px; height: 16px; cursor: pointer; accent-color: #3b6fa8; }
+        .wo-check input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--brand); }
 
         .wo-dd {
-          position: absolute; top: 38px; left: 0; right: 0; z-index: 100;
-          max-height: 200px; overflow-y: auto;
-          background: rgba(255, 255, 255, 0.97);
-          border: 1px solid rgba(110, 140, 170, 0.25);
-          border-radius: 12px;
-          box-shadow: 0 14px 30px rgba(40, 70, 110, 0.18);
+          position: absolute; top: 40px; left: 0; right: 0; z-index: 100;
+          max-height: 220px; overflow-y: auto;
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: 0 10px 24px rgba(16, 24, 40, 0.14);
           padding: 4px;
         }
-        .wo-dd-empty { padding: 8px; font-size: 12px; color: #7a8999; }
+        .wo-dd-empty { padding: 8px; font-size: 12.5px; color: var(--ink-mute); }
         .wo-dd-item {
           display: flex; align-items: center; justify-content: space-between;
           gap: 8px; margin: 0;
-          padding: 6px 8px; border-radius: 8px;
-          font-size: 12.5px; cursor: pointer;
+          padding: 7px 9px; border-radius: 6px;
+          font-size: 13px; cursor: pointer;
         }
-        .wo-dd-item:hover { background: rgba(75, 131, 184, 0.1); }
-        .wo-dd-item.sel { background: rgba(75, 131, 184, 0.14); }
+        .wo-dd-item:hover { background: var(--page); }
+        .wo-dd-item.sel { background: var(--brand-soft); }
         .wo-badge-num {
           width: 18px; height: 18px; border-radius: 50%;
-          background: #3b6fa8; color: #fff;
+          background: var(--brand); color: #fff;
           font-size: 10.5px; font-weight: 700;
           display: inline-flex; align-items: center; justify-content: center;
         }
 
         .wo-btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-          height: 32px; padding: 0 14px;
-          font-size: 12.5px; font-weight: 600;
-          border-radius: 10px; border: 1px solid transparent;
+          height: 34px; padding: 0 16px;
+          font-family: inherit;
+          font-size: 13px; font-weight: 600;
+          border-radius: 6px; border: 1px solid transparent;
           cursor: pointer; white-space: nowrap;
           transition: all 0.15s ease;
         }
         .wo-btn:active { transform: translateY(1px); }
-        .wo-btn-xs { height: 24px; padding: 0 10px; font-size: 11px; border-radius: 8px; }
+        .wo-btn-xs { height: 26px; padding: 0 10px; font-size: 11.5px; border-radius: 6px; }
         .wo-btn-primary {
-          background: linear-gradient(180deg, #3b6fa8 0%, #2c527f 100%);
+          background: var(--brand);
+          border-color: var(--brand);
           color: #fff;
-          box-shadow: 0 4px 12px rgba(44, 82, 127, 0.28);
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
         }
-        .wo-btn-primary:hover { box-shadow: 0 6px 16px rgba(44, 82, 127, 0.38); }
+        .wo-btn-primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35); }
         .wo-btn-soft {
-          background: rgba(255, 255, 255, 0.85); color: #2f5d8c;
-          border-color: rgba(110, 140, 170, 0.28);
+          background: #ffffff; color: var(--teal-mid);
+          border-color: var(--teal-mid);
         }
-        .wo-btn-soft:hover { background: #fff; }
+        .wo-btn-soft:hover { background: var(--teal-mid); color: #fff; }
         .wo-btn-ghost {
-          background: rgba(255, 255, 255, 0.55); color: #4a5b6e;
-          border-color: rgba(110, 140, 170, 0.28);
+          background: #ffffff; color: var(--ink);
+          border-color: var(--field-line);
         }
-        .wo-btn-ghost:hover { background: rgba(255, 255, 255, 0.9); }
+        .wo-btn-ghost:hover { background: var(--page); }
         .wo-btn-danger {
-          background: rgba(255, 255, 255, 0.85); color: #c0392b;
-          border-color: rgba(192, 57, 43, 0.28);
+          background: #fdecec; color: #b42323;
+          border-color: #f3c1c1;
         }
-        .wo-btn-danger:hover { background: #fff1f0; }
-        .wo-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+        .wo-btn-danger:hover { background: #f9d4d4; }
+        .wo-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
 
         .wo-table-wrap {
-          border-radius: 12px; overflow: auto; max-height: 260px;
-          background: rgba(255, 255, 255, 0.65);
-          border: 1px solid rgba(255, 255, 255, 0.9);
+          border-radius: 8px; overflow: auto; max-height: 260px;
+          background: #ffffff;
+          border: 1px solid var(--line);
         }
-        .wo-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+        .wo-table { width: 100%; border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
         .wo-table th {
           position: sticky; top: 0; z-index: 2;
-          background: rgba(226, 237, 247, 0.97);
-          color: #4a5b6e; font-weight: 600; font-size: 11px;
-          padding: 7px 10px; text-align: center;
-          border-bottom: 1px solid rgba(110, 140, 170, 0.2);
+          background: #f7f9fb;
+          color: var(--ink-soft); font-weight: 700; font-size: 11px;
+          text-transform: uppercase; letter-spacing: 0.3px;
+          padding: 9px 10px; text-align: center;
+          border-bottom: 1px solid var(--line);
         }
         .wo-table td {
-          padding: 6px 10px; text-align: center; color: #1b2a3c;
-          border-bottom: 1px solid rgba(110, 140, 170, 0.12);
+          padding: 7px 10px; text-align: center; color: var(--ink);
+          border-bottom: 1px solid var(--line-soft);
           vertical-align: middle;
         }
-        .wo-table tbody tr:hover td { background: rgba(75, 131, 184, 0.07); }
+        .wo-table tbody tr:hover td { background: var(--brand-soft); }
         .wo-chip {
           display: inline-block;
           font-size: 11px; font-weight: 600;
-          padding: 2px 8px; border-radius: 999px;
-          background: rgba(75, 131, 184, 0.13); color: #2f5d8c;
+          padding: 2px 8px; border-radius: 4px;
+          background: var(--teal-soft); color: var(--teal-mid);
         }
-        .wo-chip-green { background: rgba(34, 160, 107, 0.14); color: #1c7a52; }
+        .wo-chip-green { background: #e4f6ee; color: #167a52; }
         .wo-empty {
-          text-align: center; padding: 14px 10px;
-          border: 1.5px dashed rgba(110, 140, 170, 0.4);
-          border-radius: 14px; color: #6b7b8e; font-size: 12px;
+          text-align: center; padding: 16px 10px;
+          border: 1.5px dashed var(--field-line);
+          border-radius: 8px; color: var(--ink-mute); font-size: 12.5px;
+          background: #fafbfc;
         }
 
         .wo-overlay {
           position: fixed; inset: 0; z-index: 1050;
           display: flex; align-items: center; justify-content: center;
           padding: 16px;
-          background: rgba(40, 70, 100, 0.35);
-          backdrop-filter: blur(6px);
+          background: rgba(11, 58, 69, 0.45);
+          backdrop-filter: blur(3px);
         }
         .wo-modal {
           width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto;
-          background: rgba(240, 247, 252, 0.88);
-          backdrop-filter: blur(22px) saturate(140%);
-          border: 1px solid rgba(255, 255, 255, 0.9);
-          border-radius: 22px;
-          box-shadow: 0 24px 60px rgba(30, 60, 95, 0.3);
-          padding: 14px;
-          color: #1b2a3c;
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: 0 24px 60px rgba(16, 24, 40, 0.28);
+          padding: 18px;
+          color: var(--ink);
         }
         /* Activity & paper modal: all text black */
         .wo-modal,
@@ -2870,13 +2929,14 @@ function PlannerDashboard() {
         .wo-modal .wo-info > span,
         .wo-modal .wo-info > b,
         .wo-modal .wo-accent,
-        .wo-modal .wo-good {
+        .wo-modal .wo-good,
+        .wo-modal .po-field-label,
+        .wo-modal .po-input {
           color: #000 !important;
         }
         /* Paper qty: bold + red (must stay AFTER the black rule) */
-           .wo-modal .wo-field > label.wo-paper-qty,
-        .wo-modal .wo-field input.wo-paper-qty,
-        .wo-modal .wo-field input.wo-input.wo-paper-qty {
+        .wo-modal .po-field-label.wo-paper-qty,
+        .wo-modal .po-input.wo-paper-qty {
           color: #dc2626 !important;
           -webkit-text-fill-color: #dc2626 !important;
           font-weight: 800 !important;
@@ -2885,7 +2945,7 @@ function PlannerDashboard() {
         .wo-modal-grid {
           display: grid;
           grid-template-columns: repeat(6, minmax(0, 1fr));
-          gap: 8px 10px;
+          gap: 12px 12px;
         }
         .wo-modal-grid > .s2 { grid-column: span 2; }
         .wo-modal-grid > .s4 { grid-column: span 4; }
@@ -2894,24 +2954,466 @@ function PlannerDashboard() {
           .wo-info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .wo-fields > .wo-field { grid-column: span 6; }
         }
+        @media (max-width: 768px) {
+          .planner-dashboard-root { padding: 14px; }
+        }
         @media (max-width: 560px) {
           .wo-fields > .wo-field { grid-column: span 12; }
           .wo-modal-grid > .s2,
           .wo-modal-grid > .s4 { grid-column: span 6; }
         }
+
+        /* ===== Outlined floating-label fields (same as Customer Dashboard) ===== */
+        .planner-dashboard-root .po-field {
+          position: relative;
+          display: flex;
+          align-items: center;
+          min-height: 38px;
+          background: #ffffff;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .planner-dashboard-root .po-field:focus-within {
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
+        }
+        .planner-dashboard-root .po-field-icon {
+          position: absolute;
+          left: 10px;
+          color: var(--ink-mute);
+          font-size: 0.78rem;
+          pointer-events: none;
+        }
+        .planner-dashboard-root .po-field .po-input {
+          width: 100%;
+          min-height: 36px;
+          padding: 6px 8px 6px 32px;
+          border: none !important;
+          outline: none;
+          background: transparent !important;
+          box-shadow: none !important;
+          color: var(--ink);
+          font-family: inherit;
+          font-size: 0.82rem;
+          font-weight: 500;
+          border-radius: 6px;
+        }
+        .planner-dashboard-root .po-field .po-input[readonly] { color: var(--ink-soft); background: #f7f9fb !important; }
+        .planner-dashboard-root .po-field select.po-input {
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          padding-right: 28px;
+        }
+        .planner-dashboard-root .po-field select.po-input:disabled { cursor: not-allowed; opacity: 0.7; }
+        .planner-dashboard-root .po-field textarea.po-input { resize: vertical; padding-top: 10px; }
+        .planner-dashboard-root .po-field button.po-input {
+          display: flex;
+          align-items: center;
+          text-align: left;
+          cursor: pointer;
+          padding-right: 28px;
+        }
+        .planner-dashboard-root .po-caret {
+          position: absolute;
+          right: 10px;
+          font-size: 0.7rem;
+          color: var(--ink-mute);
+          pointer-events: none;
+        }
+        .planner-dashboard-root .po-field-label {
+          position: absolute;
+          left: 32px;
+          top: 50%;
+          transform: translateY(-50%);
+          padding: 0 4px;
+          margin: 0;
+          background: #ffffff;
+          color: var(--ink-mute);
+          font-size: 0.78rem;
+          font-weight: 500;
+          pointer-events: none;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+        .planner-dashboard-root .po-field.po-area { align-items: flex-start; }
+        .planner-dashboard-root .po-field.po-area .po-field-label { top: 17px; }
+        .planner-dashboard-root .po-field.po-area .po-field-icon { top: 11px; }
+        .planner-dashboard-root .po-field:focus-within .po-field-label,
+        .planner-dashboard-root .po-field.is-floated .po-field-label {
+          top: 0;
+          left: 24px;
+          font-size: 0.64rem;
+          font-weight: 700;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          color: var(--teal-mid);
+        }
+        .planner-dashboard-root .po-req { color: var(--danger); }
+
+        /* Planned work orders filter grid */
+        .pl-filter-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+          gap: 12px 10px;
+          align-items: center;
+          padding-top: 6px;
+        }
+        .pl-filter-grid .clear-btn {
+          height: 38px;
+          width: 100%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+
+        /* =====================================================================
+           COMPACT TYPE + PURE BLACK TEXT (entire page)
+           ===================================================================== */
+        .planner-dashboard-root {
+          --ink: #000000;
+          --ink-soft: #000000;
+          --ink-mute: #000000;
+          font-size: 12px;
+        }
+
+        /* headings / helper text */
+        .planner-dashboard-root h1,
+        .planner-dashboard-root h4 { font-size: 15px; }
+        .planner-dashboard-root h5 { font-size: 13px; }
+        .planner-dashboard-root h6 { font-size: 12px; }
+        .planner-dashboard-root small,
+        .planner-dashboard-root .small { font-size: 10.5px; color: #000000 !important; }
+        .planner-dashboard-root .fs-5 { font-size: 1rem !important; }
+        .planner-dashboard-root .text-primary,
+        .planner-dashboard-root .text-success,
+        .planner-dashboard-root .text-danger,
+        .planner-dashboard-root .text-muted,
+        .planner-dashboard-root .text-dark { color: #000000 !important; }
+        .planner-dashboard-root .wo-accent,
+        .planner-dashboard-root .wo-good,
+        .planner-dashboard-root .wo-muted { color: #000000 !important; }
+
+        /* buttons */
+        .planner-dashboard-root .btn-3d { font-size: 11px; padding: 5px 12px; gap: 6px; }
+        .planner-dashboard-root .btn-3d svg { width: 13px; height: 13px; }
+        .planner-dashboard-root .clear-btn { font-size: 11px; }
+        .planner-dashboard-root .wo-btn { font-size: 11px; height: 30px; padding: 0 13px; }
+        .planner-dashboard-root .wo-btn-xs { font-size: 10px; height: 24px; padding: 0 9px; }
+        .btn-3d-warning,
+        .btn-3d-danger,
+        .wo-btn-danger,
+        .btn-3d-warning:hover,
+        .btn-3d-danger:hover { color: #000000; }
+        .btn-3d-info:not(:hover),
+        .wo-btn-soft:not(:hover) { color: #000000; }
+
+        /* badges / chips / pills */
+        .planner-dashboard-root .badge-3d { font-size: 10px; padding: 3px 8px; color: #000000; }
+        .planner-dashboard-root .wo-chip,
+        .planner-dashboard-root .wo-chip-green,
+        .planner-dashboard-root .wo-pill,
+        .planner-dashboard-root .wo-pill-blue,
+        .planner-dashboard-root .wo-pill-amber { color: #000000; font-size: 10px; }
+
+        /* data tables */
+        .planner-dashboard-root .table-modern,
+        .planner-dashboard-root .planned-workorders-table { font-size: 11px; }
+        .planner-dashboard-root .table-modern thead th,
+        .planner-dashboard-root .planned-workorders-table thead th { font-size: 9.5px; padding: 9px 10px; }
+        .planner-dashboard-root .table-modern tbody td,
+        .planner-dashboard-root .planned-workorders-table tbody td { padding: 7px 10px; color: #000000; }
+        .planner-dashboard-root .wo-table { font-size: 11px; }
+        .planner-dashboard-root .wo-table th { font-size: 9.5px; padding: 8px 9px; }
+        .planner-dashboard-root .wo-table td { padding: 6px 9px; }
+
+        /* work order form + modal */
+        .planner-dashboard-root .wo-title { font-size: 14px; }
+        .planner-dashboard-root .wo-sub { font-size: 11px; }
+        .planner-dashboard-root .wo-panel-title { font-size: 12px; }
+        .planner-dashboard-root .wo-panel-note { font-size: 10.5px; }
+        .planner-dashboard-root .wo-info > span { font-size: 9px; }
+        .planner-dashboard-root .wo-info > b { font-size: 11.5px; }
+        .planner-dashboard-root .wo-field > label { font-size: 10px; }
+        .planner-dashboard-root .wo-input,
+        .planner-dashboard-root .wo-ro { font-size: 11.5px; }
+        .planner-dashboard-root .wo-check { font-size: 0.74rem; height: 34px; }
+        .planner-dashboard-root .wo-dd-item { font-size: 11.5px; }
+        .planner-dashboard-root .wo-empty { font-size: 11.5px; }
+
+        /* outlined floating-label fields */
+        .planner-dashboard-root .po-field { min-height: 34px; }
+        .planner-dashboard-root .po-field .po-input { font-size: 0.72rem; min-height: 32px; }
+        .planner-dashboard-root .po-field-icon { font-size: 0.72rem; }
+        .planner-dashboard-root .po-field-label { font-size: 0.72rem; }
+        .planner-dashboard-root .po-field.po-area .po-field-label { top: 15px; }
+        .planner-dashboard-root .po-field:focus-within .po-field-label,
+        .planner-dashboard-root .po-field.is-floated .po-field-label {
+          font-size: 0.58rem;
+          color: #000000;
+        }
+        .planner-dashboard-root .po-err { font-size: 0.66rem; }
+
+        /* =====================================================================
+           TEXT A LITTLE BIGGER + LIGHT BUTTON COLOURS
+           ===================================================================== */
+        .planner-dashboard-root { font-size: 12.5px; }
+
+        .planner-dashboard-root h1,
+        .planner-dashboard-root h4 { font-size: 16px; }
+        .planner-dashboard-root h5 { font-size: 14px; }
+        .planner-dashboard-root h6 { font-size: 13px; }
+        .planner-dashboard-root small,
+        .planner-dashboard-root .small { font-size: 11.5px; }
+        .planner-dashboard-root .fs-5 { font-size: 1.1rem !important; }
+
+        /* tabs + top button */
+        .planner-dashboard-root .quick-nav-btn { font-size: 12px; padding: 5px 12px; }
+        .planner-dashboard-root .quick-nav-btn svg { width: 13px; height: 13px; }
+        .planner-dashboard-root .quick-nav-cta { font-size: 12px; padding: 5px 12px; }
+        .planner-dashboard-root .quick-nav-cta svg { width: 13px; height: 13px; }
+        .planner-dashboard-root .quick-nav-count { font-size: 10.5px; min-width: 20px; }
+
+        /* buttons: size */
+        .planner-dashboard-root .btn-3d { font-size: 12px; padding: 6px 13px; }
+        .planner-dashboard-root .btn-3d svg { width: 14px; height: 14px; }
+        .planner-dashboard-root .clear-btn { font-size: 12px; }
+        .planner-dashboard-root .wo-btn { font-size: 12px; height: 32px; }
+        .planner-dashboard-root .wo-btn-xs { font-size: 11px; height: 26px; }
+
+        /* buttons: light colours, black text */
+        .planner-dashboard-root .btn-3d-primary,
+        .planner-dashboard-root .wo-btn-primary {
+          background: #fde3d8; border-color: #f5b9a1; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .btn-3d-primary:hover,
+        .planner-dashboard-root .wo-btn-primary:hover {
+          background: #fbd0bf; border-color: #f0a48a; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .btn-3d-success {
+          background: #d9f2e6; border-color: #a9dcc3; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .btn-3d-success:hover {
+          background: #c5ebd6; border-color: #8fceb0; color: #000000;
+        }
+        .planner-dashboard-root .btn-3d-dark {
+          background: #d5e9ee; border-color: #a9cdd6; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .btn-3d-dark:hover {
+          background: #c3dde4; border-color: #93bfca; color: #000000;
+        }
+        .planner-dashboard-root .btn-3d-info,
+        .planner-dashboard-root .wo-btn-soft {
+          background: #e8f3f6; border-color: #b9d6dd; color: #000000;
+        }
+        .planner-dashboard-root .btn-3d-info:hover,
+        .planner-dashboard-root .wo-btn-soft:hover {
+          background: #d5e9ee; border-color: #a9cdd6; color: #000000;
+        }
+        .planner-dashboard-root .btn-3d-secondary,
+        .planner-dashboard-root .wo-btn-ghost { color: #000000; }
+
+        /* selected tab: light fill, black text */
+        .planner-dashboard-root .quick-nav-btn.active-all {
+          background: #d5e9ee; border-color: #a9cdd6; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .quick-nav-btn.active-received {
+          background: #fde3d8; border-color: #f5b9a1; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .quick-nav-btn.active-planned {
+          background: #d9f2e6; border-color: #a9dcc3; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .quick-nav-btn.active-outer {
+          background: #fbdcdc; border-color: #f0b4b4; color: #000000; box-shadow: none;
+        }
+        .planner-dashboard-root .quick-nav-btn[class*="active-"] .quick-nav-count {
+          background: rgba(0, 0, 0, 0.08); color: #000000;
+        }
+
+        /* badges */
+        .planner-dashboard-root .badge-3d { font-size: 11px; }
+        .planner-dashboard-root .wo-chip,
+        .planner-dashboard-root .wo-chip-green,
+        .planner-dashboard-root .wo-pill,
+        .planner-dashboard-root .wo-pill-blue,
+        .planner-dashboard-root .wo-pill-amber { font-size: 11px; }
+
+        /* data tables */
+        .planner-dashboard-root .table-modern,
+        .planner-dashboard-root .planned-workorders-table { font-size: 12px; }
+        .planner-dashboard-root .table-modern thead th,
+        .planner-dashboard-root .planned-workorders-table thead th { font-size: 10.5px; }
+        .planner-dashboard-root .wo-table { font-size: 12px; }
+        .planner-dashboard-root .wo-table th { font-size: 10.5px; }
+
+        /* work order form + modal */
+        .planner-dashboard-root .wo-title { font-size: 15px; }
+        .planner-dashboard-root .wo-sub { font-size: 11.5px; }
+        .planner-dashboard-root .wo-panel-title { font-size: 13px; }
+        .planner-dashboard-root .wo-panel-note { font-size: 11.5px; }
+        .planner-dashboard-root .wo-info > span { font-size: 10px; }
+        .planner-dashboard-root .wo-info > b { font-size: 12.5px; }
+        .planner-dashboard-root .wo-field > label { font-size: 10.5px; }
+        .planner-dashboard-root .wo-input,
+        .planner-dashboard-root .wo-ro { font-size: 12.5px; }
+        .planner-dashboard-root .wo-check { font-size: 0.8rem; height: 36px; }
+        .planner-dashboard-root .wo-dd-item { font-size: 12.5px; }
+        .planner-dashboard-root .wo-empty { font-size: 12.5px; }
+
+        /* floating-label fields */
+        .planner-dashboard-root .po-field { min-height: 36px; }
+        .planner-dashboard-root .po-field .po-input { font-size: 0.8rem; min-height: 34px; }
+        .planner-dashboard-root .po-field-icon { font-size: 0.8rem; }
+        .planner-dashboard-root .po-field-label { font-size: 0.8rem; }
+        .planner-dashboard-root .po-field:focus-within .po-field-label,
+        .planner-dashboard-root .po-field.is-floated .po-field-label { font-size: 0.62rem; }
+        .planner-dashboard-root .po-err { font-size: 0.7rem; }
+
+        /* =====================================================================
+           TABLE COLUMN HEADER COLOUR (light)
+           ===================================================================== */
+        .planner-dashboard-root .table-modern thead th,
+        .planner-dashboard-root .planned-workorders-table thead th {
+          background: #d5e9ee !important;
+          color: #000000 !important;
+          border: 1px solid #b9d6dd !important;
+        }
+        .planner-dashboard-root .wo-table th {
+          background: #d5e9ee;
+          color: #000000;
+          border-bottom: 1px solid #b9d6dd;
+        }
+      
+        /* ===== CREATE WORK ORDER — split layout like Purchase Order Entry ===== */
+        .planner-dashboard-root .wo-split.po-split {
+          display: flex;
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          overflow: hidden;
+          padding: 0;
+          box-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
+          max-width: 1180px;
+          margin-left: auto; margin-right: auto;
+        }
+        .planner-dashboard-root .wo-split .po-side {
+          flex: 0 0 24%;
+          position: relative; overflow: hidden;
+          display: flex; flex-direction: column; justify-content: space-between;
+          padding: 24px;
+          color: #ffffff;
+          background: linear-gradient(170deg, #0b3a45 0%, #0f5560 100%);
+        }
+        .planner-dashboard-root .wo-split .po-side::before {
+          content: ''; position: absolute; width: 260px; height: 260px; border-radius: 50%;
+          right: -110px; top: -90px; background: rgba(255, 255, 255, 0.06);
+        }
+        .planner-dashboard-root .wo-split .po-side::after {
+          content: ''; position: absolute; width: 200px; height: 200px; border-radius: 50%;
+          left: -90px; bottom: -80px; background: rgba(228, 87, 46, 0.18);
+        }
+        .planner-dashboard-root .wo-split .po-side > * { position: relative; z-index: 1; }
+        .planner-dashboard-root .wo-split .po-side-brand {
+          font-weight: 700; font-size: 11.5px; letter-spacing: 1px;
+          text-transform: uppercase; color: #ffb59c;
+        }
+        .planner-dashboard-root .wo-split .po-side-hero h2 {
+          margin: 0; padding: 0; color: #ffffff !important;
+          font-size: 21px; font-weight: 600; line-height: 1.15;
+        }
+        .planner-dashboard-root .wo-split .po-side-hero h1 {
+          margin: 0 0 12px; color: #ffffff;
+          font-size: 38px; font-weight: 700; line-height: 1; letter-spacing: -0.5px;
+        }
+        .planner-dashboard-root .wo-split .po-side-hero p {
+          margin: 0; max-width: 210px; font-size: 12px; line-height: 1.55; color: #c9dde1;
+        }
+        .planner-dashboard-root .wo-split .po-side-foot {
+          color: #ffb59c; font-size: 11px; font-weight: 700;
+          letter-spacing: 0.8px; text-transform: uppercase;
+        }
+        .planner-dashboard-root .wo-split .po-main {
+          flex: 1; min-width: 0; padding: 22px 28px 20px; background: #ffffff;
+        }
+        .planner-dashboard-root .wo-split .po-heading {
+          display: flex; align-items: center; justify-content: space-between; gap: 12px;
+          text-align: left; color: var(--ink);
+          font-size: 17px; font-weight: 700;
+          padding-bottom: 10px; margin-bottom: 14px;
+          border-bottom: 1px solid var(--line);
+        }
+        .planner-dashboard-root .wo-split .wo-panel {
+          background: transparent; border: 0; border-radius: 0;
+          padding: 0; margin: 0 0 6px; box-shadow: none;
+        }
+        .planner-dashboard-root .wo-split .wo-panel-head { margin: 14px 0 8px; }
+        .planner-dashboard-root .wo-split .wo-panel-title {
+          font-size: 13px; font-weight: 700; color: var(--ink);
+          padding-left: 8px; border-left: 3px solid var(--brand);
+        }
+        .planner-dashboard-root .wo-split .wo-info { background: #f7f9fb; }
+        .planner-dashboard-root .wo-split .wo-table-wrap {
+          border: 1px solid var(--line); border-radius: 6px; overflow-x: auto;
+        }
+        .planner-dashboard-root .wo-split .wo-foot {
+          justify-content: center; align-items: center; gap: 10px;
+          margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line);
+        }
+        .planner-dashboard-root .wo-split .wo-foot .wo-btn {
+          min-width: 150px; padding: 10px 18px; font-size: 13px;
+          font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+          border-radius: 6px; justify-content: center;
+        }
+        .planner-dashboard-root .wo-split .wo-foot .wo-btn-ghost {
+          background: #ffffff; color: var(--ink); border: 1px solid var(--field-line);
+        }
+        .planner-dashboard-root .wo-split .wo-foot .wo-btn-ghost:hover {
+          background: var(--page); border-color: var(--teal-mid); color: var(--teal-mid);
+        }
+        .planner-dashboard-root .wo-split .wo-foot .wo-btn-primary {
+          background: var(--brand); border: 1px solid var(--brand); color: #ffffff;
+          box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
+        }
+        .planner-dashboard-root .wo-split .wo-foot .wo-btn-primary:hover {
+          background: var(--brand-dark); border-color: var(--brand-dark);
+        }
+        @media (max-width: 992px) {
+          .planner-dashboard-root .wo-split.po-split { flex-direction: column; }
+          .planner-dashboard-root .wo-split .po-side { flex: none; min-height: 160px; padding: 20px; gap: 14px; }
+          .planner-dashboard-root .wo-split .po-side-hero h1 { font-size: 30px; margin-bottom: 6px; }
+          .planner-dashboard-root .wo-split .po-main { padding: 20px 14px; }
+          .planner-dashboard-root .wo-split .wo-foot .wo-btn { flex: 1; min-width: 0; }
+        }
+      
+        /* ===== PLANNED REGISTRY: section headings + slightly darker column headers ===== */
+        .planner-dashboard-root .pl-section-title {
+          display: flex; align-items: center; gap: 7px;
+          margin: 2px 0 10px; padding-left: 8px;
+          border-left: 3px solid var(--brand);
+          font-size: 13px; font-weight: 700; color: #000000;
+          letter-spacing: 0.2px;
+        }
+        .planner-dashboard-root .pl-section-title i { color: var(--brand); font-size: 14px; }
+        .planner-dashboard-root .pl-filter-grid { padding-top: 0; }
+
+        .planner-dashboard-root .table-modern thead th,
+        .planner-dashboard-root .planned-workorders-table thead th {
+          background: #a9d0d9 !important;
+          color: #000000 !important;
+          font-weight: 700 !important;
+          border: 1px solid #8fbcc7 !important;
+        }
+        .planner-dashboard-root .wo-table th {
+          background: #a9d0d9;
+          color: #000000;
+          font-weight: 700;
+          border-bottom: 1px solid #8fbcc7;
+        }
       `}</style>
 
       <div className="planner-container-3d">
-        {/* ========================================================================= */}
-        {/* 1. TOP HEADER (Dead Center Title & Quick-Nav Tabs)                        */}
-        {/* ========================================================================= */}
-        {/* <div className="text-center mb-3">
-          <h1 className="fw-bold m-0" style={{ color: "#064c73", letterSpacing: "-0.5px" }}>
-            Planner Dashboard
-          </h1>
-          <p className="text-muted small mt-1 mb-0">Production Planning &amp; Work Order Orchestration System</p>
-        </div> */}
-
         {/* QUICK-NAV TABS */}
         <div className="quick-nav">
           <div className="quick-nav-group shadow-sm">
@@ -2950,7 +3452,7 @@ function PlannerDashboard() {
             </button>
           </div>
 
-          <button type="button" onClick={cust} className="btn-3d btn-3d-primary">
+          <button type="button" onClick={cust} className="btn-3d btn-3d-primary quick-nav-cta">
             <Icons.Cart /> Purchase Order Entry
           </button>
         </div>
@@ -2977,22 +3479,24 @@ function PlannerDashboard() {
 
             {/* WO Search Box */}
             <div className="bg-white p-3 rounded-3 border mb-4 shadow-sm" style={{ borderColor: "#b8d9eb" }}>
-              <label className="form-label small fw-bold text-dark mb-2">
-                Work Order Number
-              </label>
               <div className="d-flex align-items-center gap-3 flex-wrap">
-                <input
-                  type="text"
-                  placeholder="Enter WO Number (e.g. 10452)"
-                  className="input-3d"
-                  style={{ maxWidth: "300px", height: "40px", fontWeight: "600" }}
-                  value={outerLabelWoInput}
-                  onChange={(e) => setOuterLabelWoInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleFetchWoForLabel()}
-                />
+                <PoField
+                  style={{ width: "300px", maxWidth: "100%" }}
+                  icon="bi-hash"
+                  label="Work Order Number"
+                  filled={has(outerLabelWoInput)}
+                >
+                  <input
+                    type="text"
+                    className="po-input"
+                    value={outerLabelWoInput}
+                    onChange={(e) => setOuterLabelWoInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleFetchWoForLabel()}
+                  />
+                </PoField>
                 <button
                   className="btn-3d btn-3d-primary"
-                  style={{ height: "40px", padding: "0 22px" }}
+                  style={{ height: "38px", padding: "0 22px" }}
                   onClick={handleFetchWoForLabel}
                   disabled={outerLabelLoading}
                 >
@@ -3042,14 +3546,16 @@ function PlannerDashboard() {
                   </h6>
 
                   <div className="row g-3 align-items-start">
-                    <div className="col-md-3">
-                      <label className="form-label small fw-bold text-dark d-block mb-1">
-                        Packaging Unit
-                      </label>
+                    <PoField
+                      className="col-md-3"
+                      icon="bi-box-seam"
+                      label="Packaging Unit"
+                      alwaysFloat
+                      caret
+                    >
                       <select
                         name="unitType"
-                        className="input-3d w-100"
-                        style={{ height: "40px", fontWeight: "600" }}
+                        className="po-input"
                         value={outerLabelForm.unitType}
                         onChange={handleOuterLabelFormChange}
                       >
@@ -3057,30 +3563,33 @@ function PlannerDashboard() {
                         <option value="each">Each</option>
                         <option value="sheet">Sheets</option>
                       </select>
-                    </div>
+                    </PoField>
 
-                    <div className="col-md-4">
-                      <label className="form-label small fw-bold text-dark d-block mb-1">
-                        Quantity in Box
-                      </label>
+                    <PoField
+                      className="col-md-4"
+                      icon="bi-123"
+                      label="Quantity in Box"
+                      filled={has(outerLabelForm.boxQty)}
+                    >
                       <input
                         type="number"
                         name="boxQty"
-                        className="input-3d w-100"
-                        style={{ height: "40px", fontWeight: "600" }}
+                        className="po-input"
                         value={outerLabelForm.boxQty}
                         onChange={handleOuterLabelFormChange}
                         min="0"
                       />
-                    </div>
+                    </PoField>
 
-                    <div className="col-md-5">
-                      <label className="form-label small fw-bold text-dark d-block mb-1">
-                        Delivery Destination
-                      </label>
+                    <PoField
+                      className="col-md-5"
+                      icon="bi-geo-alt"
+                      label="Delivery Destination"
+                      alwaysFloat
+                      caret
+                    >
                       <select
-                        className="input-3d w-100"
-                        style={{ height: "40px", fontWeight: "600" }}
+                        className="po-input"
                         value={outerLabelLocationId}
                         onChange={handleOuterLabelLocationChange}
                       >
@@ -3091,21 +3600,24 @@ function PlannerDashboard() {
                           </option>
                         ))}
                       </select>
-                    </div>
+                    </PoField>
 
-                    <div className="col-12">
-                      <label className="form-label small fw-bold text-dark d-block mb-1">
-                        Dispatch Location &amp; Address
-                      </label>
+                    <PoField
+                      className="col-12"
+                      icon="bi-truck"
+                      label="Dispatch Location & Address"
+                      area
+                      filled={has(outerLabelForm.dispatchLocation)}
+                    >
                       <textarea
                         name="dispatchLocation"
-                        className="input-3d w-100"
-                        style={{ borderRadius: "8px", fontWeight: "600", resize: "none", height: "85px" }}
+                        className="po-input"
+                        style={{ resize: "none", height: "80px" }}
                         rows={2}
                         value={outerLabelForm.dispatchLocation}
                         onChange={handleOuterLabelFormChange}
                       />
-                    </div>
+                    </PoField>
                   </div>
 
                   {/* Read-Only Preview */}
@@ -3165,22 +3677,28 @@ function PlannerDashboard() {
 
                   {/* Filter by Product Type */}
                   <div className="d-flex align-items-center gap-2">
-                    <span className="small fw-bold text-muted">Product Type:</span>
-                    <select
-                      className="input-3d"
-                      style={{ width: "190px", fontSize: "12px" }}
-                      value={productTypeFilter}
-                      onChange={(e) => setProductTypeFilter(e.target.value)}
+                    <PoField
+                      style={{ width: "220px" }}
+                      icon="bi-tag"
+                      label="Product Type"
+                      alwaysFloat
+                      caret
                     >
-                      <option value="">All Types</option>
-                      {productTypeOptions.map((type, i) => (
-                        <option key={i} value={type}>{type}</option>
-                      ))}
-                    </select>
+                      <select
+                        className="po-input"
+                        value={productTypeFilter}
+                        onChange={(e) => setProductTypeFilter(e.target.value)}
+                      >
+                        <option value="">All Types</option>
+                        {productTypeOptions.map((type, i) => (
+                          <option key={i} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </PoField>
                     {productTypeFilter && (
                       <button
                         className="btn-3d btn-3d-secondary btn-sm"
-                        style={{ padding: "4px 10px", fontSize: "11px" }}
+                        style={{ height: "38px", padding: "0 12px", fontSize: "12px" }}
                         onClick={() => setProductTypeFilter("")}
                       >
                         <Icons.Reset /> Clear
@@ -3266,22 +3784,28 @@ function PlannerDashboard() {
                   </h5>
 
                   <div className="d-flex align-items-center gap-2">
-                    <span className="small fw-bold text-muted">Product Type:</span>
-                    <select
-                      className="input-3d"
-                      style={{ width: "190px", fontSize: "12px" }}
-                      value={printingTypeFilter}
-                      onChange={(e) => setPrintingTypeFilter(e.target.value)}
+                    <PoField
+                      style={{ width: "220px" }}
+                      icon="bi-tag"
+                      label="Product Type"
+                      alwaysFloat
+                      caret
                     >
-                      <option value="">All Types</option>
-                      {printingTypeOptions.map((type, i) => (
-                        <option key={i} value={type}>{type}</option>
-                      ))}
-                    </select>
+                      <select
+                        className="po-input"
+                        value={printingTypeFilter}
+                        onChange={(e) => setPrintingTypeFilter(e.target.value)}
+                      >
+                        <option value="">All Types</option>
+                        {printingTypeOptions.map((type, i) => (
+                          <option key={i} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </PoField>
                     {printingTypeFilter && (
                       <button
                         className="btn-3d btn-3d-secondary btn-sm"
-                        style={{ padding: "4px 10px", fontSize: "11px" }}
+                        style={{ height: "38px", padding: "0 12px", fontSize: "12px" }}
                         onClick={() => setPrintingTypeFilter("")}
                       >
                         <Icons.Reset /> Clear
@@ -3381,21 +3905,34 @@ function PlannerDashboard() {
             )}
 
             {/* ========================================================================= */}
-            {/* 4. WORK ORDER FORM (Plan / Edit) — compact frosted-glass design           */}
+            {/* 4. WORK ORDER FORM (Plan / Edit)                                          */}
             {/* ========================================================================= */}
             {selectedOrder && (
-              <div ref={formRef} className="wo-glass my-3">
-                {/* Header */}
-                <div className="wo-head">
-                  <div className="wo-head-left">
-                    <div className="wo-icon"><Icons.Layers /></div>
-                    <div>
-                      <h5 className="wo-title">
-                        {selectedOrder.status === "PLANNED" ? "Edit Work Order" : "Create Work Order"}
-                      </h5>
-                      <span className="wo-sub">Specifications, paper allocation &amp; impressions</span>
-                    </div>
+              <div ref={formRef} className="wo-glass po-split wo-split my-3">
+                {/* Left info panel */}
+                <div className="po-side">
+                  <div className="po-side-brand">Work Order</div>
+
+                  <div className="po-side-hero">
+                    <h2>Let's Plan</h2>
+                    <h1>{selectedOrder.status === "PLANNED" ? "Update" : "Started"}</h1>
+                    <p>
+                      Review the order details, set waste and priority, then add
+                      activity, machine and paper entries to build the work order.
+                    </p>
                   </div>
+
+                  <div className="po-side-foot">
+                    {selectedOrder.status === "PLANNED" ? "Updating Work Order" : "New Work Order"}
+                  </div>
+                </div>
+
+                {/* Right form panel */}
+                <div className="po-main">
+                <div className="po-heading wo-heading-row">
+                  <span>
+                    {selectedOrder.status === "PLANNED" ? "Edit Work Order" : "Create Work Order"}
+                  </span>
                   <span className={`wo-pill ${selectedOrder.status === "PLANNED" ? "wo-pill-amber" : "wo-pill-blue"}`}>
                     {selectedOrder.status === "PLANNED" ? "Planned" : "New"}
                   </span>
@@ -3463,26 +4000,40 @@ function PlannerDashboard() {
 
                   {/* Inputs: waste, priority, remarks, activities sign-off */}
                   <div className="wo-panel">
+                    <div className="wo-panel-head">
+                      <span className="wo-panel-title">Planning inputs</span>
+                    </div>
                     <div className="wo-fields">
-                      <div className="wo-field fs-2">
-                        <label>Waste % <i>*</i></label>
+                      <PoField
+                        className="wo-field fs-2"
+                        icon="bi-percent"
+                        label="Waste %"
+                        required
+                        filled={has(workOrderForm.wasteQty)}
+                      >
                         <input
                           type="text"
                           name="wasteQty"
                           value={workOrderForm.wasteQty}
                           onChange={handleFormChange}
-                          className="wo-input"
+                          className="po-input"
                           required
                         />
-                      </div>
+                      </PoField>
 
-                      <div className="wo-field fs-3">
-                        <label>Priority <i>*</i></label>
+                      <PoField
+                        className="wo-field fs-3"
+                        icon="bi-flag"
+                        label="Priority"
+                        required
+                        alwaysFloat
+                        caret
+                      >
                         <select
                           name="priority"
                           value={workOrderForm.priority}
                           onChange={handleFormChange}
-                          className="wo-input"
+                          className="po-input"
                           required
                         >
                           <option value="">Select priority</option>
@@ -3490,74 +4041,79 @@ function PlannerDashboard() {
                             <option key={p._id} value={p.name}>{p.name}</option>
                           ))}
                         </select>
-                      </div>
+                      </PoField>
 
-                      <div className="wo-field fs-3">
-                        <label>Remarks</label>
+                      <PoField
+                        className="wo-field fs-3"
+                        icon="bi-chat-left-text"
+                        label="Remarks"
+                        filled={has(workOrderForm.remarks)}
+                      >
                         <input
                           type="text"
                           name="remarks"
                           value={workOrderForm.remarks}
                           onChange={handleFormChange}
-                          placeholder="Instructions for operators"
-                          className="wo-input"
+                          className="po-input"
                         />
-                      </div>
+                      </PoField>
 
-                      <div className="wo-field fs-4">
-                        <label>Activities sign-off order</label>
-                        <div style={{ position: "relative" }}>
-                          <button
-                            type="button"
-                            className="wo-input wo-select-btn"
-                            onClick={() => setShowActivity2Dropdown(prev => !prev)}
-                          >
-                            <span className="wo-ellipsis">
-                              {activity2.length > 0
-                                ? activity2
-                                    .map((id, idx) => {
-                                      const act = activities.find(a => a._id === id);
-                                      return `${idx + 1}. ${act?.activityName || "-"}`;
-                                    })
-                                    .join(", ")
-                                : "Select activities"}
-                            </span>
-                            <span style={{ fontSize: "9px", color: "#6b7b8e" }}>{showActivity2Dropdown ? "▲" : "▼"}</span>
-                          </button>
+                      <PoField
+                        className="wo-field fs-4"
+                        icon="bi-list-check"
+                        label="Activities Sign-off Order"
+                        alwaysFloat
+                        caret
+                      >
+                        <button
+                          type="button"
+                          className="po-input"
+                          onClick={() => setShowActivity2Dropdown(prev => !prev)}
+                        >
+                          <span className="wo-ellipsis">
+                            {activity2.length > 0
+                              ? activity2
+                                  .map((id, idx) => {
+                                    const act = activities.find(a => a._id === id);
+                                    return `${idx + 1}. ${act?.activityName || "-"}`;
+                                  })
+                                  .join(", ")
+                              : "Select activities"}
+                          </span>
+                        </button>
 
-                          {showActivity2Dropdown && (
-                            <div className="wo-dd">
-                              {activities.length === 0 ? (
-                                <div className="wo-dd-empty">No activities found</div>
-                              ) : (
-                                activities.map((a) => {
-                                  const selectedIndex = activity2.indexOf(a._id);
-                                  const isSelected = selectedIndex !== -1;
-                                  return (
-                                    <label
-                                      key={a._id}
-                                      className={`wo-dd-item ${isSelected ? "sel" : ""}`}
-                                    >
-                                      <span className="d-flex align-items-center gap-2">
-                                        {isSelected && (
-                                          <span className="wo-badge-num">{selectedIndex + 1}</span>
-                                        )}
-                                        <span>{a.activityName}</span>
-                                      </span>
-                                      <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={() => handleActivity2Toggle(a._id)}
-                                        style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#3b6fa8" }}
-                                      />
-                                    </label>
-                                  );
-                                })
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        {showActivity2Dropdown && (
+                          <div className="wo-dd">
+                            {activities.length === 0 ? (
+                              <div className="wo-dd-empty">No activities found</div>
+                            ) : (
+                              activities.map((a) => {
+                                const selectedIndex = activity2.indexOf(a._id);
+                                const isSelected = selectedIndex !== -1;
+                                return (
+                                  <label
+                                    key={a._id}
+                                    className={`wo-dd-item ${isSelected ? "sel" : ""}`}
+                                  >
+                                    <span className="d-flex align-items-center gap-2">
+                                      {isSelected && (
+                                        <span className="wo-badge-num">{selectedIndex + 1}</span>
+                                      )}
+                                      <span>{a.activityName}</span>
+                                    </span>
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => handleActivity2Toggle(a._id)}
+                                      style={{ width: "15px", height: "15px", cursor: "pointer", accentColor: "#e4572e" }}
+                                    />
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </PoField>
                     </div>
                   </div>
 
@@ -3716,11 +4272,12 @@ function PlannerDashboard() {
                     </button>
                   </div>
                 </form>
+                </div>
               </div>
             )}
 
             {/* ========================================================================= */}
-            {/* 5. MODAL: ACTIVITY / MACHINE / PAPER (rendered outside the glass card)    */}
+            {/* 5. MODAL: ACTIVITY / MACHINE / PAPER                                      */}
             {/* ========================================================================= */}
             {selectedOrder && showRowModal && editingRowIndex !== null && workRows[editingRowIndex] && (() => {
               const r = workRows[editingRowIndex];
@@ -3737,7 +4294,6 @@ function PlannerDashboard() {
                         <div className="wo-icon"><Icons.Layers /></div>
                         <div>
                           <h5 className="wo-title">Activity &amp; paper</h5>
-                        
                         </div>
                       </div>
                       <button type="button" className="wo-close" onClick={handleCancelRowModal} aria-label="Close">
@@ -3751,10 +4307,16 @@ function PlannerDashboard() {
                         <span className="wo-panel-title">Activity &amp; machine</span>
                       </div>
                       <div className="wo-modal-grid">
-                        <div className="wo-field s2">
-                          <label>Activity <i>*</i></label>
+                        <PoField
+                          className="wo-field s2"
+                          icon="bi-diagram-3"
+                          label="Activity"
+                          required
+                          alwaysFloat
+                          caret
+                        >
                           <select
-                            className="wo-input"
+                            className="po-input"
                             value={r.activityId}
                             onChange={(e) => handleActivityChange(editingRowIndex, e.target.value)}
                             required
@@ -3764,12 +4326,18 @@ function PlannerDashboard() {
                               <option key={a._id} value={a._id}>{a.activityName}</option>
                             ))}
                           </select>
-                        </div>
+                        </PoField>
 
-                        <div className="wo-field s2">
-                          <label>Machine <i>*</i></label>
+                        <PoField
+                          className="wo-field s2"
+                          icon="bi-cpu"
+                          label="Machine"
+                          required
+                          alwaysFloat
+                          caret
+                        >
                           <select
-                            className="wo-input"
+                            className="po-input"
                             value={r.machineId}
                             onChange={(e) => handleMachineChangeForPair(editingRowIndex, e.target.value)}
                             disabled={!r.activityId}
@@ -3780,47 +4348,61 @@ function PlannerDashboard() {
                               <option key={m._id} value={m._id}>{m.machineName}</option>
                             ))}
                           </select>
-                        </div>
+                        </PoField>
 
-                        <div className="wo-field s2">
-                          <label>UPS <i>*</i></label>
+                        <PoField
+                          className="wo-field s2"
+                          icon="bi-grid-3x3-gap"
+                          label="UPS"
+                          required
+                          filled={has(r.UPS)}
+                        >
                           <input
                             type="text"
-                            className="wo-input wo-accent"
+                            className="po-input"
                             style={{ fontWeight: 700 }}
                             value={r.UPS}
                             onChange={(e) => handleRowUpsChange(editingRowIndex, e.target.value)}
                             required
                           />
-                        </div>
+                        </PoField>
 
                         {isOffset && (
-                          <div className="wo-field s2">
-                            <label>Inches <i>*</i></label>
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-rulers"
+                            label="Inches"
+                            required
+                            filled={has(r.inches)}
+                          >
                             <input
                               type="text"
-                              className="wo-input"
+                              className="po-input"
                               value={r.inches}
                               onChange={(e) => handlePairInchesChange(editingRowIndex, e.target.value)}
                               required
                             />
-                          </div>
+                          </PoField>
                         )}
 
                         {isSheetfed && (
                           <>
-                            <div className="wo-field s2">
-                              <label>Slit number <i>*</i></label>
+                            <PoField
+                              className="wo-field s2"
+                              icon="bi-scissors"
+                              label="Slit Number"
+                              required
+                              filled={has(r.slitNumber)}
+                            >
                               <input
                                 type="text"
-                                className="wo-input"
+                                className="po-input"
                                 value={r.slitNumber}
                                 onChange={(e) => handlePairSlitChange(editingRowIndex, e.target.value)}
                                 required
                               />
-                            </div>
+                            </PoField>
                             <div className="wo-field s2">
-                              <label>Perfecting</label>
                               <label className="wo-check" htmlFor={`rowPerfecting-${editingRowIndex}`}>
                                 <input
                                   type="checkbox"
@@ -3835,7 +4417,6 @@ function PlannerDashboard() {
                         )}
 
                         <div className="wo-field s2">
-                          <label>Booklet option</label>
                           <label className="wo-check" htmlFor={`rowBooklet-${editingRowIndex}`}>
                             <input
                               type="checkbox"
@@ -3849,25 +4430,34 @@ function PlannerDashboard() {
 
                         {r.isBooklet && (
                           <>
-                            <div className="wo-field s2">
-                              <label>Pages <i>*</i></label>
+                            <PoField
+                              className="wo-field s2"
+                              icon="bi-file-earmark-text"
+                              label="Pages"
+                              required
+                              filled={has(r.pages)}
+                            >
                               <input
                                 type="text"
-                                className="wo-input"
+                                className="po-input"
                                 value={r.pages}
                                 onChange={(e) => handleRowPagesChange(editingRowIndex, e.target.value)}
                                 required
                               />
-                            </div>
-                            <div className="wo-field s2">
-                              <label>Component</label>
+                            </PoField>
+                            <PoField
+                              className="wo-field s2"
+                              icon="bi-puzzle"
+                              label="Component"
+                              filled={has(r.component)}
+                            >
                               <input
                                 type="text"
-                                className="wo-input"
+                                className="po-input"
                                 value={r.component}
                                 onChange={(e) => handleRowComponentChange(editingRowIndex, e.target.value)}
                               />
-                            </div>
+                            </PoField>
                           </>
                         )}
                       </div>
@@ -3880,11 +4470,16 @@ function PlannerDashboard() {
                           <span className="wo-panel-title">Paper material</span>
                         </div>
                         <div className="wo-modal-grid">
-                          <div className="wo-field s2">
-                            <label>Paper code <i>*</i></label>
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-upc-scan"
+                            label="Paper Code"
+                            required
+                            filled={has(r.materialCode)}
+                          >
                             <input
                               type="text"
-                              className="wo-input"
+                              className="po-input"
                               style={{ fontWeight: 700 }}
                               value={r.materialCode}
                               onChange={(e) => handleMaterialChange(editingRowIndex, "materialCode", e.target.value)}
@@ -3896,34 +4491,74 @@ function PlannerDashboard() {
                               }}
                               required
                             />
-                          </div>
-                          <div className="wo-field s4">
-                            <label>Description</label>
-                            <div className="wo-ro" title={r.materialDescription}>{r.materialDescription || "-"}</div>
-                          </div>
+                          </PoField>
 
-                          <div className="wo-field s2">
-                            <label>Group desc</label>
-                            <div className="wo-ro" title={r.materialGroupDescription}>{r.materialGroupDescription || "-"}</div>
-                          </div>
-                          <div className="wo-field s2">
-                            <label>Mill name</label>
-                            <div className="wo-ro">{r.mill || "-"}</div>
-                          </div>
-                          <div className="wo-field s2">
-                            <label>Paper size</label>
-                            <div className="wo-ro">{r.paperSize || "-"}</div>
-                          </div>
+                          <PoField
+                            className="wo-field s4"
+                            icon="bi-card-text"
+                            label="Description"
+                            alwaysFloat
+                          >
+                            <input
+                              className="po-input"
+                              value={r.materialDescription || "-"}
+                              title={r.materialDescription}
+                              readOnly
+                            />
+                          </PoField>
 
-                          <div className="wo-field s2">
-                            <label>GSM</label>
-                            <div className="wo-ro">{r.gsm || "-"}</div>
-                          </div>
-                          <div className="wo-field s2">
-                            <label className="wo-paper-qty">Paper qty <i>*</i></label>
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-collection"
+                            label="Group Desc"
+                            alwaysFloat
+                          >
+                            <input
+                              className="po-input"
+                              value={r.materialGroupDescription || "-"}
+                              title={r.materialGroupDescription}
+                              readOnly
+                            />
+                          </PoField>
+
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-building"
+                            label="Mill Name"
+                            alwaysFloat
+                          >
+                            <input className="po-input" value={r.mill || "-"} readOnly />
+                          </PoField>
+
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-aspect-ratio"
+                            label="Paper Size"
+                            alwaysFloat
+                          >
+                            <input className="po-input" value={r.paperSize || "-"} readOnly />
+                          </PoField>
+
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-speedometer2"
+                            label="GSM"
+                            alwaysFloat
+                          >
+                            <input className="po-input" value={r.gsm || "-"} readOnly />
+                          </PoField>
+
+                          <PoField
+                            className="wo-field s2"
+                            icon="bi-stack"
+                            label="Paper Qty"
+                            labelClass="wo-paper-qty"
+                            required
+                            filled={has(r.paperQty)}
+                          >
                             <input
                               type="number"
-                              className="wo-input wo-paper-qty"
+                              className="po-input wo-paper-qty"
                               style={{ fontWeight: 700 }}
                               value={r.paperQty}
                               onChange={(e) => handleMaterialChange(editingRowIndex, "paperQty", e.target.value)}
@@ -3936,7 +4571,7 @@ function PlannerDashboard() {
                               }}
                               required
                             />
-                          </div>
+                          </PoField>
                         </div>
                       </div>
                     )}
@@ -3988,9 +4623,10 @@ function PlannerDashboard() {
                   <small className="text-muted">Master production registry &amp; document dispatch hub</small>
                 </div>
 
-                {/* 3D Action & Filter Toolbar */}
+                {/* Action & Filter Toolbar */}
                 <div className="premium-toolbar">
                   {/* Top Action Buttons */}
+                  <div className="pl-section-title"><i className="bi bi-download" /> Downloads &amp; Documents</div>
                   <div className="d-flex flex-wrap align-items-center gap-2 mb-3 pb-3 border-bottom">
                     <button className="btn-3d btn-3d-success" onClick={downloadExcel}>
                       <Icons.Excel /> Download Excel
@@ -4010,86 +4646,85 @@ function PlannerDashboard() {
                   </div>
 
                   {/* Bottom Filters */}
-                  <div className="d-flex flex-wrap align-items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="🔍 Search WO Number"
-                      value={filterWoNo}
-                      onChange={(e) => setFilterWoNo(e.target.value)}
-                      className="premium-select"
-                      style={{ height: "36px", minWidth: "160px" }}
-                    />
+                  <div className="pl-section-title"><i className="bi bi-funnel" /> Filter Work Orders</div>
+                  <div className="pl-filter-grid">
+                    <PoField icon="bi-search" label="WO Number" filled={has(filterWoNo)}>
+                      <input
+                        type="text"
+                        className="po-input"
+                        value={filterWoNo}
+                        onChange={(e) => setFilterWoNo(e.target.value)}
+                      />
+                    </PoField>
 
-                    <input
-                      type="text"
-                      placeholder="🔍 Product Code"
-                      value={filterProductCode}
-                      onChange={(e) => setFilterProductCode(e.target.value)}
-                      className="premium-select"
-                      style={{ height: "36px", minWidth: "150px" }}
-                    />
+                    <PoField icon="bi-upc-scan" label="Product Code" filled={has(filterProductCode)}>
+                      <input
+                        type="text"
+                        className="po-input"
+                        value={filterProductCode}
+                        onChange={(e) => setFilterProductCode(e.target.value)}
+                      />
+                    </PoField>
 
-                    <select
-                      value={filterMachine}
-                      onChange={(e) => setFilterMachine(e.target.value)}
-                      className="premium-select"
-                      style={{ height: "36px" }}
-                    >
-                      <option value="">All Machines</option>
-                      {machines.map(m => (
-                        <option key={m._id} value={m._id}>{m.machineName}</option>
-                      ))}
-                    </select>
+                    <PoField icon="bi-cpu" label="Machine" alwaysFloat caret>
+                      <select
+                        className="po-input"
+                        value={filterMachine}
+                        onChange={(e) => setFilterMachine(e.target.value)}
+                      >
+                        <option value="">All Machines</option>
+                        {machines.map(m => (
+                          <option key={m._id} value={m._id}>{m.machineName}</option>
+                        ))}
+                      </select>
+                    </PoField>
 
-                    <select
-                      value={filterCustomer}
-                      onChange={(e) => setFilterCustomer(e.target.value)}
-                      className="premium-select"
-                      style={{ height: "36px", maxWidth: "200px" }}
-                    >
-                      <option value="">All Customers</option>
-                      {customerOptions.map((c, index) => (
-                        <option key={index} value={c}>{c}</option>
-                      ))}
-                    </select>
+                    <PoField icon="bi-person" label="Customer" alwaysFloat caret>
+                      <select
+                        className="po-input"
+                        value={filterCustomer}
+                        onChange={(e) => setFilterCustomer(e.target.value)}
+                      >
+                        <option value="">All Customers</option>
+                        {customerOptions.map((c, index) => (
+                          <option key={index} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </PoField>
 
-                    <select
-                      value={filterUserLocation}
-                      onChange={(e) => setFilterUserLocation(e.target.value)}
-                      className="premium-select"
-                      style={{ height: "36px" }}
-                    >
-                      <option value="">User Locations</option>
-                      {[...new Set(workOrders.flatMap(wo => wo.userLocations || []))].map(loc => (
-                        <option key={loc} value={loc}>{loc}</option>
-                      ))}
-                    </select>
+                    <PoField icon="bi-geo-alt" label="User Location" alwaysFloat caret>
+                      <select
+                        className="po-input"
+                        value={filterUserLocation}
+                        onChange={(e) => setFilterUserLocation(e.target.value)}
+                      >
+                        <option value="">User Locations</option>
+                        {[...new Set(workOrders.flatMap(wo => wo.userLocations || []))].map(loc => (
+                          <option key={loc} value={loc}>{loc}</option>
+                        ))}
+                      </select>
+                    </PoField>
 
-                    <div className="d-flex align-items-center gap-1">
-                      <span className="small text-muted fw-bold">From:</span>
+                    <PoField icon="bi-calendar-event" label="From Date" alwaysFloat>
                       <input
                         type="date"
+                        className="po-input"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
-                        className="premium-date"
-                        style={{ height: "36px" }}
                       />
-                    </div>
+                    </PoField>
 
-                    <div className="d-flex align-items-center gap-1">
-                      <span className="small text-muted fw-bold">To:</span>
+                    <PoField icon="bi-calendar-check" label="To Date" alwaysFloat>
                       <input
                         type="date"
+                        className="po-input"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
-                        className="premium-date"
-                        style={{ height: "36px" }}
                       />
-                    </div>
+                    </PoField>
 
                     <button
                       className="clear-btn"
-                      style={{ height: "36px" }}
                       onClick={() => {
                         setFilterCustomer("");
                         setFilterWoNo("");

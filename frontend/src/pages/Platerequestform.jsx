@@ -100,7 +100,7 @@ function PlateRequestForm() {
 
   const truncCellStyle = (key) =>
     expandedCellKey === key
-      ? { maxWidth: 260, whiteSpace: "normal", wordBreak: "break-word", cursor: "pointer", background: "#eef8fc" }
+      ? { maxWidth: 260, whiteSpace: "normal", wordBreak: "break-word", cursor: "pointer", background: "#f1f7f8" }
       : { maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" };
 
   useEffect(() => {
@@ -113,7 +113,7 @@ function PlateRequestForm() {
         title: "Missing Work Order",
         text: "Please enter a valid Work Order number.",
         icon: "warning",
-        confirmButtonColor: "#0284c7",
+        confirmButtonColor: "#043a45",
         width: "360px"
       });
       return;
@@ -134,7 +134,7 @@ function PlateRequestForm() {
         title: "Work Order Not Found",
         text: err.response?.data?.message || `No work order found with number ${woNumber}`,
         icon: "error",
-        confirmButtonColor: "#0284c7",
+        confirmButtonColor: "#043a45",
         width: "360px"
       });
     }
@@ -233,7 +233,7 @@ function PlateRequestForm() {
         title: "Missing Work Order",
         text: "Please fetch a Work Order first before submitting.",
         icon: "warning",
-        confirmButtonColor: "#0284c7",
+        confirmButtonColor: "#043a45",
         width: "360px"
       });
       return;
@@ -244,7 +244,7 @@ function PlateRequestForm() {
         title: "Select Allocation",
         text: "Please select both an Activity and a Machine.",
         icon: "warning",
-        confirmButtonColor: "#0284c7",
+        confirmButtonColor: "#043a45",
         width: "360px"
       });
       return;
@@ -267,7 +267,7 @@ function PlateRequestForm() {
         title: "Sent to Prepress ✅",
         text: "Your plate request has been submitted for approval.",
         icon: "success",
-        confirmButtonColor: "#10b981",
+        confirmButtonColor: "#e4572e",
         width: "360px"
       });
 
@@ -279,7 +279,7 @@ function PlateRequestForm() {
         title: "Submission Error",
         text: err.response?.data?.message || "Error creating plate request",
         icon: "error",
-        confirmButtonColor: "#ef4444",
+        confirmButtonColor: "#e4572e",
         width: "360px"
       });
     }
@@ -288,7 +288,7 @@ function PlateRequestForm() {
 
   const exportToExcel = () => {
     if (!displayedRequests.length) {
-      Swal.fire({ title: "No Data", text: "No requests to export", icon: "info", confirmButtonColor: "#0284c7" });
+      Swal.fire({ title: "No Data", text: "No requests to export", icon: "info", confirmButtonColor: "#043a45" });
       return;
     }
 
@@ -320,184 +320,158 @@ function PlateRequestForm() {
       {/* 💅 LIGHT AQUA-GLASS DESIGN (scoped, no external CSS needed)               */}
       {/* ========================================================================= */}
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
         .pr-root {
-          --ink: #0b2f4f; --muted: #4a6f8c; --hint: #8fb0c8;
+          --ink: #1f2d3a; --muted: #5f6c7a; --hint: #9aa5b1;
+          --teal: #043a45; --teal-2: #0f6b7c; --orange: #e4572e; --orange-d: #cf4a22;
+          --line: #dfe4e9; --bg: #f3f5f7;
           min-height: 100vh;
-          padding: 12px 18px 30px;
-          font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
-          font-size: 15px;
+          padding: 20px 24px 32px;
+          font-family: 'Source Sans 3', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+          font-size: 14px;
           color: var(--ink);
-          background:
-            radial-gradient(circle at 12% 6%, rgba(255,255,255,0.9) 0, rgba(255,255,255,0) 30%),
-            radial-gradient(circle at 88% 18%, rgba(160,222,250,0.7) 0, rgba(160,222,250,0) 32%),
-            radial-gradient(circle at 50% 100%, rgba(255,255,255,0.7) 0, rgba(255,255,255,0) 45%),
-            linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-          background-attachment: fixed;
+          background: var(--bg);
+          -webkit-font-smoothing: antialiased;
         }
         .pr-root * { box-sizing: border-box; }
         .pr-shell { max-width: 100%; margin: 0 auto; }
 
-        /* Glass header with round emblem */
+        /* Header (unused block kept for compatibility) */
         .pr-hero {
           display: flex; align-items: center; justify-content: center; gap: 14px;
-          margin-bottom: 12px; padding: 9px 22px; border-radius: 28px;
-          background: linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(222,244,254,0.8) 100%);
-          border: 1px solid rgba(255,255,255,0.95); backdrop-filter: blur(14px);
-          box-shadow: 0 14px 30px rgba(40,120,170,0.18), inset 0 1px 0 #fff, inset 0 -10px 22px rgba(140,210,245,0.2);
+          margin-bottom: 12px; padding: 12px 22px; border-radius: 6px;
+          background: #fff; border: 1px solid var(--line);
         }
-        .pr-emblem {
-          width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0a6fb8;
-          background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
-          border: 1px solid #86c6e8; box-shadow: 0 6px 14px rgba(40,120,170,0.22), inset 0 2px 3px rgba(255,255,255,0.9);
-        }
-        .pr-hero h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
-        .pr-hero p { margin: 1px 0 0; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+        .pr-emblem { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--teal-2); background: #e6f1f3; }
+        .pr-hero h1 { margin: 0; font-size: 20px; font-weight: 700; color: var(--ink); }
+        .pr-hero p { margin: 1px 0 0; font-size: 13px; font-weight: 500; color: var(--muted); }
 
-        /* Glass cards */
+        /* Cards */
         .pr-glass {
-          background: linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(228,246,255,0.9) 100%);
-          border: 1px solid rgba(255,255,255,0.95); border-radius: 22px;
-          padding: 12px 18px 16px; margin-bottom: 14px;
-          box-shadow: 0 14px 32px rgba(40,120,170,0.16), inset 0 1px 0 #fff;
+          background: #fff; border: 1px solid var(--line); border-radius: 6px;
+          padding: 20px 24px 24px; margin-bottom: 20px;
+          box-shadow: 0 1px 2px rgba(16,40,56,0.05);
         }
-        .pr-head { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 2px 10px; text-align: center; }
-        .pr-head-left { display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .pr-head { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 0 0 14px; text-align: left; }
+        .pr-head-left { display: flex; align-items: center; gap: 12px; }
         .pr-icon {
-          width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #0a6fb8;
-          background: radial-gradient(circle at 30% 25%, #ffffff 0%, #d6effc 55%, #b3dff5 100%);
-          border: 1px solid #a9d9f2; box-shadow: 0 3px 8px rgba(40,120,170,0.14);
+          width: 34px; height: 34px; border-radius: 6px; display: flex; align-items: center; justify-content: center;
+          color: var(--teal-2); background: #e6f1f3; border: 0;
         }
-        .pr-title { margin: 0; font-size: 17px; font-weight: 800; color: #0a4f8c; align-self: center; letter-spacing: -0.3px; }
-        .pr-sub { font-size: 13px; font-weight: 600; color: var(--muted); }
+        .pr-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); letter-spacing: 0; }
+        .pr-sub { font-size: 13px; font-weight: 400; color: var(--muted); }
         .pr-pill {
-          font-size: 12px; font-weight: 800; padding: 4px 14px; border-radius: 999px; color: #0a4f8c; letter-spacing: 0.3px;
-          background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%); border: 1px solid #a9d9f2;
-          box-shadow: 0 3px 8px rgba(40,120,170,0.12), inset 0 1px 0 #fff;
+          font-size: 12px; font-weight: 600; padding: 3px 12px; border-radius: 999px; color: var(--muted);
+          background: #fff; border: 1px solid var(--line);
         }
 
-        /* section labels inside the form */
+        /* Section labels */
         .pr-sec {
-          display: inline-flex; align-items: center; gap: 9px; margin: 0 0 8px 2px;
-          font-size: 12.5px; font-weight: 800; color: #0a4f8c; text-transform: uppercase; letter-spacing: 0.7px;
+          display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+          font-size: 15px; font-weight: 700; color: var(--ink); text-transform: none; letter-spacing: 0;
         }
-        .pr-sec::before {
-          content: ""; width: 9px; height: 9px; border-radius: 50%;
-          background: radial-gradient(circle at 30% 25%, #b6ecff, #2a9be0 70%); box-shadow: 0 0 0 3px rgba(42,155,224,0.2);
-        }
-        .pr-divider { height: 0; border-top: 1px dashed rgba(10,111,184,0.3); margin: 12px 0 10px; }
+        .pr-sec::before { content: ""; width: 3px; height: 16px; border-radius: 2px; background: var(--orange); }
+        .pr-divider { height: 0; border-top: 1px solid var(--line); margin: 18px 0 16px; }
 
-        .pr-label { display: block; margin: 0 0 4px 2px; font-size: 13px; font-weight: 800; color: var(--ink); }
-        .pr-label i { color: #e11d48; font-style: normal; }
+        .pr-label {
+          display: block; margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--muted);
+          text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        .pr-label i { color: var(--orange); font-style: normal; }
 
         .pr-input {
-          width: 100%; height: 40px; padding: 0 12px;
-          font-size: 15px; font-weight: 600; color: var(--ink); font-family: inherit;
-          background: #fff; border: 1.5px solid #9ccbe6; border-radius: 12px; outline: none;
-          box-shadow: inset 0 2px 5px rgba(10,80,130,0.1); transition: border-color .18s ease, box-shadow .18s ease;
+          width: 100%; height: 38px; padding: 0 12px;
+          font-size: 14px; font-weight: 400; color: var(--ink); font-family: inherit;
+          background: #fff; border: 1px solid #cfd6dd; border-radius: 4px; outline: none;
+          box-shadow: none; transition: border-color .15s ease, box-shadow .15s ease;
         }
-        .pr-input:hover { border-color: #5fb4de; }
-        .pr-input:focus { border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27,155,224,0.2), 0 6px 14px rgba(27,155,224,0.12); }
-        .pr-input:disabled { background: linear-gradient(180deg, #f1f7fb, #dfecf5); color: #4a6f8c; cursor: not-allowed; }
-        .pr-input::placeholder { color: var(--hint); font-weight: 600; }
+        .pr-input:hover { border-color: #9fb0bd; }
+        .pr-input:focus { border-color: var(--teal-2); box-shadow: 0 0 0 3px rgba(15,107,124,0.15); }
+        .pr-input:disabled { background: #f1f3f5; color: var(--hint); cursor: not-allowed; }
+        .pr-input::placeholder { color: var(--hint); font-weight: 400; }
 
-        /* Work order call row */
         .pr-callrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .pr-callrow .pr-input { max-width: 340px; font-weight: 700; }
+        .pr-callrow .pr-input { max-width: 340px; }
 
-        /* Work order detail cards (soft white, pastel icon bubbles) */
-        .pr-info-grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; margin-bottom: 4px; }
+        /* Work order detail cards */
+        .pr-info-grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 12px; margin-bottom: 4px; }
         .pr-info {
-          display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px 14px;
-          background: linear-gradient(180deg, #ffffff 0%, #f6fcff 100%); border: 1px solid #dcedf8; border-radius: 18px;
-          box-shadow: 0 6px 16px rgba(40,120,170,0.1), inset 0 1px 0 #fff;
+          display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px;
+          background: #fff; border: 1px solid var(--line); border-radius: 6px; box-shadow: none;
         }
         .pr-bubble {
-          width: 42px; height: 42px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-          box-shadow: 0 5px 10px rgba(40,90,130,0.16), inset 0 2px 3px rgba(255,255,255,0.85), inset 0 -3px 5px rgba(0,0,0,0.06);
+          width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; box-shadow: none;
         }
-        .pr-bubble.lavender { background: linear-gradient(145deg, #efe7ff, #c9b8fb); color: #6d4fd6; }
-        .pr-bubble.peach    { background: linear-gradient(145deg, #fff0d1, #ffc978); color: #c2650a; }
-        .pr-bubble.mint     { background: linear-gradient(145deg, #dcf9ea, #8fe0b8); color: #107a4d; }
+        .pr-bubble.lavender { background: #e6f1f3; color: var(--teal-2); }
+        .pr-bubble.peach    { background: #fdeee8; color: var(--orange); }
+        .pr-bubble.mint     { background: #e5f4ec; color: #2f8f5b; }
         .pr-info-text { min-width: 0; }
-        .pr-info-text > span { display: block; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-        .pr-info-text > b { display: block; font-size: 16px; font-weight: 800; color: var(--ink); word-break: break-word; }
+        .pr-info-text > span { display: block; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+        .pr-info-text > b { display: block; font-size: 15px; font-weight: 600; color: var(--ink); word-break: break-word; }
 
-        /* Assignment fields */
-        .pr-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 14px; align-items: end; }
+        .pr-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; align-items: end; }
 
         /* Buttons */
         .pr-btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-          height: 40px; padding: 0 20px; font-size: 14.5px; font-weight: 800; font-family: inherit;
-          border-radius: 12px; border: 1px solid transparent; cursor: pointer; white-space: nowrap; transition: all .15s ease;
+          height: 38px; padding: 0 18px; font-size: 14px; font-weight: 600; font-family: inherit;
+          border-radius: 4px; border: 1px solid transparent; cursor: pointer; white-space: nowrap; transition: background .15s ease, border-color .15s ease;
         }
-        .pr-btn:hover:not(:disabled) { transform: translateY(-1px); }
-        .pr-btn:active { transform: translateY(2px); }
         .pr-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-        .pr-btn-primary {
-          background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border-color: #7fc3e8;
-          box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40,120,170,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
-        }
-        .pr-btn-success {
-          background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab;
-          box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20,168,112,0.18), inset 0 1px 0 rgba(255,255,255,0.8);
-        }
-        .pr-btn-ghost {
-          background: linear-gradient(180deg, #ffffff 0%, #dcebf5 100%); color: #34526b; border-color: #aac3d4;
-          box-shadow: 0 3px 0 #b6cbd9, 0 7px 12px rgba(93,124,147,0.14), inset 0 1px 0 #fff;
-        }
+        .pr-btn-primary { background: var(--teal); color: #fff; border-color: var(--teal); }
+        .pr-btn-primary:hover:not(:disabled) { background: #06515f; }
+        .pr-btn-success { background: var(--orange); color: #fff; border-color: var(--orange); }
+        .pr-btn-success:hover:not(:disabled) { background: var(--orange-d); }
+        .pr-btn-ghost { background: #fff; color: var(--ink); border-color: #cfd6dd; }
+        .pr-btn-ghost:hover:not(:disabled) { background: #f3f5f7; }
 
         /* KPI tiles */
-        .pr-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 10px; }
+        .pr-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
         .pr-kpi {
-          display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-radius: 16px;
-          background: linear-gradient(180deg, #ffffff 0%, #f1faff 100%); border: 1px solid #cfe8f6;
-          box-shadow: 0 4px 12px rgba(40,120,170,0.1), inset 0 1px 0 #fff;
+          display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 6px;
+          background: #fff; border: 1px solid var(--line); box-shadow: none;
         }
         .pr-kpi-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .pr-kpi small { display: block; font-size: 11.5px; font-weight: 800; letter-spacing: 0.4px; color: var(--muted); }
-        .pr-kpi h5 { margin: 0; font-size: 22px; font-weight: 800; color: var(--ink); }
+        .pr-kpi small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.4px; color: var(--muted); }
+        .pr-kpi h5 { margin: 0; font-size: 22px; font-weight: 700; color: var(--ink); }
 
         /* Filter toolbar */
         .pr-toolbar {
-          display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 12px; border-radius: 16px;
-          background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.95); box-shadow: inset 0 1px 0 #fff, 0 6px 16px rgba(40,120,170,0.08);
+          display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; padding: 12px;
+          border-radius: 6px; background: #f8f9fa; border: 1px solid var(--line);
         }
-        .pr-toolbar .pr-input { width: auto; min-width: 150px; height: 38px; font-size: 14px; }
-        .pr-toolbar .pr-btn { height: 38px; }
-        .pr-datebox { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 800; color: #0a4f8c; }
+        .pr-toolbar .pr-input { width: auto; min-width: 150px; height: 36px; font-size: 13.5px; }
+        .pr-toolbar .pr-btn { height: 36px; }
+        .pr-datebox { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
 
         /* Table */
-        .pr-table-wrap {
-          overflow: auto; max-height: 460px; border-radius: 18px; border: 1px solid #a9d9f2; background: #fff;
-          box-shadow: 0 10px 24px rgba(40,120,170,0.14);
-        }
+        .pr-table-wrap { overflow: auto; max-height: 460px; border-radius: 6px; border: 1px solid var(--line); background: #fff; }
         .pr-table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
-        .pr-table-wrap::-webkit-scrollbar-track { background: #eaf7ff; }
-        .pr-table-wrap::-webkit-scrollbar-thumb { background: #96d3f2; border-radius: 4px; }
-        .pr-table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; margin: 0; }
+        .pr-table-wrap::-webkit-scrollbar-track { background: #f1f3f5; }
+        .pr-table-wrap::-webkit-scrollbar-thumb { background: #c2ccd4; border-radius: 4px; }
+        .pr-table { width: 100%; border-collapse: collapse; font-size: 13.5px; white-space: nowrap; margin: 0; }
         .pr-table thead th {
-          position: sticky; top: 0; z-index: 5; padding: 11px 14px; text-align: center; white-space: nowrap;
-          background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%); color: #08406b;
-          font-weight: 800; font-size: 13px; letter-spacing: 0.3px; border: 1px solid #7fbfe4;
+          position: sticky; top: 0; z-index: 5; padding: 11px 14px; text-align: left; white-space: nowrap;
+          background: #f4f6f8; color: var(--muted); font-weight: 600; font-size: 11.5px;
+          text-transform: uppercase; letter-spacing: 0.5px; border: 0; border-bottom: 1px solid var(--line);
         }
-        .pr-table tbody td { padding: 9px 14px; border: 1px solid #d3e8f4; color: var(--ink); font-weight: 600; vertical-align: middle; background: #fff; }
-        .pr-table tbody tr:nth-child(even) td { background: #f3faff; }
-        .pr-table tbody tr:hover td { background: #d9f2fc; }
-        .pr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 800; }
-        .pr-strong { font-weight: 800; }
+        .pr-table tbody td { padding: 10px 14px; border: 0; border-bottom: 1px solid #edf0f3; color: var(--ink); font-weight: 400; vertical-align: middle; background: #fff; }
+        .pr-table tbody tr:hover td { background: #f1f7f8; }
+        .pr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; color: var(--teal-2); }
+        .pr-strong { font-weight: 600; }
         .pr-center { text-align: center; }
-        .pr-empty { text-align: center; padding: 34px 12px !important; color: var(--muted); font-weight: 800; }
-        .pr-small { font-size: 12px; color: var(--muted); font-weight: 600; }
+        .pr-empty { text-align: center; padding: 34px 12px !important; color: var(--muted); font-weight: 600; }
+        .pr-small { font-size: 12px; color: var(--muted); font-weight: 400; }
 
         .pr-badge {
-          display: inline-flex; align-items: center; gap: 5px; padding: 3px 12px; border-radius: 999px;
-          font-size: 12px; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; border: 1px solid transparent;
+          display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px;
+          font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; border: 1px solid transparent;
         }
-        .pr-badge-blue { background: #d6effc; color: #08406b; border-color: #86c6e8; text-transform: none; }
-        .pr-badge-warn { background: #fef3c7; color: #8a5a00; border-color: #fde68a; }
-        .pr-badge-ok { background: #dcfce7; color: #15803d; border-color: #86efac; }
-        .pr-badge-bad { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+        .pr-badge-blue { background: #e6f1f3; color: var(--teal-2); border-color: #c5dde2; text-transform: none; }
+        .pr-badge-warn { background: #fff4db; color: #8a5a00; border-color: #f4dc9c; }
+        .pr-badge-ok { background: #e5f4ec; color: #1f7a48; border-color: #b7e0c8; }
+        .pr-badge-bad { background: #fde8e8; color: #b42318; border-color: #f5c0c0; }
 
         @media (max-width: 992px) {
           .pr-fields, .pr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -505,8 +479,7 @@ function PlateRequestForm() {
         }
         @media (max-width: 560px) {
           .pr-fields, .pr-kpis { grid-template-columns: 1fr; }
-          .pr-root { padding: 8px; }
-          .pr-hero { border-radius: 20px; }
+          .pr-root { padding: 10px; }
         }
       `}</style>
 
@@ -663,16 +636,16 @@ function PlateRequestForm() {
         {/* 3. MY PLATE REQUESTS SECTION (TABLE & FILTERS)                            */}
         {/* ========================================================================= */}
         <div className="pr-glass">
-          <div style={{ textAlign: "center", marginBottom: "10px" }}>
-            <h4 style={{ margin: 0, fontSize: "19px", fontWeight: 800, color: "#0a4f8c" }}>
+          <div style={{ textAlign: "left", marginBottom: "14px" }}>
+            <h4 style={{ margin: 0, fontSize: "18px", fontWeight: 700, color: "#1f2d3a" }}>
               My Plate Requests
             </h4>
           </div>
 
           {/* 4 Summary KPI Tiles */}
           <div className="pr-kpis">
-            <div className="pr-kpi" style={{ borderLeft: "4px solid #0284c7" }}>
-              <div className="pr-kpi-icon" style={{ background: "#e0f2fe", color: "#0369a1" }}>
+            <div className="pr-kpi" style={{ borderLeft: "3px solid #0f6b7c" }}>
+              <div className="pr-kpi-icon" style={{ background: "#e6f1f3", color: "#0f6b7c" }}>
                 <Icons.Layers />
               </div>
               <div>
@@ -681,33 +654,33 @@ function PlateRequestForm() {
               </div>
             </div>
 
-            <div className="pr-kpi" style={{ borderLeft: "4px solid #f59e0b" }}>
-              <div className="pr-kpi-icon" style={{ background: "#fef3c7", color: "#b45309" }}>
+            <div className="pr-kpi" style={{ borderLeft: "3px solid #d98a00" }}>
+              <div className="pr-kpi-icon" style={{ background: "#fff4db", color: "#b26a00" }}>
                 <Icons.Clock />
               </div>
               <div>
                 <small>PENDING APPROVAL</small>
-                <h5 style={{ color: "#b45309" }}>{stats.pending}</h5>
+                <h5 style={{ color: "#b26a00" }}>{stats.pending}</h5>
               </div>
             </div>
 
-            <div className="pr-kpi" style={{ borderLeft: "4px solid #10b981" }}>
-              <div className="pr-kpi-icon" style={{ background: "#dcfce7", color: "#15803d" }}>
+            <div className="pr-kpi" style={{ borderLeft: "3px solid #2f9e60" }}>
+              <div className="pr-kpi-icon" style={{ background: "#e5f4ec", color: "#1f7a48" }}>
                 <Icons.Check />
               </div>
               <div>
                 <small>APPROVED</small>
-                <h5 style={{ color: "#15803d" }}>{stats.approved}</h5>
+                <h5 style={{ color: "#1f7a48" }}>{stats.approved}</h5>
               </div>
             </div>
 
-            <div className="pr-kpi" style={{ borderLeft: "4px solid #ef4444" }}>
-              <div className="pr-kpi-icon" style={{ background: "#fee2e2", color: "#b91c1c" }}>
+            <div className="pr-kpi" style={{ borderLeft: "3px solid #d64545" }}>
+              <div className="pr-kpi-icon" style={{ background: "#fde8e8", color: "#b42318" }}>
                 <Icons.XCircle />
               </div>
               <div>
                 <small>REJECTED</small>
-                <h5 style={{ color: "#b91c1c" }}>{stats.rejected}</h5>
+                <h5 style={{ color: "#b42318" }}>{stats.rejected}</h5>
               </div>
             </div>
           </div>
@@ -749,7 +722,7 @@ function PlateRequestForm() {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="pr-input"
-              style={{ fontWeight: "700" }}
+              style={{ fontWeight: "600" }}
             >
               <option value="">All Statuses</option>
               <option value="PENDING">Pending</option>

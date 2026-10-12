@@ -7,75 +7,76 @@ import BASE_URL from "../config/api";
 // KAS (requester) view of the Artwork Docket — restyled to the aqua-glass look
 // of the Reel Register / Prepress pages. All data logic unchanged.
 
-const GLOSSY_BLUE = "linear-gradient(180deg,#b4ecff 0%,#5cc4f2 48%,#2ea4e6 52%,#1b8fd6 100%)";
+const GLOSSY_BLUE = "#e4572e";
 
 const kasArtworkStyles = `
-  .paw-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:16px 18px 28px;overflow:hidden;border:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#0b2f4f;background:radial-gradient(circle at 12% 6%,rgba(255,255,255,.85) 0,rgba(255,255,255,0) 30%),radial-gradient(circle at 88% 18%,rgba(160,228,255,.7) 0,rgba(160,228,255,0) 32%),radial-gradient(circle at 50% 100%,rgba(255,255,255,.7) 0,rgba(255,255,255,0) 45%),linear-gradient(165deg,#eaf8ff 0%,#c9ecfb 38%,#a6dcf5 72%,#d9f2fd 100%)}
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap');
+  .paw-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:16px 18px 28px;overflow:hidden;border:0;font-family:'Source Sans 3','Segoe UI',system-ui,-apple-system,sans-serif;color:#1f2d3a;background:#f3f5f7}
   .paw-container>*{position:relative}
 
-  .paw-heading{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:9px 18px;border-radius:20px;color:#0b2f4f;background:linear-gradient(180deg,rgba(255,255,255,.92) 0%,rgba(222,244,254,.8) 100%);border:1px solid rgba(255,255,255,.95);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 14px 30px rgba(40,120,170,.18),inset 0 1px 0 #fff,inset 0 -10px 22px rgba(140,210,245,.2)}
-  .paw-heading h3{position:relative;z-index:1;margin:0;font-size:21px;font-weight:800;letter-spacing:-.4px;color:#0a4f8c}
-  .paw-heading p{position:relative;z-index:1;margin:2px 0 0;color:#4a7391;font-size:.85rem;font-weight:600}
+  .paw-heading{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px;padding:9px 18px;border-radius:6px;color:#1f2d3a;background:#fff;border:1px solid #dfe4e9;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 1px 2px rgba(16,40,56,.06)}
+  .paw-heading h3{position:relative;z-index:1;margin:0;font-size:21px;font-weight:700;letter-spacing:-.4px;color:#043a45}
+  .paw-heading p{position:relative;z-index:1;margin:2px 0 0;color:#5f6c7a;font-size:.85rem;font-weight:600}
   .paw-userchip{display:flex;align-items:center;gap:10px}
-  .paw-avatar{width:32px;height:32px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#b6ecff 0%,#34b6f0 45%,#0a6fb8 100%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;flex-shrink:0;box-shadow:0 4px 10px rgba(2,60,110,.3),inset 0 2px 2px rgba(255,255,255,.7)}
-  .paw-userinfo{font-size:12.5px;color:#0b2f4f;text-align:right;line-height:1.3}
-  .paw-userinfo b{display:block;font-weight:800}.paw-userinfo span{color:#4a7391;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .paw-avatar{width:32px;height:32px;border-radius:50%;background:#0f6b7c;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;flex-shrink:0;box-shadow:none}
+  .paw-userinfo{font-size:12.5px;color:#1f2d3a;text-align:right;line-height:1.3}
+  .paw-userinfo b{display:block;font-weight:700}.paw-userinfo span{color:#5f6c7a;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
 
-  .filter-bar{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;border-radius:20px;background:linear-gradient(180deg,rgba(255,255,255,.92) 0%,rgba(226,246,255,.86) 100%);border:1px solid rgba(255,255,255,.95);box-shadow:0 10px 24px rgba(40,120,170,.16),inset 0 1px 0 #fff,inset 0 -8px 18px rgba(140,210,245,.18)}
-  .filter-bar:before{content:"FILTER TICKETS";margin-right:auto;padding-left:5px;color:#0a4f8c;font-size:.68rem;font-weight:800;letter-spacing:.12em}
-  .filter-bar .form-control{min-height:36px;padding:6px 12px;border:1.5px solid #9ccbe6;border-radius:12px;color:#0b2f4f;background:#fff;font-size:13px;font-weight:700;box-shadow:inset 0 2px 5px rgba(10,80,130,.12),0 1px 0 rgba(255,255,255,.9)}
-  .filter-bar .form-control::placeholder{color:#7b9db5;font-weight:600;opacity:1}
-  .filter-bar .form-control:focus{border-color:#1b9be0;outline:none;box-shadow:inset 0 1px 2px rgba(10,80,130,.08),0 0 0 4px rgba(27,155,224,.22)}
+  .filter-bar{display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;border-radius:6px;background:#f8f9fa;border:1px solid #dfe4e9;box-shadow:0 1px 2px rgba(16,40,56,.06)}
+  .filter-bar:before{content:"FILTER TICKETS";margin-right:auto;padding-left:5px;color:#043a45;font-size:.7rem;font-weight:600;letter-spacing:.12em}
+  .filter-bar .form-control{min-height:36px;padding:6px 12px;border:1.5px solid #cfd6dd;border-radius:4px;color:#1f2d3a;background:#fff;font-size:13px;font-weight:600;box-shadow:none}
+  .filter-bar .form-control::placeholder{color:#9aa5b1;font-weight:600;opacity:1}
+  .filter-bar .form-control:focus{border-color:#0f6b7c;outline:none;box-shadow:0 0 0 3px rgba(15,107,124,.15)}
 
-  .paw-container .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(255,255,255,.6);border-radius:12px;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,60,110,.35);cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
-  .paw-container .btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.04)}
-  .paw-container .btn:active:not(:disabled){transform:translateY(2px)}
+  .paw-container .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid transparent;border-radius:4px;font-weight:700;color:#fff;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
+  .paw-container .btn:hover:not(:disabled){transform:none;filter:brightness(1.04)}
+  .paw-container .btn:active:not(:disabled){transform:none}
   .paw-container .btn:disabled{cursor:not-allowed;opacity:.5}
-  .paw-container .btn-primary{background:linear-gradient(180deg,#b4ecff 0%,#5cc4f2 48%,#2ea4e6 52%,#1b8fd6 100%);box-shadow:0 3px 0 #1479b8,0 8px 14px rgba(30,130,190,.28),inset 0 1px 0 rgba(255,255,255,.85)}
-  .paw-container .btn-success{background:linear-gradient(180deg,#b9f5d6 0%,#5fdda6 48%,#2cc58a 52%,#14a870 100%);box-shadow:0 3px 0 #0d8a5a,0 8px 14px rgba(20,168,112,.26),inset 0 1px 0 rgba(255,255,255,.85)}
-  .paw-container .btn-secondary{background:linear-gradient(180deg,#d3e2ee 0%,#9bb6ca 50%,#6f8fa6 100%);box-shadow:0 3px 0 #587588,0 6px 10px rgba(80,110,135,.25),inset 0 1px 0 rgba(255,255,255,.8)}
-  .paw-container .btn-outline{border:1.5px solid #9ccbe6;background:linear-gradient(180deg,#ffffff 0%,#dff6ff 100%);color:#0a4f8c;text-shadow:none;box-shadow:0 3px 8px rgba(10,80,130,.12),inset 0 1px 0 #fff}
+  .paw-container .btn-primary{background:#043a45;border-color:#043a45;box-shadow:none}
+  .paw-container .btn-success{background:#e4572e;border-color:#e4572e;box-shadow:none}
+  .paw-container .btn-secondary{background:#fff;color:#1f2d3a;border-color:#cfd6dd;box-shadow:none}
+  .paw-container .btn-outline{background:#fff;color:#1f2d3a;border-color:#cfd6dd;box-shadow:none}
 
-  .production-real-table-wrap{background:#fff;border:1px solid #a6d6ee;border-radius:18px;box-shadow:0 8px 20px rgba(10,100,160,.14),inset 0 1px 0 rgba(255,255,255,.9)}
+  .production-real-table-wrap{background:#fff;border:1px solid #dfe4e9;border-radius:6px;box-shadow:0 1px 2px rgba(16,40,56,.06)}
   .production-real-table-wrap::-webkit-scrollbar{width:8px;height:8px}
-  .production-real-table-wrap::-webkit-scrollbar-track{background:#e8f4fa;border-radius:8px}
-  .production-real-table-wrap::-webkit-scrollbar-thumb{background:#84b5ce;border-radius:8px}
-  .production-real-table-wrap::-webkit-scrollbar-thumb:hover{background:#5a9bbd}
-  .production-real-table{width:100%;min-width:0;margin:0;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:.81rem;color:#0b2f4f;background:#fff}
+  .production-real-table-wrap::-webkit-scrollbar-track{background:#f1f3f5;border-radius:8px}
+  .production-real-table-wrap::-webkit-scrollbar-thumb{background:#c2ccd4;border-radius:8px}
+  .production-real-table-wrap::-webkit-scrollbar-thumb:hover{background:#9fb0bd}
+  .production-real-table{width:100%;min-width:0;margin:0;border-collapse:separate;border-spacing:0;table-layout:fixed;font-size:.81rem;color:#1f2d3a;background:#fff}
   .production-real-table th,.production-real-table td{overflow-wrap:anywhere;word-break:break-word;vertical-align:middle}
-  .production-real-table thead th{position:sticky;top:0;z-index:1;padding:11px 10px;background:linear-gradient(180deg,#f4fbff 0%,#d9eefb 100%)!important;color:#0a4f8c!important;border:0!important;border-bottom:2px solid #9ccbe6!important;font-size:.68rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
-  .production-real-table tbody td{padding:9px 10px;border:0!important;border-bottom:1px solid #dcecf6!important;border-right:1px solid #f1f8fc!important;font-weight:600;color:#0b2f4f;background:#fff}
+  .production-real-table thead th{position:sticky;top:0;z-index:1;padding:11px 10px;background:#f4f6f8!important;color:#5f6c7a!important;border:0!important;border-bottom:1px solid #dfe4e9!important;font-size:.7rem;font-weight:600;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+  .production-real-table tbody td{padding:9px 10px;border:0!important;border-bottom:1px solid #edf0f3!important;border-right:1px solid #f3f5f7!important;font-weight:400;color:#1f2d3a;background:#fff}
   .production-real-table tbody tr{cursor:pointer;transition:background .12s ease}
-  .production-real-table tbody tr:nth-child(even) td{background:#f3faff}
-  .production-real-table tbody tr:hover td{background:#d9f2fc!important}
-  .production-real-table .empty-state{padding:42px!important;color:#4a7391!important;font-weight:700;text-align:center}
+  .production-real-table tbody tr:nth-child(even) td{background:#fff}
+  .production-real-table tbody tr:hover td{background:#f1f7f8!important}
+  .production-real-table .empty-state{padding:42px!important;color:#5f6c7a!important;font-weight:600;text-align:center}
 
-  .paw-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
+  .paw-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
   .paw-status .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
-  .paw-detail-card{border-radius:22px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.94) 0%,rgba(226,246,255,.88) 100%);border:1px solid rgba(255,255,255,.95);box-shadow:0 14px 32px rgba(40,120,170,.18),inset 0 1px 0 #fff}
-  .paw-detail-head{padding:16px 22px;border-bottom:1px solid #cfe6f5;background:linear-gradient(180deg,#f3faff 0%,#e3f4fd 100%)}
-  .paw-thread{padding:20px 22px;display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;background:#f6fbff}
-  .paw-thread::-webkit-scrollbar{width:8px}.paw-thread::-webkit-scrollbar-thumb{background:#84b5ce;border-radius:8px}
-  .paw-composer{border-top:1px solid #cfe6f5;background:linear-gradient(180deg,#ffffff 0%,#e9f7fe 100%);padding:14px 18px}
-  .paw-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#0a4f8c;background:linear-gradient(180deg,#ffffff 0%,#cfeefc 100%);border:1px solid #a6d6ee;border-radius:10px;padding:5px 10px;max-width:220px;text-decoration:none}
-  .paw-icon-btn{width:40px;height:40px;flex-shrink:0;border:1.5px solid #9ccbe6;border-radius:12px;background:linear-gradient(180deg,#ffffff 0%,#dff6ff 100%);color:#0a4f8c;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:inset 0 1px 0 #fff,0 3px 8px rgba(10,80,130,.15)}
+  .paw-detail-card{border-radius:6px;overflow:hidden;background:#fff;border:1px solid #dfe4e9;box-shadow:0 1px 2px rgba(16,40,56,.06)}
+  .paw-detail-head{padding:16px 22px;border-bottom:1px solid #dfe4e9;background:#f8f9fa}
+  .paw-thread{padding:20px 22px;display:flex;flex-direction:column;gap:14px;max-height:52vh;overflow-y:auto;background:#f8f9fa}
+  .paw-thread::-webkit-scrollbar{width:8px}.paw-thread::-webkit-scrollbar-thumb{background:#c2ccd4;border-radius:8px}
+  .paw-composer{border-top:1px solid #dfe4e9;background:#fff;padding:14px 18px}
+  .paw-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#043a45;background:#e6f1f3;border:1px solid #dfe4e9;border-radius:4px;padding:5px 10px;max-width:220px;text-decoration:none}
+  .paw-icon-btn{width:40px;height:40px;flex-shrink:0;border:1.5px solid #cfd6dd;border-radius:4px;background:#fff;color:#043a45;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none}
   .paw-icon-btn:disabled{opacity:.5;cursor:not-allowed}
-  .paw-back-btn{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.7);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:radial-gradient(circle at 30% 25%,#b6ecff 0%,#34b6f0 45%,#0a6fb8 100%);box-shadow:0 5px 12px rgba(2,60,110,.35),inset 0 2px 2px rgba(255,255,255,.7)}
+  .paw-back-btn{width:34px;height:34px;border-radius:50%;border:1px solid transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:#0f6b7c;box-shadow:none}
 
-  .paw-form-card{max-width:560px;margin:0 auto;padding:22px;border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.94) 0%,rgba(226,246,255,.88) 100%);border:1px solid rgba(255,255,255,.95);box-shadow:0 14px 32px rgba(40,120,170,.18),inset 0 1px 0 #fff}
-  .paw-field-label{font-size:12px;font-weight:800;color:#0b2f4f;display:block;margin-bottom:6px;letter-spacing:.2px}
-  .paw-form-input{width:100%;padding:10px 14px;border:1.5px solid #9ccbe6;border-radius:12px;font-size:14px;font-weight:700;outline:none;box-sizing:border-box;background:#fff;color:#0b2f4f;box-shadow:inset 0 2px 5px rgba(10,80,130,.12),0 1px 0 rgba(255,255,255,.9);transition:all .2s cubic-bezier(.4,0,.2,1)}
-  .paw-form-input::placeholder{color:#7b9db5;font-weight:600}
-  .paw-form-input:focus{border-color:#1b9be0;box-shadow:inset 0 1px 2px rgba(10,80,130,.08),0 0 0 4px rgba(27,155,224,.22),0 6px 14px rgba(27,155,224,.18)}
-  .paw-form-input[readonly]{background:linear-gradient(180deg,#f1f7fb 0%,#dbe9f2 100%);color:#476a85;border-color:#b8d3e4;cursor:not-allowed;box-shadow:inset 0 2px 4px rgba(0,0,0,.08)}
-  .paw-fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;color:#fff;border:1px solid rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;cursor:pointer;background:linear-gradient(180deg,#b4ecff 0%,#5cc4f2 48%,#2ea4e6 52%,#1b8fd6 100%);box-shadow:0 4px 0 #1479b8,0 12px 22px rgba(30,130,190,.35),inset 0 1px 0 rgba(255,255,255,.85);transition:transform .12s ease}
-  .paw-fab:hover{transform:translateY(-2px)}
-  .paw-fab:active{transform:translateY(2px)}
+  .paw-form-card{max-width:560px;margin:0 auto;padding:22px;border-radius:6px;background:#fff;border:1px solid #dfe4e9;box-shadow:0 1px 2px rgba(16,40,56,.06)}
+  .paw-field-label{font-size:12px;font-weight:700;color:#1f2d3a;display:block;margin-bottom:6px;letter-spacing:.2px}
+  .paw-form-input{width:100%;padding:10px 14px;border:1.5px solid #cfd6dd;border-radius:4px;font-size:14px;font-weight:600;outline:none;box-sizing:border-box;background:#fff;color:#1f2d3a;box-shadow:none;transition:all .2s cubic-bezier(.4,0,.2,1)}
+  .paw-form-input::placeholder{color:#9aa5b1;font-weight:600}
+  .paw-form-input:focus{border-color:#0f6b7c;box-shadow:0 0 0 3px rgba(15,107,124,.15)}
+  .paw-form-input[readonly]{background:#f1f3f5;color:#6b7782;border-color:#cfd6dd;cursor:not-allowed;box-shadow:none}
+  .paw-fab{position:fixed;bottom:28px;right:28px;width:54px;height:54px;border-radius:50%;color:#fff;border:1px solid transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#e4572e;box-shadow:0 4px 12px rgba(16,40,56,.25);transition:transform .12s ease}
+  .paw-fab:hover{transform:none}
+  .paw-fab:active{transform:none}
 `;
 
 const STATUS_META = {
   open: { label: "New", fg: "#B4740D", bg: "#FCF1DC", dot: "#E3A63D" },
-  in_progress: { label: "In progress", fg: "#0a5fa8", bg: "#DFF1FD", dot: "#1b8fd6" },
+  in_progress: { label: "In progress", fg: "#0f6b7c", bg: "#e6f1f3", dot: "#0f6b7c" },
   changes_submitted: { label: "In review", fg: "#6D3FD1", bg: "#F1ECFD", dot: "#8B5CF6" },
   closed: { label: "Closed", fg: "#12805E", bg: "#E6F6F0", dot: "#1FA37B" },
 };
@@ -321,7 +322,7 @@ export default function KasArtworkDashboard() {
                 value={form.materialCode}
                 onChange={(e) => handleMaterialCodeChange(e.target.value)}
                 placeholder="e.g. MC-90112-B"
-                style={{ borderColor: codeNotFound ? "#D0433A" : undefined, fontFamily: "monospace" }}
+                style={{ borderColor: codeNotFound ? "#d64545" : undefined, fontFamily: "monospace" }}
               />
               <datalist id="item-code-options">
                 {items.map((i) => (
@@ -329,7 +330,7 @@ export default function KasArtworkDashboard() {
                 ))}
               </datalist>
               {codeNotFound && (
-                <div style={{ fontSize: 11.5, color: "#D0433A", marginTop: 5, fontWeight: 700 }}>
+                <div style={{ fontSize: 11.5, color: "#d64545", marginTop: 5, fontWeight: 600 }}>
                   No item found with this code — customer/variant won't auto-fill.
                 </div>
               )}
@@ -364,8 +365,8 @@ export default function KasArtworkDashboard() {
                 onClick={() => newFileInputRef.current?.click()}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "11px 13px",
-                  border: "1.5px dashed #9ccbe6", borderRadius: 12, fontSize: 13, fontWeight: 700, color: "#4a7391",
-                  cursor: "pointer", background: "#eaf6fd", width: "100%",
+                  border: "1.5px dashed #cfd6dd", borderRadius: 4, fontSize: 13, fontWeight: 600, color: "#5f6c7a",
+                  cursor: "pointer", background: "#f1f7f8", width: "100%",
                 }}
               >
                 <Paperclip size={14} />
@@ -385,7 +386,7 @@ export default function KasArtworkDashboard() {
                     <span key={i} className="paw-chip">
                       <Paperclip size={12} />
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#7b9db5", padding: 0, marginLeft: 2 }}>×</button>
+                      <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9aa5b1", padding: 0, marginLeft: 2 }}>×</button>
                     </span>
                   ))}
                 </div>
@@ -398,10 +399,10 @@ export default function KasArtworkDashboard() {
               disabled={!canSubmit}
               style={{
                 width: "100%", padding: "12px", fontSize: 14,
-                border: canSubmit ? "1px solid rgba(255,255,255,.6)" : "none",
+                border: canSubmit ? "1px solid transparent" : "none",
                 background: canSubmit ? GLOSSY_BLUE : "#e2e4ea",
                 color: canSubmit ? "#fff" : "#9DA2B0",
-                boxShadow: canSubmit ? "0 4px 0 #1479b8, 0 10px 18px rgba(30,130,190,.3), inset 0 1px 0 rgba(255,255,255,.85)" : "none",
+                boxShadow: canSubmit ? "none" : "none",
               }}
             >
               {uploading ? "Raising ticket…" : "Raise ticket"}
@@ -429,11 +430,11 @@ export default function KasArtworkDashboard() {
             <div className="paw-detail-head">
               <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                 <div>
-                  <div style={{ fontWeight: 800, color: "#0a4f8c", fontSize: 13 }}>{active.materialCode}</div>
-                  <div style={{ fontSize: 13, color: "#344759", marginTop: 3 }}>
-                    {active.customerName} <span style={{ color: "#a9bad1" }}>·</span> {active.variant || "—"}
+                  <div style={{ fontWeight: 700, color: "#043a45", fontSize: 13 }}>{active.materialCode}</div>
+                  <div style={{ fontSize: 13, color: "#3b4a58", marginTop: 3 }}>
+                    {active.customerName} <span style={{ color: "#c2ccd4" }}>·</span> {active.variant || "—"}
                   </div>
-                  <div style={{ fontSize: 12, color: "#4a7391", marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: "#5f6c7a", marginTop: 4 }}>
                     Raised by {active.createdBy} · {formatTime(active.createdAt)}
                   </div>
                 </div>
@@ -474,10 +475,10 @@ export default function KasArtworkDashboard() {
                 const mine = m.sender === user?.name;
                 if (m.type === "status") {
                   return (
-                    <div key={m._id} style={{ textAlign: "center", fontSize: 11.5, color: "#4a7391", fontWeight: 700, display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
-                      <span style={{ flex: 1, height: 1, background: "#bfe0f2" }} />
+                    <div key={m._id} style={{ textAlign: "center", fontSize: 11.5, color: "#5f6c7a", fontWeight: 600, display: "flex", alignItems: "center", gap: 10, margin: "4px 0" }}>
+                      <span style={{ flex: 1, height: 1, background: "#dfe4e9" }} />
                       <span style={{ whiteSpace: "nowrap" }}>{m.sender} {m.text.toLowerCase()} · {formatTime(m.time)}</span>
-                      <span style={{ flex: 1, height: 1, background: "#bfe0f2" }} />
+                      <span style={{ flex: 1, height: 1, background: "#dfe4e9" }} />
                     </div>
                   );
                 }
@@ -489,14 +490,14 @@ export default function KasArtworkDashboard() {
                       </div>
                     )}
                     <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: mine ? "flex-end" : "flex-start" }}>
-                      <div style={{ fontSize: 11, color: "#4a7391", marginBottom: 4, fontWeight: 700, padding: "0 2px" }}>
-                        {mine ? "You" : m.sender} <span style={{ color: "#a9bad1" }}>·</span> {m.role === "PREPRESS" ? "Prepress" : "KAS"}
+                      <div style={{ fontSize: 11, color: "#5f6c7a", marginBottom: 4, fontWeight: 600, padding: "0 2px" }}>
+                        {mine ? "You" : m.sender} <span style={{ color: "#c2ccd4" }}>·</span> {m.role === "PREPRESS" ? "Prepress" : "KAS"}
                       </div>
                       <div
                         style={{
-                          background: mine ? "linear-gradient(135deg,#34a5e3,#1b8fd6)" : "#fff",
-                          color: mine ? "#fff" : "#0b2f4f",
-                          border: mine ? "none" : "1px solid #cfe6f5",
+                          background: mine ? "#0f6b7c" : "#fff",
+                          color: mine ? "#fff" : "#1f2d3a",
+                          border: mine ? "none" : "1px solid #dfe4e9",
                           borderRadius: mine ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
                           padding: "10px 13px",
                           boxShadow: mine ? "0 4px 10px rgba(30,130,190,.3)" : "0 1px 3px rgba(10,80,130,.1)",
@@ -513,10 +514,10 @@ export default function KasArtworkDashboard() {
                                 rel="noreferrer"
                                 style={{
                                   display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500,
-                                  color: mine ? "#fff" : "#0b2f4f",
-                                  border: mine ? "1px solid rgba(255,255,255,0.35)" : "1px solid #a6d6ee",
+                                  color: mine ? "#fff" : "#1f2d3a",
+                                  border: mine ? "1px solid rgba(255,255,255,0.35)" : "1px solid #dfe4e9",
                                   borderRadius: 8, padding: "6px 10px",
-                                  background: mine ? "rgba(255,255,255,0.14)" : "#eaf6fd",
+                                  background: mine ? "rgba(255,255,255,0.14)" : "#f1f7f8",
                                   maxWidth: 220, overflow: "hidden", textDecoration: "none",
                                 }}
                               >
@@ -527,7 +528,7 @@ export default function KasArtworkDashboard() {
                           </div>
                         ) : null}
                       </div>
-                      <div style={{ fontSize: 10.5, color: "#7b9db5", marginTop: 4, padding: "0 2px" }}>{formatTime(m.time)}</div>
+                      <div style={{ fontSize: 10.5, color: "#9aa5b1", marginTop: 4, padding: "0 2px" }}>{formatTime(m.time)}</div>
                     </div>
                   </div>
                 );
@@ -542,7 +543,7 @@ export default function KasArtworkDashboard() {
                     <span key={i} className="paw-chip">
                       <Paperclip size={12} />
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                      <button onClick={() => removeMsgFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#7b9db5", padding: 0, marginLeft: 2 }}>×</button>
+                      <button onClick={() => removeMsgFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#9aa5b1", padding: 0, marginLeft: 2 }}>×</button>
                     </span>
                   ))}
                 </div>
@@ -572,17 +573,17 @@ export default function KasArtworkDashboard() {
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                   placeholder={isClosed ? "Ticket is closed" : "Write a note..."}
                   disabled={isClosed}
-                  style={{ flex: 1, height: 40, borderRadius: 12, border: "1.5px solid #9ccbe6", fontWeight: 600, color: "#0b2f4f", boxShadow: "inset 0 2px 5px rgba(10,80,130,.12)" }}
+                  style={{ flex: 1, height: 40, borderRadius: 4, border: "1.5px solid #cfd6dd", fontWeight: 600, color: "#1f2d3a", boxShadow: "none" }}
                 />
                 <button
                   className="btn"
                   onClick={sendMessage}
                   disabled={(!msgText.trim() && msgFiles.length === 0) || isClosed || sendingMsg}
                   style={{
-                    padding: "0 16px", height: 40, borderRadius: 12,
-                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid rgba(255,255,255,.6)" : "none",
+                    padding: "0 16px", height: 40, borderRadius: 4,
+                    border: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "1px solid transparent" : "none",
                     background: (msgText.trim() || msgFiles.length > 0) && !isClosed ? GLOSSY_BLUE : "#e2e4ea",
-                    boxShadow: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "0 3px 0 #1479b8, 0 8px 14px rgba(30,130,190,.28)" : "none",
+                    boxShadow: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "none" : "none",
                     color: (msgText.trim() || msgFiles.length > 0) && !isClosed ? "#fff" : "#9DA2B0",
                     display: "flex", alignItems: "center", flexShrink: 0,
                   }}
@@ -609,11 +610,11 @@ export default function KasArtworkDashboard() {
               className="btn btn-sm"
               onClick={() => setFilter(f.key)}
               style={{
-                border: "1px solid " + (filter === f.key ? "rgba(255,255,255,.6)" : "#9ccbe6"),
-                background: filter === f.key ? GLOSSY_BLUE : "linear-gradient(180deg,#ffffff 0%,#dff6ff 100%)",
-                color: filter === f.key ? "#fff" : "#0a4f8c",
+                border: "1px solid " + (filter === f.key ? "rgba(255,255,255,.6)" : "#cfd6dd"),
+                background: filter === f.key ? GLOSSY_BLUE : "#fff",
+                color: filter === f.key ? "#fff" : "#043a45",
                 textShadow: filter === f.key ? undefined : "none",
-                boxShadow: filter === f.key ? "0 3px 0 #1479b8, 0 8px 14px rgba(30,130,190,.28)" : "0 3px 8px rgba(10,80,130,.12)",
+                boxShadow: filter === f.key ? "none" : "0 3px 8px rgba(10,80,130,.12)",
               }}
             >
               {f.label}
@@ -682,7 +683,7 @@ export default function KasArtworkDashboard() {
                     setView("detail");
                   }}
                 >
-                  <td style={{ fontWeight: 800, color: "#0a4f8c" }}>{t.ticketId}</td>
+                  <td style={{ fontWeight: 700, color: "#043a45" }}>{t.ticketId}</td>
                   <td>{t.materialCode}</td>
                   <td style={{ fontWeight: 600 }}>{t.customerName}</td>
                   <td>{t.variant || "—"}</td>
