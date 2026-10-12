@@ -7,24 +7,20 @@ const FILTER_STORAGE_KEY = "billingReport.filterCustomer";
 const REPORT_NO_STORAGE_KEY = "billingReport.filterReportNo";
 const MAX_ROWS_SHOWN = 30;
 
-/* ---------- Light aqua-glass design (same family as Reel Register) ---------- */
+/* ---------- Production Report style (white page, light-blue cards) ---------- */
 const CSS = `
   .pro-container.br-root {
-    --ink: #0b2f4f; --muted: #4a6f8c; --hint: #8fb0c8;
+    --ink: #08283d; --muted: #475569; --hint: #94a3b8;
     min-height: 100vh;
     max-width: 100%;
     margin: 0;
-    padding: 18px 20px 40px;
+    padding: 18px;
     box-sizing: border-box;
-    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-    font-size: 13px;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
     color: var(--ink);
-    background:
-      radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 30%),
-      radial-gradient(circle at 88% 18%, rgba(160, 222, 250, 0.7) 0, rgba(160, 222, 250, 0) 32%),
-      radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
-      linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-    background-attachment: fixed;
+    background: #ffffff;
+    border: 1px solid rgba(12, 90, 130, 0.38);
   }
   .br-root * { box-sizing: border-box; }
   .br-inner { width: 100%; max-width: none; margin: 0; }
@@ -33,140 +29,164 @@ const CSS = `
   .br-root .pro-header {
     display: flex; align-items: center; justify-content: center; gap: 14px;
     margin: 0 auto 16px; padding: 12px 22px;
-    border-radius: 28px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(222, 244, 254, 0.8) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 14px 30px rgba(40, 120, 170, 0.18), inset 0 1px 0 #fff, inset 0 -10px 22px rgba(140, 210, 245, 0.2);
+    border-radius: 12px;
+    background: rgba(221, 243, 252, 0.94);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
-  .br-root .pro-header h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
+  .br-root .pro-header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 0; color: #06324d; }
   .br-emblem {
     width: 46px; height: 46px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; color: #0a6fb8;
-    background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
-    border: 1px solid #86c6e8;
-    box-shadow: 0 6px 14px rgba(40, 120, 170, 0.22), inset 0 2px 3px rgba(255, 255, 255, 0.9);
+    background: #ffffff;
+    border: 1px solid rgba(20, 111, 156, 0.42);
   }
 
-  /* ---------- Glass cards ---------- */
+  /* ---------- Cards ---------- */
   .br-root .pro-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(228, 246, 255, 0.9) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    border-radius: 22px;
-    padding: 16px 20px 18px;
-    box-shadow: 0 14px 32px rgba(40, 120, 170, 0.16), inset 0 1px 0 #fff;
+    background: rgba(221, 243, 252, 0.94);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
   }
-  .br-root .pro-card-header { margin-bottom: 12px; padding: 0; border: none; background: transparent; }
-  .br-root .pro-card-header > span {
-    display: inline-flex; align-items: center; gap: 9px;
-    font-size: 12px; font-weight: 800; color: #0a4f8c;
-    text-transform: uppercase; letter-spacing: 0.7px;
-    padding: 5px 16px 5px 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%);
-    border: 1px solid #a9d9f2; border-radius: 999px;
-    box-shadow: 0 3px 8px rgba(40, 120, 170, 0.12), inset 0 1px 0 #fff;
+  .br-root .pro-card-header,
+  .br-modal-box .pro-card-header { margin-bottom: 12px; padding: 0; border: none; background: transparent; }
+  .br-root .pro-card-header > span,
+  .br-modal-box .pro-card-header > span {
+    display: inline-block;
+    font-size: 18px; font-weight: 800; color: #062b42;
+    padding: 6px 0;
+    background: none; border: 0; border-radius: 0; box-shadow: none;
+    text-transform: none; letter-spacing: 0;
   }
-  .br-root .pro-card-header > span::before {
-    content: ""; width: 9px; height: 9px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 25%, #b6ecff, #2a9be0 70%);
-    box-shadow: 0 0 0 3px rgba(42, 155, 224, 0.2);
+  .br-root .pro-card-header > span::before,
+  .br-modal-box .pro-card-header > span::before {
+    display: none;
   }
 
   /* ---------- Inputs ---------- */
-  .br-root .pro-input {
-    width: 100%; height: 36px; padding: 0 12px;
-    border: 1.5px solid #9ccbe6; border-radius: 12px;
-    background: #fff; color: var(--ink);
-    font-size: 13px; font-weight: 600; outline: none; font-family: inherit;
-    box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
+  .br-root .pro-input,
+  .br-modal-box .pro-input {
+    width: 100%; height: 38px; padding: 0 12px;
+    border: 1px solid rgba(14, 94, 135, 0.62); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.98); color: #071f31;
+    font-size: 14px; font-weight: 600; outline: none; font-family: inherit;
+    box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.08);
     transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
-  .br-root .pro-input:hover { border-color: #5fb4de; }
-  .br-root .pro-input:focus { border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27, 155, 224, 0.2), 0 6px 14px rgba(27, 155, 224, 0.12); }
-  .br-root .pro-input::placeholder { color: var(--hint); font-weight: 600; }
+  .br-root .pro-input:hover,
+  .br-modal-box .pro-input:hover { border-color: #087fb5; }
+  .br-root .pro-input:focus,
+  .br-modal-box .pro-input:focus { border-color: #087fb5; box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22); }
+  .br-root .pro-input::placeholder,
+  .br-modal-box .pro-input::placeholder { color: var(--hint); font-weight: 600; }
 
-  /* ---------- Buttons ---------- */
+  /* ---------- Buttons (light) ---------- */
   .br-root .pro-btn, .br-modal-box .pro-btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    min-height: 34px; padding: 6px 16px;
-    border: 1px solid #9fcfe9; border-radius: 12px;
+    min-height: 38px; padding: 6px 16px;
+    border: 1px solid #9fcfe9; border-radius: 8px;
     background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%); color: #08406b;
-    font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
-    box-shadow: 0 3px 0 #b3dcf0, 0 7px 12px rgba(40, 120, 170, 0.14), inset 0 1px 0 #fff;
-    transition: all 0.15s ease;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    box-shadow: 0 3px 8px rgba(40, 120, 170, 0.14), inset 0 1px 0 #ffffff;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   }
-  .br-root .pro-btn:hover:not(:disabled), .br-modal-box .pro-btn:hover:not(:disabled) { transform: translateY(-1px); }
-  .br-root .pro-btn:active:not(:disabled), .br-modal-box .pro-btn:active:not(:disabled) { transform: translateY(2px); }
+  .br-root .pro-btn:hover:not(:disabled), .br-modal-box .pro-btn:hover:not(:disabled) { filter: brightness(1.03); }
+  .br-root .pro-btn:active:not(:disabled), .br-modal-box .pro-btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 3px rgba(40, 120, 170, 0.18); }
   .br-root .pro-btn:disabled, .br-modal-box .pro-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .br-root .pro-btn.primary {
+  .br-root .pro-btn.primary, .br-modal-box .pro-btn.primary {
     background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab;
-    box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20, 168, 112, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   }
   .br-root .pro-btn.br-danger, .br-modal-box .pro-btn.br-danger {
     background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%); color: #8f1414; border-color: #ee8f8f;
-    box-shadow: 0 3px 0 #e08a8a, 0 7px 12px rgba(220, 38, 38, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   }
 
-  /* ---------- Generate card: compact single-row form ---------- */
+  /* ---------- Generate form fields ---------- */
   .br-root .pro-header h1 { border: none !important; padding: 0 !important; background: none !important; }
   .br-root .pro-header h1::before, .br-root .pro-header h1::after { content: none !important; display: none !important; }
-  .br-gen-card { padding: 12px 18px 14px !important; }
-  .br-gen-card .pro-card-header { margin-bottom: 8px; }
   .br-form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
   .br-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .br-field-customer { flex: 1 1 340px; min-width: 220px; }
   .br-field-file { flex: 1 1 260px; min-width: 200px; }
-  .br-form-row .pro-input { height: 40px; }
-  .br-label { font-size: 10.5px; font-weight: 800; color: #4a6f8c; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 0 2px; }
-  .br-root .br-upload { width: 100%; max-width: none; justify-content: center; height: 40px; min-height: 40px; }
+  .br-form-row .pro-input { height: 38px; }
+  .br-label { font-size: 14px; font-weight: 700; color: #092f47; margin: 0 0 0 2px; }
+  .br-upload { width: 100%; max-width: none; justify-content: center; height: 38px; min-height: 38px; }
   .br-upload-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 230px; }
-  .br-root .br-generate { height: 40px; min-height: 40px; padding: 6px 34px; }
+  .br-generate { height: 38px; min-height: 38px; padding: 6px 34px; }
+
+  /* ---------- Floating round Generate button ---------- */
+  .br-fab {
+    position: fixed; right: 28px; bottom: 28px; z-index: 900;
+    width: 58px; height: 58px; padding: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 700; line-height: 1; cursor: pointer;
+    font-family: inherit;
+    background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%);
+    color: #8f1414; border: 1px solid #ee8f8f;
+    box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .br-fab:hover { filter: brightness(1.04); transform: translateY(-2px); }
+  .br-fab:active { transform: translateY(1px); }
+
+  /* ---------- Generate pop-up form ---------- */
+  .br-gen-modal { width: 480px; }
+  .br-gen-modal .br-form-row { flex-direction: column; align-items: stretch; gap: 14px; }
+  .br-gen-modal .br-field-customer,
+  .br-gen-modal .br-field-file { flex: none; width: 100%; min-width: 0; }
+  .br-gen-modal .br-generate { width: 100%; }
 
   /* ---------- Report history table ---------- */
-  .br-table-head { border-radius: 14px 14px 0 0; overflow: hidden; margin-top: 12px; border: 1px solid #7fbfe4; border-bottom: none; }
+  .br-table-head { border-radius: 12px 12px 0 0; overflow: hidden; margin-top: 12px; border: 1px solid rgba(20, 111, 156, 0.25); border-bottom: none; }
   .br-th {
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%); color: #08406b;
-    font-weight: 800; font-size: 12px; letter-spacing: 0.3px; text-align: left;
+    background: #bfe6f8; color: #06324d;
+    font-weight: 800; font-size: 13px; letter-spacing: 0; text-align: left;
   }
   .br-body-wrap {
     max-height: 300px; overflow-y: auto;
-    border: 1px solid #a9d9f2; border-top: none; border-radius: 0 0 14px 14px; background: #fff;
-    box-shadow: 0 8px 20px rgba(40, 120, 170, 0.12);
+    border: 1px solid rgba(20, 93, 130, 0.28); border-top: none; border-radius: 0 0 12px 12px; background: #fff;
   }
-  .br-row td { border-bottom: 1px solid #d3e8f4; color: var(--ink); background: #fff; }
+  .br-row td { border-bottom: 1px solid rgba(20, 93, 130, 0.28); color: #09283d; font-weight: 500; background: #fff; }
   .br-row:nth-child(even) td { background: #f3faff; }
   .br-row:hover td { background: #d9f2fc; }
-  .br-sub { font-size: 11px; color: var(--muted); }
-  .br-note { padding: 12px 0; font-size: 13px; color: var(--muted); font-weight: 600; }
-  .br-count { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .br-sub { font-size: 12px; color: var(--muted); }
+  .br-note { padding: 12px 0; font-size: 14px; color: var(--muted); font-weight: 600; }
+  .br-count { margin-top: 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
 
   /* ---------- Messages / toast ---------- */
-  .br-msg { margin-top: 12px; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+  .br-msg { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 14px; font-weight: 700; }
   .br-msg.ok, .br-toast.ok { background: #effcf5; border: 1px solid #86efac; color: #15803d; }
   .br-msg.err, .br-toast.err { background: #fff1f1; border: 1px solid #fca5a5; color: #b91c1c; }
   .br-toast {
     position: fixed; top: 20px; right: 20px; z-index: 1100;
-    padding: 12px 18px; border-radius: 14px; font-size: 13px; font-weight: 700;
-    box-shadow: 0 10px 26px rgba(40, 120, 170, 0.22); max-width: 320px; backdrop-filter: blur(8px);
+    padding: 12px 18px; border-radius: 12px; font-size: 14px; font-weight: 700;
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22); max-width: 320px;
   }
 
-  /* ---------- Confirm modal ---------- */
+  /* ---------- Modal ---------- */
   .br-modal-overlay {
     position: fixed; inset: 0; z-index: 1000;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(40, 90, 130, 0.35); backdrop-filter: blur(5px);
+    background: rgba(6, 50, 77, 0.4);
   }
   .br-modal-box {
     width: 360px; max-width: 90vw; padding: 22px 24px;
-    border-radius: 22px;
-    background: linear-gradient(180deg, #ffffff 0%, #e8f6fe 100%);
-    border: 1px solid #fff; color: #0b2f4f;
-    box-shadow: 0 24px 60px rgba(30, 60, 95, 0.3), inset 0 1px 0 #fff;
-    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    border-radius: 12px;
+    background: rgba(221, 243, 252, 0.98);
+    border: 1px solid rgba(20, 111, 156, 0.42); color: #08283d;
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.3);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  .br-modal-box h3 { margin: 0; font-size: 16px; font-weight: 800; color: #0a4f8c; }
-  .br-modal-box p { margin: 10px 0 20px; font-size: 13px; color: #4a6f8c; line-height: 1.5; font-weight: 600; }
+  .br-modal-box h3 { margin: 0; font-size: 18px; font-weight: 800; color: #062b42; }
+  .br-modal-box p { margin: 10px 0 20px; font-size: 14px; color: #08283d; line-height: 1.5; font-weight: 500; }
   .br-modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+  .br-modal-box * { box-sizing: border-box; }
+
+  @media (max-width: 768px) {
+    .pro-container.br-root { padding: 12px; }
+    .br-root .pro-header h1 { font-size: 23px; }
+  }
 `;
 
 // ---- Simple, reusable confirm modal (replaces window.confirm) ----
@@ -209,6 +229,7 @@ function BillingCountReport() {
   const [file, setFile] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState(null);
+  const [showGenerateForm, setShowGenerateForm] = useState(false);
 
   // ---- Report history table ----
   const [reports, setReports] = useState([]);
@@ -232,6 +253,11 @@ function BillingCountReport() {
     if (!message) return;
     const timer = setTimeout(() => setMessage(null), 4000);
     return () => clearTimeout(timer);
+  }, [message]);
+
+  // Close the Generate pop-up once a report has been generated successfully
+  useEffect(() => {
+    if (message?.success) setShowGenerateForm(false);
   }, [message]);
 
   useEffect(() => {
@@ -500,7 +526,19 @@ function BillingCountReport() {
 
       <div className="br-inner">
 
-        <div className="pro-card br-gen-card">
+        <button
+          type="button"
+          className="br-fab"
+          title="Generate Report"
+          aria-label="Generate Report"
+          onClick={() => setShowGenerateForm(true)}
+        >
+          +
+        </button>
+
+        {showGenerateForm && (
+        <div className="br-modal-overlay" onClick={() => setShowGenerateForm(false)}>
+        <div className="br-modal-box br-gen-modal" onClick={(e) => e.stopPropagation()}>
           <div className="pro-card-header">
             <span>Generate Report</span>
           </div>
@@ -553,7 +591,15 @@ function BillingCountReport() {
               {message.error ? `❌ ${message.error}` : `✅ ${message.success}`}
             </div>
           )}
+
+          <div className="br-modal-actions" style={{ marginTop: 14 }}>
+            <button type="button" className="pro-btn" onClick={() => setShowGenerateForm(false)}>
+              Close
+            </button>
+          </div>
         </div>
+        </div>
+        )}
 
         {/* ---- Report history ---- */}
         <div className="pro-card" style={{ marginTop: "20px" }}>
