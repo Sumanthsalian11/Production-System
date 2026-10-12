@@ -48,11 +48,41 @@ function PagerBar({ pg }) {
       </span>
 
       <div className="pager-btns">
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage(1)}>«</button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
-        <span className="pager-page">Page {page} / {totalPages}</span>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
-        <button type="button" className="btn btn-sm btn-secondary" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>»</button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page <= 1}
+          onClick={() => setPage(1)}
+        >
+          «
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page <= 1}
+          onClick={() => setPage(page - 1)}
+        >
+          Prev
+        </button>
+        <span className="pager-page">
+          Page {page} / {totalPages}
+        </span>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page >= totalPages}
+          onClick={() => setPage(page + 1)}
+        >
+          Next
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          disabled={page >= totalPages}
+          onClick={() => setPage(totalPages)}
+        >
+          »
+        </button>
 
         <select
           className="form-select form-select-sm pager-size"
@@ -60,7 +90,9 @@ function PagerBar({ pg }) {
           onChange={(e) => setPageSize(Number(e.target.value))}
         >
           {PAGE_SIZES.map((n) => (
-            <option key={n} value={n}>{n} / page</option>
+            <option key={n} value={n}>
+              {n} / page
+            </option>
           ))}
         </select>
       </div>
@@ -77,7 +109,6 @@ const EMPTY_SUMMARY = {
 };
 
 export default function SummaryReport() {
-  // grouped numbers come from the server (raw records never reach the browser)
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const requestId = useRef(0);
@@ -112,12 +143,10 @@ export default function SummaryReport() {
     }
   }, []);
 
-  // ✅ GROUPED DATA (already grouped by the server)
   const groupedCustomer = summary.customers;
   const groupedMill = summary.mills;
   const groupedWorkOrder = summary.workOrders;
 
-  // ✅ GROUP BY WORK ORDER (planned vs achieved)
   const groupedWO = useMemo(
     () =>
       summary.workOrders.map((w) => ({
@@ -129,8 +158,6 @@ export default function SummaryReport() {
     [summary.workOrders]
   );
 
-  // LOAD SUMMARY FROM SERVER (filters are sent as query params)
-  // no filter -> latest 20 records, filters -> ALL matching records
   const fetchSummary = async (filters = {}) => {
     const id = ++requestId.current;
     setLoading(true);
@@ -148,7 +175,7 @@ export default function SummaryReport() {
         params
       });
 
-      if (id !== requestId.current) return; // a newer request replaced this one
+      if (id !== requestId.current) return;
 
       setSummary({ ...EMPTY_SUMMARY, ...res.data });
     } catch (error) {
@@ -158,7 +185,6 @@ export default function SummaryReport() {
     }
   };
 
-  // LOAD FILTER DROPDOWN VALUES (once)
   const loadOptions = async () => {
     try {
       const token = localStorage.getItem("token");
@@ -213,7 +239,6 @@ export default function SummaryReport() {
   const wastePercent = (waste, weight) =>
     weight > 0 ? ((waste / weight) * 100).toFixed(2) : "0.00";
 
-  // TOTALS
   const customerTotal = useMemo(
     () =>
       groupedCustomer.reduce(
@@ -267,17 +292,13 @@ export default function SummaryReport() {
     [groupedWO]
   );
 
-  // PAGINATION (display only; totals and exports still use all rows)
   const custPg = usePaging(groupedCustomer, summary);
   const millPg = usePaging(groupedMill, summary);
   const woPg = usePaging(groupedWorkOrder, summary);
   const planPg = usePaging(groupedWO, summary);
 
-  // EXPORT EXCEL (always exports ALL grouped rows, not just the rows of the current page)
   const exportExcel = () => {
     const wb = XLSX.utils.book_new();
-
-    // ================= SHEET 1: SUMMARY =================
     const rows = [];
 
     // CUSTOMER
@@ -345,9 +366,8 @@ export default function SummaryReport() {
     const ws1 = XLSX.utils.aoa_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws1, "Summary");
 
-    // ================= SHEET 2: PLANNED VS ACHIEVED =================
+    // PLANNED VS ACHIEVED
     const woRows = [];
-
     woRows.push(["PLANNED VS ACHIEVED"]);
     woRows.push([
       "Work Order",
@@ -367,7 +387,6 @@ export default function SummaryReport() {
       ]);
     });
 
-    // GRAND TOTAL
     woRows.push([
       "TOTAL",
       pvaTotal.planned,
@@ -379,210 +398,289 @@ export default function SummaryReport() {
     const ws2 = XLSX.utils.aoa_to_sheet(woRows);
     XLSX.utils.book_append_sheet(wb, ws2, "Planned_vs_Achieved");
 
-    // EXPORT
     const file = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(new Blob([file]), "Reel_Summary.xlsx");
   };
 
   return (
     <div
-      className="container  summary-report-page"
+      className="summary-report-page"
       style={{
         maxWidth: "100%",
         fontSize: "14px",
-        background: "#d8f1fb",
-        border: "1px solid rgba(12, 90, 130, 0.38)",
-        borderRadius: "0px"
+        background: "transparent",
+        padding: "16px 20px 50px"
       }}
     >
-      {/* ======================================================================
-          🎨 MATCHING THE PRODUCTION DASHBOARD DESIGN LANGUAGE
-          ====================================================================== */}
       <style>{`
+    
         .summary-report-page {
-          min-height: 100vh;
-          padding: 18px;
-          color: #08283d;
-          background:
-            radial-gradient(circle at top left, rgba(34, 153, 204, 0.34), transparent 32%),
-            linear-gradient(135deg, #d6f1fb 0%, #edfaff 48%, #c7e9f7 100%) !important;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+          color: #000000;
         }
 
-        .summary-report-page .summary-title {
-          color: #06324d;
-          letter-spacing: 0;
-          font-size: 28px;
-          font-weight: 800;
-          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+        .summary-report-page * {
+          box-sizing: border-box;
+          font-family: inherit;
         }
 
+        /* ── HEAVY 3D ELEVATION SHADOWS FOR EVERY GRID & CARD ── */
         .summary-report-page .card {
-          border: 1px solid rgba(20, 111, 156, 0.42) !important;
-          border-radius: 12px !important;
-          background: rgba(221, 243, 252, 0.94) !important;
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22) !important;
+          background: #ffffff !important;
+          border: 1px solid #d1d5db !important;
+          border-radius: 10px !important;
+          box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.14), 0 8px 16px -6px rgba(0, 0, 0, 0.08) !important;
+          margin-bottom: 24px;
+          overflow: hidden;
+          transition: box-shadow 0.25s ease, transform 0.2s ease;
         }
 
-        .summary-report-page h5,
-        .summary-report-page h6 {
-          color: #062b42 !important;
+        .summary-report-page .card:hover {
+          box-shadow: 0 22px 42px -4px rgba(0, 0, 0, 0.18), 0 12px 20px -6px rgba(0, 0, 0, 0.12) !important;
+        }
+
+        /* ── LIGHT COLOR TINT FOR FILTER GRID CARD ── */
+        .summary-report-page .filter-card-styled {
+          background: #f0f7f9 !important; /* Soft light pastel tint */
+          border: 1px solid #b8d4db !important;
+          border-top: 3px solid #0f5560 !important;
+        }
+
+        /* ── Card Header ── */
+        .summary-report-page .card-header {
+          background: #f8fafc !important;
+          border-bottom: 1.5px solid #cbd5e1 !important;
+          color: #000000 !important;
+          padding: 12px 18px !important;
+          font-size: 14px;
+          font-weight: 800 !important;
+          letter-spacing: -0.01em;
+          text-align: left;
+        }
+
+        .summary-report-page h5 {
+          color: #000000 !important;
           font-weight: 800;
-          padding: 8px 0;
+          font-size: 16px;
+          margin: 0;
         }
 
+        /* ── FILTER FIELDS: BLACK BORDER & HIGH VISIBILITY ── */
         .summary-report-page .form-label {
-          color: #092f47 !important;
-          font-weight: 700;
+          color: #000000 !important;
+          font-size: 11px !important;
+          font-weight: 800 !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.04em;
           margin-bottom: 5px;
+          display: block;
         }
 
         .summary-report-page .form-control,
         .summary-report-page .form-select {
-          min-height: 38px;
-          border: 1px solid rgba(14, 94, 135, 0.62) !important;
-          border-radius: 8px;
-          background-color: rgba(255, 255, 255, 0.98) !important;
-          color: #071f31;
-          font-weight: 600;
-          box-shadow: inset 0 1px 2px rgba(8, 55, 83, 0.08);
+          min-height: 40px;
+          height: 40px;
+          border: 1.5px solid #000000 !important; /* CRISP BLACK BORDER */
+          border-radius: 6px !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-size: 13px !important;
+          font-weight: 700 !important;
+          outline: none;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+          transition: all 0.15s ease;
         }
 
         .summary-report-page .form-control:focus,
         .summary-report-page .form-select:focus {
-          border-color: #087fb5 !important;
-          box-shadow: 0 0 0 3px rgba(8, 127, 181, 0.22) !important;
+          border-color: #0f5560 !important;
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.25) !important;
         }
 
+        /* ── Action Buttons ── */
         .summary-report-page .btn {
-          border: 0;
-          border-radius: 8px;
-          font-weight: 700;
-          min-height: 38px;
-          box-shadow: 0 7px 15px rgba(10, 78, 115, 0.24);
-          transition: transform 0.12s ease, box-shadow 0.12s ease;
-        }
-
-        .summary-report-page .btn:active {
-          transform: translateY(2px);
-          box-shadow: 0 2px 6px rgba(10, 78, 115, 0.2);
+          height: 40px;
+          border-radius: 6px !important;
+          font-size: 12px !important;
+          font-weight: 800 !important;
+          letter-spacing: 0.02em;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          border: 1px solid transparent !important;
+          transition: all 0.15s ease;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
         }
 
         .summary-report-page .btn-success {
-          background: linear-gradient(135deg, #087f68, #18aa91) !important;
+          background: #10b981 !important;
           color: #ffffff !important;
+          border-color: #059669 !important;
+        }
+
+        .summary-report-page .btn-success:hover {
+          background: #059669 !important;
+          border-color: #047857 !important;
         }
 
         .summary-report-page .btn-secondary {
-          background: linear-gradient(135deg, #405f76, #6f91a6) !important;
+          background: #475569 !important;
           color: #ffffff !important;
+          border-color: #334155 !important;
         }
 
-        .summary-report-page .card-header {
-          border: 0;
-          border-radius: 12px 12px 0 0 !important;
-          background: linear-gradient(135deg, #075f90, #119bd2) !important;
-          color: #ffffff !important;
-          padding: 12px 16px;
+        .summary-report-page .btn-secondary:hover {
+          background: #334155 !important;
+          border-color: #1e293b !important;
         }
 
-        .summary-report-page .table-responsive {
-          background: #d5edf8 !important;
-          border-radius: 0 0 12px 12px;
-        }
-
-        .summary-report-page table {
-          color: #09283d;
+        .summary-report-page .count-pill {
           background: #ffffff;
-        }
-
-        .summary-report-page thead th {
-          background: #064c73 !important;
-          color: #ffffff !important;
-          border-color: rgba(255, 255, 255, 0.28) !important;
-          font-size: 13px;
-          vertical-align: middle;
-          white-space: nowrap;
-          text-align: center;
-        }
-
-        .summary-report-page tbody td {
-          border-color: rgba(20, 93, 130, 0.28) !important;
-          vertical-align: middle;
-          text-align: center;
-          font-weight: 500;
-        }
-
-        .summary-report-page tbody tr:hover td {
-          background: #d9f2fc !important;
-        }
-
-        .summary-report-page .total-row-highlight {
-          background: #e0f2fe !important;
-          font-weight: 800 !important;
-          border-top: 2px solid #075f90 !important;
-        }
-
-        .summary-header-box {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 14px;
-          margin-bottom: 20px;
-        }
-
-        .count-pill {
-          background: rgba(8, 119, 173, 0.15);
-          color: #064c73;
-          border: 1px solid rgba(8, 119, 173, 0.35);
+          color: #0b3a45;
+          border: 1.5px solid #0f5560;
           padding: 4px 12px;
           border-radius: 20px;
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 800;
         }
 
+        /* ── Table Container ── */
+        .summary-report-page .table-responsive {
+          background: #ffffff !important;
+          border: none;
+        }
+
+        .summary-report-page table {
+          width: 100%;
+          border-collapse: separate !important;
+          border-spacing: 0 !important;
+          font-size: 12.5px;
+          color: #000000;
+          background: #ffffff;
+        }
+
+        /* ── ALL TABLE HEADERS: CENTERED WITH RICH TEAL COLOR ── */
+        .summary-report-page thead tr th {
+          background: #0f5560 !important;
+          color: #ffffff !important;
+          font-weight: 700 !important;
+          font-size: 11px !important;
+          text-transform: uppercase !important;
+          letter-spacing: 0.05em !important;
+          padding: 11px 12px !important;
+          border-bottom: 2px solid #0b3a45 !important;
+          border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+          border-top: none !important;
+          border-left: none !important;
+          white-space: nowrap;
+          text-align: center !important;
+          vertical-align: middle !important;
+        }
+
+        .summary-report-page thead tr th:last-child {
+          border-right: none !important;
+        }
+
+        .summary-report-page tbody td {
+          padding: 9px 12px !important;
+          border-bottom: 1px solid #e2e8f0 !important;
+          border-right: 1px solid #f1f5f9 !important;
+          border-left: none !important;
+          border-top: none !important;
+          color: #000000 !important;
+          font-weight: 600;
+          vertical-align: middle;
+          text-align: center !important;
+          white-space: nowrap;
+        }
+
+        .summary-report-page tbody td:last-child {
+          border-right: none !important;
+        }
+
+        .summary-report-page tbody tr:nth-child(even) td {
+          background: #fafbfc;
+        }
+
+        .summary-report-page tbody tr:hover td {
+          background: #f1f5f9 !important;
+        }
+
+        /* ── Total Row Highlight ── */
+        .summary-report-page .total-row-highlight td {
+          background: #eef7f9 !important;
+          font-weight: 800 !important;
+          color: #0b3a45 !important;
+          border-top: 2px solid #0f5560 !important;
+          border-bottom: 2px solid #0f5560 !important;
+        }
+
+        /* ── Pager Bar ── */
         .summary-report-page .pager-bar {
           display: flex;
           flex-wrap: wrap;
           align-items: center;
           justify-content: space-between;
           gap: 10px;
-          padding: 10px 14px;
-          border-top: 1px solid rgba(20, 93, 130, 0.28);
-          background: rgba(247, 253, 255, 0.98);
-          border-radius: 0 0 12px 12px;
+          padding: 9px 16px;
+          border-top: 1px solid #e2e8f0;
+          background: #f8fafc;
         }
+
         .summary-report-page .pager-info {
-          font-size: 12.5px;
+          font-size: 12px;
           font-weight: 700;
-          color: #092f47;
+          color: #334155;
         }
+
         .summary-report-page .pager-btns {
           display: flex;
           align-items: center;
           flex-wrap: wrap;
           gap: 6px;
         }
+
         .summary-report-page .pager-btns .btn {
-          min-height: 30px;
-          padding: 3px 10px;
-          box-shadow: none;
-        }
-        .summary-report-page .pager-btns .btn:disabled {
-          opacity: 0.45;
-        }
-        .summary-report-page .pager-page {
-          font-size: 12.5px;
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 0 10px !important;
+          font-size: 11.5px !important;
           font-weight: 800;
-          color: #064c73;
-          padding: 0 6px;
+          background: #ffffff !important;
+          color: #000000 !important;
+          border: 1.5px solid #000000 !important;
+          box-shadow: none !important;
         }
+
+        .summary-report-page .pager-btns .btn:hover:not(:disabled) {
+          background: #f1f5f9 !important;
+          border-color: #000000 !important;
+        }
+
+        .summary-report-page .pager-btns .btn:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
+          border-color: #94a3b8 !important;
+        }
+
+        .summary-report-page .pager-page {
+          font-size: 12px;
+          font-weight: 800;
+          color: #000000;
+          padding: 0 4px;
+        }
+
         .summary-report-page .pager-size {
+          height: 30px !important;
+          min-height: 30px !important;
+          padding: 2px 24px 2px 8px !important;
+          font-size: 11.5px !important;
+          font-weight: 700 !important;
           width: auto;
-          min-height: 30px;
+          background-color: #ffffff !important;
+          border: 1.5px solid #000000 !important;
+          color: #000000 !important;
         }
 
         @media (max-width: 992px) {
@@ -593,32 +691,12 @@ export default function SummaryReport() {
             width: 100% !important;
           }
         }
-
-        @media (max-width: 768px) {
-          .summary-report-page {
-            padding: 12px;
-            border-radius: 14px !important;
-          }
-
-          .summary-report-page .summary-title {
-            font-size: 23px;
-          }
-
-          .summary-header-box {
-            flex-direction: column;
-            align-items: stretch;
-          }
-        }
       `}</style>
 
-
-
-      {/* FILTERS CARD */}
-      <div className="card shadow-lg p-3 mb-4">
+      {/* FILTERS CARD WITH LIGHT COLOR ACCENT */}
+      <div className="card filter-card-styled p-3 mb-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h5 className="m-0" style={{ color: "#06324d", fontWeight: 800 }}>
-            Filters
-          </h5>
+          <h5>Filters</h5>
           <span className="count-pill">
             {loading
               ? "Loading..."
@@ -638,17 +716,6 @@ export default function SummaryReport() {
               onChange={(e) => setWoFilter(e.target.value)}
             />
           </div>
-
-          {/* Date */}
-          {/* <div className="col-md-2">
-            <label className="form-label">Date</label>
-            <input
-              type="date"
-              className="form-control"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-            />
-          </div> */}
 
           {/* From Date */}
           <div className="col-md-2">
@@ -671,17 +738,6 @@ export default function SummaryReport() {
               onChange={(e) => setToDateFilter(e.target.value)}
             />
           </div>
-
-          {/* Month */}
-          {/* <div className="col-md-2">
-            <label className="form-label">Month</label>
-            <input
-              type="month"
-              className="form-control"
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
-            />
-          </div> */}
 
           {/* Material Group */}
           <div className="col-md-2">
@@ -809,16 +865,16 @@ export default function SummaryReport() {
       <div className="d-flex flex-nowrap gap-4 dual-table-row mb-4">
         {/* CUSTOMER SUMMARY */}
         <div className="w-50 dual-table-col">
-          <div className="card shadow-lg h-100">
+          <div className="card h-100">
             <div className="card-header text-center">
-              <strong>Customer Summary</strong>
+              Customer Summary
             </div>
             <div
               className="table-responsive"
               style={{ maxHeight: "350px", overflowY: "auto" }}
             >
-              <table className="table table-striped table-bordered table-hover text-center mb-0 align-middle">
-                <thead className="table-dark sticky-top">
+              <table className="table mb-0 align-middle">
+                <thead className="sticky-top">
                   <tr>
                     <th>Customer</th>
                     <th>Actual Net Weight</th>
@@ -831,7 +887,7 @@ export default function SummaryReport() {
                     <tr key={i}>
                       <td className="fw-semibold">{item.customerName}</td>
                       <td>{item.weight.toFixed(2)}</td>
-                      <td className="text-danger fw-bold">
+                      <td style={{ color: "#dc2626", fontWeight: "700" }}>
                         {item.waste.toFixed(2)}
                       </td>
                       <td className="fw-bold">
@@ -842,7 +898,7 @@ export default function SummaryReport() {
                   <tr className="total-row-highlight">
                     <td>TOTAL</td>
                     <td>{customerTotal.weight.toFixed(2)}</td>
-                    <td className="text-danger fw-bold">
+                    <td style={{ color: "#dc2626", fontWeight: "700" }}>
                       {customerTotal.waste.toFixed(2)}
                     </td>
                     <td>
@@ -858,16 +914,16 @@ export default function SummaryReport() {
 
         {/* MILL SUMMARY */}
         <div className="w-50 dual-table-col">
-          <div className="card shadow-lg h-100">
+          <div className="card h-100">
             <div className="card-header text-center">
-              <strong>Mill Summary</strong>
+              Mill Summary
             </div>
             <div
               className="table-responsive"
               style={{ maxHeight: "350px", overflowY: "auto" }}
             >
-              <table className="table table-striped table-bordered table-hover text-center mb-0 align-middle">
-                <thead className="table-dark sticky-top">
+              <table className="table mb-0 align-middle">
+                <thead className="sticky-top">
                   <tr>
                     <th>Mill</th>
                     <th>Actual Net Weight</th>
@@ -880,7 +936,7 @@ export default function SummaryReport() {
                     <tr key={i}>
                       <td className="fw-semibold">{item.mill}</td>
                       <td>{item.weight.toFixed(2)}</td>
-                      <td className="text-danger fw-bold">
+                      <td style={{ color: "#dc2626", fontWeight: "700" }}>
                         {item.waste.toFixed(2)}
                       </td>
                       <td className="fw-bold">
@@ -891,7 +947,7 @@ export default function SummaryReport() {
                   <tr className="total-row-highlight">
                     <td>TOTAL</td>
                     <td>{millTotal.weight.toFixed(2)}</td>
-                    <td className="text-danger fw-bold">
+                    <td style={{ color: "#dc2626", fontWeight: "700" }}>
                       {millTotal.waste.toFixed(2)}
                     </td>
                     <td>{wastePercent(millTotal.waste, millTotal.weight)}%</td>
@@ -907,17 +963,17 @@ export default function SummaryReport() {
       {/* ======================================================================
           WORK ORDER SUMMARY
           ====================================================================== */}
-      <div className="card shadow-lg mb-4">
+      <div className="card mb-4">
         <div className="card-header text-center">
-          <strong>Work Order Summary</strong>
+          Work Order Summary
         </div>
 
         <div
           className="table-responsive"
           style={{ maxHeight: "350px", overflowY: "auto" }}
         >
-          <table className="table table-striped table-bordered table-hover text-center mb-0 align-middle">
-            <thead className="table-dark sticky-top">
+          <table className="table mb-0 align-middle">
+            <thead className="sticky-top">
               <tr>
                 <th>Work Order</th>
                 <th>Customer</th>
@@ -933,7 +989,7 @@ export default function SummaryReport() {
                   <td className="fw-bold">#{item.workOrder}</td>
                   <td className="fw-semibold">{item.customer}</td>
                   <td>{item.weight.toFixed(2)}</td>
-                  <td className="text-danger fw-bold">
+                  <td style={{ color: "#dc2626", fontWeight: "700" }}>
                     {item.waste.toFixed(2)}
                   </td>
                   <td className="fw-bold">
@@ -946,7 +1002,7 @@ export default function SummaryReport() {
                 <td>TOTAL</td>
                 <td>--</td>
                 <td>{workOrderTotal.weight.toFixed(2)}</td>
-                <td className="text-danger fw-bold">
+                <td style={{ color: "#dc2626", fontWeight: "700" }}>
                   {workOrderTotal.waste.toFixed(2)}
                 </td>
                 <td>
@@ -962,17 +1018,17 @@ export default function SummaryReport() {
       {/* ======================================================================
           PLANNED V/S ACHIEVED QTY
           ====================================================================== */}
-      <div className="card shadow-lg mb-4">
+      <div className="card mb-4">
         <div className="card-header text-center">
-          <strong>Planned V/s Achieved Qty</strong>
+          Planned V/s Achieved Qty
         </div>
 
         <div
           className="table-responsive"
           style={{ maxHeight: "350px", overflowY: "auto" }}
         >
-          <table className="table table-striped table-bordered table-hover text-center mb-0 align-middle">
-            <thead className="table-dark sticky-top">
+          <table className="table mb-0 align-middle">
+            <thead className="sticky-top">
               <tr>
                 <th>Work Order</th>
                 <th>Planned Qty</th>
@@ -994,9 +1050,8 @@ export default function SummaryReport() {
                       {item.achievedQty.toLocaleString("en-IN")}
                     </td>
                     <td
-                      className={`fw-bold ${
-                        diff < 0 ? "text-danger" : "text-success"
-                      }`}
+                      className="fw-bold"
+                      style={{ color: diff < 0 ? "#dc2626" : "#059669" }}
                     >
                       {diff.toLocaleString("en-IN")}
                     </td>
@@ -1010,11 +1065,13 @@ export default function SummaryReport() {
                 <td>{pvaTotal.output.toLocaleString("en-IN")}</td>
                 <td>{pvaTotal.achieved.toLocaleString("en-IN")}</td>
                 <td
-                  className={`fw-bold ${
-                    pvaTotal.achieved - pvaTotal.planned < 0
-                      ? "text-danger"
-                      : "text-success"
-                  }`}
+                  className="fw-bold"
+                  style={{
+                    color:
+                      pvaTotal.achieved - pvaTotal.planned < 0
+                        ? "#dc2626"
+                        : "#059669"
+                  }}
                 >
                   {(pvaTotal.achieved - pvaTotal.planned).toLocaleString("en-IN")}
                 </td>

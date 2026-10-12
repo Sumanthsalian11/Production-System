@@ -464,7 +464,7 @@ function InternalLogin() {
 
           <div className="showcase-content">
             <span className="showcase-rule" />
-            <h1 className="showcase-title">Manipal Payment &amp; Identity Solutions</h1>
+            <h1 className="showcase-title">Manipal Payment and Identity Solutions</h1>
             <p className="showcase-sub">
               Role-based access, live status tracking and clear reports for every team.
             </p>
