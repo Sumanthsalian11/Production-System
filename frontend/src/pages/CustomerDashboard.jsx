@@ -1579,90 +1579,143 @@ function CustomerDashboard() {
 
           {/* Process Selected Indent */}
           {selectedIndent && (
-            <div className="card shadow-lg mb-4">
-              <div className="card-header d-flex align-items-center justify-content-between">
-                <strong>Process Indent</strong>
-                <span className="badge bg-light text-dark px-3 py-2 fw-bold">
-                  {selectedIndent.indentNo}
-                </span>
+            <div className="po-split">
+              {/* Left info panel */}
+              <div className="po-side">
+                <div className="po-side-brand">Order Request</div>
+
+                <div className="po-side-hero">
+                  <h2>Let's Process</h2>
+                  <h1>Indent</h1>
+                  <p>
+                    Review the indent details and choose the order type to
+                    create the purchase order.
+                  </p>
+                </div>
+
+                <div className="po-side-foot">
+                  Indent #{selectedIndent.indentNo}
+                </div>
               </div>
 
-              <div className="card-body p-4">
-                {/* Order Info Display */}
-                <div
-                  className="rounded-3 mb-4 p-2 bg-light"
-                  style={{ border: "1px solid rgba(14, 94, 135, 0.3)" }}
-                >
-                  <div className="row g-2">
-                    {[
-                      ["Indent No", selectedIndent.indentNo],
-                      ["Product Code", selectedIndent.items[0]?.productCode],
-                      [
-                        "Product Type",
-                        selectedIndent.items[0]?.materialType || "-"
-                      ],
-                      [
-                        "Description",
-                        selectedIndent.items[0]?.description || "-"
-                      ],
-                      [
-                        "Customer",
-                        selectedIndent.items[0]?.customerName || "-"
-                      ],
-                      ["Quantity", selectedIndent.items[0]?.quantity],
-                      [
-                        "Location",
-                        selectedIndent.location?.locationName || "-"
-                      ],
-                      ["Unit Rate", selectedIndent.items[0]?.unitRate || "-"],
-                      [
-                        "Expected Date",
-                        selectedIndent.items[0]?.deliveryDate
-                          ? new Date(
-                              selectedIndent.items[0].deliveryDate
-                            ).toLocaleDateString("en-IN")
-                          : "-"
-                      ],
-                      [
-                        "Customer PO No",
-                        selectedIndent.items[0]?.customerPoNo || "-"
-                      ],
-                      [
-                        "Customer PO Date",
-                        selectedIndent.items[0]?.customerPoDate
-                          ? new Date(
-                              selectedIndent.items[0].customerPoDate
-                            ).toLocaleDateString("en-IN")
-                          : "-"
-                      ],
-                      [
-                        "Item PDF",
-                        selectedIndent.items[0]?.itemPdfPath ? "Attached" : "-"
-                      ]
-                    ].map(([label, value], i) => (
-                      <div key={i} className="col-6 col-md-4 col-lg-2">
-                        <div className="p-2 border rounded bg-white text-center h-100">
-                          <small className="text-uppercase fw-bold text-muted">
-                            {label}
-                          </small>
-                          <div className="fw-bold mt-1 text-dark">
-                            {value}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              {/* Right form panel */}
+              <div className="po-main">
+                <div className="po-heading">Process Indent Form</div>
+
+                <div className="po-section" style={{ marginTop: 0 }}>
+                  Indent Information
+                </div>
+
+                <div className="row g-2">
+                  {[
+                    ["Indent No", selectedIndent.indentNo, "bi-hash", "col-md-4"],
+                    [
+                      "Product Code",
+                      selectedIndent.items[0]?.productCode,
+                      "bi-upc-scan",
+                      "col-md-4"
+                    ],
+                    [
+                      "Product Type",
+                      selectedIndent.items[0]?.materialType || "-",
+                      "bi-tag",
+                      "col-md-4"
+                    ],
+                    [
+                      "Description",
+                      selectedIndent.items[0]?.description || "-",
+                      "bi-card-text",
+                      "col-12"
+                    ],
+                    [
+                      "Customer",
+                      selectedIndent.items[0]?.customerName || "-",
+                      "bi-person",
+                      "col-md-8"
+                    ],
+                    [
+                      "Quantity",
+                      selectedIndent.items[0]?.quantity,
+                      "bi-123",
+                      "col-md-4"
+                    ],
+                    [
+                      "Location",
+                      selectedIndent.location?.locationName || "-",
+                      "bi-geo-alt",
+                      "col-md-4"
+                    ],
+                    [
+                      "Unit Rate",
+                      selectedIndent.items[0]?.unitRate || "-",
+                      "bi-currency-rupee",
+                      "col-md-4"
+                    ],
+                    [
+                      "Expected Date",
+                      selectedIndent.items[0]?.deliveryDate
+                        ? new Date(
+                            selectedIndent.items[0].deliveryDate
+                          ).toLocaleDateString("en-IN")
+                        : "-",
+                      "bi-calendar-check",
+                      "col-md-4"
+                    ],
+                    [
+                      "Customer PO No",
+                      selectedIndent.items[0]?.customerPoNo || "-",
+                      "bi-receipt",
+                      "col-md-4"
+                    ],
+                    [
+                      "Customer PO Date",
+                      selectedIndent.items[0]?.customerPoDate
+                        ? new Date(
+                            selectedIndent.items[0].customerPoDate
+                          ).toLocaleDateString("en-IN")
+                        : "-",
+                      "bi-calendar-event",
+                      "col-md-4"
+                    ],
+                    [
+                      "Item PDF",
+                      selectedIndent.items[0]?.itemPdfPath ? "Attached" : "-",
+                      "bi-paperclip",
+                      "col-md-4"
+                    ]
+                  ].map(([label, value, icon, colClass], i) => (
+                    <PoField
+                      key={i}
+                      className={colClass}
+                      icon={icon}
+                      label={label}
+                      alwaysFloat
+                    >
+                      <input
+                        className="po-input"
+                        value={value ?? ""}
+                        readOnly
+                      />
+                    </PoField>
+                  ))}
                 </div>
 
                 <form onSubmit={handleProcessIndent}>
-                  <div className="row g-3">
-                    <div className="col-md-3">
-                      <label className="form-label">
-                        Order Type <span className="text-danger">*</span>
-                      </label>
+                  <div className="po-section">Order Information</div>
+
+                  <div className="row g-2">
+                    <PoField
+                      className="col-md-4"
+                      icon="bi-diagram-3"
+                      label="Order Type"
+                      required
+                      alwaysFloat
+                      caret
+                      error={errors.orderType}
+                    >
                       <select
                         name="orderType"
-                        className="form-select"
+                        className="po-input"
                         value={indentForm.orderType}
                         onChange={handleIndentFormChange}
                       >
@@ -1671,70 +1724,87 @@ function CustomerDashboard() {
                         <option value="Out Source">Out Source</option>
                         <option value="PMS">PMS</option>
                       </select>
-                      <small className="text-danger">{errors.orderType}</small>
-                    </div>
+                    </PoField>
 
                     {indentForm.orderType && (
-                      <div className="col-md-3">
-                        <label className="form-label">PO Number</label>
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-receipt"
+                        label="PO Number"
+                        filled={has(indentForm.purchaseOrderNo)}
+                        error={errors.purchaseOrderNo}
+                      >
                         <input
                           type="text"
                           name="purchaseOrderNo"
-                          className="form-control"
+                          className="po-input"
                           value={indentForm.purchaseOrderNo}
                           onChange={handleIndentFormChange}
                         />
-                        <small className="text-danger">
-                          {errors.purchaseOrderNo}
-                        </small>
-                      </div>
+                      </PoField>
                     )}
 
                     {indentForm.orderType && (
-                      <div className="col-md-2">
-                        <label className="form-label">PO Date</label>
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-calendar-event"
+                        label="PO Date"
+                        alwaysFloat
+                        error={errors.poDate}
+                      >
                         <input
                           type="date"
                           name="poDate"
-                          className="form-control"
+                          className="po-input"
                           value={indentForm.poDate}
                           onChange={handleIndentFormChange}
                         />
-                        <small className="text-danger">{errors.poDate}</small>
-                      </div>
+                      </PoField>
                     )}
 
                     {indentForm.orderType &&
                       indentForm.orderType !== "Inhouse" && (
-                        <div className="col-md-4">
-                          <label className="form-label">Supplier Name</label>
+                        <PoField
+                          className="col-12"
+                          icon="bi-truck"
+                          label="Supplier Name"
+                          area
+                          filled={has(indentForm.remarks)}
+                        >
                           <textarea
                             name="remarks"
-                            className="form-control"
+                            className="po-input"
                             rows="2"
                             value={indentForm.remarks}
                             onChange={handleIndentFormChange}
-                            placeholder="Enter remarks or supplier name"
                             required
                           />
-                        </div>
+                        </PoField>
                       )}
 
-                    <div className="col-md-4">
-                      <label className="form-label">Additional Remarks</label>
+                    <PoField
+                      className="col-12"
+                      icon="bi-chat-left-text"
+                      label="Additional Remarks"
+                      area
+                      filled={has(indentForm.remarks2)}
+                    >
                       <textarea
                         name="remarks2"
-                        className="form-control"
+                        className="po-input"
                         rows="2"
                         value={indentForm.remarks2 || ""}
                         onChange={handleIndentFormChange}
-                        placeholder="Additional remarks"
                       />
-                    </div>
+                    </PoField>
                   </div>
 
-                  <div className="d-flex justify-content-center gap-3 mt-4 pt-3 border-top">
-                    <button type="submit" className="btn btn-success px-4">
+                  <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
+                    <button
+                      type="submit"
+                      className="po-submit"
+                      style={{ width: "auto", minWidth: "190px", margin: 0, padding: "10px 28px" }}
+                    >
                       {indentForm.orderType === "Inhouse"
                         ? "Process & Send to Planner"
                         : "Save Order"}
