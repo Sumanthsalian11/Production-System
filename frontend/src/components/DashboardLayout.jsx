@@ -1099,11 +1099,13 @@ export default function DashboardLayout() {
                 onMouseEnter={() => setProfileHover(true)}
                 onMouseLeave={() => setProfileHover(false)}
                 style={{
-                  backgroundColor: profileHover ? "var(--hover)" : "var(--glass)",
-                  border: "1px solid",
-                  borderColor: profileHover ? "var(--border-strong)" : "var(--border)",
+                  background: "var(--accent-grad)",
+                  border: "none",
+                  color: "#ffffff",
                   borderRadius: "10px",
                   padding: "7px 10px",
+                  boxShadow: "var(--shadow-sm)",
+                  filter: profileHover ? "brightness(1.08)" : "none",
                   transition: "all 0.15s ease"
                 }}
               >
@@ -1112,23 +1114,25 @@ export default function DashboardLayout() {
                   style={{
                     width: "30px",
                     height: "30px",
-                    background: "var(--avatar-bg)",
-                    color: "#ffffff",
-                    fontSize: "0.82rem",
-                    flexShrink: 0
+                    background: "linear-gradient(180deg, #ffffff 0%, #d9f2fc 100%)",
+                    color: "#0f8a93",
+                    fontSize: "0.95rem",
+                    fontWeight: 900,
+                    flexShrink: 0,
+                    boxShadow: "0 4px 10px rgba(2, 20, 26, 0.45), inset 0 1px 0 #ffffff"
                   }}
                 >
                   {firstLetter}
                 </div>
                 <div className="text-truncate flex-grow-1" style={{ minWidth: 0 }}>
-                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.78rem", color: "var(--text)" }}>
+                  <div className="fw-bold text-capitalize text-truncate" style={{ fontSize: "0.78rem", color: "#ffffff" }}>
                     {displayName}
                   </div>
-                  <div className="small" style={{ fontSize: "0.64rem", color: "var(--ok)", fontWeight: 600 }}>
+                  <div className="small" style={{ fontSize: "0.64rem", color: "#eafff6", fontWeight: 600 }}>
                     ● ONLINE
                   </div>
                 </div>
-                <i className="bi bi-chevron-up" style={{ color: "var(--muted)", fontSize: "0.75rem" }}></i>
+                <i className="bi bi-chevron-up" style={{ color: "#ffffff", fontSize: "0.75rem" }}></i>
               </button>
             )}
 
