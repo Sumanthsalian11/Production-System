@@ -21,19 +21,18 @@ const risoGroup = (t) => {
   return x === "A3" ? "A3" : x === "A4" ? "A4" : x === "NONSTD(L)" ? "NL" : x === "NONSTD(S)" ? "NS" : null;
 };
 
-/* layout styles for the billing card */
+/* layout styles for the billing card (colours follow the Planner Dashboard theme) */
 const rowWrap = { display: "flex", gap: "8px", alignItems: "stretch", marginBottom: "6px" };
 const rowBadge = {
   flex: "0 0 44px", display: "flex", alignItems: "center", justifyContent: "center",
-  background: "linear-gradient(180deg, #d9f1fd 0%, #a8dcf6 100%)", color: "#08406b", fontSize: "11px", fontWeight: 800,
-  letterSpacing: "0.4px", textTransform: "uppercase", borderRadius: "10px",
-  border: "1px solid #86c6e8",
+  background: "#e3f1f4", color: "#000000", fontSize: "11px", fontWeight: 700,
+  letterSpacing: "0.4px", textTransform: "uppercase", borderRadius: "6px",
+  border: "1px solid #bdd9df",
 };
 const rowGrid = {
   flex: 1, display: "grid", gap: "8px", alignItems: "stretch",
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
 };
-const inputTileLbl = { fontSize: "11px", fontWeight: 700, color: "#4a6f8c", textTransform: "uppercase", letterSpacing: "0.4px" };
 const TABLE_COLS = 31; // number of columns in the saved-records table
 const PAGE_SIZES = [25, 50, 100, 200];
 const EXPORT_LIMIT = 200000; // must match the server's EXPORT_LIMIT
@@ -104,6 +103,37 @@ const Icons = {
     </svg>
   ),
 };
+
+/* ---------- Outlined floating-label field with a leading icon (same as Planner Dashboard) ---------- */
+const has = (v) => v !== "" && v !== null && v !== undefined;
+
+function PoField({
+  icon,
+  label,
+  required,
+  filled,
+  alwaysFloat,
+  caret,
+  area,
+  className = "",
+  style,
+  labelClass = "",
+  children,
+}) {
+  return (
+    <div className={className} style={style}>
+      <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${area ? "po-area" : ""}`}>
+        {icon && <i className={`bi ${icon} po-field-icon`}></i>}
+        {children}
+        <label className={`po-field-label ${labelClass}`}>
+          {label}
+          {required && <span className="po-req"> *</span>}
+        </label>
+        {caret && <i className="bi bi-chevron-down po-caret"></i>}
+      </div>
+    </div>
+  );
+}
 
 /* ---------- Helpers ---------- */
 let uid = 0;
@@ -695,207 +725,407 @@ export default function ClickReport() {
 
   return (
     <div className="planner-dashboard-root">
+      {/* ========================================================================= */}
+      {/* SCOPED ENTERPRISE TEAL / ORANGE THEME (same as Planner Dashboard)         */}
+      {/* ========================================================================= */}
       <style>{`
-        /* ---------- Page backdrop (soft sky glass) ---------- */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+        /* ---------- Theme tokens ---------- */
         .planner-dashboard-root {
-          min-height: 100vh;
-          padding: 18px;
-          font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-          color: #0b2f4f;
-          box-sizing: border-box;
-          background:
-            radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 30%),
-            radial-gradient(circle at 88% 18%, rgba(160, 222, 250, 0.7) 0, rgba(160, 222, 250, 0) 32%),
-            radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
-            linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-          background-attachment: fixed;
+          --brand: #e4572e;
+          --brand-dark: #c9461f;
+          --brand-soft: #fdeee8;
+          --teal: #0b3a45;
+          --teal-mid: #0f5560;
+          --teal-soft: #e3f1f4;
+          --ink: #000000;
+          --ink-soft: #000000;
+          --ink-mute: #000000;
+          --line: #e3e7ec;
+          --line-soft: #eef1f4;
+          --field-line: #cfd6de;
+          --surface: #ffffff;
+          --page: #f4f6f8;
+          --ok: #1f9d6b;
+          --warn: #d98a00;
+          --danger: #d64545;
         }
+
+        .planner-dashboard-root {
+          background: var(--page);
+          min-height: 100vh;
+          padding: 24px 28px 40px;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+          font-size: 12.5px;
+          color: #000000;
+          box-sizing: border-box;
+        }
+        .planner-dashboard-root *, .planner-dashboard-root *::before, .planner-dashboard-root *::after { box-sizing: border-box; }
+
         .planner-container-3d {
           max-width: 100%;
           margin: 0 auto;
-          background: rgba(255, 255, 255, 0.35);
-          border: 1px solid rgba(255, 255, 255, 0.9);
-          border-radius: 26px;
-          padding: 22px 24px;
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          box-shadow: 0 16px 36px rgba(40, 120, 170, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          padding: 0;
+          box-shadow: none;
         }
 
-        /* ---------- Glass cards ---------- */
+        .planner-dashboard-root h1,
+        .planner-dashboard-root h4,
+        .planner-dashboard-root h5,
+        .planner-dashboard-root h6 {
+          color: #000000;
+          font-weight: 700;
+          letter-spacing: -0.1px;
+          margin: 0;
+        }
+        .planner-dashboard-root h1,
+        .planner-dashboard-root h4 { font-size: 16px; }
+        .planner-dashboard-root h5 { font-size: 14px; }
+        .planner-dashboard-root small { font-size: 11.5px; color: #000000; font-weight: 600; }
+
+        /* scrollbars */
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar { height: 8px; width: 8px; }
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar-thumb { background: #c5ccd5; border-radius: 8px; }
+        .planner-dashboard-root .scrollable-table-container::-webkit-scrollbar-track { background: #f1f3f6; }
+
+        /* ---------- Cards ---------- */
         .card-glass-3d {
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(228, 246, 255, 0.9) 100%);
-          backdrop-filter: blur(14px);
-          border: 1px solid rgba(255, 255, 255, 0.95);
-          border-radius: 22px;
-          box-shadow: 0 14px 32px rgba(40, 120, 170, 0.16), inset 0 1px 0 #fff;
-          overflow: hidden;
-          transition: all 0.25s ease;
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+          overflow: visible;
           position: relative;
         }
 
-        /* ---------- Soft sky buttons ---------- */
+        /* ---------- Buttons (flat, light colours, black text) ---------- */
         .btn-3d {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 7px;
-          font-weight: 800;
-          border-radius: 12px;
-          padding: 7px 16px;
+          gap: 6px;
+          font-family: inherit;
+          font-weight: 600;
+          border-radius: 6px;
+          padding: 6px 13px;
           cursor: pointer;
-          transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: all 0.15s ease;
           text-decoration: none;
-          font-size: 13px;
+          font-size: 12px;
           border: 1px solid transparent;
           line-height: 1.3;
           white-space: nowrap;
+          color: #000000;
+          box-shadow: none;
         }
-        .btn-3d:active { transform: translateY(2px) !important; }
-        .btn-3d:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
-        .btn-3d-primary {
-          background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border-color: #7fc3e8;
-          box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40, 120, 170, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #7fbbe0, 0 10px 16px rgba(40, 120, 170, 0.24); color: #08406b; }
-        .btn-3d-success {
-          background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab;
-          box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20, 168, 112, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-success:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #84cba9, 0 10px 16px rgba(20, 168, 112, 0.24); color: #07583b; }
-        .btn-3d-warning {
-          background: linear-gradient(180deg, #fff0c4 0%, #fcd477 100%); color: #7a4f00; border-color: #f3c35a;
-          box-shadow: 0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-warning:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #e9b845, 0 10px 16px rgba(245, 158, 11, 0.24); color: #7a4f00; }
-        .btn-3d-danger {
-          background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%); color: #8f1414; border-color: #ee8f8f;
-          box-shadow: 0 3px 0 #e08a8a, 0 7px 12px rgba(220, 38, 38, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-danger:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #e08a8a, 0 10px 16px rgba(220, 38, 38, 0.2); color: #8f1414; }
-        .btn-3d-dark {
-          background: linear-gradient(180deg, #e2eff8 0%, #b3d3e8 100%); color: #0b3a5c; border-color: #98bfd8;
-          box-shadow: 0 3px 0 #8fb4cc, 0 7px 12px rgba(40, 90, 130, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-dark:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #8fb4cc, 0 10px 16px rgba(40, 90, 130, 0.2); color: #0b3a5c; }
-        .btn-3d-secondary {
-          background: linear-gradient(180deg, #eef5fa 0%, #cbdce8 100%); color: #34526b; border-color: #aac3d4;
-          box-shadow: 0 3px 0 #b6cbd9, 0 7px 12px rgba(93, 124, 147, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        }
-        .btn-3d-secondary:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #b6cbd9, 0 10px 16px rgba(93, 124, 147, 0.2); color: #34526b; }
+        .btn-3d svg { width: 14px; height: 14px; }
+        .btn-3d:active { transform: translateY(1px) !important; }
+        .btn-3d:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
 
-        /* ---------- Inputs ---------- */
-        .input-3d {
-          background: #fff;
-          border: 1.5px solid #9ccbe6;
-          border-radius: 12px;
-          padding: 6px 12px;
-          font-size: 13px;
-          font-weight: 600;
-          color: #0b2f4f;
-          box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
-          transition: all 0.2s ease;
+        .btn-3d-primary { background: #fde3d8; border-color: #f5b9a1; color: #000000; }
+        .btn-3d-primary:hover:not(:disabled) { background: #fbd0bf; border-color: #f0a48a; color: #000000; }
+
+        .btn-3d-success { background: #d9f2e6; border-color: #a9dcc3; color: #000000; }
+        .btn-3d-success:hover:not(:disabled) { background: #c5ebd6; border-color: #8fceb0; color: #000000; }
+
+        .btn-3d-warning { background: #fff7e6; border-color: #f2d291; color: #000000; }
+        .btn-3d-warning:hover:not(:disabled) { background: #ffecc2; color: #000000; }
+
+        .btn-3d-danger { background: #fdecec; border-color: #f3c1c1; color: #000000; }
+        .btn-3d-danger:hover:not(:disabled) { background: #f9d4d4; color: #000000; }
+
+        .btn-3d-info { background: #e8f3f6; border-color: #b9d6dd; color: #000000; }
+        .btn-3d-info:hover:not(:disabled) { background: #d5e9ee; border-color: #a9cdd6; color: #000000; }
+
+        .btn-3d-dark { background: #d5e9ee; border-color: #a9cdd6; color: #000000; }
+        .btn-3d-dark:hover:not(:disabled) { background: #c3dde4; border-color: #93bfca; color: #000000; }
+
+        .btn-3d-secondary { background: #ffffff; border-color: var(--field-line); color: #000000; }
+        .btn-3d-secondary:hover:not(:disabled) { background: var(--page); color: #000000; }
+
+        /* ---------- Plain inputs used inside tables / pager ---------- */
+        .cell-input {
           width: 100%;
-          box-sizing: border-box;
+          height: 32px;
+          padding: 0 10px;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 500;
+          color: #000000;
+          background: #ffffff;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          outline: none;
+          box-shadow: none;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .input-3d:focus { outline: none; border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27, 155, 224, 0.2), 0 6px 14px rgba(27, 155, 224, 0.12); }
-        .input-3d:disabled { background: linear-gradient(180deg, #f1f7fb 0%, #dfecf5 100%); color: #4a6f8c; cursor: not-allowed; }
+        .cell-input:focus {
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
+        }
+        .cell-input:disabled { opacity: 0.7; cursor: not-allowed; background: #f7f9fb; }
 
-        /* ---------- Tables ---------- */
+        /* ---------- Outlined floating-label fields (same as Planner Dashboard) ---------- */
+        .planner-dashboard-root .po-field {
+          position: relative;
+          display: flex;
+          align-items: center;
+          min-height: 36px;
+          background: #ffffff;
+          border: 1px solid var(--field-line);
+          border-radius: 6px;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .planner-dashboard-root .po-field:focus-within {
+          border-color: var(--teal-mid);
+          box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.15);
+        }
+        .planner-dashboard-root .po-field-icon {
+          position: absolute;
+          left: 10px;
+          color: #000000;
+          font-size: 0.8rem;
+          pointer-events: none;
+        }
+        .planner-dashboard-root .po-field .po-input {
+          width: 100%;
+          min-height: 34px;
+          padding: 6px 8px 6px 32px;
+          border: none !important;
+          outline: none;
+          background: transparent !important;
+          box-shadow: none !important;
+          color: #000000;
+          font-family: inherit;
+          font-size: 0.8rem;
+          font-weight: 500;
+          border-radius: 6px;
+        }
+        .planner-dashboard-root .po-field .po-input[readonly] { background: #f7f9fb !important; }
+        .planner-dashboard-root .po-field select.po-input {
+          appearance: none;
+          -webkit-appearance: none;
+          cursor: pointer;
+          padding-right: 28px;
+        }
+        .planner-dashboard-root .po-field select.po-input:disabled { cursor: not-allowed; opacity: 0.7; }
+        .planner-dashboard-root .po-field .po-input:disabled { cursor: not-allowed; opacity: 0.7; }
+        .planner-dashboard-root .po-caret {
+          position: absolute;
+          right: 10px;
+          font-size: 0.7rem;
+          color: #000000;
+          pointer-events: none;
+        }
+        .planner-dashboard-root .po-field-label {
+          position: absolute;
+          left: 32px;
+          top: 50%;
+          transform: translateY(-50%);
+          padding: 0 4px;
+          margin: 0;
+          background: #ffffff;
+          color: #000000;
+          font-size: 0.8rem;
+          font-weight: 500;
+          pointer-events: none;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+        }
+        .planner-dashboard-root .po-field:focus-within .po-field-label,
+        .planner-dashboard-root .po-field.is-floated .po-field-label {
+          top: 0;
+          left: 24px;
+          font-size: 0.62rem;
+          font-weight: 700;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          color: #000000;
+        }
+        .planner-dashboard-root .po-req { color: var(--danger); }
+
+        /* ---------- Data tables (light teal headers, zebra rows, orange hover) ---------- */
         .scrollable-table-container {
-          border-radius: 16px;
+          border-radius: 8px;
           overflow-x: auto;
           overflow-y: auto;
           max-height: 560px;
-          border: 1px solid #a9d9f2;
-          box-shadow: 0 8px 20px rgba(40, 120, 170, 0.12);
-          background: #fff;
+          border: 1px solid var(--line);
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+          background: #ffffff;
         }
-        .table-modern { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 0; white-space: nowrap; }
+        .table-modern {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+          margin-bottom: 0;
+          white-space: nowrap;
+        }
         .table-modern thead th {
-          background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
-          color: #08406b !important;
-          font-weight: 800;
-          padding: 10px 12px;
-          border: 1px solid #7fbfe4;
+          background: #a9d0d9 !important;
+          color: #000000 !important;
+          font-weight: 700 !important;
+          font-size: 10.5px;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          padding: 9px 10px;
+          border: 1px solid #8fbcc7 !important;
           position: sticky;
           top: 0;
           z-index: 5;
-          letter-spacing: 0.3px;
-          text-align: left;
+          text-align: center;
           white-space: nowrap;
         }
         .table-modern thead th.r { text-align: right; }
-        .table-modern tbody td { padding: 8px 11px; border: 1px solid #d3e8f4; color: #0b2f4f; vertical-align: middle; transition: background 0.15s ease; }
+        .table-modern tbody td {
+          padding: 7px 10px;
+          border: 1px solid var(--line-soft);
+          color: #000000;
+          font-weight: 500;
+          vertical-align: middle;
+          transition: background 0.15s ease;
+        }
         .table-modern tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
-        .table-modern tbody tr:nth-child(even) td { background: #f3faff; }
-        .table-modern tbody tr:hover td { background-color: #d9f2fc !important; }
-        .table-modern tfoot td { background: #d9f0fb !important; color: #08406b !important; font-weight: 800; padding: 10px 12px; border: 1px solid #a9d9f2; }
+        .table-modern tbody tr:nth-child(even) td { background: #fafbfc; }
+        .table-modern tbody tr:hover td { background-color: var(--brand-soft) !important; }
+        .table-modern tfoot td {
+          background: var(--teal-soft) !important;
+          color: #000000 !important;
+          font-weight: 700;
+          padding: 9px 10px;
+          border: 1px solid #bdd9df;
+        }
         .table-modern tfoot td.r { text-align: right; }
+        .cr-dash { color: #000000; opacity: 0.55; }
 
-        /* ---------- KPI tiles / dock ---------- */
+        /* ---------- Section headings (orange left bar) ---------- */
+        .pl-section-title {
+          display: flex; align-items: center; gap: 7px;
+          margin: 2px 0 10px; padding-left: 8px;
+          border-left: 3px solid var(--brand);
+          font-size: 13px; font-weight: 700; color: #000000;
+          letter-spacing: 0.2px;
+        }
+
+        /* ---------- Panels ---------- */
+        .cr-panel {
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 14px 16px;
+          margin-bottom: 14px;
+        }
+
+        /* ---------- Machine card head ---------- */
+        .cr-card-head {
+          display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+          padding: 14px 18px;
+          border-bottom: 1px solid var(--line);
+          border-radius: 8px 8px 0 0;
+          background: #ffffff;
+        }
+        .cr-head-left { display: flex; align-items: center; gap: 12px; }
+        .cr-head-right { display: flex; align-items: center; gap: 10px; }
+        .wo-icon {
+          width: 36px; height: 36px;
+          border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          background: var(--brand-soft);
+          color: var(--brand);
+          border: 1px solid #f7d3c6;
+        }
+        .wo-title { margin: 0; font-size: 15px; font-weight: 700; color: #000000; letter-spacing: -0.1px; }
+        .wo-sub { font-size: 11.5px; color: #000000; }
+        .cr-fields {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+          gap: 12px;
+        }
+
+        /* ---------- KPI tiles ---------- */
         .kpi-tile-3d {
-          background: linear-gradient(180deg, #ffffff 0%, #f1faff 100%);
-          padding: 12px 14px;
-          border-radius: 14px;
-          border: 1px solid #cfe8f6;
-          box-shadow: 0 4px 12px rgba(40, 120, 170, 0.1), inset 0 1px 0 #fff;
+          background: #fafbfc;
+          padding: 8px 12px;
+          border-radius: 6px;
+          border: 1px solid var(--line-soft);
           display: flex;
           flex-direction: column;
-          gap: 2px;
-          transition: transform 0.15s ease;
+          justify-content: center;
+          gap: 1px;
+          min-width: 0;
         }
-        .kpi-tile-3d:hover { transform: translateY(-2px); }
-        .kpi-tile-label { font-size: 10.5px; font-weight: 700; color: #4a6f8c; text-transform: uppercase; letter-spacing: 0.5px; }
-        .kpi-tile-value { font-size: 16px; font-weight: 800; color: #0b2f4f; font-variant-numeric: tabular-nums; }
-        .kpi-tile-sub { font-size: 10.5px; color: #1b86c8; font-weight: 600; }
+        .kpi-tile-3d.kpi-input { background: #ffffff; }
+        .kpi-tile-label { font-size: 10px; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.4px; }
+        .kpi-tile-value { font-size: 14px; font-weight: 700; color: #000000; font-variant-numeric: tabular-nums; }
+        .kpi-tile-sub { font-size: 10.5px; color: #000000; font-weight: 600; }
 
         .grand-total-dock {
-          background: linear-gradient(180deg, #ffffff 0%, #eaf7ff 100%);
-          border: 1px solid #cfe8f6;
-          border-radius: 18px;
-          padding: 14px 20px;
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 12px 20px;
           display: flex;
           align-items: center;
           gap: 20px;
           flex-wrap: wrap;
-          box-shadow: 0 8px 20px rgba(40, 120, 170, 0.12), inset 0 1px 0 #fff;
         }
         .grand-total-tile { display: flex; flex-direction: column; align-items: flex-end; }
-        .grand-total-sep { width: 1px; height: 38px; background: #bfe0f2; }
+        .grand-total-lbl { font-size: 10px; font-weight: 700; color: #000000; text-transform: uppercase; letter-spacing: 0.4px; }
+        .grand-total-val { font-size: 18px; font-weight: 700; color: #000000; }
+        .grand-total-sep { width: 1px; height: 36px; background: var(--line); }
 
-        .badge-3d { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.3px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
-        .badge-3d-success { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-        .badge-3d-primary { background: #d6effc; color: #08406b; border: 1px solid #86c6e8; }
-        .badge-3d-warning { background: #fef3c7; color: #8a5a00; border: 1px solid #fde68a; }
-
-        .premium-toolbar {
-          background: rgba(255, 255, 255, 0.7);
-          border: 1px solid rgba(255, 255, 255, 0.95);
-          border-radius: 16px;
-          padding: 14px 16px;
-          margin-bottom: 16px;
-          box-shadow: 0 6px 16px rgba(40, 120, 170, 0.1), inset 0 1px 0 #fff;
+        /* ---------- Badges ---------- */
+        .badge-3d {
+          display: inline-flex; align-items: center;
+          padding: 3px 8px; border-radius: 4px;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+          color: #000000; box-shadow: none;
         }
+        .badge-3d-success { background: #e4f6ee; border: 1px solid #b7e4d0; }
+        .badge-3d-primary { background: var(--teal-soft); border: 1px solid #bdd9df; }
+        .badge-3d-warning { background: #fff3d6; border: 1px solid #f2d291; }
 
+        /* ---------- Toolbar ---------- */
+        .premium-toolbar {
+          background: var(--surface);
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          padding: 12px 14px;
+          margin-bottom: 14px;
+          box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+        }
+        .premium-toolbar.cr-tight {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+        }
+        .cr-tsep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
+
+        /* ---------- Ledger heading ---------- */
+        .cr-ledger-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+        .cr-ledger-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
+        /* ---------- Pager ---------- */
         .cr-pager {
           display: flex;
           justify-content: space-between;
           align-items: center;
           flex-wrap: wrap;
           gap: 12px;
-          margin-top: 14px;
-          padding: 10px 14px;
-          background: rgba(255, 255, 255, 0.7);
-          border: 1px solid rgba(255, 255, 255, 0.95);
-          border-radius: 16px;
-          font-size: 12.5px;
-          font-weight: 700;
-          color: #08406b;
-          box-shadow: inset 0 1px 0 #fff;
+          margin-top: 12px;
+          padding: 8px 12px;
+          background: #ffffff;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #000000;
         }
         .cr-pager-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+        /* ---------- Invoice month (top right) ---------- */
         .cr-month-left {
           position: absolute;
           right: 0;
@@ -908,66 +1138,22 @@ export default function ClickReport() {
         @media (max-width: 1000px) {
           .cr-month-left { position: static; transform: none; justify-content: center; margin-bottom: 12px; }
         }
+        @media (max-width: 768px) {
+          .planner-dashboard-root { padding: 14px; }
+        }
 
         .cr-spinner-3d {
           display: inline-block;
           width: 13px; height: 13px;
-          border: 2px solid rgba(7, 88, 59, 0.3);
-          border-top-color: #07583b;
+          border: 2px solid rgba(0, 0, 0, 0.25);
+          border-top-color: #000000;
           border-radius: 50%;
           animation: crSpin 0.6s linear infinite;
         }
-        /* ---------- Compact: Financial Realization & Rate Metrics ---------- */
-        .cr-fin .kpi-tile-3d { padding: 5px 10px; gap: 0; border-radius: 10px; box-shadow: 0 2px 6px rgba(40, 120, 170, 0.08), inset 0 1px 0 #fff; }
-        .cr-fin .kpi-tile-3d:hover { transform: none; }
-        .cr-fin .kpi-tile-label { font-size: 9.5px; letter-spacing: 0.3px; }
-        .cr-fin .kpi-tile-value { font-size: 13.5px; line-height: 1.2; }
-        .cr-fin .kpi-tile-sub { font-size: 9.5px; }
-        .cr-fin .input-3d { height: 28px !important; margin-top: 1px !important; padding: 3px 9px; font-size: 12px; border-radius: 9px; }
-        .cr-fin .kpi-tile-3d > span:first-child { line-height: 1.2; }
-
-        /* ---------- Compact ledger heading + toolbar (one slim bar) ---------- */
-        .cr-ledger-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-        .cr-ledger-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-        .cr-ledger-title h4 { margin: 0; font-size: 16px; font-weight: 800; color: #0a4f8c; }
-        .cr-ledger-title small { color: #4a6f8c; font-size: 11.5px; }
-        .premium-toolbar.cr-tight {
-          display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-          padding: 6px 10px; margin-bottom: 8px; border-radius: 12px;
-        }
-        .cr-tight .btn-3d { padding: 4px 12px; font-size: 12px; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.12); }
-        .cr-fgroup { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #08406b; }
-        .cr-tsep { width: 1px; height: 22px; background: #bfe0f2; margin: 0 2px; }
-
         @keyframes crSpin { to { transform: rotate(360deg); } }
       `}</style>
 
       <div className="planner-container-3d">
-        {/* 1. HEADER */}
-        <div style={{ position: "relative", textAlign: "center", marginBottom: "18px" }}>
-          <div className="cr-month-left">
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "#08406b" }}>Invoice Month:</span>
-            <input
-              type="month"
-              className="input-3d"
-              style={{ width: "180px", height: "36px", fontWeight: 700 }}
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-            {editingId && (
-              <button className="btn-3d btn-3d-secondary" onClick={resetForm}>
-                ✕ Cancel Edit
-              </button>
-            )}
-          </div>
-         
-          <p style={{ margin: "4px 0 0", color: "#4a6f8c", fontSize: "13.5px", fontWeight: 500 }}>
-            {editingId
-              ? "✏️ Editing a saved record — update parameters and save."
-              : "Automatic click impressions and tax billing."}
-          </p>
-        </div>
-
         {/* 2. MACHINE ENTRY CARDS */}
         {entries.map((e, i) => {
           const c = calcs[i];
@@ -979,42 +1165,34 @@ export default function ClickReport() {
               className="card-glass-3d"
               style={{ marginBottom: "22px", padding: 0 }}
             >
-              <div
-                style={{
-                  background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-                  borderBottom: "1px solid #86c6e8",
-                  padding: "14px 20px",
-                  color: "#08406b",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "10px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div
-                    style={{
-                      width: "36px", height: "36px", borderRadius: "50%",
-                      background: "rgba(255,255,255,0.7)",
-                      boxShadow: "0 2px 8px rgba(40, 120, 170, 0.18), inset 0 1px 0 #fff",
-                      display: "flex", alignItems: "center", justifyContent: "center", color: "#0a6fb8",
-                    }}
-                  >
-                    <Icons.Printer />
-                  </div>
+              <div className="cr-card-head">
+                <div className="cr-head-left">
+                  <div className="wo-icon"><Icons.Printer /></div>
                   <div>
-                    <h5 style={{ margin: 0, fontWeight: 800, fontSize: "16px", color: "#08406b" }}>
-                      Machine Unit #{i + 1}
-                    </h5>
-                    <small style={{ color: "#2f6d96", fontSize: "11.5px" }}>
-                      Meter indexing and reading specifications
-                    </small>
+                    <h5 className="wo-title">Machine Unit #{i + 1}</h5>
+                    <div className="wo-sub">Meter indexing and reading specifications</div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div className="cr-head-right">
                   <span className="badge-3d badge-3d-warning">Unit #{i + 1}</span>
+                  {i === 0 && (
+                    <>
+                      <PoField style={{ width: "200px" }} icon="bi-calendar-month" label="Invoice Month" alwaysFloat>
+                        <input
+                          type="month"
+                          className="po-input"
+                          value={month}
+                          onChange={(ev) => setMonth(ev.target.value)}
+                        />
+                      </PoField>
+                      {editingId && (
+                        <button className="btn-3d btn-3d-secondary" onClick={resetForm}>
+                          ✕ Cancel Edit
+                        </button>
+                      )}
+                    </>
+                  )}
                   {!editingId && entries.length > 1 && (
                     <button
                       className="btn-3d btn-3d-danger"
@@ -1029,36 +1207,22 @@ export default function ClickReport() {
 
               <div style={{ padding: "16px" }}>
                 {/* Machine selection */}
-                <div
-                  style={{
-                    background: "linear-gradient(180deg, #ffffff 0%, #f4fbff 100%)", borderRadius: "16px", padding: "14px",
-                    border: "1px solid #cfe8f6", marginBottom: "16px",
-                    boxShadow: "0 4px 12px rgba(40, 120, 170, 0.08), inset 0 1px 0 #fff",
-                  }}
-                >
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "14px" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", fontWeight: 800, color: "#08406b", textTransform: "uppercase", marginBottom: "5px" }}>
-                        🖨️ Select Machine <span style={{ color: "#ef4444" }}>*</span>
-                      </label>
+                <div className="cr-panel">
+                  <div className="cr-fields">
+                    <PoField icon="bi-printer" label="Select Machine" required alwaysFloat caret>
                       <select
-                        className="input-3d"
-                        style={{ height: "38px", fontWeight: 600 }}
+                        className="po-input"
                         value={e.machine}
                         onChange={(ev) => changeMachine(e.id, ev.target.value)}
                       >
                         <option value="">Select Machine Profile…</option>
                         {machineNames.map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
-                    </div>
+                    </PoField>
 
-                    <div>
-                      <label style={{ display: "block", fontSize: "11px", fontWeight: 800, color: "#08406b", textTransform: "uppercase", marginBottom: "5px" }}>
-                        🖨 Printer Name
-                      </label>
+                    <PoField icon="bi-printer-fill" label="Printer Name" alwaysFloat caret>
                       <select
-                        className="input-3d"
-                        style={{ height: "38px", fontWeight: 600 }}
+                        className="po-input"
                         value={e.printer}
                         disabled={!e.machine}
                         onChange={(ev) => updateEntry(e.id, { printer: ev.target.value })}
@@ -1066,20 +1230,14 @@ export default function ClickReport() {
                         <option value="">{e.machine ? "Select Printer…" : "Awaiting Machine Selection"}</option>
                         {printerNamesFor(e.machine).map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
-                    </div>
+                    </PoField>
                   </div>
                 </div>
 
                 {/* Readings table */}
-                <div
-                  style={{
-                    background: "linear-gradient(180deg, #ffffff 0%, #f4fbff 100%)", borderRadius: "16px", padding: "14px",
-                    border: "1px solid #cfe8f6", marginBottom: "16px",
-                    boxShadow: "0 4px 12px rgba(40, 120, 170, 0.08), inset 0 1px 0 #fff",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                    <div style={{ fontSize: "12px", fontWeight: 800, color: "#1b86c8", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div className="cr-panel">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                    <div className="pl-section-title" style={{ margin: 0 }}>
                       Meter Production Readings
                     </div>
                     <button
@@ -1109,8 +1267,7 @@ export default function ClickReport() {
                           <tr key={r.id}>
                             <td>
                               <select
-                                className="input-3d"
-                                style={{ height: "34px", fontSize: "12.5px" }}
+                                className="cell-input"
                                 value={r.inputType}
                                 onChange={(ev) => changeInputType(e.id, r.id, ev.target.value)}
                               >
@@ -1122,8 +1279,7 @@ export default function ClickReport() {
                             </td>
                             <td>
                               <input
-                                className="input-3d"
-                                style={{ height: "34px", fontSize: "12.5px" }}
+                                className="cell-input"
                                 type="number" min="0" placeholder="0"
                                 value={r.start}
                                 onChange={(ev) => updateRow(e.id, r.id, { start: ev.target.value })}
@@ -1131,20 +1287,18 @@ export default function ClickReport() {
                             </td>
                             <td>
                               <input
-                                className="input-3d"
-                                style={{ height: "34px", fontSize: "12.5px" }}
+                                className="cell-input"
                                 type="number" min="0" placeholder="0"
                                 value={r.end}
                                 onChange={(ev) => updateRow(e.id, r.id, { end: ev.target.value })}
                               />
                             </td>
-                            <td className="r" style={{ fontWeight: 800, color: "#0a6fb8", fontSize: "13px" }}>
+                            <td className="r" style={{ fontWeight: 700, fontSize: "12.5px" }}>
                               {fmt(rowCalc(r).impression)}
                             </td>
                             <td>
                               <input
-                                className="input-3d"
-                                style={{ height: "34px", fontSize: "12.5px" }}
+                                className="cell-input"
                                 type="number" min="0" max="100" step="0.1" placeholder="0.0"
                                 value={r.wastage}
                                 disabled={riso}
@@ -1170,21 +1324,15 @@ export default function ClickReport() {
                   </div>
 
                   {c.a4Imp < 0 && (
-                    <div style={{ marginTop: "12px", padding: "10px 14px", background: "#fef2f2", borderLeft: "4px solid #ef4444", borderRadius: "6px", color: "#991b1b", fontSize: "12.5px", fontWeight: 600 }}>
+                    <div style={{ marginTop: "12px", padding: "9px 14px", background: "#fdecec", borderLeft: "4px solid #d64545", borderRadius: "6px", color: "#000000", fontSize: "12px", fontWeight: 600 }}>
                       ⚠️ Negative A4 impression computed. Ensure Total meter counter is not lower than A3 readings.
                     </div>
                   )}
                 </div>
 
                 {/* Billing summary */}
-                <div
-                  className="cr-fin"
-                  style={{
-                    background: "linear-gradient(180deg, #ffffff 0%, #f4fbff 100%)", borderRadius: "14px", padding: "9px 12px 10px",
-                    border: "1px solid #cfe8f6", boxShadow: "0 4px 12px rgba(40, 120, 170, 0.08), inset 0 1px 0 #fff",
-                  }}
-                >
-                  <div style={{ fontSize: "12px", fontWeight: 800, color: "#1b86c8", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "7px" }}>
+                <div className="cr-panel cr-fin" style={{ marginBottom: 0 }}>
+                  <div className="pl-section-title">
                     Financial Realization &amp; Rate Metrics
                   </div>
 
@@ -1192,20 +1340,21 @@ export default function ClickReport() {
                   <div style={rowWrap}>
                     <div style={rowBadge}>A3</div>
                     <div style={rowGrid}>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #0284c7" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #0f5560" }}>
                         <span className="kpi-tile-label">Impression</span>
                         <span className="kpi-tile-value">{fmt(c.a3Imp)}</span>
                         <span className="kpi-tile-sub">Billable: {money(c.a3Bill)}</span>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                        <span style={inputTileLbl}>Rate (₹)</span>
-                        <input
-                          type="number" min="0" step="0.001" placeholder="0.00"
-                          className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                          value={e.a3Rate} onChange={(ev) => updateEntry(e.id, { a3Rate: ev.target.value })}
-                        />
+                      <div className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                        <PoField icon="bi-currency-rupee" label="Rate (₹)" filled={has(e.a3Rate)}>
+                          <input
+                            type="number" min="0" step="0.001"
+                            className="po-input"
+                            value={e.a3Rate} onChange={(ev) => updateEntry(e.id, { a3Rate: ev.target.value })}
+                          />
+                        </PoField>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #f59e0b" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #d98a00" }}>
                         <span className="kpi-tile-label">Amount</span>
                         <span className="kpi-tile-value">₹ {money(c.a3Amount)}</span>
                         <span className="kpi-tile-sub">{money(c.a3Bill)} × {num(e.a3Rate)}</span>
@@ -1217,20 +1366,21 @@ export default function ClickReport() {
                   <div style={rowWrap}>
                     <div style={rowBadge}>A4</div>
                     <div style={rowGrid}>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #0284c7" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #0f5560" }}>
                         <span className="kpi-tile-label">Impression</span>
                         <span className="kpi-tile-value">{fmt(c.a4Imp)}</span>
                         <span className="kpi-tile-sub">Billable: {money(c.a4Bill)}</span>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                        <span style={inputTileLbl}>Rate (₹)</span>
-                        <input
-                          type="number" min="0" step="0.001" placeholder="0.00"
-                          className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                          value={e.a4Rate} onChange={(ev) => updateEntry(e.id, { a4Rate: ev.target.value })}
-                        />
+                      <div className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                        <PoField icon="bi-currency-rupee" label="Rate (₹)" filled={has(e.a4Rate)}>
+                          <input
+                            type="number" min="0" step="0.001"
+                            className="po-input"
+                            value={e.a4Rate} onChange={(ev) => updateEntry(e.id, { a4Rate: ev.target.value })}
+                          />
+                        </PoField>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #f59e0b" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #d98a00" }}>
                         <span className="kpi-tile-label">Amount</span>
                         <span className="kpi-tile-value">₹ {money(c.a4Amount)}</span>
                         <span className="kpi-tile-sub">{money(c.a4Bill)} × {num(e.a4Rate)}</span>
@@ -1245,21 +1395,22 @@ export default function ClickReport() {
                         {o.name}
                       </div>
                       <div style={rowGrid}>
-                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #0284c7" }}>
+                        <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #0f5560" }}>
                           <span className="kpi-tile-label">Impression</span>
                           <span className="kpi-tile-value">{fmt(o.imp)}</span>
                           <span className="kpi-tile-sub">Billable: {money(o.bill)} (Wastage {num(o.w)}%)</span>
                         </div>
-                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                          <span style={inputTileLbl}>Rate (₹)</span>
-                          <input
-                            type="number" min="0" step="0.001" placeholder="0.00"
-                            className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                            value={(e.otherRates || {})[o.name] ?? ""}
-                            onChange={(ev) => updateEntry(e.id, { otherRates: { ...(e.otherRates || {}), [o.name]: ev.target.value } })}
-                          />
+                        <div className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                          <PoField icon="bi-currency-rupee" label="Rate (₹)" filled={has((e.otherRates || {})[o.name])}>
+                            <input
+                              type="number" min="0" step="0.001"
+                              className="po-input"
+                              value={(e.otherRates || {})[o.name] ?? ""}
+                              onChange={(ev) => updateEntry(e.id, { otherRates: { ...(e.otherRates || {}), [o.name]: ev.target.value } })}
+                            />
+                          </PoField>
                         </div>
-                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #f59e0b" }}>
+                        <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #d98a00" }}>
                           <span className="kpi-tile-label">Amount</span>
                           <span className="kpi-tile-value">₹ {money(o.amount)}</span>
                           <span className="kpi-tile-sub">{money(o.bill)} × {num((e.otherRates || {})[o.name])}</span>
@@ -1272,23 +1423,24 @@ export default function ClickReport() {
                   <div style={rowWrap}>
                     <div style={rowBadge}>Total</div>
                     <div style={rowGrid}>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #10b981", background: "#f0fdf4" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #1f9d6b", background: "#e4f6ee" }}>
                         <span className="kpi-tile-label">Total Clicks</span>
-                        <span className="kpi-tile-value" style={{ color: "#15803d" }}>{fmt(c.totalClick)}</span>
-                        <span className="kpi-tile-sub" style={{ color: "#15803d" }}>Aggregated</span>
+                        <span className="kpi-tile-value">{fmt(c.totalClick)}</span>
+                        <span className="kpi-tile-sub">Aggregated</span>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #8b5cf6" }}>
+                      <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #e4572e" }}>
                         <span className="kpi-tile-label">Base Total</span>
-                        <span className="kpi-tile-value" style={{ color: "#6d28d9" }}>₹ {money(c.total)}</span>
-                        <span className="kpi-tile-sub" style={{ color: "#6d28d9" }}>Before Taxes</span>
+                        <span className="kpi-tile-value">₹ {money(c.total)}</span>
+                        <span className="kpi-tile-sub">Before Taxes</span>
                       </div>
-                      <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                        <span style={inputTileLbl}>Discount %</span>
-                        <input
-                          type="number" min="0" max="100" step="0.1" placeholder="0.0"
-                          className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                          value={e.discount} onChange={(ev) => updateEntry(e.id, { discount: ev.target.value })}
-                        />
+                      <div className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                        <PoField icon="bi-percent" label="Discount %" filled={has(e.discount)}>
+                          <input
+                            type="number" min="0" max="100" step="0.1"
+                            className="po-input"
+                            value={e.discount} onChange={(ev) => updateEntry(e.id, { discount: ev.target.value })}
+                          />
+                        </PoField>
                       </div>
                     </div>
                   </div>
@@ -1300,50 +1452,47 @@ export default function ClickReport() {
                       {taxKeys.length > 0 ? (
                         <>
                           {taxKeys.map((k) => (
-                            <div key={k} className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                              <span style={inputTileLbl}>{k} %</span>
-                              <input
-                                type="number" min="0" max="100" step="0.01"
-                                className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                                value={e.taxes[k]}
-                                onChange={(ev) => changeTaxRate(e.id, k, ev.target.value)}
-                              />
+                            <div key={k} className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                              <PoField icon="bi-percent" label={`${k} %`} filled={has(e.taxes[k])}>
+                                <input
+                                  type="number" min="0" max="100" step="0.01"
+                                  className="po-input"
+                                  value={e.taxes[k]}
+                                  onChange={(ev) => changeTaxRate(e.id, k, ev.target.value)}
+                                />
+                              </PoField>
                               <span className="kpi-tile-sub" style={{ marginTop: "4px" }}>₹ {money(c.taxAmt[k])}</span>
                             </div>
                           ))}
-                          <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #06b6d4" }}>
+                          <div className="kpi-tile-3d" style={{ borderLeft: "4px solid #0f5560" }}>
                             <span className="kpi-tile-label">Effective GST</span>
                             <span className="kpi-tile-value">{num(e.gst)}%</span>
                             <span className="kpi-tile-sub">Rate Applied</span>
                           </div>
                         </>
                       ) : (
-                        <div className="kpi-tile-3d" style={{ borderLeft: "5px solid #64748b" }}>
-                          <span style={inputTileLbl}>GST Rate %</span>
-                          <input
-                            type="number" min="0" max="100" step="0.01"
-                            className="input-3d" style={{ height: "38px", marginTop: "4px" }}
-                            value={e.gst}
-                            disabled={!e.machine}
-                            placeholder={e.machine ? "Enter GST %" : "Select machine first"}
-                            onChange={(ev) => updateEntry(e.id, { gst: ev.target.value })}
-                          />
+                        <div className="kpi-tile-3d kpi-input" style={{ borderLeft: "4px solid #8a94a3" }}>
+                          <PoField icon="bi-percent" label={e.machine ? "GST Rate %" : "GST Rate % (select machine)"} filled={has(e.gst)}>
+                            <input
+                              type="number" min="0" max="100" step="0.01"
+                              className="po-input"
+                              value={e.gst}
+                              disabled={!e.machine}
+                              onChange={(ev) => updateEntry(e.id, { gst: ev.target.value })}
+                            />
+                          </PoField>
                         </div>
                       )}
 
                       <div
                         className="kpi-tile-3d"
-                        style={{
-                          borderLeft: "5px solid #0369a1",
-                          background: "linear-gradient(135deg, #d6effc 0%, #bfe5f8 100%)",
-                          boxShadow: "0 6px 14px rgba(40, 120, 170, 0.18)",
-                        }}
+                        style={{ borderLeft: "4px solid #e4572e", background: "#e3f1f4", border: "1px solid #bdd9df", borderLeftWidth: "4px", borderLeftColor: "#e4572e" }}
                       >
-                        <span className="kpi-tile-label" style={{ color: "#08406b" }}>Total With GST</span>
-                        <span className="kpi-tile-value" style={{ color: "#08406b", fontSize: "19px" }}>
+                        <span className="kpi-tile-label">Total With GST</span>
+                        <span className="kpi-tile-value" style={{ fontSize: "17px" }}>
                           ₹ {money(c.totalWithGst)}
                         </span>
-                        <span className="kpi-tile-sub" style={{ color: "#0a4f8c" }}>Tax: ₹ {money(c.gstAmt)}</span>
+                        <span className="kpi-tile-sub">Tax: ₹ {money(c.gstAmt)}</span>
                       </div>
                     </div>
                   </div>
@@ -1354,7 +1503,7 @@ export default function ClickReport() {
         })}
 
         {/* 3. COMMAND DOCK */}
-        <div className="card-glass-3d" style={{ padding: "16px 20px", marginBottom: "26px" }}>
+        <div className="card-glass-3d" style={{ padding: "14px 20px", marginBottom: "26px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
               {!editingId && (
@@ -1373,28 +1522,28 @@ export default function ClickReport() {
 
             <div className="grand-total-dock">
               <div className="grand-total-tile">
-                <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#4a6f8c", textTransform: "uppercase" }}>Total Clicks</span>
-                <span style={{ fontSize: "20px", fontWeight: 900, color: "#0b2f4f" }}>{fmt(grand.click)}</span>
+                <span className="grand-total-lbl">Total Clicks</span>
+                <span className="grand-total-val">{fmt(grand.click)}</span>
               </div>
               <div className="grand-total-sep" />
               <div className="grand-total-tile">
-                <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#4a6f8c", textTransform: "uppercase" }}>Base Net Total</span>
-                <span style={{ fontSize: "20px", fontWeight: 900, color: "#0b2f4f" }}>₹ {money(grand.total)}</span>
+                <span className="grand-total-lbl">Base Net Total</span>
+                <span className="grand-total-val">₹ {money(grand.total)}</span>
               </div>
               <div className="grand-total-sep" />
               <div className="grand-total-tile">
-                <span style={{ fontSize: "10.5px", fontWeight: 800, color: "#1b86c8", textTransform: "uppercase" }}>Cumulative With GST</span>
-                <span style={{ fontSize: "22px", fontWeight: 900, color: "#0a6fb8" }}>₹ {money(grand.withGst)}</span>
+                <span className="grand-total-lbl">Cumulative With GST</span>
+                <span className="grand-total-val" style={{ fontSize: "20px" }}>₹ {money(grand.withGst)}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* 4. SAVED RECORDS */}
-        <div className="card-glass-3d" style={{ padding: "10px 14px 12px" }}>
+        <div className="card-glass-3d" style={{ padding: "14px 16px" }}>
           <div className="cr-ledger-head">
             <div className="cr-ledger-title">
-              <h4>Saved Records Ledger</h4>
+              <div className="pl-section-title" style={{ margin: 0 }}>Saved Records Ledger</div>
               <small>Master historical print production repository</small>
             </div>
             <span className="badge-3d badge-3d-primary">
@@ -1413,41 +1562,34 @@ export default function ClickReport() {
 
             <span className="cr-tsep" />
 
-            <div className="cr-fgroup">
-              <span>Month:</span>
+            <PoField style={{ width: "170px" }} icon="bi-calendar-month" label="Month" alwaysFloat>
               <input
                 type="month"
-                className="input-3d"
-                style={{ width: "150px", height: "30px" }}
+                className="po-input"
                 value={filter.month}
                 onChange={(e) => changeFilter({ month: e.target.value })}
               />
-            </div>
+            </PoField>
 
-            <div className="cr-fgroup">
-              <span>Machine:</span>
+            <PoField style={{ width: "190px" }} icon="bi-printer" label="Machine" alwaysFloat caret>
               <select
-                className="input-3d"
-                style={{ width: "160px", height: "30px" }}
+                className="po-input"
                 value={filter.machine}
                 onChange={(e) => changeFilter({ machine: e.target.value })}
               >
                 <option value="">All Machines</option>
                 {recordMachines.map((m) => <option key={m} value={m}>{m}</option>)}
               </select>
-            </div>
+            </PoField>
 
-            <div className="cr-fgroup">
-              <span>Printer:</span>
+            <PoField style={{ width: "170px" }} icon="bi-search" label="Printer" filled={has(filter.printer)}>
               <input
                 type="text"
-                placeholder="Query printer…"
-                className="input-3d"
-                style={{ width: "150px", height: "30px" }}
+                className="po-input"
                 value={filter.printer}
                 onChange={(e) => setFilter((f) => ({ ...f, printer: e.target.value }))}
               />
-            </div>
+            </PoField>
 
             <button
               className="btn-3d btn-3d-dark"
@@ -1458,7 +1600,7 @@ export default function ClickReport() {
             </button>
           </div>
 
-          {/* Records table (26 columns) */}
+          {/* Records table */}
           <div className="scrollable-table-container">
             <table className="table-modern">
               <thead>
@@ -1504,9 +1646,9 @@ export default function ClickReport() {
                 ))}
                 {records.length === 0 && (
                   <tr>
-                    <td colSpan={TABLE_COLS} style={{ textAlign: "center", padding: "40px", color: "#4a6f8c" }}>
+                    <td colSpan={TABLE_COLS} style={{ textAlign: "center", padding: "40px", color: "#000000" }}>
                       <div style={{ fontSize: "32px", marginBottom: "8px" }}>🗂️</div>
-                      <div style={{ fontWeight: 700, fontSize: "15px", color: "#0b2f4f" }}>
+                      <div style={{ fontWeight: 700, fontSize: "14px", color: "#000000" }}>
                         {loadingRecords ? "Loading historical ledger entries…" : filterActive ? "No records match criteria." : "No records saved yet."}
                       </div>
                       <small>Recorded production dispatches will appear here automatically.</small>
@@ -1540,7 +1682,7 @@ export default function ClickReport() {
                     <td />
                     <td className="r">{money(summary.discountAmount)}</td>
                     {TAX_NAMES.map((n) => <td key={n} />)}
-                    <td className="r" style={{ color: "#08406b", fontSize: "14px" }}>
+                    <td className="r" style={{ fontSize: "13px" }}>
                       ₹ {money(summary.totalWithGst)}
                     </td>
                     <td />
@@ -1555,8 +1697,8 @@ export default function ClickReport() {
             <div className="cr-pager-group">
               <span>Rows per page:</span>
               <select
-                className="input-3d"
-                style={{ width: "80px", height: "32px" }}
+                className="cell-input"
+                style={{ width: "80px", height: "30px" }}
                 value={pageSize}
                 onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
               >
@@ -1589,7 +1731,7 @@ function FragmentRow({ r, onEdit, onDelete }) {
   );
   const otherCell = (fn, align) => (
     <td className={align === "r" ? "r" : ""}>
-      {(c.others || []).length ? c.others.map((o) => <div key={o.name}>{fn(o)}</div>) : <span style={{ color: "#8fb0c8" }}>—</span>}
+      {(c.others || []).length ? c.others.map((o) => <div key={o.name}>{fn(o)}</div>) : <span className="cr-dash">—</span>}
     </td>
   );
   return (
@@ -1597,8 +1739,8 @@ function FragmentRow({ r, onEdit, onDelete }) {
       <td style={{ fontWeight: 700 }}>
         <span className="badge-3d badge-3d-primary">{r.month}</span>
       </td>
-      <td style={{ fontWeight: 700, color: "#0b2f4f" }}>{r.machine}</td>
-      <td>{r.printer || <span style={{ color: "#8fb0c8" }}>—</span>}</td>
+      <td style={{ fontWeight: 700 }}>{r.machine}</td>
+      <td>{r.printer || <span className="cr-dash">—</span>}</td>
       {stack((x) => x.inputType || "—")}
       {stack((x) => fmt(x.start), "r")}
       {stack((x) => fmt(x.end), "r")}
@@ -1606,7 +1748,7 @@ function FragmentRow({ r, onEdit, onDelete }) {
       {stack((x) => `${x.wastage ?? 0}%`, "r")}
       <td className="r">{fmt(c.a3Imp)}</td>
       <td className="r">{fmt(c.a4Imp)}</td>
-      <td className="r" style={{ fontWeight: 800, color: "#0a6fb8" }}>{fmt(c.totalClick)}</td>
+      <td className="r" style={{ fontWeight: 700 }}>{fmt(c.totalClick)}</td>
       <td className="r">{money(c.a3Bill)}</td>
       <td className="r">{money(c.a4Bill)}</td>
       <td className="r">{r.a3Rate}</td>
@@ -1626,11 +1768,11 @@ function FragmentRow({ r, onEdit, onDelete }) {
         const t = taxOf(r, n);
         return (
           <td key={n} className="r">
-            {t ? `${t.rate}%` : <span style={{ color: "#8fb0c8" }}>—</span>}
+            {t ? `${t.rate}%` : <span className="cr-dash">—</span>}
           </td>
         );
       })}
-      <td className="r" style={{ fontWeight: 900, color: "#0a6fb8" }}>
+      <td className="r" style={{ fontWeight: 700 }}>
         ₹ {money(c.totalWithGst)}
       </td>
       <td style={{ textAlign: "center" }}>
