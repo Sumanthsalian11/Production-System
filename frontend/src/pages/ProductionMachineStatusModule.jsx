@@ -134,7 +134,7 @@ const Pagination = ({ page, totalPages, pageSize, total, onPage, onPageSize }) =
   );
 };
 
-/* ── Professional (teal / slate / orange) theme ── */
+/* ── Professional Theme (with richer table header color & sharp field visibility) ── */
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -142,11 +142,11 @@ const CSS = `
     --bg: #f4f6f8;
     --panel: #ffffff;
     --panel-soft: #f8fafb;
-    --line: #e3e8ec;
-    --line-dark: #cfd6dc;
-    --text: #1f2a33;
-    --muted: #5b6770;
-    --hint: #98a2ab;
+    --line: #e2e8f0;
+    --line-dark: #b8c3cd;
+    --text: #111827;
+    --muted: #334155;
+    --hint: #64748b;
     --teal: #0f4c5c;
     --teal-dark: #0b3540;
     --teal-soft: #e7f1f3;
@@ -196,12 +196,6 @@ const CSS = `
     display: flex; align-items: center; justify-content: center; gap: 10px;
   }
   .pms-subtitle { margin-top: 2px; color: var(--muted); font-size: 13px; font-weight: 500; }
-  .pms-user-box {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 6px 14px; min-width: 160px;
-  }
-  .pms-user-label { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-  .pms-user-name  { font-size: 14px; font-weight: 600; color: var(--text); }
 
   .pms-body { max-width: 1580px; margin: 0 auto; padding: 18px 24px 32px; }
 
@@ -210,7 +204,7 @@ const CSS = `
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
     overflow: hidden;
     margin-bottom: 18px;
   }
@@ -259,51 +253,55 @@ const CSS = `
   }
 
   .pms-field { display: flex; flex-direction: column; gap: 5px; }
+  
+  /* ── Enhanced Field Labels ── */
   .pms-label {
     display: flex; align-items: center; gap: 6px;
-    color: var(--muted); font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
+    color: #1f2937;
+    font-size: 11.5px; font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.04em;
   }
-  .pms-label .pms-ico { width: 13px; height: 13px; color: var(--teal); }
-  .pms-req { color: var(--red); margin-left: 1px; }
+  .pms-label .pms-ico { width: 14px; height: 14px; color: var(--teal); flex-shrink: 0; }
+  .pms-req { color: var(--red); margin-left: 2px; font-weight: 700; }
 
+  /* ── Enhanced Input Field Visibility ── */
   .pms-input, .pms-select, .pms-textarea {
     width: 100%;
-    min-height: 36px;
+    min-height: 38px;
     border: 1px solid var(--line-dark);
-    border-radius: 4px;
+    border-radius: 5px;
     background: #ffffff;
-    color: var(--text);
-    padding: 6px 10px;
+    color: #0f172a;
+    padding: 6px 11px;
     font-family: inherit;
     font-size: 13.5px;
-    font-weight: 500;
+    font-weight: 550;
     outline: none;
-    box-shadow: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .pms-select { cursor: pointer; }
-  .pms-textarea { resize: vertical; line-height: 1.4; min-height: 54px; }
-  .pms-input::placeholder, .pms-textarea::placeholder { color: var(--hint); font-weight: 400; }
-  .pms-input:hover, .pms-select:hover, .pms-textarea:hover { border-color: #aab5be; }
+  .pms-textarea { resize: vertical; line-height: 1.45; min-height: 56px; }
+  .pms-input::placeholder, .pms-textarea::placeholder { color: #94a3b8; font-weight: 400; }
+  .pms-input:hover, .pms-select:hover, .pms-textarea:hover { border-color: #64748b; }
   .pms-input:focus, .pms-select:focus, .pms-textarea:focus {
     border-color: var(--teal);
-    box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.12);
+    box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.16);
   }
   .pms-input:disabled, .pms-select:disabled {
-    background: var(--bg); color: var(--hint); border-color: var(--line);
-    opacity: 1; cursor: not-allowed;
+    background: #f1f5f9; color: #475569; border-color: #cbd5e1;
+    opacity: 1; cursor: not-allowed; font-weight: 600;
   }
   .pms-readonly {
-    background: var(--teal-soft) !important;
-    color: var(--teal) !important;
-    border-color: #b9d3d9 !important;
-    font-weight: 600 !important;
+    background: #f0f7f9 !important;
+    color: var(--teal-dark) !important;
+    border-color: #93c5cf !important;
+    font-weight: 650 !important;
   }
 
   .pms-actions { display: flex; gap: 10px; justify-content: flex-end; align-items: end; }
 
-  /* ───────── Buttons ───────── */
+  /* ───────── Buttons (Colors untouched) ───────── */
   .pms-btn {
     min-height: 36px;
     display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -347,25 +345,28 @@ const CSS = `
     .pms-record-head > div:first-child { position: static; transform: none; white-space: normal; }
   }
 
-  /* ───────── Tables ───────── */
-  .pms-table-wrap { max-height: 520px; overflow: auto; background: #ffffff; }
+  /* ───────── Moderately Increased Light Header Color ───────── */
+  .pms-table-wrap { max-height: 540px; overflow: auto; background: #ffffff; border-radius: 0 0 6px 6px; }
   .pms-table { width: 100%; border-collapse: collapse; white-space: nowrap; font-size: 13px; }
+  
+  /* Increased color depth for crisp light header visibility */
   .pms-table th {
     position: sticky; top: 0; z-index: 3;
-    background: var(--panel-soft);
-    color: var(--muted);
-    padding: 10px 12px; text-align: left;
-    font-size: 11px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    border: 1px solid var(--line);
+    background: #dbe5ed !important;
+    color: #0f2238 !important;
+    padding: 11px 12px; text-align: left;
+    font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    border: 1px solid #b2c4d4 !important;
+    box-shadow: inset 0 -1px 0 #b2c4d4;
   }
   .pms-table td {
     padding: 9px 12px;
-    border: 1px solid #edf0f3;
-    vertical-align: middle; color: var(--text); font-weight: 500;
+    border: 1px solid #e2e8f0;
+    vertical-align: middle; color: #1e293b; font-weight: 500;
   }
-  .pms-table tbody tr:nth-child(even) { background: #fbfcfd; }
-  .pms-table tbody tr:hover { background: #f1f6f7; }
+  .pms-table tbody tr:nth-child(even) { background: #f8fafc; }
+  .pms-table tbody tr:hover { background: #eef4f6; }
 
   .pms-status {
     display: inline-flex; align-items: center; justify-content: center;
@@ -394,14 +395,14 @@ const CSS = `
   .pms-delete-btn { color: var(--red-text); }
   .pms-delete-btn:hover { background: var(--red-soft); border-color: #f1b8b8; }
 
-  .pms-muted     { color: var(--hint); }
-  .pms-wrap-text { max-width: 180px; white-space: normal; color: var(--muted); font-size: 12px; }
-  .pms-empty     { padding: 46px; text-align: center; color: var(--muted); font-weight: 500; }
+  .pms-muted     { color: #94a3b8; }
+  .pms-wrap-text { max-width: 180px; white-space: normal; color: #334155; font-size: 12px; }
+  .pms-empty     { padding: 46px; text-align: center; color: #64748b; font-weight: 550; }
 
   /* ───────── Idle / Breakdown slots ───────── */
   .ts-section {
-    background: var(--panel-soft);
-    border: 1px dashed var(--line-dark);
+    background: #f8fafc;
+    border: 1px dashed #94a3b8;
     border-radius: 6px;
     padding: 12px 16px 14px;
     margin-bottom: 12px;
@@ -420,7 +421,7 @@ const CSS = `
     gap: 10px; align-items: end;
     margin-bottom: 8px;
     background: #ffffff;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-dark);
     border-radius: 6px;
     padding: 8px 12px;
   }
@@ -456,7 +457,7 @@ const CSS = `
     background: var(--panel) !important;
     border: 1px solid var(--line) !important;
     border-radius: 8px !important;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04) !important;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05) !important;
     padding: 14px 16px 16px !important;
     margin: 16px 0 18px !important;
   }
@@ -471,32 +472,34 @@ const CSS = `
   .pms-root .card .row { --bs-gutter-x: 12px; --bs-gutter-y: 10px; }
   .pms-root .form-label {
     display: flex; align-items: center; gap: 6px;
-    color: var(--muted) !important;
-    font-size: 10.5px; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
+    color: #1f2937 !important;
+    font-size: 11px; font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.04em;
     margin-bottom: 4px !important;
   }
-  .pms-root .form-label .pms-ico { width: 12px; height: 12px; color: var(--teal); }
+  .pms-root .form-label .pms-ico { width: 13px; height: 13px; color: var(--teal); }
   .pms-root .form-control,
   .pms-root .form-select {
-    min-height: 34px;
-    padding: 5px 10px;
+    min-height: 36px;
+    padding: 6px 10px;
     font-family: inherit;
-    font-size: 13px; font-weight: 500;
-    color: var(--text);
+    font-size: 13px; font-weight: 550;
+    color: #0f172a;
     background-color: #ffffff;
     border: 1px solid var(--line-dark) !important;
     border-radius: 4px;
-    box-shadow: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   }
   .pms-root .form-select { padding-right: 28px; }
   .pms-root .form-control:focus,
   .pms-root .form-select:focus {
     border-color: var(--teal) !important;
-    box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.12);
+    box-shadow: 0 0 0 3px rgba(15, 76, 92, 0.16);
   }
+
+  /* Buttons remain untouched */
   .pms-root .btn {
-    min-height: 34px;
+    min-height: 36px;
     display: inline-flex; align-items: center; justify-content: center;
     padding: 5px 10px;
     font-family: inherit;
@@ -517,7 +520,6 @@ const CSS = `
 
   /* ───────── Icons ───────── */
   .pms-ico { width: 15px; height: 15px; flex-shrink: 0; vertical-align: -2px; }
-  .pms-ico-lg { width: 22px; height: 22px; }
 
   /* ───────── View toggle ───────── */
   .pms-toggle-wrap { display: flex; justify-content: center; margin: 0 0 16px; }
@@ -529,12 +531,17 @@ const CSS = `
   .pms-toggle .pms-btn-cancel { background: transparent; border-color: transparent; color: var(--muted); }
   .pms-toggle .pms-btn-cancel:hover { background: var(--panel-soft); color: var(--text); }
 
-  /* ───────── Summary table ───────── */
+  /* ───────── Summary Table (Moderately Increased Header Tone) ───────── */
   .pms-summary-table { font-size: 13px; }
-  .pms-summary-table thead th { text-align: center; white-space: normal; height: 38px; padding: 6px 8px; }
-  .pms-summary-table thead tr:nth-child(2) th { top: 38px; }
-  .pms-summary-table thead tr:nth-child(3) th { top: 76px; }
-  .pms-summary-table td { padding: 8px; }
+  .pms-summary-table thead th {
+    background: #dbe5ed !important;
+    color: #0f2238 !important;
+    text-align: center; white-space: normal; height: 38px; padding: 6px 8px;
+    border: 1px solid #b2c4d4 !important;
+  }
+  .pms-summary-table thead tr:nth-child(2) th { top: 38px; background: #cbdbe6 !important; }
+  .pms-summary-table thead tr:nth-child(3) th { top: 76px; background: #c0d2df !important; }
+  .pms-summary-table td { padding: 8px; border: 1px solid #e2e8f0; }
   .pms-sum-center { text-align: center; font-weight: 600; }
   .pms-sum-num { text-align: right; font-variant-numeric: tabular-nums; }
   .pms-sum-time { text-align: center; font-variant-numeric: tabular-nums; }
@@ -547,7 +554,7 @@ const CSS = `
     border-top: 1px solid var(--line);
     background: var(--panel);
   }
-  .pms-pager-info { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+  .pms-pager-info { color: var(--muted); font-size: 12.5px; font-weight: 550; }
   .pms-pager-nav, .pms-pager-extra, .pms-pager-jump { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
   .pms-pg-btn {
     min-width: 32px; min-height: 32px; padding: 0 9px;
@@ -616,14 +623,14 @@ export default function ProductionMachineStatusModule() {
   const [printers, setPrinters]             = useState([]);
   const [editingId, setEditingId]           = useState(null);
   const [userLocations, setUserLocations]   = useState([]);
-    const [allowedMachineIds, setAllowedMachineIds] = useState(null); // null = no restriction
+  const [allowedMachineIds, setAllowedMachineIds] = useState(null);
 
   /* Extra time slots (idle / breakdown alongside a production entry) */
   const [extraSlots, setExtraSlots] = useState([]);
 
-const [filters, setFilters] = useState({
-  dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "", printer: "",
-});
+  const [filters, setFilters] = useState({
+    dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "", printer: "",
+  });
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -719,7 +726,6 @@ const [filters, setFilters] = useState({
 
   /* ── Derived lists ── */
   const filteredMachines = useMemo(() => {
-    // keep the currently selected machine so editing an old entry never blanks the field
     const allowed = (m) =>
       !allowedMachineIds ||
       allowedMachineIds.has(String(m._id)) ||
@@ -734,27 +740,28 @@ const [filters, setFilters] = useState({
     }
     return list.filter(allowed);
   }, [activities, machines, form.activityId, allowedMachineIds, form.machineId]);
-/* ── Frozen activity: always "Perso Printing" ── */
-const persoActivity = useMemo(() => {
-  const list = activities.filter((a) =>
-    (a.activityName || "").toLowerCase().includes("perso")
-  );
-  // prefer one that has both "perso" and "print" in the name
-  return (
-    list.find((a) => (a.activityName || "").toLowerCase().includes("print")) ||
-    list[0] ||
-    null
-  );
-}, [activities]);
 
-useEffect(() => {
-  if (!persoActivity || editingId) return;
-  setForm((prev) =>
-    prev.activityId === persoActivity._id
-      ? prev
-      : { ...prev, activityId: persoActivity._id, machineId: "", printerName: "" }
-  );
-}, [persoActivity, editingId]);
+  /* ── Frozen activity: always "Perso Printing" ── */
+  const persoActivity = useMemo(() => {
+    const list = activities.filter((a) =>
+      (a.activityName || "").toLowerCase().includes("perso")
+    );
+    return (
+      list.find((a) => (a.activityName || "").toLowerCase().includes("print")) ||
+      list[0] ||
+      null
+    );
+  }, [activities]);
+
+  useEffect(() => {
+    if (!persoActivity || editingId) return;
+    setForm((prev) =>
+      prev.activityId === persoActivity._id
+        ? prev
+        : { ...prev, activityId: persoActivity._id, machineId: "", printerName: "" }
+    );
+  }, [persoActivity, editingId]);
+
   const filteredPrinters = useMemo(() => {
     if (!form.machineId) return [];
     const sel = machines.find((m) => m._id === form.machineId);
@@ -799,14 +806,11 @@ useEffect(() => {
   /* ── Reset ── */
   const resetForm = () => {
     setForm((prev) => ({
-      // keep these — persist across saves until page refresh
       productionDate: prev.productionDate,
       shift: prev.shift,
       activityId: prev.activityId,
       machineId: prev.machineId,
       printerName: prev.printerName,
-
-      // clear everything else for the next entry
       machineStatus: "",
       customerName: "",
       materialType: "",
@@ -831,7 +835,7 @@ useEffect(() => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-  if (!form.activityId) return showAlert("Select activity", "warning");
+    if (!form.activityId) return showAlert("Select activity", "warning");
     if (!form.machineId)  return showAlert("Select machine", "warning");
     if (filteredPrinters.length > 0 && !form.printerName) return showAlert("Select printer name", "warning");
 
@@ -844,7 +848,6 @@ useEffect(() => {
         return showAlert("Enter Wastage Sheets", "warning");
     }
 
-    /* Validate extra slots */
     for (const s of extraSlots) {
       if (!s.machineStatus) return showAlert("Select status for all time slots", "warning");
       if (!s.fromTime)      return showAlert("Enter From Time for all time slots", "warning");
@@ -856,28 +859,21 @@ useEffect(() => {
       if (!dateStr || !fromTime || !toTime) return 0;
       const start = new Date(`${dateStr}T${fromTime}`);
       const end = new Date(`${dateStr}T${toTime}`);
-      // Equal from/to time means a full 24-hour span (e.g. 1:00 PM -> 1:00 PM next occurrence),
-      // and any end time at/before start time means it rolled past midnight.
       if (end <= start) end.setDate(end.getDate() + 1);
       return (end - start) / (1000 * 60 * 60);
     };
 
-    // hours from the main entry + any extra idle/breakdown slots being submitted now
     let totalHours = getEntryHours(form.productionDate, form.fromTime, form.toTime);
     extraSlots.forEach((slot) => {
       totalHours += getEntryHours(form.productionDate, slot.fromTime, slot.toTime);
     });
 
-    // existing saved records for the same printer + same date (skip the one being edited)
     const sameMachineEntries = records.filter((item) => {
       if (editingId && item._id === editingId) return false;
-
       const sameMachine =
         String(item.machineId?._id || item.machineId) === String(form.machineId);
       if (!sameMachine) return false;
-
       if (form.printerName && item.printerName !== form.printerName) return false;
-
       const itemDate = item.productionDate
         ? new Date(item.productionDate).toISOString().split("T")[0]
         : "";
@@ -898,7 +894,6 @@ useEffect(() => {
 
     try {
       if (editingId) {
-        /* ── EDIT: update the main record + save any new extra slots ── */
         await axios.put(
           `${BASE_URL}/api/production-machine-status/${editingId}`,
           basePayload,
@@ -937,10 +932,8 @@ useEffect(() => {
           "success"
         );
       } else {
-        /* ── CREATE: save main record then each extra slot ── */
         await axios.post(`${BASE_URL}/api/production-machine-status`, basePayload, authHeaders);
 
-        /* Save each extra slot as its own record, inheriting shared fields */
         for (const slot of extraSlots) {
           const slotPayload = {
             productionDate: form.productionDate,
@@ -985,7 +978,7 @@ useEffect(() => {
   /* ── Edit ── */
   const handleEdit = (item) => {
     setEditingId(item._id);
-    setExtraSlots([]); // start fresh; user can add new slots if needed
+    setExtraSlots([]);
     setForm({
       productionDate:  item.productionDate?.split("T")[0] || "",
       shift:           item.shift || "",
@@ -1034,13 +1027,13 @@ useEffect(() => {
     hr = hr % 12 || 12;
     return `${hr}:${m} ${ap}`;
   };
-    const getTotalTime = (from, to) => {
+  const getTotalTime = (from, to) => {
     if (!from || !to) return "";
     const [fh, fm] = from.split(":").map(Number);
     const [th, tm] = to.split(":").map(Number);
 
     let mins = th * 60 + tm - (fh * 60 + fm);
-    if (mins <= 0) mins += 24 * 60; // crossed midnight (or equal = 24h)
+    if (mins <= 0) mins += 24 * 60;
 
     const h = Math.floor(mins / 60);
     const m = mins % 60;
@@ -1083,7 +1076,6 @@ useEffect(() => {
   const locationOptions = [...new Set(records.flatMap((r) => r.userLocations || []))];
   const printerOptions  = [...new Set(records.map((r) => r.printerName).filter(Boolean))];
 
-  /* only the rows of the current page are drawn */
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pageRows = filteredRecords.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -1128,7 +1120,6 @@ useEffect(() => {
       return g.rows.get(key);
     };
 
-    // seed every machine / printer of the Perso activity with zero values
     (persoActivity ? [persoActivity] : activities).forEach((act) => {
       const ids = (act.machines || []).map(String);
       machines
@@ -1154,7 +1145,6 @@ useEffect(() => {
       const sizeKey = item.paperSize?.trim() || "Not Set";
       const qty = isProd ? Number(item.totalPages) || 0 : 0;
 
-      // machine hours by status
       const durMins = getDurationMins(item.fromTime, item.toTime);
       if (isProd) row.prodMins += durMins;
       else if (statusKey === "idle" || statusKey === "idle time") row.idleMins += durMins;
@@ -1178,14 +1168,12 @@ useEffect(() => {
         grandTotal: r.dayQty + r.nightQty,
         totalMins: r.prodMins + r.idleMins + r.breakdownMins + r.maintMins,
       }));
-      // keep each machine's printers together
       const order = [...new Set(rows.map((r) => r.machineName))];
       rows.sort((a, b) => order.indexOf(a.machineName) - order.indexOf(b.machineName));
       return { activityName: group.activityName, rows };
     });
   };
 
-  // only computed while the Summary view is on screen
   const summaryRows = useMemo(
     () => (recordsView === "summary" ? buildSummary() : []),
     [recordsView, filteredRecords, activities, machines, printers, persoActivity]
@@ -1196,16 +1184,16 @@ useEffect(() => {
     [summaryRows]
   );
 
-   const buildSummarySheet = () => {
+  const buildSummarySheet = () => {
     const summary = buildSummary();
     if (!summary.length) return null;
 
     const sizes = [...new Set(summary.flatMap((g) => g.rows.flatMap((r) => [...Object.keys(r.dayBySize), ...Object.keys(r.nightBySize)])))].sort();
     const n = sizes.length;
-    const dayEnd = 1 + n;                 // last Day column
+    const dayEnd = 1 + n;
     const nightStart = dayEnd + 1;
-    const nightEnd = nightStart + n - 1;  // last Night column
-    const dateEnd = nightEnd + 1;         // Grand Total column
+    const nightEnd = nightStart + n - 1;
+    const dateEnd = nightEnd + 1;
     const hoursStart = dateEnd + 1;
     const hoursEnd = hoursStart + 4;
     const blank = (k) => Array(Math.max(k, 0)).fill("");
@@ -1281,7 +1269,7 @@ useEffect(() => {
           border,
           alignment: { vertical: "center", horizontal: isHeader ? "center" : isNumberCol ? "right" : "center", wrapText: true },
           font: { bold: isHeader || c <= 1 },
-          ...(isHeader ? { fill: { fgColor: { rgb: "9FC3E3" } } } : {}),
+          ...(isHeader ? { fill: { fgColor: { rgb: "DBE5ED" } } } : {}),
         };
         if (!isHeader && isNumberCol && typeof ws[addr].v === "number") ws[addr].z = "#,##0";
       }
@@ -1289,17 +1277,16 @@ useEffect(() => {
     return ws;
   };
 
-  /* ── LAST USED: ACTIVITY > MACHINE > PRINTER (location-filter based) ── */
+  /* ── LAST USED: ACTIVITY > MACHINE > PRINTER ── */
   const buildLastUsedGroups = () => {
-    // use only the selected location's records (all records if none selected)
     const sourceList = locationFilter
       ? records.filter((r) => r.userLocations?.includes(locationFilter))
       : records;
 
     if (!sourceList.length) return null;
 
-    const lastUsed = new Map();          // activity+machine+printer -> latest entry
-    const seenPrinters = new Map();      // activity+machine -> printers found in records
+    const lastUsed = new Map();
+    const seenPrinters = new Map();
 
     for (const item of sourceList) {
       const actId = String(item.activityId?._id || item.activityId || "");
@@ -1342,7 +1329,6 @@ useEffect(() => {
         const actMachines = machines.filter((m) => ids.includes(String(m._id)));
 
         const machineGroups = actMachines.map((m) => {
-          // printers from the master list + any printer seen in saved records
           const names = new Set(
             printers.find((p) => p.machineName === m.machineName)?.printerNames || []
           );
@@ -1386,7 +1372,6 @@ useEffect(() => {
     }
 
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-
     doc.setFontSize(16);
     doc.text(
       `Machine & Printer - Last Used Report (${locationFilter || "All Locations"})`,
@@ -1401,14 +1386,12 @@ useEffect(() => {
     );
 
     const body = [];
-
     groups.forEach((group) => {
       const activityRowCount = group.machineGroups.reduce((n, mg) => n + mg.rows.length, 0);
 
       group.machineGroups.forEach((mg, mIdx) => {
         mg.rows.forEach((r, pIdx) => {
           const row = [];
-
           if (mIdx === 0 && pIdx === 0) {
             row.push({
               content: group.activityName,
@@ -1423,7 +1406,6 @@ useEffect(() => {
               styles: { fontStyle: "bold", valign: "middle", halign: "center" },
             });
           }
-
           row.push(r.printerName, ...lastUsedCells(r.info));
           body.push(row);
         });
@@ -1439,12 +1421,11 @@ useEffect(() => {
       body,
       theme: "grid",
       styles: { fontSize: 8, cellPadding: 4, valign: "middle", textColor: [0, 0, 0] },
-      headStyles: { fillColor: [6, 76, 115], textColor: 255 },
+      headStyles: { fillColor: [219, 229, 237], textColor: [15, 34, 56], fontStyle: "bold" },
       columnStyles: {
         0: { cellWidth: 70 },
         5: { cellWidth: 130 },
       },
-      // highlight printers never used
       didParseCell: (data) => {
         if (data.section === "body" && data.cell.text[0] === "Never used") {
           data.cell.styles.textColor = [200, 0, 0];
@@ -1478,10 +1459,8 @@ useEffect(() => {
 
     groups.forEach((group) => {
       const activityStart = aoa.length;
-
       group.machineGroups.forEach((mg, mIdx) => {
         const machineStart = aoa.length;
-
         mg.rows.forEach((r, pIdx) => {
           aoa.push([
             mIdx === 0 && pIdx === 0 ? group.activityName : "",
@@ -1535,7 +1514,7 @@ useEffect(() => {
             bold: isHeader || c <= 1,
             ...(neverUsed ? { color: { rgb: "C80000" } } : {}),
           },
-          ...(isHeader ? { fill: { fgColor: { rgb: "9FC3E3" } } } : {}),
+          ...(isHeader ? { fill: { fgColor: { rgb: "DBE5ED" } } } : {}),
         };
       }
     }
@@ -1553,7 +1532,6 @@ useEffect(() => {
 
   /* ── Excel export ── */
   const exportToExcel = () => {
-    // Summary view -> download ONLY the Summary Report
     if (recordsView === "summary") {
       const sheet = buildSummarySheet();
       if (!sheet) { showAlert("No summary data to export", "warning"); return; }
@@ -1596,8 +1574,6 @@ useEffect(() => {
     <div className="pms-root">
       <style>{CSS}</style>
 
-      {/* Header */}
-
       <div className="pms-body">
         <div className="pms-card">
           <div className="pms-card-head">
@@ -1632,11 +1608,11 @@ useEffect(() => {
                   </div>
                   <div className="pms-field">
                     <label className="pms-label"><PIcon name="Activity" />Activity <span className="pms-req">*</span></label>
-             <select className="pms-select pms-readonly" name="activityId" value={form.activityId}
-  onChange={handleChange} disabled>
-  <option value="">Select activity</option>
-  {activities.map((a) => <option key={a._id} value={a._id}>{a.activityName}</option>)}
-</select>
+                    <select className="pms-select pms-readonly" name="activityId" value={form.activityId}
+                      onChange={handleChange} disabled>
+                      <option value="">Select activity</option>
+                      {activities.map((a) => <option key={a._id} value={a._id}>{a.activityName}</option>)}
+                    </select>
                   </div>
                   <div className="pms-field">
                     <label className="pms-label"><PIcon name="Machine" />Machine <span className="pms-req">*</span></label>
@@ -1646,7 +1622,7 @@ useEffect(() => {
                       {filteredMachines.map((m) => <option key={m._id} value={m._id}>{m.machineName}</option>)}
                     </select>
                   </div>
-                    <div className="pms-field">
+                  <div className="pms-field">
                     <label className="pms-label"><PIcon name="Printer Name" />Printer Name</label>
                     <select className="pms-select" name="printerName" value={form.printerName}
                       onChange={handleChange} disabled={!form.machineId}>
@@ -1654,7 +1630,6 @@ useEffect(() => {
                       {filteredPrinters.map((name, i) => <option key={i} value={name}>{name}</option>)}
                     </select>
                   </div>
-              
                 </div>
               </div>
 
@@ -1702,7 +1677,7 @@ useEffect(() => {
                     <input className="pms-input" type="time" name="toTime"
                       value={form.toTime} onChange={handleChange} required />
                   </div>
-                      <div className="pms-field">
+                  <div className="pms-field">
                     <label className="pms-label"><PIcon name="Machine Status" />Machine Status <span className="pms-req">*</span></label>
                     <select className="pms-select" name="machineStatus" value={form.machineStatus} onChange={handleChange} required>
                       <option value="">Select status</option>
@@ -1829,63 +1804,63 @@ useEffect(() => {
 
         {/* ── Filters ── */}
         <div className="card mt-4 p-3"
-          style={{ background: "#fbfbfb", boxShadow: "0 2px 6px rgba(0,0,0,0.69)", borderRadius: "10px" }}>
+          style={{ background: "#fbfbfb", boxShadow: "0 2px 6px rgba(0,0,0,0.15)", borderRadius: "10px" }}>
           <h5 className="mb-3 text-center fw-bold"><FiFilter className="pms-ico me-2" />Filters &amp; Excel Export</h5>
           <div className="row g-2">
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="WO Number" />WO Number</label>
+              <label className="form-label"><PIcon name="WO Number" />WO Number</label>
               <input type="text" name="workOrder" placeholder="WO No"
-                value={filters.workOrder} onChange={handleFilterChange} className="form-control border-dark" />
+                value={filters.workOrder} onChange={handleFilterChange} className="form-control" />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="From Date" />From Date</label>
+              <label className="form-label"><PIcon name="From Date" />From Date</label>
               <input type="date" name="dateFrom" value={filters.dateFrom}
-                onChange={handleFilterChange} className="form-control border-dark" />
+                onChange={handleFilterChange} className="form-control" />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="To Date" />To Date</label>
+              <label className="form-label"><PIcon name="To Date" />To Date</label>
               <input type="date" name="dateTo" value={filters.dateTo}
-                onChange={handleFilterChange} className="form-control border-dark" />
+                onChange={handleFilterChange} className="form-control" />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="Month" />Month</label>
+              <label className="form-label"><PIcon name="Month" />Month</label>
               <input type="month" name="month" value={filters.month}
-                onChange={handleFilterChange} className="form-control border-dark" />
+                onChange={handleFilterChange} className="form-control" />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="User Location" />User Location</label>
+              <label className="form-label"><PIcon name="User Location" />User Location</label>
               <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
-                className="form-select border-dark">
+                className="form-select">
                 <option value="">All Locations</option>
                 {locationOptions.map((loc, i) => <option key={i} value={loc}>{loc}</option>)}
               </select>
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="Shift" />Shift</label>
-              <select name="shift" value={filters.shift} onChange={handleFilterChange} className="form-select border-dark">
+              <label className="form-label"><PIcon name="Shift" />Shift</label>
+              <select name="shift" value={filters.shift} onChange={handleFilterChange} className="form-select">
                 <option value="">All Shifts</option>
                 <option value="Day">Day</option>
                 <option value="Night">Night</option>
               </select>
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="Machine" />Machine</label>
-              <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select border-dark">
+              <label className="form-label"><PIcon name="Machine" />Machine</label>
+              <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select">
                 <option value="">All Machines</option>
                 {[...new Set(records.map((r) => r.machineId?.machineName || r.machineName))].filter(Boolean)
                   .map((machine, i) => <option key={i} value={machine}>{machine}</option>)}
               </select>
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="Printer" />Printer</label>
-              <select name="printer" value={filters.printer} onChange={handleFilterChange} className="form-select border-dark">
+              <label className="form-label"><PIcon name="Printer" />Printer</label>
+              <select name="printer" value={filters.printer} onChange={handleFilterChange} className="form-select">
                 <option value="">All Printers</option>
                 {printerOptions.map((p, i) => <option key={i} value={p}>{p}</option>)}
               </select>
             </div>
             <div className="col-md-2">
-              <label className="form-label text-black"><PIcon name="Machine Status" />Machine Status</label>
-              <select name="machineStatus" value={filters.machineStatus} onChange={handleFilterChange} className="form-select border-dark">
+              <label className="form-label"><PIcon name="Machine Status" />Machine Status</label>
+              <select name="machineStatus" value={filters.machineStatus} onChange={handleFilterChange} className="form-select">
                 <option value="">All Status</option>
                 {machineStatuses.map((s) => <option key={s._id} value={s.statusName}>{s.statusName}</option>)}
               </select>
@@ -1941,7 +1916,7 @@ useEffect(() => {
                 <div className="pms-empty">No production found for selected filters</div>
               ) : (
                 <table className="pms-table pms-summary-table">
-                                  <thead>
+                  <thead>
                     <tr>
                       <th rowSpan="3">Machine</th>
                       <th rowSpan="3">Printer</th>
@@ -1971,11 +1946,8 @@ useEffect(() => {
                       return group.rows.map((row, idx) => {
                         const firstOfMachine = !seen[row.machineName];
                         seen[row.machineName] = true;
-                        const dayKey = `sumday-${group.activityName}-${row.machineName}-${row.printerName}`;
-                        const nightKey = `sumnight-${group.activityName}-${row.machineName}-${row.printerName}`;
                         return (
                           <tr key={`${group.activityName}-${row.machineName}-${row.printerName}`}>
-
                             {firstOfMachine && (
                               <td rowSpan={machineCount[row.machineName]} className="pms-sum-center">{row.machineName}</td>
                             )}
@@ -2049,9 +2021,9 @@ useEffect(() => {
                       <td>{item.materialType || <span className="pms-muted">—</span>}</td>
                       <td>{fmtTime(item.fromTime)}</td>
                       <td>{fmtTime(item.toTime)}</td>
-<td style={{ fontWeight: 800 }}>
-  {getTotalTime(item.fromTime, item.toTime) || <span className="pms-muted">—</span>}
-</td>
+                      <td style={{ fontWeight: 800 }}>
+                        {getTotalTime(item.fromTime, item.toTime) || <span className="pms-muted">—</span>}
+                      </td>
                       <td>{item.totalPages    || <span className="pms-muted">—</span>}</td>
                       <td>{item.wastageSheets || <span className="pms-muted">—</span>}</td>
                       <td>{item.wastePercentage ? `${item.wastePercentage}%` : <span className="pms-muted">—</span>}</td>

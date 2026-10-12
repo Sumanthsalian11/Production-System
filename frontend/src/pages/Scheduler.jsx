@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import "@fontsource/inter";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
+import "@fontsource/noto-sans/400.css";
+import "@fontsource/noto-sans/500.css";
+import "@fontsource/noto-sans/600.css";
+import "@fontsource/noto-sans/700.css";
 import { jwtDecode } from "jwt-decode";
-import "@fontsource/jetbrains-mono";
-import "@fontsource/jetbrains-mono/600.css";
+
 import axios from "axios";
 import { gantt } from "dhtmlx-gantt";
 import "dhtmlx-gantt/codebase/dhtmlxgantt.css";
@@ -19,20 +19,20 @@ import BASE_URL from "../config/api";
 ───────────────────────────────────────────────────────── */
 const STYLES = `
   .sch-root {
-    --navy:   #0284c7;
-    --navy2:  #0284c7;
-    --blue:   #3b6fa8;
-    --blue-l: #4b83b8;
-    --teal:   #0284c7;
+    --navy:   #0f5560;
+    --navy2:  #0f5560;
+    --blue:   #0f5560;
+    --blue-l: #0b3a45;
+    --teal:   #0f5560;
     --amber:  #d97706;
     --red:    #dc2626;
-    --green:  #16a34a;
-    --bg:     #e3f3fa;
+    --green:  #1f9d6b;
+    --bg:     #f4f6f8;
     --surface:#ffffff;
-    --border: #cfe6f0;
+    --border: #e3e7ec;
     --text:   #0f172a;
-    --muted:  #5f7487;
-    font-family: 'Inter', sans-serif;
+    --muted:  #5b6676;
+    font-family: 'Noto Sans', sans-serif;
     background: radial-gradient(circle at 10% 20%, #d8f1fb 0%, #edf9fe 90.2%);
     min-height: 100vh;
     padding: 0;
@@ -115,7 +115,7 @@ const STYLES = `
   .sch-card-head.navy  { background: var(--navy);  color: #fff; }
   .sch-card-head.blue  { background: var(--blue);  color: #fff; }
   .sch-card-head.teal  { background: var(--teal);  color: #fff; }
-  .sch-card-head.dark  { background: #0284c7;       color: #fff; }
+  .sch-card-head.dark  { background: #0f5560;       color: #fff; }
   .sch-card-head .head-count {
     margin-left: auto;
     background: rgba(255,255,255,.18);
@@ -128,7 +128,7 @@ const STYLES = `
 
   /* ── WO TABLE ── */
   .wo-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-  .wo-table thead tr { background: #0284c7; }
+  .wo-table thead tr { background: #0f5560; }
   .wo-table th { color: #fff !important;
     padding: 10px 14px;
     text-align: left;
@@ -142,14 +142,14 @@ const STYLES = `
   }
   .wo-table td {
     padding: 11px 14px;
-    border-bottom: 1px solid #e3f3fa;
+    border-bottom: 1px solid #f4f6f8;
     color: var(--text);
     vertical-align: middle;
   }
-  .wo-table tbody tr:hover { background: #d9f2fc; }
+  .wo-table tbody tr:hover { background: #fdeee8; }
   .wo-table tbody tr:last-child td { border-bottom: none; }
   .wo-num {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: Consolas, monospace;
     font-weight: 600;
     font-size: 13px;
     color: var(--blue);
@@ -163,7 +163,7 @@ const STYLES = `
   }
   .badge-pri.high   { background: #fee2e2; color: #dc2626; }
   .badge-pri.medium { background: #fef3c7; color: #d97706; }
-  .badge-pri.low    { background: #dcfce7; color: #16a34a; }
+  .badge-pri.low    { background: #dcfce7; color: #1f9d6b; }
   .badge-pri::before {
     content: '';
     width: 6px; height: 6px;
@@ -215,9 +215,9 @@ const STYLES = `
     border: 1.5px solid var(--border);
     border-radius: 9px;
     font-size: 13.5px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Noto Sans', sans-serif;
     color: var(--text);
-    background: #eef9fe;
+    background: #f7f9fb;
     transition: border .15s, background .15s;
     box-sizing: border-box;
   }
@@ -229,7 +229,7 @@ const STYLES = `
     background: #fff;
   }
   .form-field input:disabled {
-    background: #e3f3fa;
+    background: #f4f6f8;
     color: var(--muted);
     cursor: default;
   }
@@ -242,15 +242,15 @@ const STYLES = `
     cursor: pointer; display: flex; align-items: center; gap: 7px;
     transition: background .15s;
   }
-  .btn-save:hover { background: #15803d; }
+  .btn-save:hover { background: #178158; }
   .btn-cancel-form {
-    background: #e3f3fa;
+    background: #f4f6f8;
     color: var(--muted); border: 1.5px solid var(--border);
     padding: 9px 20px; border-radius: 9px;
     font-size: 13.5px; font-weight: 600;
     cursor: pointer; transition: background .15s;
   }
-  .btn-cancel-form:hover { background: #cfe6f0; }
+  .btn-cancel-form:hover { background: #e3e7ec; }
 
   /* ── FILTER ROW ── */
   .filter-row {
@@ -266,7 +266,7 @@ const STYLES = `
     border-radius: 9px;
     padding: 7px 12px;
     font-size: 13px;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Noto Sans', sans-serif;
     background: #fff;
     color: var(--text);
     cursor: pointer;
@@ -284,16 +284,16 @@ const STYLES = `
     display: flex; align-items: center; gap: 5px;
     transition: background .15s;
   }
-  .btn-clear-filter:hover { background: #e3f3fa; }
+  .btn-clear-filter:hover { background: #f4f6f8; }
 
   /* ── USER FRIENDLY GANTT BAR GRAPH OVERRIDES ── */
   .gantt_container {
     border: none !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Noto Sans', sans-serif !important;
   }
   .gantt_grid_scale,
   .gantt_task_scale {
-    background: linear-gradient(180deg, #0284c7 0%, #0284c7 100%) !important;
+    background: linear-gradient(180deg, #0f5560 0%, #0f5560 100%) !important;
     border-bottom: 2px solid #334155 !important;
   }
   .gantt_grid_head_cell {
@@ -301,45 +301,45 @@ const STYLES = `
     font-weight: 700 !important;
     text-transform: uppercase !important;
     letter-spacing: .5px !important;
-    color: #cfe6f0 !important;
+    color: #e3e7ec !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
   }
   .gantt_scale_cell {
     font-size: 11.5px !important;
     font-weight: 600 !important;
-    color: #b9d4e3 !important;
+    color: #cfd6de !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
   }
   .gantt_scale_line:nth-child(1) .gantt_scale_cell {
     font-weight: 700 !important;
-    color: #eef9fe !important;
+    color: #f7f9fb !important;
     background: rgba(255,255,255,0.03) !important;
     border-bottom: 1px solid rgba(255,255,255,0.08) !important;
   }
   .gantt_grid_data .gantt_row {
-    border-bottom: 1px solid #e3f3fa !important;
+    border-bottom: 1px solid #f4f6f8 !important;
     transition: background 0.12s ease;
   }
-  .gantt_grid_data .gantt_row:hover { background: #d9f2fc !important; }
+  .gantt_grid_data .gantt_row:hover { background: #fdeee8 !important; }
   .gantt_grid_data .gantt_row.gantt_selected { background: #e0f2fe !important; }
   .gantt_cell {
-    border-right: 1px solid #e3f3fa !important;
+    border-right: 1px solid #f4f6f8 !important;
     font-size: 12.5px !important;
     color: #0f172a !important;
   }
   .machine-grid-row {
-    background: #eef9fe !important;
+    background: #f7f9fb !important;
     font-weight: 700 !important;
-    border-top: 1px solid #cfe6f0 !important;
-    border-bottom: 1px solid #cfe6f0 !important;
+    border-top: 1px solid #e3e7ec !important;
+    border-bottom: 1px solid #e3e7ec !important;
   }
   .machine-task-row {
-    background: #eef9fe !important;
-    border-top: 1px solid #cfe6f0 !important;
-    border-bottom: 1px solid #cfe6f0 !important;
+    background: #f7f9fb !important;
+    border-top: 1px solid #e3e7ec !important;
+    border-bottom: 1px solid #e3e7ec !important;
   }
-  .gantt_task_row { border-bottom: 1px solid #e3f3fa !important; }
-  .gantt_task_row:hover { background: #d9f2fc !important; }
+  .gantt_task_row { border-bottom: 1px solid #f4f6f8 !important; }
+  .gantt_task_row:hover { background: #fdeee8 !important; }
 
   /* Friendly Bar Graph Task styling */
   .gantt_task_line {
@@ -372,7 +372,7 @@ const STYLES = `
   }
   .gantt_task_line .gantt_task_content {
     font-size: 11.5px !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Noto Sans', sans-serif !important;
     font-weight: 700 !important;
     color: #ffffff !important;
     padding: 0 10px !important;
@@ -388,13 +388,13 @@ const STYLES = `
   }
   .gantt_layout_cell_resizer,
   .gantt_resizer {
-    background: #b9d4e3 !important;
+    background: #cfd6de !important;
     width: 4px !important;
     cursor: col-resize !important;
     transition: background 0.2s;
   }
   .gantt_layout_cell_resizer:hover,
-  .gantt_resizer:hover { background: #3b6fa8 !important; }
+  .gantt_resizer:hover { background: #0f5560 !important; }
 
   .gantt_layout_cell::-webkit-scrollbar,
   .gantt_data_area::-webkit-scrollbar,
@@ -404,11 +404,11 @@ const STYLES = `
   }
   .gantt_layout_cell::-webkit-scrollbar-track,
   .gantt_data_area::-webkit-scrollbar-track,
-  .gantt_grid_data::-webkit-scrollbar-track { background: #e3f3fa; }
+  .gantt_grid_data::-webkit-scrollbar-track { background: #f4f6f8; }
   .gantt_layout_cell::-webkit-scrollbar-thumb,
   .gantt_data_area::-webkit-scrollbar-thumb,
   .gantt_grid_data::-webkit-scrollbar-thumb {
-    background: #b9d4e3;
+    background: #cfd6de;
     border-radius: 4px;
   }
   .gantt_layout_cell::-webkit-scrollbar-thumb:hover,
@@ -419,7 +419,7 @@ const STYLES = `
   .gantt_tooltip {
     border-radius: 12px !important;
     box-shadow: 0 12px 30px -4px rgba(15, 23, 42, 0.25), 0 4px 10px -2px rgba(15, 23, 42, 0.1) !important;
-    font-family: 'Inter', sans-serif !important;
+    font-family: 'Noto Sans', sans-serif !important;
     border: 1px solid rgba(226, 232, 240, 0.9) !important;
     background: #ffffff !important;
     padding: 0 !important;
@@ -429,28 +429,28 @@ const STYLES = `
   .sch-root {
     background:
       radial-gradient(circle at 12% 6%, rgba(255,255,255,.9) 0, rgba(255,255,255,0) 30%),
-      radial-gradient(circle at 88% 18%, rgba(160,222,250,.7) 0, rgba(160,222,250,0) 32%),
-      linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
+      radial-gradient(circle at 88% 18%, rgba(244,246,248,0) 0, rgba(244,246,248,0) 32%),
+      linear-gradient(#f4f6f8, #f4f6f8);
     background-attachment: fixed;
-    color: #0b2f4f;
+    color: #000000;
   }
 
   /* top bar */
   .sch-topbar {
     background: linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(222,244,254,.8) 100%);
     border-bottom: 1px solid #fff;
-    box-shadow: 0 14px 30px rgba(40,120,170,.18), inset 0 1px 0 #fff;
+    box-shadow: 0 14px 30px rgba(16,24,40,.07), inset 0 1px 0 #fff;
   }
   .sch-topbar-icon {
-    background: radial-gradient(circle at 30% 25%, #fff 0%, #bfe5f8 50%, #8fd0f0 100%);
-    border: 1px solid #86c6e8;
+    background: #fde3d8;
+    border: 1px solid #8fbcc7;
   }
-  .sch-topbar h1 { color: #0a4f8c; }
-  .sch-topbar p { color: #4a6f8c; }
+  .sch-topbar h1 { color: #0b3a45; }
+  .sch-topbar p { color: #5b6676; }
   .sch-topbar-badge {
     background: linear-gradient(180deg, #fff 0%, #dff6ff 100%);
-    border: 1px solid #a9d9f2;
-    color: #0b2f4f;
+    border: 1px solid #cfd6de;
+    color: #000000;
   }
 
   /* glass cards */
@@ -458,80 +458,113 @@ const STYLES = `
     background: linear-gradient(180deg, rgba(255,255,255,.94) 0%, rgba(228,246,255,.9) 100%);
     border: 1px solid rgba(255,255,255,.95);
     border-radius: 22px;
-    box-shadow: 0 12px 28px rgba(40,120,170,.12), inset 0 1px 0 #fff;
+    box-shadow: 0 12px 28px rgba(16,24,40,.07), inset 0 1px 0 #fff;
   }
   .sch-card-head.navy,
   .sch-card-head.blue,
   .sch-card-head.teal,
   .sch-card-head.dark {
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
-    color: #08406b;
-    border-bottom: 1px solid #86c6e8;
+    background: linear-gradient(180deg, #a9d0d9 0%, #a9d0d9 100%);
+    color: #000000;
+    border-bottom: 1px solid #8fbcc7;
     box-shadow: inset 0 1px 0 #fff;
   }
   .sch-card-head .head-count {
     background: linear-gradient(180deg, #fff, #d6effc);
-    color: #0a4f8c;
-    border: 1px solid #a9d9f2;
+    color: #0b3a45;
+    border: 1px solid #cfd6de;
   }
 
   /* pending table */
   .wo-table thead th {
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%);
-    border-bottom: 2px solid #7fbfe4;
+    background: linear-gradient(180deg, #a9d0d9 0%, #a9d0d9 100%);
+    border-bottom: 2px solid #8fbcc7;
   }
-  .wo-table th { color: #08406b !important; }
-  .wo-table td { color: #0b2f4f; font-weight: 600; border-bottom: 1px solid #d3e8f4; }
-  .wo-table tbody tr:nth-child(even) td { background: #f3faff; }
-  .wo-table tbody tr:hover td { background: #d9f2fc; }
-  .wo-num { color: #0a6fb8; }
+  .wo-table th { color: #000000 !important; }
+  .wo-table td { color: #000000; font-weight: 600; border-bottom: 1px solid #eef1f4; }
+  .wo-table tbody tr:nth-child(even) td { background: #fafbfc; }
+  .wo-table tbody tr:hover td { background: #fdeee8; }
+  .wo-num { color: #0a6fb8
+; }
 
   /* glossy blue buttons */
   .btn-sched,
   button[title="Auto-schedule every pending row onto the Gantt"]:not(:disabled) {
-    background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%) !important;
-    color: #08406b !important;
-    border: 1px solid #7fc3e8 !important;
-    box-shadow: 0 2px 0 #7fbbe0, 0 6px 12px rgba(40,120,170,.14), inset 0 1px 0 #fff;
+    background: linear-gradient(180deg, #fde3d8 0%, #fde3d8 100%) !important;
+    color: #000000 !important;
+    border: 1px solid #f5b9a1 !important;
+    box-shadow: 0 2px 0 #f5b9a1, 0 6px 12px rgba(16,24,40,.07), inset 0 1px 0 #fff;
   }
-  .btn-sched:hover { background: linear-gradient(180deg, #e3f5fe 0%, #b0e0f8 100%); }
+  .btn-sched:hover { background: linear-gradient(180deg, #fbd0bf 0%, #fbd0bf 100%); }
 
   /* form fields */
-  .form-field label { color: #0b2f4f; }
+  .form-field label { color: #000000; }
   .form-field input,
   .form-field select,
   .form-field textarea {
-    border: 1.5px solid #9ccbe6;
+    border: 1.5px solid #cfd6de;
     border-radius: 12px;
     background: #fff;
-    color: #0b2f4f;
+    color: #000000;
     font-weight: 600;
     box-shadow: inset 0 2px 5px rgba(10,80,130,.1);
   }
   .form-field input:focus,
   .form-field select:focus,
   .form-field textarea:focus {
-    border-color: #1b9be0;
-    box-shadow: 0 0 0 4px rgba(27,155,224,.2);
+    border-color: #0f5560;
+    box-shadow: 0 0 0 4px rgba(15,85,96,.15);
   }
-  .form-field input:disabled { background: #eef7fc; color: #4a6f8c; }
+  .form-field input:disabled { background: #eef7fc; color: #5b6676; }
 
   /* gantt header */
   .gantt_grid_scale,
   .gantt_task_scale {
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
-    border-bottom: 2px solid #86c6e8 !important;
+    background: linear-gradient(180deg, #a9d0d9 0%, #a9d0d9 100%) !important;
+    border-bottom: 2px solid #8fbcc7 !important;
   }
   .gantt_grid_head_cell,
   .gantt_scale_cell {
-    color: #08406b !important;
+    color: #000000 !important;
     border-right: 1px solid rgba(8,64,107,.15) !important;
   }
   .gantt_scale_line:nth-child(1) .gantt_scale_cell {
-    color: #08406b !important;
+    color: #000000 !important;
     background: rgba(255,255,255,.3) !important;
     border-bottom: 1px solid rgba(8,64,107,.15) !important;
   }
+  /* ===== PLANNER TYPOGRAPHY ===== */
+  .sch-root { font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif; font-size: 12.5px; }
+  .sch-root button,
+  .sch-root input,
+  .sch-root select,
+  .sch-root textarea { font-family: inherit; }
+
+  .sch-topbar h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.1px; }
+  .sch-topbar p { font-size: 11.5px; }
+  .sch-topbar-badge { font-size: 11px; font-weight: 600; }
+
+  .sch-card-head { font-size: 13px; font-weight: 700; }
+  .sch-card-head .head-count { font-size: 11px; font-weight: 600; }
+
+  .wo-table { font-size: 12px; }
+  .wo-table th { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 9px 10px; text-align: center; }
+  .wo-table td { font-size: 12px; font-weight: 500; padding: 7px 10px; }
+  .wo-num { font-size: 12px; font-weight: 700; }
+  .badge-pri { font-size: 11px; font-weight: 600; }
+
+  .btn-sched, .btn-save, .btn-cancel-form, .btn-clear-filter { font-size: 12px; font-weight: 600; }
+  .form-field label, .filter-label { font-size: 10.5px; font-weight: 600; letter-spacing: .3px; }
+  .form-field input,
+  .form-field select,
+  .form-field textarea,
+  .filter-input { font-size: 12.5px; font-weight: 500; }
+
+  .sch-root .gantt_container { font-family: 'Noto Sans', 'Segoe UI', system-ui, Arial, sans-serif !important; }
+  .sch-root .gantt_grid_head_cell { font-size: 10.5px !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: .4px !important; }
+  .sch-root .gantt_scale_cell { font-size: 11px !important; font-weight: 600 !important; }
+  .sch-root .gantt_cell { font-size: 12px !important; }
+  .sch-root .gantt_task_line .gantt_task_content { font-size: 11px !important; font-weight: 600 !important; }
 `;
 
 const Scheduler = () => {
@@ -660,7 +693,7 @@ const Scheduler = () => {
           if (task.isMachine) {
             return `<span style="font-weight:700;color:#0f172a;letter-spacing:-0.2px;">⚙️ ${task.text}</span>`;
           }
-          return `<span style="font-weight:600;color:#3b6fa8;font-family:'JetBrains Mono',monospace;">${task.text}</span>`;
+          return `<span style="font-weight:600;color:#0f5560;font-family:Consolas,monospace;">${task.text}</span>`;
         }
       },
       {
@@ -712,7 +745,7 @@ const Scheduler = () => {
           const hrs = Math.floor(totalMinutes / 60);
           const mins = totalMinutes % 60;
           const text = hrs === 0 ? `${mins}m` : mins === 0 ? `${hrs}h` : `${hrs}h ${mins}m`;
-          return `<span style="display:inline-block;padding:2px 7px;border-radius:12px;background:#e3f3fa;color:#334155;font-size:11px;font-weight:600;">${text}</span>`;
+          return `<span style="display:inline-block;padding:2px 7px;border-radius:12px;background:#f4f6f8;color:#334155;font-size:11px;font-weight:600;">${text}</span>`;
         }
       }
     ];
@@ -724,34 +757,34 @@ const Scheduler = () => {
       let dur = hrs === 0 ? `${mins} mins` : mins === 0 ? `${hrs} hrs` : `${hrs} hrs ${mins} mins`;
       const activityLine = task.activityName
         ? `<div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px;">
-            <span style="color:#5f7487;">Activity:</span>
+            <span style="color:#5b6676;">Activity:</span>
             <span style="font-weight:600;color:#0f172a;">${task.activityName}</span>
            </div>`
         : "";
       const isBlocked = task.color === "red";
       const badgeBg = isBlocked ? "#fee2e2" : "#e0f2fe";
-      const badgeColor = isBlocked ? "#dc2626" : "#3b6fa8";
+      const badgeColor = isBlocked ? "#dc2626" : "#0f5560";
       const statusText = isBlocked ? "BLOCKED" : "SCHEDULED";
 
       return `
-        <div style="min-width:230px;font-family:'Inter',sans-serif;">
-          <div style="padding:10px 14px;background:#eef9fe;border-bottom:1px solid #cfe6f0;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-            <span style="font-size:13px;font-weight:700;color:#0f172a;font-family:'JetBrains Mono',monospace;">${task.text}</span>
+        <div style="min-width:230px;font-family:'Noto Sans',sans-serif;">
+          <div style="padding:10px 14px;background:#f7f9fb;border-bottom:1px solid #e3e7ec;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:#0f172a;font-family:Consolas,monospace;">${task.text}</span>
             <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:${badgeBg};color:${badgeColor};letter-spacing:0.4px;">${statusText}</span>
           </div>
           <div style="padding:12px 14px;font-size:12px;color:#475569;line-height:1.65;">
             ${activityLine}
             <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px;">
-              <span style="color:#5f7487;">Start:</span>
+              <span style="color:#5b6676;">Start:</span>
               <span style="font-weight:600;color:#0f172a;">${gantt.date.date_to_str("%d %b %Y, %h:%i %A")(start)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:4px;">
-              <span style="color:#5f7487;">End:</span>
+              <span style="color:#5b6676;">End:</span>
               <span style="font-weight:600;color:#0f172a;">${gantt.date.date_to_str("%d %b %Y, %h:%i %A")(end)}</span>
             </div>
-            <div style="display:flex;justify-content:space-between;gap:12px;padding-top:6px;border-top:1px dashed #cfe6f0;margin-top:6px;">
-              <span style="color:#5f7487;">Duration:</span>
-              <span style="font-weight:700;color:#3b6fa8;">${dur}</span>
+            <div style="display:flex;justify-content:space-between;gap:12px;padding-top:6px;border-top:1px dashed #e3e7ec;margin-top:6px;">
+              <span style="color:#5b6676;">Duration:</span>
+              <span style="font-weight:700;color:#0f5560;">${dur}</span>
             </div>
           </div>
         </div>`;
@@ -849,7 +882,7 @@ const Scheduler = () => {
         </div>`,
         icon: "question",
         showCancelButton: true,
-        confirmButtonColor: "#3b6fa8",
+        confirmButtonColor: "#0f5560",
         cancelButtonColor: "#6c757d",
         confirmButtonText: "Yes, Update"
       }).then((result) => {
@@ -1094,7 +1127,7 @@ const Scheduler = () => {
         { startTime: newStart.toISOString(), endTime: newEnd.toISOString() },
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
-      Swal.fire({ icon: "success", title: "Updated!", text: "Schedule time updated successfully.", confirmButtonColor: "#3b6fa8", timer: 1800, showConfirmButton: false });
+      Swal.fire({ icon: "success", title: "Updated!", text: "Schedule time updated successfully.", confirmButtonColor: "#0f5560", timer: 1800, showConfirmButton: false });
       await loadAllData();
     } catch (err) {
       console.log(err);
@@ -1437,7 +1470,7 @@ const Scheduler = () => {
         text: wasMoved
           ? `Selected slot was occupied. Scheduled at next available time: ${nextStart.toLocaleString()}`
           : "Work Order Scheduled Successfully",
-        confirmButtonColor: "#3b6fa8",
+        confirmButtonColor: "#0f5560",
         timer: 2200,
         showConfirmButton: false
       });
@@ -1462,7 +1495,7 @@ const Scheduler = () => {
       text: "Every pending Activity/Machine row will be placed on the Gantt at the next free slot on its machine. You can drag any of them afterwards.",
       icon: "question",
       showCancelButton: true,
-      confirmButtonColor: "#3b6fa8",
+      confirmButtonColor: "#0f5560",
       cancelButtonColor: "#6c757d",
       confirmButtonText: "Yes, Auto-Schedule"
     });
@@ -1495,7 +1528,7 @@ const Scheduler = () => {
               : ""
           }
         </div>`,
-        confirmButtonColor: "#3b6fa8"
+        confirmButtonColor: "#0f5560"
       });
 
       await loadAllData();
@@ -1534,7 +1567,7 @@ const Scheduler = () => {
         icon: "success",
         title: "Cleaned Up",
         text: res.data.message,
-        confirmButtonColor: "#3b6fa8"
+        confirmButtonColor: "#0f5560"
       });
       await loadAllData();
     } catch (err) {
@@ -1623,7 +1656,7 @@ const Scheduler = () => {
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d97706",
-      cancelButtonColor: "#5f7487",
+      cancelButtonColor: "#5b6676",
       confirmButtonText: "Yes, Remove",
       cancelButtonText: "Cancel"
     });
@@ -1934,8 +1967,8 @@ const Scheduler = () => {
             <div
               style={{
                 padding: "12px 20px",
-                borderBottom: "1px solid #cfe6f0",
-                background: "#eef9fe",
+                borderBottom: "1px solid #e3e7ec",
+                background: "#f7f9fb",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -1952,7 +1985,7 @@ const Scheduler = () => {
                   width: 240,
                   height: 34,
                   padding: "0 12px",
-                  border: "1px solid #b9d4e3",
+                  border: "1px solid #cfd6de",
                   borderRadius: 8,
                   fontSize: 13,
                   color: "#0f172a",
@@ -1969,7 +2002,7 @@ const Scheduler = () => {
                   style={{
                     height: 34,
                     padding: "0 16px",
-                    background: autoScheduling || pendingItems.length === 0 ? "#94a3b8" : "#3b6fa8",
+                    background: autoScheduling || pendingItems.length === 0 ? "#94a3b8" : "#0f5560",
                     color: "#fff",
                     border: "none",
                     borderRadius: 8,
@@ -2049,7 +2082,7 @@ const Scheduler = () => {
 
                       <td
                         style={{
-                          fontFamily: "'JetBrains Mono',monospace",
+                          fontFamily: "Consolas,monospace",
                           fontWeight: 600
                         }}
                       >
@@ -2120,10 +2153,10 @@ const Scheduler = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  background: "#eef9fe",
-                  borderTop: "1px solid #cfe6f0",
+                  background: "#f7f9fb",
+                  borderTop: "1px solid #e3e7ec",
                   fontSize: 12.5,
-                  color: "#5f7487",
+                  color: "#5b6676",
                 }}
               >
                 <span>
@@ -2135,8 +2168,8 @@ const Scheduler = () => {
                     onClick={() => setPendingPage((p) => Math.max(p - 1, 1))}
                     style={{
                       padding: "4px 12px",
-                      background: pendingPage <= 1 ? "#e3f3fa" : "#fff",
-                      border: "1px solid #b9d4e3",
+                      background: pendingPage <= 1 ? "#f4f6f8" : "#fff",
+                      border: "1px solid #cfd6de",
                       borderRadius: 6,
                       cursor: pendingPage <= 1 ? "not-allowed" : "pointer",
                       fontSize: 12,
@@ -2153,8 +2186,8 @@ const Scheduler = () => {
                     onClick={() => setPendingPage((p) => Math.min(p + 1, totalPendingPages))}
                     style={{
                       padding: "4px 12px",
-                      background: pendingPage >= totalPendingPages ? "#e3f3fa" : "#fff",
-                      border: "1px solid #b9d4e3",
+                      background: pendingPage >= totalPendingPages ? "#f4f6f8" : "#fff",
+                      border: "1px solid #cfd6de",
                       borderRadius: 6,
                       cursor: pendingPage >= totalPendingPages ? "not-allowed" : "pointer",
                       fontSize: 12,
@@ -2171,9 +2204,9 @@ const Scheduler = () => {
 
         {/* ── SCHEDULE FORM ── */}
         {selectedWO && (
-          <div id="schedule-form" className="sch-card" style={{ borderLeft: "4px solid #3b6fa8" }}>
+          <div id="schedule-form" className="sch-card" style={{ borderLeft: "4px solid #0f5560" }}>
             <div className="sch-card-head blue">
-              <span>🗓</span> Schedule — <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{selectedWO.efiWoNumber}</span>
+              <span>🗓</span> Schedule — <span style={{ fontFamily: "Consolas,monospace", fontWeight: 700 }}>{selectedWO.efiWoNumber}</span>
             </div>
             <div className="sch-card-body">
               <div className="form-grid">
@@ -2294,10 +2327,10 @@ const Scheduler = () => {
           style={{
             overflow: "hidden",
             borderRadius: "16px",
-            border: "1px solid #cfe6f0",
+            border: "1px solid #e3e7ec",
             boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.08)",
             background: "#fff",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Noto Sans', sans-serif",
           }}
         >
           {/* ── Header with View Switcher ── */}
@@ -2308,8 +2341,8 @@ const Scheduler = () => {
               justifyContent: "space-between",
               gap: 12,
               padding: "16px 22px",
-              borderBottom: "1px solid #cfe6f0",
-              background: "linear-gradient(180deg, #eef9fe 0%, #ffffff 100%)",
+              borderBottom: "1px solid #e3e7ec",
+              background: "linear-gradient(180deg, #f7f9fb 0%, #ffffff 100%)",
               flexWrap: "wrap",
             }}
           >
@@ -2337,7 +2370,7 @@ const Scheduler = () => {
                     Production Scheduler
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: "#5f7487", marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: "#5b6676", marginTop: 2 }}>
                   {chartMode === "timeline"
                     ? "Interactive Gantt bar graph · Drag to move · Drag edges to resize · Double-click to delete"
                     : "Visual machine workload distribution & capacity breakdown"}
@@ -2351,7 +2384,7 @@ const Scheduler = () => {
                 style={{
                   height: 34,
                   padding: "0 16px",
-                  background: "#16a34a",
+                  background: "#1f9d6b",
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
@@ -2365,8 +2398,8 @@ const Scheduler = () => {
                   boxShadow: "0 2px 6px rgba(22, 163, 74, 0.2)",
                   transition: "background 0.15s ease",
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = "#15803d")}
-                onMouseOut={(e) => (e.currentTarget.style.background = "#16a34a")}
+                onMouseOver={(e) => (e.currentTarget.style.background = "#178158")}
+                onMouseOut={(e) => (e.currentTarget.style.background = "#1f9d6b")}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -2380,8 +2413,8 @@ const Scheduler = () => {
           <div
             style={{
               padding: "12px 22px",
-              borderBottom: "1px solid #cfe6f0",
-              background: "#eef9fe",
+              borderBottom: "1px solid #e3e7ec",
+              background: "#f7f9fb",
             }}
           >
             <div
@@ -2401,7 +2434,7 @@ const Scheduler = () => {
                   style={{
                     height: 34,
                     padding: "0 10px",
-                    border: "1.5px solid #b9d4e3",
+                    border: "1.5px solid #cfd6de",
                     borderRadius: 8,
                     fontSize: 12.5,
                     color: "#0f172a",
@@ -2426,7 +2459,7 @@ const Scheduler = () => {
                   style={{
                     height: 34,
                     padding: "0 10px",
-                    border: "1.5px solid #b9d4e3",
+                    border: "1.5px solid #cfd6de",
                     borderRadius: 8,
                     fontSize: 12.5,
                     color: "#0f172a",
@@ -2453,7 +2486,7 @@ const Scheduler = () => {
                   style={{
                     height: 34,
                     padding: "0 12px",
-                    border: "1.5px solid #b9d4e3",
+                    border: "1.5px solid #cfd6de",
                     borderRadius: 8,
                     fontSize: 12.5,
                     color: "#0f172a",
@@ -2465,7 +2498,7 @@ const Scheduler = () => {
                 />
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#5f7487" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#5b6676" }}>
                     From
                   </span>
                   <input
@@ -2480,7 +2513,7 @@ const Scheduler = () => {
                     style={{
                       height: 34,
                       padding: "0 10px",
-                      border: "1.5px solid #b9d4e3",
+                      border: "1.5px solid #cfd6de",
                       borderRadius: 8,
                       fontSize: 12.5,
                       color: "#0f172a",
@@ -2492,7 +2525,7 @@ const Scheduler = () => {
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#5f7487" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#5b6676" }}>
                     To
                   </span>
                   <input
@@ -2503,7 +2536,7 @@ const Scheduler = () => {
                     style={{
                       height: 34,
                       padding: "0 10px",
-                      border: "1.5px solid #b9d4e3",
+                      border: "1.5px solid #cfd6de",
                       borderRadius: 8,
                       fontSize: 12.5,
                       color: "#0f172a",
@@ -2545,7 +2578,7 @@ const Scheduler = () => {
                     Clear Filters
                   </button>
                 ) : (
-                  <span style={{ fontSize: 12, color: "#5f7487", fontStyle: "italic", marginLeft: 4 }}>
+                  <span style={{ fontSize: 12, color: "#5b6676", fontStyle: "italic", marginLeft: 4 }}>
                     Showing today's schedules
                   </span>
                 )}
@@ -2553,8 +2586,8 @@ const Scheduler = () => {
 
               {/* Timeline Zoom Controls */}
               {chartMode === "timeline" && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", padding: "3px 6px", borderRadius: 8, border: "1px solid #b9d4e3" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#5f7487", marginRight: 4, textTransform: "uppercase" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff", padding: "3px 6px", borderRadius: 8, border: "1px solid #cfd6de" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#5b6676", marginRight: 4, textTransform: "uppercase" }}>
                     Zoom:
                   </span>
                   {[
@@ -2570,8 +2603,8 @@ const Scheduler = () => {
                         padding: "3px 8px",
                         borderRadius: 5,
                         border: "none",
-                        background: zoomLevel === z.id ? "#3b6fa8" : "transparent",
-                        color: zoomLevel === z.id ? "#fff" : "#5f7487",
+                        background: zoomLevel === z.id ? "#0f5560" : "transparent",
+                        color: zoomLevel === z.id ? "#fff" : "#5b6676",
                         fontSize: 11.5,
                         fontWeight: 600,
                         cursor: "pointer",
@@ -2592,14 +2625,14 @@ const Scheduler = () => {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "10px 22px",
-              borderBottom: "1px solid #cfe6f0",
+              borderBottom: "1px solid #e3e7ec",
               background: "#ffffff",
               flexWrap: "wrap",
               gap: 12,
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: "#5f7487", textTransform: "uppercase", letterSpacing: ".5px" }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "#5b6676", textTransform: "uppercase", letterSpacing: ".5px" }}>
                 Status:
               </span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "#334155", fontWeight: 600 }}>
@@ -2635,8 +2668,8 @@ const Scheduler = () => {
                       gap: 5,
                       fontSize: 11,
                       color: "#475569",
-                      background: "#e3f3fa",
-                      border: "1px solid #cfe6f0",
+                      background: "#f4f6f8",
+                      border: "1px solid #e3e7ec",
                       borderRadius: 16,
                       padding: "3px 10px",
                       fontWeight: 500,
@@ -2654,7 +2687,7 @@ const Scheduler = () => {
           <div
             style={{
               padding: "16px 20px 22px",
-              background: "#eef9fe",
+              background: "#f7f9fb",
               display: chartMode === "timeline" ? "block" : "none",
             }}
           >
@@ -2664,7 +2697,7 @@ const Scheduler = () => {
                 width: "100%",
                 height: 680,
                 background: "#fff",
-                border: "1px solid #cfe6f0",
+                border: "1px solid #e3e7ec",
                 borderRadius: 12,
                 overflow: "hidden",
                 boxShadow: "0 2px 10px rgba(15, 23, 42, 0.04)",
@@ -2674,7 +2707,7 @@ const Scheduler = () => {
 
           {/* ── VIEW 2: MACHINE WORKLOAD (INTERACTIVE BAR GRAPH VIEW) ── */}
           {chartMode === "bargraph" && (
-            <div style={{ padding: "20px 24px", background: "#eef9fe" }}>
+            <div style={{ padding: "20px 24px", background: "#f7f9fb" }}>
               {/* Summary KPIs */}
               <div
                 style={{
@@ -2684,8 +2717,8 @@ const Scheduler = () => {
                   marginBottom: 20,
                 }}
               >
-                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #cfe6f0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5f7487" }}>
+                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #e3e7ec" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5b6676" }}>
                     Total Scheduled Jobs
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
@@ -2693,26 +2726,26 @@ const Scheduler = () => {
                   </div>
                 </div>
 
-                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #cfe6f0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5f7487" }}>
+                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #e3e7ec" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5b6676" }}>
                     Total Machine Hours
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#3b6fa8", marginTop: 4 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#0f5560", marginTop: 4 }}>
                     {totalFilteredSummary.hours.toFixed(1)} hrs
                   </div>
                 </div>
 
-                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #cfe6f0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5f7487" }}>
+                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #e3e7ec" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5b6676" }}>
                     Total Production IMP
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: "#16a34a", marginTop: 4, fontFamily: "'JetBrains Mono',monospace" }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: "#1f9d6b", marginTop: 4, fontFamily: "Consolas,monospace" }}>
                     {totalFilteredSummary.imp.toLocaleString()}
                   </div>
                 </div>
 
-                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #cfe6f0" }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5f7487" }}>
+                <div style={{ background: "#fff", padding: "14px 18px", borderRadius: 12, border: "1px solid #e3e7ec" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#5b6676" }}>
                     Active Machines
                   </div>
                   <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a", marginTop: 4 }}>
@@ -2736,15 +2769,15 @@ const Scheduler = () => {
                   Machine Workload Distribution
                 </span>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", padding: 3, borderRadius: 8, border: "1px solid #b9d4e3" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", padding: 3, borderRadius: 8, border: "1px solid #cfd6de" }}>
                   <button
                     onClick={() => setBarMetric("hours")}
                     style={{
                       padding: "4px 12px",
                       borderRadius: 6,
                       border: "none",
-                      background: barMetric === "hours" ? "#3b6fa8" : "transparent",
-                      color: barMetric === "hours" ? "#fff" : "#5f7487",
+                      background: barMetric === "hours" ? "#0f5560" : "transparent",
+                      color: barMetric === "hours" ? "#fff" : "#5b6676",
                       fontWeight: 600,
                       fontSize: 12,
                       cursor: "pointer"
@@ -2758,8 +2791,8 @@ const Scheduler = () => {
                       padding: "4px 12px",
                       borderRadius: 6,
                       border: "none",
-                      background: barMetric === "imp" ? "#3b6fa8" : "transparent",
-                      color: barMetric === "imp" ? "#fff" : "#5f7487",
+                      background: barMetric === "imp" ? "#0f5560" : "transparent",
+                      color: barMetric === "imp" ? "#fff" : "#5b6676",
                       fontWeight: 600,
                       fontSize: 12,
                       cursor: "pointer"
@@ -2773,8 +2806,8 @@ const Scheduler = () => {
                       padding: "4px 12px",
                       borderRadius: 6,
                       border: "none",
-                      background: barMetric === "jobs" ? "#3b6fa8" : "transparent",
-                      color: barMetric === "jobs" ? "#fff" : "#5f7487",
+                      background: barMetric === "jobs" ? "#0f5560" : "transparent",
+                      color: barMetric === "jobs" ? "#fff" : "#5b6676",
                       fontWeight: 600,
                       fontSize: 12,
                       cursor: "pointer"
@@ -2788,7 +2821,7 @@ const Scheduler = () => {
               {/* The Visual Bar Graph Rows */}
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {machineWorkloads.length === 0 ? (
-                  <div style={{ background: "#fff", padding: 30, borderRadius: 12, textAlign: "center", color: "#5f7487" }}>
+                  <div style={{ background: "#fff", padding: 30, borderRadius: 12, textAlign: "center", color: "#5b6676" }}>
                     No machine workload matching the selected filters.
                   </div>
                 ) : machineWorkloads.map((m) => {
@@ -2807,7 +2840,7 @@ const Scheduler = () => {
                       style={{
                         background: "#fff",
                         borderRadius: 12,
-                        border: "1px solid #cfe6f0",
+                        border: "1px solid #e3e7ec",
                         padding: "16px 20px",
                         boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
                       }}
@@ -2844,8 +2877,8 @@ const Scheduler = () => {
                         </div>
 
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontSize: 12, color: "#5f7487" }}>
-                            <b>{m.jobsCount}</b> Jobs · <b>{m.totalHours.toFixed(1)}</b> hrs · <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{m.totalImp.toLocaleString()} IMP</span>
+                          <span style={{ fontSize: 12, color: "#5b6676" }}>
+                            <b>{m.jobsCount}</b> Jobs · <b>{m.totalHours.toFixed(1)}</b> hrs · <span style={{ fontFamily: "Consolas,monospace", fontWeight: 600 }}>{m.totalImp.toLocaleString()} IMP</span>
                           </span>
 
                           <button
@@ -2855,11 +2888,11 @@ const Scheduler = () => {
                             }}
                             style={{
                               padding: "4px 10px",
-                              border: "1px solid #b9d4e3",
-                              background: "#eef9fe",
+                              border: "1px solid #cfd6de",
+                              background: "#f7f9fb",
                               borderRadius: 6,
                               fontSize: 11.5,
-                              color: "#3b6fa8",
+                              color: "#0f5560",
                               fontWeight: 600,
                               cursor: "pointer",
                             }}
@@ -2875,7 +2908,7 @@ const Scheduler = () => {
                         style={{
                           width: "100%",
                           height: 24,
-                          background: "#e3f3fa",
+                          background: "#f4f6f8",
                           borderRadius: 8,
                           overflow: "hidden",
                           position: "relative",
@@ -2887,7 +2920,7 @@ const Scheduler = () => {
                           style={{
                             height: "100%",
                             width: `${percent}%`,
-                            background: "linear-gradient(90deg, #4b83b8 0%, #0284c7 100%)",
+                            background: "linear-gradient(90deg, #0b3a45 0%, #0f5560 100%)",
                             borderRadius: 8,
                             transition: "width 0.4s ease",
                           }}
@@ -2914,14 +2947,14 @@ const Scheduler = () => {
 
                       {/* Bottom details & priority chips */}
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 11.5, color: "#5f7487" }}>Jobs priority breakdown:</span>
+                        <span style={{ fontSize: 11.5, color: "#5b6676" }}>Jobs priority breakdown:</span>
                         <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#fee2e2", color: "#dc2626", fontWeight: 700 }}>
                           🔴 {m.highCount} High
                         </span>
                         <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#fef3c7", color: "#d97706", fontWeight: 700 }}>
                           🟠 {m.medCount} Med
                         </span>
-                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#16a34a", fontWeight: 700 }}>
+                        <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#dcfce7", color: "#1f9d6b", fontWeight: 700 }}>
                           🟢 {m.lowCount} Low
                         </span>
                       </div>

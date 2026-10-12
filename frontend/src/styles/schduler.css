@@ -2,25 +2,25 @@
 
 .gantt_grid_head_cell,
 .gantt_scale_cell {
- background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
-  color: #08406b !important;
+ background: linear-gradient(180deg, #a9d0d9 0%, #a9d0d9 100%) !important;
+  color: #000000 !important;
   font-weight: 600;
-  border-color: #0284c7 !important;
+  border-color: #8fbcc7 !important;
 }
 
 /* ===== MACHINE ROW ===== */
 
 .machine-row .gantt_task_content {
- background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%) !important;
-  color: #08406b !important;
+ background: linear-gradient(180deg, #22a9ed 0%, #0872a6 100%) !important;
+  color: #000000 !important;
   border-radius: 8px;
   font-weight: bold;
 }
 .wo-table thead th {
   position: sticky;
   top: 0;
-  background: #0284c7;
-  color: #fff;
+  background: #a9d0d9;
+  color: #000000;
   z-index: 10;
 }
 
@@ -44,13 +44,13 @@
 
 .gantt_grid_data .gantt_row,
 .gantt_task_row {
-  border-bottom: 1px solid #cfe6f0;
+  border-bottom: 1px solid #e3e7ec;
 }
 
 /* ===== TODAY COLUMN ===== */
 
 .gantt_today {
-  background: rgba(3,105,161,0.10) !important;
+  background: rgba(228,87,46,0.10) !important;
 }
 .gantt_grid_head_cell,
 .gantt_scale_cell { font-size: 12px !important; }
