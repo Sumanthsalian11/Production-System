@@ -117,14 +117,14 @@ const CSS = `
 
   /* ---------- Floating round Generate button ---------- */
   .br-fab {
-    position: fixed; right: 28px; bottom: 28px; z-index: 900;
+    position: fixed; right: 28px; bottom: 28px; z-index: 1000;
     width: 58px; height: 58px; padding: 0; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 34px; font-weight: 700; line-height: 1; cursor: pointer;
     font-family: inherit;
-    background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%);
-    color: #8f1414; border: 1px solid #ee8f8f;
-    box-shadow: 0 8px 18px rgba(220, 38, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    background: linear-gradient(180deg, #097a9c 0%, #0c6da6 100%);
+    color: #ffffff; border: 1px solid #080606;
+    box-shadow: 0 18px 18px rgba(217, 201, 201, 0.74), inset 0 1px 0 rgba(255, 255, 255, 0.8);
     transition: transform 0.12s ease, filter 0.12s ease;
   }
   .br-fab:hover { filter: brightness(1.04); transform: translateY(-2px); }
