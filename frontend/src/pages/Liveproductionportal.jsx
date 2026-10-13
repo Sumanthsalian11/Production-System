@@ -2346,6 +2346,48 @@ function buildDrill(spec, data, realRows, reelRows) {
     };
   }
 
+  /* ---- Master work orders (all-time) ---- */
+  if (kind === "masterWO") {
+    return {
+      eyebrow: "Master Work Orders",
+      title: spec.title || "Master work orders",
+      sub: "Work orders",
+      stats: (rs) => [
+        ["Work Orders", rs.length.toLocaleString("en-IN")],
+        ["Customers", new Set(rs.map((r) => r.customer)).size.toLocaleString("en-IN")],
+        ["Order Qty", fmtFull(rs.reduce((s, r) => s + r.orderQty, 0))],
+        ["Total IMP", fmtFull(rs.reduce((s, r) => s + r.imp, 0))],
+      ],
+      fields: [
+        { key: "customer", label: "Customers" },
+        { key: "status", label: "Status" },
+        { key: "priority", label: "Priority" },
+        { key: "machines", label: "Machines", split: true },
+        { key: "activities", label: "Activities", split: true },
+        { key: "location", label: "Locations" },
+        { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
+      ],
+      dateKey: "woDate",
+      columns: [
+        { key: "wo", label: "WO #", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
+        { key: "woDate", label: "WO Date" },
+        { key: "customer", label: "Customer" },
+        { key: "job", label: "Job Description" },
+        { key: "machines", label: "Machine(s)" },
+        { key: "activities", label: "Activity(ies)" },
+        { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
+        { key: "imp", label: "Total IMP", render: (r) => fmtFull(r.imp) },
+        { key: "status", label: "Status" },
+        { key: "priority", label: "Priority" },
+        { key: "location", label: "Location" },
+        { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
+      ],
+      rows: spec.rows || [],
+      sort: { key: "woDate", dir: "desc" },
+      note: null,
+    };
+  }
+
   /* ---- Plant booking (scheduler entries) ---- */
   if (kind === "booking") {
     return {
@@ -3475,6 +3517,7 @@ function ReelTab({ data, openWO }) {
 function BookingTab({ filters }) {
   const [schedules, setSchedules] = useState([]);
   const [masterCount, setMasterCount] = useState(0);
+  const [masterWOs, setMasterWOs] = useState([]);
   const [loading, setLoading] = useState(true);
   const custFilter = useSeriesFilter();
   const machFilter = useSeriesFilter();
@@ -3490,6 +3533,7 @@ function BookingTab({ filters }) {
         ]);
         setSchedules(Array.isArray(sch.data) ? sch.data : []);
         setMasterCount(Array.isArray(wo.data) ? wo.data.length : 0);
+        setMasterWOs(Array.isArray(wo.data) ? wo.data : []);
       } finally {
         setLoading(false);
       }
@@ -3572,6 +3616,25 @@ function BookingTab({ filters }) {
     };
   }, [schedules, filters]);
 
+  const masterRows = useMemo(
+    () =>
+      masterWOs.map((w) => ({
+        wo: String(w.efiWoNumber || "-"),
+        customer: String(w.customer?.name || w.customer || "-"),
+        job: w.productName || w.jobDescription || "-",
+        status: w.status || "-",
+        priority: w.priority || "-",
+        woDate: dateOnly(w.woDate) || "-",
+        orderQty: toNum(w.orderQty ?? w.quantity),
+        imp: toNum(w.totalImp),
+        machines: Array.from(new Set((w.machines || []).map((m) => m.machineId?.machineName).filter(Boolean))).join(", "),
+        activities: Array.from(new Set((w.machines || []).map((m) => m.activityId?.activityName).filter(Boolean))).join(", "),
+        location: w.location?.locationName || (typeof w.location === "string" ? w.location : "") || "-",
+        userLocations: (Array.isArray(w.userLocations) ? w.userLocations.filter(Boolean) : []).join(", "),
+      })),
+    [masterWOs]
+  );
+
   const fmtDT = (ms) => (ms ? new Date(ms).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
   const visibleCust = view.customers.filter((c) => !custFilter.hidden.has(c.name));
   const drill = (title, pick) => openDrill({ kind: "booking", title, rows: pick ? view.rows.filter(pick) : view.rows });
@@ -3596,7 +3659,7 @@ function BookingTab({ filters }) {
     <div>
       <div className="kpi-grid-4">
         <KpiCard label="Active Scheduled WOs" value={view.activeWO.toLocaleString("en-IN")} icon={ClipboardList} accent="blue" sub="From Scheduler" onDrill={() => drill("Active scheduled work orders")} />
-        <KpiCard label="Master Work Orders" value={masterCount.toLocaleString("en-IN")} icon={FileStack} accent="purple" sub="All-time" />
+        <KpiCard label="Master Work Orders" value={masterCount.toLocaleString("en-IN")} icon={FileStack} accent="purple" sub="All-time" onDrill={() => openDrill({ kind: "masterWO", title: "Master work orders (all-time)", rows: masterRows })} />
         <KpiCard label="Scheduled Order Volume" value={fmt(view.volume)} icon={PackageCheck} accent="amber" sub={`${fmtFull(view.volume)} units`} onDrill={() => drill("Scheduled order volume")} />
         <KpiCard label="Latest Plant Booking End" value={view.latest ? fmtDT(view.latest) : "—"} icon={CalendarCheck} accent="rose" sub={view.latestMachine} onDrill={() => drill(`Latest booking — ${view.latestMachine}`, (r) => r.machine === view.latestMachine)} />
       </div>
@@ -3621,8 +3684,8 @@ function BookingTab({ filters }) {
 }
 
 const TABS = [
-  { id: "booking", label: "Plant Booking", icon: CalendarCheck },
   { id: "overview", label: "Overview KPIs", icon: LayoutDashboard },
+  { id: "booking", label: "Scheduled Orders", icon: CalendarCheck },
   { id: "reel", label: "Reel Register", icon: Scroll },
   { id: "tracker", label: "Stage Tracker", icon: Route },
   { id: "utilization", label: "Machine Utilization", icon: Gauge },
