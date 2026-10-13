@@ -168,12 +168,29 @@ function ProductionRealDashboard() {
       title: message,
       width: "550px",
       showConfirmButton: false,
-      timer: 5000,
+      timer: 9000,
       timerProgressBar: true,
+      showCloseButton: true,
       background: bgColor,
       color: "#0a0808",
       didOpen: (toast) => {
         toast.style.marginLeft = "120px"; // slight right shift
+        toast.style.cursor = "pointer";
+        toast.title = "Click to pause / resume";
+
+        // click the popup: pause the timer; click again: resume
+        toast.addEventListener("click", (ev) => {
+          if (ev.target.closest(".swal2-close")) return; // let the X button close it
+          if (Swal.isTimerRunning()) {
+            Swal.stopTimer();
+            const bar = toast.querySelector(".swal2-timer-progress-bar");
+            if (bar) bar.style.opacity = "0.3";
+          } else {
+            Swal.resumeTimer();
+            const bar = toast.querySelector(".swal2-timer-progress-bar");
+            if (bar) bar.style.opacity = "1";
+          }
+        });
       }
     });
   };

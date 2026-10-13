@@ -919,6 +919,7 @@ export default function DashboardLayout() {
         <div
           className="d-flex align-items-center"
           style={{
+            position: "relative",
             height: "58px",
             padding: collapsed ? "0" : "0 14px 0 18px",
             justifyContent: collapsed ? "center" : "space-between",
@@ -926,28 +927,60 @@ export default function DashboardLayout() {
             flexShrink: 0
           }}
         >
-          {!collapsed && (
-            <span style={{ fontSize: "0.92rem", fontWeight: 800, color: "var(--text)", letterSpacing: "1px" }}>
-              MPI CONSOLE
+          {(
+            <span
+              className="d-flex align-items-center gap-2"
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)"
+              }}
+            >
+              <span
+                style={{
+                  position: "relative",
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "9px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                  padding: 0,
+                  color: "#0b3a45",
+                  fontSize: "1.3rem",
+                  fontWeight: 900,
+                  textShadow: "0 2px 3px rgba(11, 58, 69, 0.35)",
+                  border: "1px solid #ffffff",
+                  background:
+                    "linear-gradient(rgba(15,85,96,0.16) 1px, transparent 1px) 50% 50% / 9px 9px, linear-gradient(90deg, rgba(15,85,96,0.16) 1px, transparent 1px) 50% 50% / 9px 9px, #ffffff",
+                  boxShadow:
+                    "0 8px 18px rgba(2, 20, 26, 0.6), 0 3px 6px rgba(2, 20, 26, 0.45), inset 0 -3px 6px rgba(15, 85, 96, 0.18), inset 0 1px 0 #ffffff"
+                }}
+              >
+                M
+              </span>
+              {!collapsed && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    height: "36px",
+                    lineHeight: 1,
+                    fontSize: "1.2rem",
+                    fontWeight: 800,
+                    color: "#ffffff",
+                    letterSpacing: "1.5px",
+                    textShadow: "0 2px 4px rgba(2, 20, 26, 0.55)"
+                  }}
+                >
+                  MPI
+                </span>
+              )}
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="btn d-flex align-items-center justify-content-center"
-            style={{
-              width: "32px",
-              height: "32px",
-              padding: 0,
-              borderRadius: "6px",
-              border: "none",
-              background: "transparent",
-              color: "var(--text-2)"
-            }}
-          >
-            <i className={`bi ${collapsed ? "bi-layout-sidebar" : "bi-layout-sidebar-inset"}`} style={{ fontSize: "1.05rem" }}></i>
-          </button>
+
         </div>
 
         {/* Floating round edge handle (desktop only) */}
@@ -1672,7 +1705,7 @@ export default function DashboardLayout() {
                     MODULE LAUNCHER
                   </h5>
                   <div className="text-secondary small fw-semibold">
-                    MPI Enterprise Modules Console (All 29 Services)
+                                      MPI ERP Modules
                   </div>
                 </div>
               </div>
