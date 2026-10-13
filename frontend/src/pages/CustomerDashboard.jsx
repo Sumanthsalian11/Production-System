@@ -77,6 +77,8 @@ function CustomerDashboard() {
   const [productCodeSearch, setProductCodeSearch] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [convertedOrderIds, setConvertedOrderIds] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   const poDateRef = useRef();
   const productCodeRef = useRef();
@@ -276,7 +278,11 @@ function CustomerDashboard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLockRef.current) return;
     if (!validateForm()) return;
+
+    submitLockRef.current = true;
+    setIsSubmitting(true);
 
     try {
       let res;
@@ -339,7 +345,9 @@ function CustomerDashboard() {
             ? "Order Updated Successfully"
             : "Order Saved Successfully",
           width: "350px",
-          confirmButtonColor: "#3085d6"
+          confirmButtonColor: "#3085d6",
+          allowEnterKey: false,
+          returnFocus: false
         });
 
         fetchOrders();
@@ -353,6 +361,9 @@ function CustomerDashboard() {
         text: err.response?.data?.message || "Server error while saving order",
         confirmButtonColor: "#d33"
       });
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -487,7 +498,11 @@ function CustomerDashboard() {
   const handleProcessIndent = async (e) => {
     e.preventDefault();
     if (!selectedIndent) return;
+    if (submitLockRef.current) return;
     if (!validateIndentForm()) return;
+
+    submitLockRef.current = true;
+    setIsSubmitting(true);
 
     try {
       const res = await axios.put(
@@ -502,7 +517,9 @@ function CustomerDashboard() {
           title: "Success",
           text: `${res.data.ordersCreated} Order(s) Created from Indent ${res.data.indentNo}`,
           width: "350px",
-          confirmButtonColor: "#3085d6"
+          confirmButtonColor: "#3085d6",
+          allowEnterKey: false,
+          returnFocus: false
         });
 
         setSelectedIndent(null);
@@ -524,6 +541,9 @@ function CustomerDashboard() {
         text: err.response?.data?.message || "Error processing indent",
         confirmButtonColor: "#d33"
       });
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -1133,6 +1153,7 @@ function CustomerDashboard() {
 
         .po-submit:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
         .po-submit:active { transform: translateY(1px); }
+        .po-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
         @media (max-width: 992px) {
           .po-split { flex-direction: column; }
@@ -1888,8 +1909,11 @@ function CustomerDashboard() {
                       type="submit"
                       className="po-submit"
                       style={{ width: "auto", minWidth: "190px", margin: 0, padding: "10px 28px" }}
+                      disabled={isSubmitting}
                     >
-                      {indentForm.orderType === "Inhouse"
+                      {isSubmitting
+                        ? "Processing..."
+                        : indentForm.orderType === "Inhouse"
                         ? "Process & Send to Planner"
                         : "Save Order"}
                     </button>
@@ -2248,8 +2272,12 @@ function CustomerDashboard() {
                     )}
                   </div>
 
-                  <button className="po-submit" type="submit">
-                    {editingId ? "Update Order" : "Save Order"}
+                  <button className="po-submit" type="submit" disabled={isSubmitting}>
+                    {isSubmitting
+                      ? "Processing..."
+                      : editingId
+                      ? "Update Order"
+                      : "Save Order"}
                   </button>
                 </form>
               </div>
