@@ -24,6 +24,26 @@ const PRESET_TEMPLATES = [
   { label: "Quality Reminder", text: "⚠️ Mandatory QC audit underway for all dispatched cartons. Ensure 100% barcode verification." }
 ];
 
+// Simple, flat colour tokens (same teal / soft-orange look as the other pages)
+const C = {
+  page: "#f4f6f8",
+  surface: "#ffffff",
+  line: "#e3e7ec",
+  field: "#cfd6de",
+  ink: "#1f2937",
+  soft: "#5b6676",
+  teal: "#0f5560",
+  tealDark: "#0b3a45",
+  tealSoft: "#e3f1f4",
+  head: "#a9d0d9",
+  headLine: "#8fbcc7",
+  brandSoft: "#fde3d8",
+  brandLine: "#f5b9a1",
+  danger: "#b42323",
+  dangerSoft: "#fdecec",
+  dangerLine: "#f3c1c1"
+};
+
 function InternalRegister() {
   const navigate = useNavigate();
 
@@ -56,6 +76,9 @@ function InternalRegister() {
     role: "ADMIN"
   });
 
+  // NEW: centered pop-up message (user created / broadcast launched)
+  const [popup, setPopup] = useState(null);
+
   // Announcement Studio States
   const [dashboardComment, setDashboardComment] = useState("");
   const [commentSuccess, setCommentSuccess] = useState("");
@@ -65,6 +88,13 @@ function InternalRegister() {
   const [enableSound, setEnableSound] = useState(true);
   const [isCurrentlyActive, setIsCurrentlyActive] = useState(false);
   const [previewPaused, setPreviewPaused] = useState(false);
+
+  // NEW: auto close the pop-up after 3 seconds
+  useEffect(() => {
+    if (!popup) return;
+    const t = setTimeout(() => setPopup(null), 3000);
+    return () => clearTimeout(t);
+  }, [popup]);
 
   const fetchCurrentAnnouncement = async () => {
     try {
@@ -125,6 +155,16 @@ function InternalRegister() {
       setCommentSuccess("📢 Broadcast live on all dashboards!");
       setIsCurrentlyActive(true);
       setTimeout(() => setCommentSuccess(""), 3000);
+
+      // NEW: pop-up for broadcast
+      setPopup({
+        icon: currentTheme.icon,
+        title: "Broadcast Launched!",
+        message: "Your announcement is now live on all user dashboards.",
+        detail: dashboardComment.trim().length > 90
+          ? dashboardComment.trim().slice(0, 90) + "…"
+          : dashboardComment.trim()
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update comment");
     }
@@ -283,6 +323,11 @@ function InternalRegister() {
       return;
     }
 
+    // NEW: keep details for the pop-up before the form is reset
+    const createdName = form.name;
+    const createdEmail = form.email;
+    const createdRole = form.role;
+
     try {
       await axios.post(`${BASE_URL}/api/auth/internal/register`, {
         ...form,
@@ -294,6 +339,14 @@ function InternalRegister() {
       resetForm();
       setShowUserModal(false);
       fetchUsers();
+
+      // NEW: pop-up for user created
+      setPopup({
+        icon: "🎉",
+        title: "User Created!",
+        message: `${createdName} has been registered successfully.`,
+        detail: `${createdEmail} • ${createdRole}`
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Error");
     }
@@ -331,56 +384,53 @@ function InternalRegister() {
   };
 
   const roleColors = {
-    ADMIN: { bg: "#f59e0b", text: "#422006" },
-    PLANNER: { bg: "#fde68a", text: "#78350f" },
+    ADMIN: { bg: "#fde3d8", text: "#7c2d12" },
+    PLANNER: { bg: "#fff3d6", text: "#78350f" },
     SUPERVISOR: { bg: "#fed7aa", text: "#7c2d12" },
-    PRODUCTION: { bg: "#bbf7d0", text: "#14532d" },
-    INDENTER: { bg: "#bbf7d0", text: "#0487c4" },
+    PRODUCTION: { bg: "#d9f2e6", text: "#14532d" },
+    INDENTER: { bg: "#e3f1f4", text: "#0b3a45" },
     "PURCHASE ORDER": { bg: "#fef3c7", text: "#713f12" },
-    DISPATCH: { bg: "#fecaca", text: "#7f1d1d" },
+    DISPATCH: { bg: "#fbdcdc", text: "#7f1d1d" },
     KAS: { bg: "#fbcfe8", text: "#831843" },
     SCANNER: { bg: "#e7e5e4", text: "#292524" },
-    PREPRESS: { bg: "#c7d2fe", text: "#3730a3" }
+    PREPRESS: { bg: "#dbe4ff", text: "#3730a3" }
   };
 
   const currentTheme = ANNOUNCEMENT_THEMES.find((t) => t.id === announcementType) || ANNOUNCEMENT_THEMES[0];
-  const inputShadow = "inset 0 2px 5px rgba(10, 80, 130, 0.1)";
+  const inputShadow = "none";
 
   const styles = {
     pageContainer: {
       minHeight: "100vh",
-      background:
-        "radial-gradient(circle at 12% 6%, rgba(255,255,255,0.9) 0, rgba(255,255,255,0) 30%), radial-gradient(circle at 88% 18%, rgba(160,222,250,0.7) 0, rgba(160,222,250,0) 32%), radial-gradient(circle at 50% 100%, rgba(255,255,255,0.7) 0, rgba(255,255,255,0) 45%), linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%)",
-      backgroundAttachment: "fixed",
-      fontFamily: "'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif",
-      padding: "0.8rem 1rem 2rem",
-      color: "#0b2f4f"
+      background: C.page,
+      fontFamily: "'Noto Sans', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif",
+      padding: "1rem 1.25rem 2rem",
+      color: C.ink
     },
     container: {
       maxWidth: "100%",
       margin: "0 auto"
     },
     card: {
-      background: "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(228,246,255,0.9) 100%)",
-      borderRadius: "22px",
-      boxShadow: "0 14px 32px rgba(40,120,170,0.16), inset 0 1px 0 #fff",
+      background: C.surface,
+      borderRadius: "8px",
+      border: `1px solid ${C.line}`,
       marginBottom: "0.9rem",
-      overflow: "hidden",
-      border: "1px solid rgba(255,255,255,0.95)"
+      overflow: "hidden"
     },
     cardHeader: {
-      background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-      padding: "0.5rem 1.1rem",
+      background: C.surface,
+      padding: "0.6rem 1.1rem",
       display: "flex",
       gap: "0.75rem",
-      borderBottom: "1px solid #86c6e8",
+      borderBottom: `1px solid ${C.line}`,
       textAlign: "center",
       justifyContent: "center",
       alignItems: "center",
       flexDirection: "column"
     },
     cardBody: {
-      padding: "0.8rem 1.1rem 0.9rem"
+      padding: "0.9rem 1.1rem 1rem"
     },
     formGroup: {
       display: "flex",
@@ -388,9 +438,9 @@ function InternalRegister() {
       gap: "0.25rem"
     },
     formLabel: {
-      fontSize: "0.74rem",
-      fontWeight: "800",
-      color: "#0b2f4f",
+      fontSize: "0.75rem",
+      fontWeight: "600",
+      color: C.ink,
       display: "flex",
       alignItems: "center",
       gap: "0.4rem"
@@ -398,33 +448,33 @@ function InternalRegister() {
     formInput: {
       width: "100%",
       padding: "0.42rem 0.7rem",
-      fontSize: "0.87rem",
-      fontWeight: "600",
-      border: "1.5px solid #9ccbe6",
-      borderRadius: "12px",
+      fontSize: "0.86rem",
+      fontWeight: "500",
+      border: `1px solid ${C.field}`,
+      borderRadius: "6px",
       outline: "none",
-      transition: "all 0.2s ease",
+      transition: "border-color 0.15s ease, box-shadow 0.15s ease",
       background: "#fff",
-      color: "#0b2f4f",
+      color: C.ink,
       boxShadow: inputShadow,
       boxSizing: "border-box"
     },
     formInputFocus: {
-      borderColor: "#1b9be0",
+      borderColor: C.teal,
       background: "#fff",
-      boxShadow: "0 0 0 4px rgba(27, 155, 224, 0.2), 0 6px 14px rgba(27, 155, 224, 0.12)"
+      boxShadow: "0 0 0 3px rgba(15, 85, 96, 0.15)"
     },
     formSelect: {
       width: "100%",
       padding: "0.42rem 0.7rem",
-      fontSize: "0.87rem",
-      fontWeight: "600",
-      border: "1.5px solid #9ccbe6",
-      borderRadius: "12px",
+      fontSize: "0.86rem",
+      fontWeight: "500",
+      border: `1px solid ${C.field}`,
+      borderRadius: "6px",
       outline: "none",
-      transition: "all 0.2s ease",
+      transition: "border-color 0.15s ease",
       background: "#fff",
-      color: "#0b2f4f",
+      color: C.ink,
       cursor: "pointer",
       boxShadow: inputShadow,
       boxSizing: "border-box"
@@ -434,53 +484,52 @@ function InternalRegister() {
     },
     passwordToggle: {
       position: "absolute",
-      right: "8px",
+      right: "6px",
       top: "50%",
       transform: "translateY(-50%)",
-      background: "#eaf8ff",
-      border: "1px solid #9fcfe9",
-      borderRadius: "8px",
+      background: "transparent",
+      border: "none",
       cursor: "pointer",
       fontSize: "0.85rem",
       padding: "0.15rem 0.35rem",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      color: "#075985"
+      color: C.soft
     },
     locationsSection: {
       gridColumn: "1 / -1",
-      background: "rgba(255,255,255,0.7)",
-      border: "1px solid #cfe8f6",
-      borderRadius: "16px",
-      padding: "0.45rem 0.8rem 0.55rem",
-      boxShadow: "inset 0 1px 0 #fff"
+      background: "#fafbfc",
+      border: `1px solid ${C.line}`,
+      borderRadius: "8px",
+      padding: "0.5rem 0.8rem 0.6rem"
     },
     locationsGrid: {
       display: "flex",
       flexWrap: "wrap",
       gap: "0.4rem",
-      marginTop: "0.15rem"
+      marginTop: "0.15rem",
+      maxHeight: "120px",
+      overflowY: "auto"
     },
     locationChip: {
       display: "flex",
       alignItems: "center",
       gap: "0.35rem",
-      padding: "0.25rem 0.7rem",
+      padding: "0.22rem 0.7rem",
       borderRadius: "999px",
       cursor: "pointer",
-      transition: "all 0.2s ease",
+      transition: "all 0.15s ease",
       fontSize: "0.77rem",
-      fontWeight: "700",
-      border: "1px solid #9fcfe9",
-      background: "linear-gradient(180deg, #ffffff 0%, #eaf7ff 100%)",
-      color: "#0a4f8c"
+      fontWeight: "600",
+      border: `1px solid ${C.field}`,
+      background: "#fff",
+      color: C.ink
     },
     locationChipActive: {
-      background: "linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%)",
-      borderColor: "#5fb4de",
-      color: "#08406b",
-      boxShadow: "0 4px 10px rgba(40,120,170,0.2)"
+      background: C.tealSoft,
+      borderColor: C.teal,
+      color: C.tealDark
     },
     locationCheckbox: {
       display: "none"
@@ -493,64 +542,64 @@ function InternalRegister() {
       width: "100%",
       padding: "0.42rem 0.7rem",
       fontSize: "0.85rem",
-      border: "1.5px solid #9ccbe6",
-      borderRadius: "12px",
+      border: `1px solid ${C.field}`,
+      borderRadius: "6px",
       background: "#fff",
-      color: "#0b2f4f",
+      color: C.ink,
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       boxSizing: "border-box",
       boxShadow: inputShadow,
-      fontWeight: "600"
+      fontWeight: "500"
     },
     moduleDropdownMenu: {
       position: "absolute",
-      top: "calc(100% + 6px)",
+      top: "calc(100% + 4px)",
       left: 0,
       right: 0,
       background: "#fff",
-      border: "1px solid #9fcfe9",
-      borderRadius: "14px",
-      boxShadow: "0 14px 30px rgba(40, 120, 170, 0.22)",
+      border: `1px solid ${C.field}`,
+      borderRadius: "8px",
+      boxShadow: "0 8px 20px rgba(16, 24, 40, 0.14)",
       maxHeight: "260px",
       overflowY: "auto",
       zIndex: 30,
-      padding: "0.5rem"
+      padding: "0.4rem"
     },
     moduleDropdownItem: {
       display: "flex",
       alignItems: "center",
       gap: "0.6rem",
-      padding: "0.5rem 0.6rem",
-      borderRadius: "8px",
+      padding: "0.45rem 0.6rem",
+      borderRadius: "6px",
       cursor: "pointer",
       fontSize: "0.84rem",
-      color: "#0b2f4f",
+      color: C.ink,
       transition: "background 0.15s ease"
     },
     moduleDropdownCheckbox: {
       width: "16px",
       height: "16px",
-      accentColor: "#0ea5e9",
+      accentColor: C.teal,
       cursor: "pointer",
       flexShrink: 0
     },
     moduleDropdownFooter: {
       padding: "0.5rem 0.6rem 0.2rem",
       fontSize: "0.75rem",
-      color: "#2f6d96",
-      borderTop: "1px solid #e0f2fe",
+      color: C.soft,
+      borderTop: `1px solid ${C.line}`,
       marginTop: "0.35rem"
     },
     moduleAdminLocked: {
       width: "100%",
       padding: "0.42rem 0.7rem",
       fontSize: "0.78rem",
-      fontWeight: "700",
+      fontWeight: "600",
       border: "1px dashed #f3c35a",
-      borderRadius: "12px",
+      borderRadius: "6px",
       background: "#fffbeb",
       color: "#92400e",
       display: "flex",
@@ -561,9 +610,9 @@ function InternalRegister() {
     moduleAdminLockedSmall: {
       padding: "0.26rem 0.6rem",
       fontSize: "0.74rem",
-      fontWeight: "700",
+      fontWeight: "600",
       border: "1px dashed #f3c35a",
-      borderRadius: "8px",
+      borderRadius: "6px",
       background: "#fffbeb",
       color: "#92400e",
       display: "flex",
@@ -576,32 +625,32 @@ function InternalRegister() {
       gap: "0.5rem",
       padding: "0.4rem 0.6rem",
       fontSize: "0.82rem",
-      color: "#0b2f4f"
+      color: C.ink
     },
     submitBtn: {
-      background: "linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%)",
-      color: "#08406b",
-      border: "1px solid #7fc3e8",
+      background: C.brandSoft,
+      color: C.ink,
+      border: `1px solid ${C.brandLine}`,
       padding: "0.42rem 1.1rem",
-      borderRadius: "10px",
+      borderRadius: "6px",
       fontSize: "0.82rem",
-      fontWeight: "800",
+      fontWeight: "600",
       cursor: "pointer",
       display: "inline-flex",
       alignItems: "center",
       gap: "0.45rem",
-      transition: "all 0.2s ease",
-      boxShadow: "0 2px 0 #7fbbe0, 0 5px 10px rgba(40, 120, 170, 0.15), inset 0 1px 0 rgba(255,255,255,0.8)"
+      transition: "all 0.15s ease",
+      boxShadow: "none"
     },
     alert: {
-      padding: "0.55rem 0.9rem",
-      borderRadius: "12px",
+      padding: "0.5rem 0.9rem",
+      borderRadius: "6px",
       marginBottom: "0.6rem",
       display: "flex",
       alignItems: "center",
       gap: "0.7rem",
-      fontSize: "0.88rem",
-      fontWeight: "700"
+      fontSize: "0.86rem",
+      fontWeight: "600"
     },
     alertError: {
       background: "#fff1f1",
@@ -614,19 +663,19 @@ function InternalRegister() {
       color: "#15803d"
     },
     tableCard: {
-      background: "linear-gradient(180deg, rgba(255,255,255,0.94) 0%, rgba(228,246,255,0.9) 100%)",
-      borderRadius: "20px",
-      boxShadow: "0 14px 32px rgba(40,120,170,0.16), inset 0 1px 0 #fff",
-      overflow: "hidden",
-      border: "1px solid rgba(255,255,255,0.95)"
+      background: C.surface,
+      borderRadius: "8px",
+      border: `1px solid ${C.line}`,
+      boxShadow: "0 1px 3px rgba(16, 24, 40, 0.06)",
+      overflow: "hidden"
     },
     tableHeader: {
-      background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-      padding: "0.45rem 1rem",
+      background: C.surface,
+      padding: "0.65rem 1rem",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
-      borderBottom: "1px solid #86c6e8",
+      borderBottom: `1px solid ${C.line}`,
       flexWrap: "wrap",
       gap: "8px"
     },
@@ -634,56 +683,63 @@ function InternalRegister() {
       display: "flex",
       alignItems: "center",
       gap: "0.65rem",
-      color: "#08406b"
+      color: C.ink
     },
     tableHeaderIcon: {
-      width: "28px",
-      height: "28px",
-      background: "radial-gradient(circle at 30% 25%, #ffffff 0%, #d6effc 55%, #b3dff5 100%)",
-      borderRadius: "50%",
+      width: "30px",
+      height: "30px",
+      background: C.brandSoft,
+      borderRadius: "6px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       fontSize: "0.9rem",
-      border: "1px solid #a9d9f2"
+      border: `1px solid ${C.brandLine}`
     },
     tableHeaderTitle: {
-      fontSize: "0.98rem",
-      fontWeight: "800",
+      fontSize: "1rem",
+      fontWeight: "700",
       margin: 0
     },
     userCount: {
-      background: "linear-gradient(180deg, #ffffff 0%, #d6effc 100%)",
-      border: "1px solid #a9d9f2",
-      padding: "0.2rem 0.65rem",
+      background: C.page,
+      border: `1px solid ${C.line}`,
+      padding: "0.15rem 0.7rem",
       borderRadius: "999px",
-      color: "#08406b",
-      fontSize: "0.76rem",
-      fontWeight: "800"
+      color: C.ink,
+      fontSize: "0.75rem",
+      fontWeight: "600"
     },
+    // scrollable table area (vertical + horizontal)
     tableWrapper: {
-      overflowX: "auto"
+      overflow: "auto",
+      maxHeight: "calc(100vh - 230px)",
+      minHeight: "200px"
     },
     table: {
       width: "100%",
       borderCollapse: "collapse"
     },
     th: {
-      padding: "0.45rem 0.85rem",
+      position: "sticky",
+      top: 0,
+      zIndex: 2,
+      padding: "0.55rem 0.85rem",
       textAlign: "left",
-      fontSize: "0.7rem",
-      fontWeight: "800",
+      fontSize: "0.72rem",
+      fontWeight: "700",
       textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      color: "#08406b",
-      background: "linear-gradient(180deg, #d9effc 0%, #b7e0f6 100%)",
-      borderBottom: "1px solid #86c6e8"
+      letterSpacing: "0.04em",
+      color: "#000",
+      background: C.head,
+      borderBottom: `1px solid ${C.headLine}`,
+      whiteSpace: "nowrap"
     },
     td: {
-      padding: "0.36rem 0.85rem",
-      borderBottom: "1px solid #d3e8f4",
-      fontSize: "0.86rem",
-      color: "#0b2f4f",
+      padding: "0.4rem 0.85rem",
+      borderBottom: `1px solid ${C.line}`,
+      fontSize: "0.85rem",
+      color: C.ink,
       verticalAlign: "middle"
     },
     userInfo: {
@@ -693,36 +749,36 @@ function InternalRegister() {
       minWidth: "200px"
     },
     userAvatar: {
-      width: "31px",
-      height: "31px",
+      width: "30px",
+      height: "30px",
       borderRadius: "50%",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
-      fontSize: "0.76rem",
-      fontWeight: "800",
-      color: "#f0f9ff"
+      fontSize: "0.74rem",
+      fontWeight: "700",
+      color: "#fff"
     },
     userName: {
-      fontWeight: "800",
-      fontSize: "0.88rem",
+      fontWeight: "600",
+      fontSize: "0.87rem",
       lineHeight: 1.2,
-      color: "#0b2f4f"
+      color: C.ink
     },
     userEmail: {
       fontSize: "0.75rem",
       lineHeight: 1.2,
-      color: "#4a6f8c",
-      fontWeight: "600"
+      color: C.soft,
+      fontWeight: "500"
     },
     roleBadge: {
       display: "inline-flex",
       alignItems: "center",
-      padding: "0.2rem 0.7rem",
-      borderRadius: "999px",
+      padding: "0.18rem 0.65rem",
+      borderRadius: "4px",
       fontSize: "0.7rem",
-      fontWeight: "800",
+      fontWeight: "700",
       textTransform: "uppercase",
       letterSpacing: "0.025em"
     },
@@ -733,58 +789,56 @@ function InternalRegister() {
       maxWidth: "320px"
     },
     locationTag: {
-      background: "linear-gradient(180deg, #ffffff 0%, #e4f4fd 100%)",
-      color: "#0a4f8c",
-      padding: "0.14rem 0.55rem",
-      borderRadius: "999px",
+      background: C.tealSoft,
+      color: C.tealDark,
+      padding: "0.12rem 0.55rem",
+      borderRadius: "4px",
       fontSize: "0.72rem",
-      fontWeight: "700",
-      border: "1px solid #a9d9f2"
+      fontWeight: "600"
     },
     passwordMask: {
       fontFamily: "monospace",
-      fontSize: "0.98rem",
+      fontSize: "0.95rem",
       letterSpacing: "1.5px",
-      color: "#4a6f8c",
-      fontWeight: "700"
+      color: C.soft
     },
     actionBtns: {
       display: "flex",
-      gap: "0.45rem",
+      gap: "0.4rem",
       justifyContent: "center",
       flexWrap: "wrap"
     },
     actionBtn: {
-      padding: "0.26rem 0.7rem",
-      borderRadius: "10px",
+      padding: "0.24rem 0.7rem",
+      borderRadius: "6px",
       border: "1px solid transparent",
       fontSize: "0.77rem",
-      fontWeight: "800",
+      fontWeight: "600",
       cursor: "pointer",
       display: "flex",
       alignItems: "center",
       gap: "0.35rem",
-      transition: "all 0.2s ease"
+      transition: "all 0.15s ease"
     },
     editBtn: {
-      background: "linear-gradient(180deg, #ffffff 0%, #d6effc 100%)",
-      color: "#08406b",
-      borderColor: "#7fc3e8"
+      background: C.tealSoft,
+      color: C.tealDark,
+      borderColor: "#b9d6dd"
     },
     deleteBtn: {
-      background: "linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)",
-      color: "#b91c1c",
-      borderColor: "#f3a5a5"
+      background: C.dangerSoft,
+      color: C.danger,
+      borderColor: C.dangerLine
     },
     emptyState: {
       textAlign: "center",
       padding: "2.2rem 1rem",
-      color: "#4a6f8c",
-      fontWeight: "600"
+      color: C.soft,
+      fontWeight: "500"
     },
     emptyIcon: {
-      fontSize: "2.6rem",
-      marginBottom: "0.8rem"
+      fontSize: "2.4rem",
+      marginBottom: "0.6rem"
     }
   };
 
@@ -798,7 +852,7 @@ function InternalRegister() {
   };
 
   const getAvatarColor = (name) => {
-    const colors = ["#0ea5e9", "#0284c7", "#0369a1", "#38bdf8", "#0c4a6e", "#0891b2", "#0e7490"];
+    const colors = ["#0f5560", "#0b3a45", "#1f7a8c", "#2a6f97", "#0e7490", "#0891b2", "#3d6b73"];
     let hash = 0;
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -817,7 +871,7 @@ function InternalRegister() {
   });
 
   const resetBlur = (e) => {
-    e.target.style.borderColor = "#9ccbe6";
+    e.target.style.borderColor = C.field;
     e.target.style.background = "#fff";
     e.target.style.boxShadow = inputShadow;
   };
@@ -831,121 +885,169 @@ function InternalRegister() {
         }
         @keyframes pulseDot {
           0% { transform: scale(0.95); opacity: 0.8; }
-          50% { transform: scale(1.2); opacity: 1; filter: drop-shadow(0 0 6px #22c55e); }
+          50% { transform: scale(1.2); opacity: 1; }
           100% { transform: scale(0.95); opacity: 0.8; }
         }
+
+        /* ===== Scrollbars (table, modals, dropdowns, location chips) ===== */
+        .ur-scroll,
+        .ur-scroll * {
+          scrollbar-width: thin;
+          scrollbar-color: #b5c0cb #f1f3f6;
+        }
+        .ur-scroll::-webkit-scrollbar,
+        .ur-scroll *::-webkit-scrollbar { width: 9px; height: 9px; }
+        .ur-scroll::-webkit-scrollbar-track,
+        .ur-scroll *::-webkit-scrollbar-track { background: #f1f3f6; border-radius: 8px; }
+        .ur-scroll::-webkit-scrollbar-thumb,
+        .ur-scroll *::-webkit-scrollbar-thumb {
+          background: #b5c0cb; border-radius: 8px; border: 2px solid #f1f3f6;
+        }
+        .ur-scroll::-webkit-scrollbar-thumb:hover,
+        .ur-scroll *::-webkit-scrollbar-thumb:hover { background: #8fa0b0; }
+        .ur-scroll::-webkit-scrollbar-corner,
+        .ur-scroll *::-webkit-scrollbar-corner { background: #f1f3f6; }
+
         .ur-overlay {
           position: fixed; inset: 0; z-index: 2000;
           display: flex; align-items: center; justify-content: center; padding: 16px;
-          background: rgba(40, 90, 130, 0.38); backdrop-filter: blur(6px);
-          animation: urFade 0.18s ease;
+          background: rgba(15, 30, 40, 0.45);
+          animation: urFade 0.15s ease;
         }
         @keyframes urFade { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes urPop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+        @keyframes urPop { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
         .ur-modal {
-          position: relative; display: flex; width: 100%; max-width: 1000px; max-height: 92vh;
-          background: #f7fcff; border-radius: 34px; overflow: hidden;
-          border: 1px solid #fff;
-          box-shadow: 0 30px 70px rgba(30, 70, 110, 0.35);
-          animation: urPop 0.22s ease;
-          font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+          position: relative; display: flex; width: 100%; max-width: 980px; max-height: 92vh;
+          background: #ffffff; border-radius: 10px; overflow: hidden;
+          border: 1px solid ${C.line};
+          box-shadow: 0 20px 50px rgba(16, 24, 40, 0.3);
+          animation: urPop 0.2s ease;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
         }
         .ur-bmodal {
-          position: relative; width: 100%; max-width: 920px; max-height: 92vh; overflow-y: auto;
-          background: #f7fcff; border-radius: 30px; border: 1px solid #fff;
-          box-shadow: 0 30px 70px rgba(30, 70, 110, 0.35);
-          animation: urPop 0.22s ease;
+          position: relative; width: 100%; max-width: 900px; max-height: 92vh; overflow-y: auto;
+          background: #ffffff; border-radius: 10px; border: 1px solid ${C.line};
+          box-shadow: 0 20px 50px rgba(16, 24, 40, 0.3);
+          animation: urPop 0.2s ease;
         }
+
+        /* left info panel (same teal panel as the other pages) */
         .ur-left {
-          position: relative; flex: 0 0 41%; margin: 14px 0 14px 14px; padding: 18px 22px 20px;
+          position: relative; flex: 0 0 34%; padding: 22px 22px;
           display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
-          border-radius: 28px; border: 5px solid #fff; color: #08406b;
-          background:
-            radial-gradient(circle at 20% 15%, rgba(255,255,255,0.85) 0, rgba(255,255,255,0) 40%),
-            radial-gradient(circle at 80% 85%, rgba(255,214,150,0.55) 0, rgba(255,214,150,0) 45%),
-            linear-gradient(160deg, #bfe5f8 0%, #8fd0f0 55%, #6fbbe8 100%);
-          box-shadow: 0 10px 30px rgba(40, 120, 170, 0.25), inset 0 2px 0 rgba(255,255,255,0.7);
+          color: #ffffff;
+          background: linear-gradient(170deg, ${C.tealDark} 0%, ${C.teal} 100%);
         }
-        .ur-left::after {
-          content: ""; position: absolute; right: -70px; top: -12%; height: 124%; width: 120px;
-          background: #f7fcff; border-radius: 50%;
-        }
-        .ur-left-top { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .ur-left-label { font-size: 13px; font-weight: 800; letter-spacing: 0.3px; }
+        .ur-left-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .ur-left-label { font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #ffb59c; }
         .ur-left-pill {
-          font-size: 11px; font-weight: 800; padding: 4px 12px; border-radius: 999px;
-          background: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.9); color: #0a4f8c;
+          font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 4px;
+          background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.28); color: #fff;
         }
-        .ur-left-center { position: relative; z-index: 2; text-align: center; padding-right: 26px; }
+        .ur-left-center { text-align: center; }
         .ur-left-emblem {
-          width: 84px; height: 84px; margin: 0 auto 12px; border-radius: 50%;
-          display: flex; align-items: center; justify-content: center; font-size: 38px; color: #0a6fb8;
-          background: radial-gradient(circle at 30% 25%, #ffffff 0%, #e4f5ff 55%, #b6e0f6 100%);
-          border: 2px solid #fff;
-          box-shadow: 0 14px 30px rgba(10, 80, 130, 0.28), inset 0 3px 5px rgba(255,255,255,0.9);
+          width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 12px;
+          display: flex; align-items: center; justify-content: center; font-size: 32px; color: #ffb59c;
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2);
         }
-        .ur-left-center h2 { margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -0.5px; color: #07406b; }
-        .ur-left-center p { margin: 6px auto 0; max-width: 230px; font-size: 12.5px; font-weight: 600; color: #1c5a85; line-height: 1.45; }
+        .ur-left-center h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.3px; color: #fff; }
+        .ur-left-center p { margin: 6px auto 0; max-width: 230px; font-size: 12.5px; font-weight: 500; color: #c9dde1; line-height: 1.45; }
         .ur-left-bottom {
-          position: relative; z-index: 2; align-self: flex-start;
-          display: flex; align-items: center; gap: 10px; padding: 6px 16px 6px 6px; border-radius: 999px;
-          background: rgba(255,255,255,0.75); border: 1px solid rgba(255,255,255,0.95);
-          box-shadow: 0 6px 16px rgba(40,120,170,0.18);
+          align-self: flex-start; display: flex; align-items: center; gap: 10px; padding: 5px 14px 5px 5px; border-radius: 999px;
+          background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.22);
         }
         .ur-left-avatar {
-          width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px;
-          background: linear-gradient(145deg, #fff0d1, #ffc978);
+          width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px;
+          background: #e4572e;
         }
-        .ur-left-bottom b { display: block; font-size: 13px; font-weight: 800; color: #07406b; line-height: 1.1; }
-        .ur-left-bottom small { font-size: 10.5px; font-weight: 600; color: #2f6d96; }
-        .ur-planet { position: absolute; border-radius: 50%; z-index: 1; }
-        .ur-planet-1 { width: 120px; height: 120px; right: 10px; top: 52px; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8), rgba(255,255,255,0.05) 70%); }
-        .ur-planet-2 { width: 54px; height: 54px; left: 22px; bottom: 90px; background: radial-gradient(circle at 30% 30%, #ffe3b0, #ffb347 80%); opacity: 0.85; box-shadow: 0 6px 14px rgba(255,160,0,0.3); }
-        .ur-planet-3 { width: 18px; height: 18px; left: 40%; top: 30%; background: radial-gradient(circle at 30% 30%, #fff, #bfe5f8); }
+        .ur-left-bottom b { display: block; font-size: 13px; font-weight: 600; color: #fff; line-height: 1.1; }
+        .ur-left-bottom small { font-size: 10.5px; font-weight: 500; color: #9fc0c7; }
 
-        .ur-right { position: relative; flex: 1; min-width: 0; overflow-y: auto; padding: 22px 34px 24px 12px; }
+        .ur-right { position: relative; flex: 1; min-width: 0; overflow-y: auto; padding: 22px 28px 24px 24px; background: #fff; }
         .ur-close {
-          position: absolute; top: 14px; right: 16px; width: 32px; height: 32px; border-radius: 50%;
-          border: 1px solid #a9d9f2; background: linear-gradient(180deg, #ffffff, #e4f4fd); color: #08406b;
-          font-size: 13px; font-weight: 800; cursor: pointer;
+          position: absolute; top: 12px; right: 14px; width: 30px; height: 30px; border-radius: 6px;
+          border: 1px solid ${C.field}; background: #fff; color: ${C.ink};
+          font-size: 13px; font-weight: 700; cursor: pointer;
         }
-        .ur-close:hover { background: #d6effc; }
-        .ur-right-brand { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; color: #0a4f8c; margin-bottom: 8px; }
+        .ur-close:hover { background: ${C.brandSoft}; border-color: ${C.brandLine}; }
+        .ur-right-brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: ${C.teal}; margin-bottom: 6px; }
         .ur-mini-emblem {
-          width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #0a6fb8;
-          background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 55%, #8fd0f0 100%); border: 1px solid #86c6e8;
+          width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; color: ${C.teal};
+          background: ${C.tealSoft};
         }
-        .ur-title { margin: 6px 0 0; text-align: center; font-size: 26px; font-weight: 900; letter-spacing: -0.4px; color: #0b2f4f; }
-        .ur-sub { margin: 2px 0 12px; text-align: center; font-size: 12.5px; font-weight: 600; color: #4a6f8c; }
+        .ur-title { margin: 4px 0 0; text-align: center; font-size: 22px; font-weight: 700; color: ${C.ink}; }
+        .ur-sub { margin: 2px 0 14px; text-align: center; font-size: 12.5px; font-weight: 500; color: ${C.soft}; }
         .ur-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
         .ur-primary {
-          display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; padding: 11px;
-          border-radius: 14px; border: 1px solid #ee8f8f; cursor: pointer;
-          background: linear-gradient(180deg, #ffe3df 0%, #f7a79f 100%); color: #8f1414; font-size: 14.5px; font-weight: 900;
-          box-shadow: 0 3px 0 #e08a8a, 0 10px 18px rgba(220, 38, 38, 0.22), inset 0 1px 0 rgba(255,255,255,0.8);
-          transition: all 0.15s ease;
+          display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; padding: 10px;
+          border-radius: 6px; border: 1px solid ${C.brandLine}; cursor: pointer;
+          background: ${C.brandSoft}; color: #000; font-size: 14px; font-weight: 700;
+          transition: background 0.15s ease;
         }
-        .ur-primary:hover { transform: translateY(-1px); }
-        .ur-primary:active { transform: translateY(2px); }
+        .ur-primary:hover { background: #fbd0bf; }
         .ur-secondary {
-          display: block; width: 100%; margin-top: 8px; padding: 9px; border-radius: 14px; cursor: pointer;
-          border: 1px solid #aac3d4; background: linear-gradient(180deg, #ffffff, #e3eef6); color: #34526b;
-          font-size: 13px; font-weight: 800;
+          display: block; width: 100%; margin-top: 8px; padding: 9px; border-radius: 6px; cursor: pointer;
+          border: 1px solid ${C.field}; background: #fff; color: ${C.ink};
+          font-size: 13px; font-weight: 600;
         }
-        .ur-secondary:hover { background: #e4f4fd; }
+        .ur-secondary:hover { background: ${C.page}; }
 
         .ur-toast {
           position: fixed; top: 18px; right: 18px; z-index: 2100; max-width: 340px;
-          padding: 11px 16px; border-radius: 14px; font-size: 13px; font-weight: 700;
-          box-shadow: 0 10px 26px rgba(40, 120, 170, 0.22); display: flex; align-items: center; gap: 10px;
+          padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+          box-shadow: 0 8px 22px rgba(16, 24, 40, 0.18); display: flex; align-items: center; gap: 10px;
         }
         .ur-toast-ok { background: #effcf5; border: 1px solid #86efac; color: #15803d; }
         .ur-toast-err { background: #fff1f1; border: 1px solid #fca5a5; color: #b91c1c; }
         .ur-toast-x { border: none; background: transparent; color: inherit; font-weight: 900; cursor: pointer; }
 
+        /* NEW: centered pop-up message */
+        .ur-popup-overlay {
+          position: fixed; inset: 0; z-index: 3000;
+          display: flex; align-items: center; justify-content: center; padding: 16px;
+          background: rgba(15, 30, 40, 0.45);
+          animation: urFade 0.15s ease;
+        }
+        @keyframes urPopBounce {
+          0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+          60% { opacity: 1; transform: scale(1.03); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes urPopBar { from { width: 100%; } to { width: 0%; } }
+        .ur-popup {
+          position: relative; width: 100%; max-width: 380px; text-align: center;
+          background: #ffffff; border-radius: 12px; border: 1px solid ${C.line};
+          box-shadow: 0 24px 60px rgba(16, 24, 40, 0.35);
+          padding: 26px 24px 20px; overflow: hidden;
+          animation: urPopBounce 0.3s ease;
+          font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+        }
+        .ur-popup-icon {
+          width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center; font-size: 30px;
+          background: ${C.brandSoft}; border: 1px solid ${C.brandLine};
+        }
+        .ur-popup h3 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: ${C.ink}; }
+        .ur-popup p { margin: 0; font-size: 13.5px; font-weight: 500; color: ${C.soft}; line-height: 1.5; }
+        .ur-popup-detail {
+          margin: 12px 0 0; padding: 8px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600;
+          background: ${C.tealSoft}; color: ${C.tealDark}; border: 1px solid #b9d6dd; word-break: break-word;
+        }
+        .ur-popup-btn {
+          margin-top: 16px; width: 100%; padding: 9px; border-radius: 6px; cursor: pointer;
+          border: 1px solid ${C.brandLine}; background: ${C.brandSoft}; color: #000;
+          font-size: 13.5px; font-weight: 700; transition: background 0.15s ease;
+        }
+        .ur-popup-btn:hover { background: #fbd0bf; }
+        .ur-popup-bar {
+          position: absolute; left: 0; bottom: 0; height: 4px; background: ${C.teal};
+          animation: urPopBar 3s linear forwards;
+        }
+
         @media (max-width: 860px) {
           .ur-left { display: none; }
-          .ur-right { padding: 20px 20px 22px; }
+          .ur-right { padding: 20px 18px 22px; }
         }
         @media (max-width: 560px) {
           .ur-form-grid { grid-template-columns: 1fr; }
@@ -963,45 +1065,63 @@ function InternalRegister() {
         </div>
       )}
 
+      {/* NEW: CENTERED POP-UP (user created / broadcast launched) */}
+      {popup && (
+        <div
+          className="ur-popup-overlay"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setPopup(null); }}
+        >
+          <div className="ur-popup" role="alertdialog" aria-live="polite">
+            <div className="ur-popup-icon">{popup.icon}</div>
+            <h3>{popup.title}</h3>
+            <p>{popup.message}</p>
+            {popup.detail && <div className="ur-popup-detail">{popup.detail}</div>}
+            <button type="button" className="ur-popup-btn" onClick={() => setPopup(null)}>
+              OK
+            </button>
+            <div className="ur-popup-bar" />
+          </div>
+        </div>
+      )}
+
       {/* BROADCAST STUDIO MODAL */}
       {showBroadcastModal && (
         <div className="ur-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowBroadcastModal(false); }}>
-          <div className="ur-bmodal">
+          <div className="ur-bmodal ur-scroll">
             <button type="button" className="ur-close" style={{ zIndex: 5 }} onClick={() => setShowBroadcastModal(false)} aria-label="Close">✕</button>
-            <div style={{ ...styles.card, marginBottom: 0, boxShadow: "none" }}>
+            <div style={{ ...styles.card, marginBottom: 0, border: "none", borderRadius: 0 }}>
               <div
                 style={{
                   ...styles.cardHeader,
-                  background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)",
-                  color: "#08406b",
-                  borderBottom: "1px solid #86c6e8",
+                  background: "#ffffff",
+                  color: C.ink,
                   flexDirection: "row",
                   justifyContent: "space-between",
-                  padding: "0.5rem 3.4rem 0.5rem 1.2rem"
+                  padding: "0.7rem 3.4rem 0.7rem 1.2rem"
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", textAlign: "left" }}>
                   <div
                     style={{
-                      width: "36px",
-                      height: "36px",
-                      borderRadius: "50%",
-                      background: "linear-gradient(180deg, #ffe9a8 0%, #ffc04d 100%)",
+                      width: "34px",
+                      height: "34px",
+                      borderRadius: "6px",
+                      background: C.brandSoft,
+                      border: `1px solid ${C.brandLine}`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "1.1rem",
-                      boxShadow: "0 4px 10px rgba(255, 160, 0, 0.3), inset 0 2px 3px rgba(255,255,255,0.8)"
+                      fontSize: "1rem"
                     }}
                   >
                     📡
                   </div>
                   <div>
-                    <h2 style={{ fontSize: "1rem", fontWeight: "800", margin: 0, color: "#08406b", letterSpacing: "0.3px" }}>
-                      Enterprise Broadcast Studio
+                    <h2 style={{ fontSize: "1rem", fontWeight: "700", margin: 0, color: C.ink }}>
+                      Broadcast Studio
                     </h2>
-                    <p style={{ fontSize: "0.76rem", color: "#2f6d96", margin: 0, fontWeight: 600 }}>
-                      High-priority real-time announcements broadcast across all user portals & logins
+                    <p style={{ fontSize: "0.76rem", color: C.soft, margin: 0, fontWeight: 500 }}>
+                      Send a live announcement to all user dashboards
                     </p>
                   </div>
                 </div>
@@ -1011,38 +1131,37 @@ function InternalRegister() {
                     display: "flex",
                     alignItems: "center",
                     gap: "8px",
-                    background: isCurrentlyActive ? "rgba(34, 197, 94, 0.15)" : "rgba(255, 255, 255, 0.7)",
-                    border: `1px solid ${isCurrentlyActive ? "#22c55e" : "#9fcfe9"}`,
-                    padding: "4px 14px",
+                    background: isCurrentlyActive ? "#effcf5" : C.page,
+                    border: `1px solid ${isCurrentlyActive ? "#86efac" : C.line}`,
+                    padding: "3px 12px",
                     borderRadius: "999px"
                   }}
                 >
                   <span
                     style={{
-                      width: "9px",
-                      height: "9px",
+                      width: "8px",
+                      height: "8px",
                       borderRadius: "50%",
-                      background: isCurrentlyActive ? "#22c55e" : "#8fb0c8",
-                      boxShadow: isCurrentlyActive ? "0 0 8px #22c55e" : "none",
+                      background: isCurrentlyActive ? "#22c55e" : "#9aa7b4",
                       animation: isCurrentlyActive ? "pulseDot 1.6s infinite" : "none"
                     }}
                   />
                   <span
                     style={{
-                      fontSize: "0.74rem",
-                      fontWeight: "800",
-                      color: isCurrentlyActive ? "#15803d" : "#4a6f8c",
-                      letterSpacing: "0.5px"
+                      fontSize: "0.72rem",
+                      fontWeight: "700",
+                      color: isCurrentlyActive ? "#15803d" : C.soft,
+                      letterSpacing: "0.4px"
                     }}
                   >
-                    {isCurrentlyActive ? "BROADCAST LIVE" : "IDLE / NO BROADCAST"}
+                    {isCurrentlyActive ? "BROADCAST LIVE" : "NO BROADCAST"}
                   </span>
                 </div>
               </div>
 
-              <div style={{ ...styles.cardBody, backgroundColor: "rgba(244, 251, 255, 0.6)" }}>
+              <div style={{ ...styles.cardBody, backgroundColor: "#fafbfc" }}>
                 {commentSuccess && (
-                  <div style={{ ...styles.alert, ...styles.alertSuccess, boxShadow: "0 4px 12px rgba(34, 197, 94, 0.15)" }}>
+                  <div style={{ ...styles.alert, ...styles.alertSuccess }}>
                     <span>✓</span>
                     {commentSuccess}
                   </div>
@@ -1050,11 +1169,11 @@ function InternalRegister() {
 
                 {/* LIVE SIMULATOR BAR */}
                 <div style={{ marginBottom: "0.8rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "0.74rem", fontWeight: "800", color: "#4a6f8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      🖥️ Live Ticker Simulator (Real-Time Preview)
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexWrap: "wrap", gap: "4px" }}>
+                    <span style={{ fontSize: "0.74rem", fontWeight: "700", color: C.soft }}>
+                      Live ticker preview
                     </span>
-                    <span style={{ fontSize: "0.72rem", color: "#4a6f8c", fontWeight: "600" }}>
+                    <span style={{ fontSize: "0.72rem", color: C.soft, fontWeight: "500" }}>
                       Speed: {marqueeSpeed.toUpperCase()} • Theme: {currentTheme.label}
                     </span>
                   </div>
@@ -1063,9 +1182,8 @@ function InternalRegister() {
                     style={{
                       height: "34px",
                       backgroundColor: "#ffffff",
-                      borderRadius: "12px",
-                      border: `1.5px solid ${currentTheme.color}`,
-                      boxShadow: `0 4px 15px ${currentTheme.color}33`,
+                      borderRadius: "6px",
+                      border: `1px solid ${currentTheme.color}`,
                       display: "flex",
                       alignItems: "center",
                       overflow: "hidden",
@@ -1082,12 +1200,11 @@ function InternalRegister() {
                         alignItems: "center",
                         gap: "6px",
                         fontSize: "0.75rem",
-                        fontWeight: "900",
-                        letterSpacing: "0.6px",
+                        fontWeight: "800",
+                        letterSpacing: "0.5px",
                         textTransform: "uppercase",
                         flexShrink: 0,
-                        zIndex: 2,
-                        boxShadow: "4px 0 10px rgba(0,0,0,0.15)"
+                        zIndex: 2
                       }}
                     >
                       <span>{currentTheme.icon}</span>
@@ -1129,7 +1246,7 @@ function InternalRegister() {
                   {/* Theme Selectors */}
                   <div style={{ marginBottom: "0.7rem" }}>
                     <label style={{ ...styles.formLabel, marginBottom: "6px" }}>
-                      <span>🎨</span> Choose Announcement Category & Visual Theme
+                      <span>🎨</span> Announcement category
                     </label>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                       {ANNOUNCEMENT_THEMES.map((theme) => (
@@ -1141,18 +1258,17 @@ function InternalRegister() {
                             if (!customBadge) setCustomBadge(theme.badge);
                           }}
                           style={{
-                            padding: "5px 12px",
-                            borderRadius: "12px",
+                            padding: "4px 12px",
+                            borderRadius: "6px",
                             fontSize: "0.8rem",
-                            fontWeight: "800",
+                            fontWeight: "600",
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
                             gap: "6px",
-                            border: `1.5px solid ${announcementType === theme.id ? theme.color : "#cbd5e1"}`,
+                            border: `1px solid ${announcementType === theme.id ? theme.color : C.field}`,
                             background: announcementType === theme.id ? theme.bg : "#ffffff",
                             color: announcementType === theme.id ? theme.color : "#475569",
-                            boxShadow: announcementType === theme.id ? `0 4px 12px ${theme.color}26` : "none",
                             transition: "all 0.15s ease"
                           }}
                         >
@@ -1167,9 +1283,9 @@ function InternalRegister() {
                   <div style={{ marginBottom: "0.7rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
                       <label style={styles.formLabel}>
-                        <span>✍️</span> Broadcast Message Body
+                        <span>✍️</span> Message
                       </label>
-                      <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "600" }}>
+                      <span style={{ fontSize: "0.74rem", color: C.soft, fontWeight: "500" }}>
                         {dashboardComment.length} characters
                       </span>
                     </div>
@@ -1191,7 +1307,7 @@ function InternalRegister() {
 
                     <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "6px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Add Icon:</span>
+                        <span style={{ fontSize: "0.74rem", color: C.soft, fontWeight: "600" }}>Add icon:</span>
                         {["🚨", "⚠️", "⚡", "🔥", "📢", "🛠️", "🎉", "📦", "🕒", "🔒"].map((emoji) => (
                           <button
                             key={emoji}
@@ -1199,8 +1315,8 @@ function InternalRegister() {
                             onClick={() => insertEmoji(emoji)}
                             style={{
                               background: "#ffffff",
-                              border: "1px solid #bfe0f2",
-                              borderRadius: "8px",
+                              border: `1px solid ${C.field}`,
+                              borderRadius: "6px",
                               padding: "1px 7px",
                               fontSize: "0.85rem",
                               cursor: "pointer"
@@ -1212,20 +1328,20 @@ function InternalRegister() {
                       </div>
 
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-                        <span style={{ fontSize: "0.74rem", color: "#4a6f8c", fontWeight: "700" }}>Presets:</span>
+                        <span style={{ fontSize: "0.74rem", color: C.soft, fontWeight: "600" }}>Presets:</span>
                         {PRESET_TEMPLATES.map((tpl) => (
                           <button
                             key={tpl.label}
                             type="button"
                             onClick={() => applyTemplate(tpl)}
                             style={{
-                              background: "linear-gradient(180deg, #ffffff 0%, #e4f4fd 100%)",
-                              border: "1px solid #a9d9f2",
+                              background: C.tealSoft,
+                              border: "1px solid #b9d6dd",
                               borderRadius: "999px",
                               padding: "2px 10px",
                               fontSize: "0.72rem",
-                              color: "#08406b",
-                              fontWeight: "700",
+                              color: C.tealDark,
+                              fontWeight: "600",
                               cursor: "pointer"
                             }}
                           >
@@ -1242,16 +1358,16 @@ function InternalRegister() {
                       display: "grid",
                       gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
                       gap: "10px",
-                      padding: "8px 12px",
-                      background: "rgba(255,255,255,0.75)",
-                      borderRadius: "14px",
-                      border: "1px solid #cfe8f6",
+                      padding: "10px 12px",
+                      background: "#ffffff",
+                      borderRadius: "8px",
+                      border: `1px solid ${C.line}`,
                       marginBottom: "0.8rem"
                     }}
                   >
                     <div>
-                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                        🏷️ Custom Badge Label
+                      <label style={{ fontSize: "0.74rem", fontWeight: "600", color: C.ink, display: "block", marginBottom: "3px" }}>
+                        🏷️ Badge label
                       </label>
                       <input
                         type="text"
@@ -1263,8 +1379,8 @@ function InternalRegister() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                        ⏩ Marquee Scroll Speed
+                      <label style={{ fontSize: "0.74rem", fontWeight: "600", color: C.ink, display: "block", marginBottom: "3px" }}>
+                        ⏩ Scroll speed
                       </label>
                       <select
                         value={marqueeSpeed}
@@ -1278,8 +1394,8 @@ function InternalRegister() {
                     </div>
 
                     <div>
-                      <label style={{ fontSize: "0.74rem", fontWeight: "800", color: "#0b2f4f", display: "block", marginBottom: "3px" }}>
-                        🔔 Ambient Sci-Fi Chime
+                      <label style={{ fontSize: "0.74rem", fontWeight: "600", color: C.ink, display: "block", marginBottom: "3px" }}>
+                        🔔 Chime
                       </label>
                       <div
                         onClick={() => setEnableSound(!enableSound)}
@@ -1288,13 +1404,13 @@ function InternalRegister() {
                           alignItems: "center",
                           gap: "8px",
                           padding: "0.38rem 0.7rem",
-                          borderRadius: "12px",
-                          border: "1.5px solid #9ccbe6",
+                          borderRadius: "6px",
+                          border: `1px solid ${C.field}`,
                           cursor: "pointer",
-                          background: enableSound ? "#e4f4fd" : "#ffffff",
+                          background: enableSound ? C.tealSoft : "#ffffff",
                           fontSize: "0.83rem",
-                          fontWeight: "700",
-                          color: enableSound ? "#0a4f8c" : "#4a6f8c"
+                          fontWeight: "600",
+                          color: enableSound ? C.tealDark : C.soft
                         }}
                       >
                         <span>{enableSound ? "🔊 Sound Enabled" : "🔇 Silent Notice"}</span>
@@ -1308,11 +1424,7 @@ function InternalRegister() {
                       type="submit"
                       style={{
                         ...styles.submitBtn,
-                        background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
-                        color: "#7a4f00",
-                        border: "1px solid #f3c35a",
-                        boxShadow: "0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)",
-                        padding: "0.5rem 1.4rem"
+                        padding: "0.48rem 1.4rem"
                       }}
                     >
                       <span>🚀</span> Launch Broadcast Now
@@ -1323,11 +1435,10 @@ function InternalRegister() {
                       onClick={handleCommentClear}
                       style={{
                         ...styles.submitBtn,
-                        background: "linear-gradient(180deg, #ffffff 0%, #fee2e2 100%)",
-                        border: "1px solid #f3a5a5",
-                        color: "#b91c1c",
-                        boxShadow: "none",
-                        padding: "0.5rem 1.3rem"
+                        background: C.dangerSoft,
+                        border: `1px solid ${C.dangerLine}`,
+                        color: C.danger,
+                        padding: "0.48rem 1.3rem"
                       }}
                     >
                       <span>🗑️</span> Clear / Mute All
@@ -1367,13 +1478,9 @@ function InternalRegister() {
                   <small>registered in the system</small>
                 </div>
               </div>
-
-              <span className="ur-planet ur-planet-1"></span>
-              <span className="ur-planet ur-planet-2"></span>
-              <span className="ur-planet ur-planet-3"></span>
             </div>
 
-            <div className="ur-right">
+            <div className="ur-right ur-scroll">
               <button type="button" className="ur-close" onClick={cancelEdit} aria-label="Close">✕</button>
 
               <div className="ur-right-brand">
@@ -1542,12 +1649,12 @@ function InternalRegister() {
                         </button>
 
                         {moduleDropdownOpen && (
-                          <div style={{ ...styles.moduleDropdownMenu, maxHeight: "190px" }}>
+                          <div className="ur-scroll" style={{ ...styles.moduleDropdownMenu, maxHeight: "190px" }}>
                             {getAllModules().map((item) => (
                               <label
                                 key={item.to}
                                 style={styles.moduleDropdownItem}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf8ff")}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = C.tealSoft)}
                                 onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                               >
                                 <input
@@ -1572,7 +1679,7 @@ function InternalRegister() {
                     <label style={styles.formLabel}>
                       <span>📍</span> Assign Locations
                     </label>
-                    <div style={styles.locationsGrid}>
+                    <div className="ur-scroll" style={styles.locationsGrid}>
                       {locations.map((loc) => (
                         <label
                           key={loc._id}
@@ -1610,7 +1717,7 @@ function InternalRegister() {
       {/* ===================== MAIN TABLE CARD ===================== */}
       <div style={styles.container}>
         <div style={styles.tableCard}>
-          {/* Integrated Header: Title + User Count + Action Buttons together */}
+          {/* Header: Title + User Count + Action Buttons */}
           <div style={styles.tableHeader}>
             <div style={styles.tableHeaderLeft}>
               <div style={styles.tableHeaderIcon}>👥</div>
@@ -1618,16 +1725,13 @@ function InternalRegister() {
               <div style={styles.userCount}>{filteredUsers.length} Users</div>
             </div>
 
-            {/* Embedded Action Buttons */}
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
               <button
                 type="button"
                 style={{
                   ...styles.submitBtn,
-                  background: "linear-gradient(180deg, #fff0c4 0%, #fcd477 100%)",
-                  color: "#7a4f00",
-                  border: "1px solid #f3c35a",
-                  boxShadow: "0 2px 0 #e9b845, 0 4px 8px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)"
+                  background: "#fff3d6",
+                  border: "1px solid #f2d291"
                 }}
                 onClick={() => setShowBroadcastModal(true)}
               >
@@ -1640,7 +1744,6 @@ function InternalRegister() {
                       height: "8px",
                       borderRadius: "50%",
                       background: "#22c55e",
-                      boxShadow: "0 0 8px #22c55e",
                       animation: "pulseDot 1.6s infinite"
                     }}
                   />
@@ -1649,13 +1752,7 @@ function InternalRegister() {
 
               <button
                 type="button"
-                style={{
-                  ...styles.submitBtn,
-                  background: "linear-gradient(180deg, #ffe3df 0%, #f7a79f 100%)",
-                  color: "#8f1414",
-                  border: "1px solid #ee8f8f",
-                  boxShadow: "0 2px 0 #e08a8a, 0 4px 8px rgba(220, 38, 38, 0.18), inset 0 1px 0 rgba(255,255,255,0.8)"
-                }}
+                style={styles.submitBtn}
                 onClick={() => {
                   resetForm();
                   setError("");
@@ -1675,9 +1772,9 @@ function InternalRegister() {
               flexWrap: "wrap",
               gap: "0.5rem",
               alignItems: "center",
-              padding: "0.32rem 1rem",
-              background: "rgba(255,255,255,0.7)",
-              borderBottom: "1px solid #cfe8f6"
+              padding: "0.5rem 1rem",
+              background: "#fafbfc",
+              borderBottom: `1px solid ${C.line}`
             }}
           >
             <input
@@ -1685,13 +1782,13 @@ function InternalRegister() {
               placeholder="🔍 Filter by username..."
               value={filterName}
               onChange={(e) => setFilterName(e.target.value)}
-              style={{ ...styles.formInput, maxWidth: "185px", padding: "0.2rem 0.6rem", fontSize: "0.76rem", borderRadius: "10px", height: "28px" }}
+              style={{ ...styles.formInput, maxWidth: "200px", padding: "0.2rem 0.6rem", fontSize: "0.78rem", height: "30px" }}
             />
 
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              style={{ ...styles.formSelect, maxWidth: "150px", padding: "0.2rem 0.5rem", fontSize: "0.76rem", borderRadius: "10px", height: "28px" }}
+              style={{ ...styles.formSelect, maxWidth: "150px", padding: "0.2rem 0.5rem", fontSize: "0.78rem", height: "30px" }}
             >
               <option value="">All Roles</option>
               <option value="ADMIN">Admin</option>
@@ -1709,7 +1806,7 @@ function InternalRegister() {
             <select
               value={filterLocation}
               onChange={(e) => setFilterLocation(e.target.value)}
-              style={{ ...styles.formSelect, maxWidth: "165px", padding: "0.2rem 0.5rem", fontSize: "0.76rem", borderRadius: "10px", height: "28px" }}
+              style={{ ...styles.formSelect, maxWidth: "170px", padding: "0.2rem 0.5rem", fontSize: "0.78rem", height: "30px" }}
             >
               <option value="">All Locations</option>
               {locations.map((loc) => (
@@ -1730,11 +1827,11 @@ function InternalRegister() {
                 style={{
                   ...styles.actionBtn,
                   padding: "0.15rem 0.6rem",
-                  fontSize: "0.72rem",
-                  height: "28px",
-                  background: "linear-gradient(180deg, #ffffff 0%, #e3eef6 100%)",
-                  color: "#08406b",
-                  border: "1px solid #9fcfe9"
+                  fontSize: "0.74rem",
+                  height: "30px",
+                  background: "#fff",
+                  color: C.ink,
+                  border: `1px solid ${C.field}`
                 }}
               >
                 ✕ Clear Filters
@@ -1742,7 +1839,8 @@ function InternalRegister() {
             )}
           </div>
 
-          <div style={styles.tableWrapper}>
+          {/* Scrollable table area */}
+          <div className="ur-scroll" style={styles.tableWrapper}>
             {filteredUsers.length === 0 ? (
               <div style={styles.emptyState}>
                 <div style={styles.emptyIcon}>👥</div>
@@ -1765,12 +1863,12 @@ function InternalRegister() {
                     <tr
                       key={user._id}
                       style={{
-                        transition: "background 0.2s ease",
-                        background: editUserId === user._id ? "#eaf8ff" : "transparent"
+                        transition: "background 0.15s ease",
+                        background: editUserId === user._id ? C.tealSoft : "transparent"
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf8ff")}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f8fa")}
                       onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = editUserId === user._id ? "#eaf8ff" : "transparent")
+                        (e.currentTarget.style.background = editUserId === user._id ? C.tealSoft : "transparent")
                       }
                     >
                       <td style={styles.td}>
@@ -1810,7 +1908,7 @@ function InternalRegister() {
                           >
                             <button
                               type="button"
-                              style={{ ...styles.moduleDropdownButton, padding: "0.26rem 0.65rem", fontSize: "0.78rem", borderRadius: "10px" }}
+                              style={{ ...styles.moduleDropdownButton, padding: "0.26rem 0.65rem", fontSize: "0.78rem" }}
                               onClick={() => setViewLocationsOpenId((prev) => (prev === user._id ? null : user._id))}
                             >
                               <span>{`📍 ${user.locations.length} locations`}</span>
@@ -1825,7 +1923,7 @@ function InternalRegister() {
                             </button>
 
                             {viewLocationsOpenId === user._id && (
-                              <div style={styles.moduleDropdownMenu}>
+                              <div className="ur-scroll" style={styles.moduleDropdownMenu}>
                                 {user.locations.map((loc, idx) => (
                                   <div key={idx} style={styles.moduleViewItem}>
                                     ✓ {loc}
@@ -1839,7 +1937,7 @@ function InternalRegister() {
                             {user.locations?.length === 1 ? (
                               <span style={styles.locationTag}>{user.locations[0]}</span>
                             ) : (
-                              <span style={{ color: "#4a6f8c", fontSize: "0.875rem", fontWeight: "500" }}>
+                              <span style={{ color: C.soft, fontSize: "0.85rem", fontWeight: "500" }}>
                                 No locations
                               </span>
                             )}
@@ -1857,7 +1955,7 @@ function InternalRegister() {
                           >
                             <button
                               type="button"
-                              style={{ ...styles.moduleDropdownButton, padding: "0.26rem 0.65rem", fontSize: "0.78rem", borderRadius: "10px" }}
+                              style={{ ...styles.moduleDropdownButton, padding: "0.26rem 0.65rem", fontSize: "0.78rem" }}
                               onClick={() => setViewModulesOpenId((prev) => (prev === user._id ? null : user._id))}
                             >
                               <span>
@@ -1876,7 +1974,7 @@ function InternalRegister() {
                             </button>
 
                             {viewModulesOpenId === user._id && (
-                              <div style={styles.moduleDropdownMenu}>
+                              <div className="ur-scroll" style={styles.moduleDropdownMenu}>
                                 {user.modules?.length > 0 ? (
                                   user.modules.map((to, idx) => (
                                     <div key={idx} style={styles.moduleViewItem}>
