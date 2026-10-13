@@ -54,6 +54,12 @@ const fmtPct = (n) => (n === null || n === undefined || isNaN(n) ? "—" : `${n.
 const toNum = (v) => (isNaN(Number(v)) ? 0 : Number(v));
 const pct = (part, whole) => (whole > 0 ? Number(((part / whole) * 100).toFixed(2)) : 0);
 const normWO = (s) => String(s || "").trim().replace(/^WO\s*#?\s*/i, "");
+// who entered the record: tries the common field names
+const userOf = (r) => {
+  const u = r?.productionUser ?? r?.enteredBy ?? r?.user ?? r?.createdBy ?? r?.userName ?? r?.username
+    ?? r?.addedBy ?? r?.updatedBy ?? r?.operator ?? r?.name ?? "";
+  return typeof u === "object" && u ? (u.name || u.username || u.email || "") : String(u || "");
+};
 
 /* ------------------------------------------------------------------ */
 /* LIVE DATA AGGREGATION                                               */
@@ -189,10 +195,13 @@ function buildDashboardData(realRows, reelRows) {
         startDate: dStr,
         endDate: dStr,
         userLocations: new Set(),
+        users: new Set(),
       });
     }
     const woEntry = woMap.get(wo);
     (Array.isArray(item.userLocations) ? item.userLocations : []).forEach((l) => { if (l) woEntry.userLocations.add(l); });
+    const entryUser = userOf(item);
+    if (entryUser) woEntry.users.add(entryUser);
     // work-order production / waste = its latest production entry only
     if (isLatestProd) {
       woEntry.totalProdQty += prodQty;
@@ -301,6 +310,7 @@ function buildDashboardData(realRows, reelRows) {
       startDate: w.startDate,
       endDate: w.endDate,
       userLocations: Array.from(w.userLocations).join(", "),
+      users: Array.from(w.users).join(", "),
     };
   });
 
@@ -897,10 +907,15 @@ function GlobalStyles() {
 /* ------------------------------------------------------------------ */
 /* Primitives                                                          */
 /* ------------------------------------------------------------------ */
-function KpiCard({ label, value, sub, icon: Icon, accent = "blue", trend }) {
+function KpiCard({ label, value, sub, icon: Icon, accent = "blue", trend, onDrill }) {
   const a = ACCENTS[accent] || ACCENTS.blue;
   return (
-    <div className={`kpi-card-3d ${a.cls}`}>
+    <div
+      className={`kpi-card-3d ${a.cls}`}
+      onDoubleClick={onDrill}
+      title={onDrill ? "Double-click to view records" : undefined}
+      style={onDrill ? { cursor: "pointer", userSelect: "none" } : undefined}
+    >
       <div className="kpi-top-row">
         <span className="kpi-label">{label}</span>
         {Icon && (
@@ -1855,16 +1870,17 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
 /* Shared KPI banner (visible on every tab)                            */
 /* ------------------------------------------------------------------ */
 function KpiBanner({ data }) {
+  const openDrill = useDrill();
   const o = data.overview;
   const ok = o.avgWastePct < 3;
   return (
     <div className="kpi-grid-5">
-      <KpiCard label="Work Orders" value={o.totalWorkOrders.toLocaleString("en-IN")} icon={ClipboardList} accent="blue"
+      <KpiCard onDrill={() => openDrill({ kind: "ledgerAll", title: "All work orders", sort: { key: "orderQty", dir: "desc" } })} label="Work Orders" value={o.totalWorkOrders.toLocaleString("en-IN")} icon={ClipboardList} accent="blue"
         sub={`${o.dateRange.start} → ${o.dateRange.end}`} />
-      <KpiCard label="Order Qty" value={fmt(o.totalOrderQty)} icon={PackageCheck} accent="purple" sub={`${fmtFull(o.totalOrderQty)} units booked`} />
-      <KpiCard label="Production Qty" value={fmt(o.totalProductionQty)} icon={Factory} accent="emerald" sub={`${fmtFull(o.totalProductionQty)} units produced`} />
-      <KpiCard label="Total Wastage" value={fmt(o.totalWasteQty)} icon={TrendingDown} accent="rose" sub={`${fmtFull(o.totalWasteQty)} wastage units`} />
-      <KpiCard label="Avg Waste Rate" value={fmtPct(o.avgWastePct)} icon={Gauge} accent="amber"
+      <KpiCard onDrill={() => openDrill({ kind: "ledgerAll", title: "Order Qty by work order", sort: { key: "orderQty", dir: "desc" } })} label="Order Qty" value={fmt(o.totalOrderQty)} icon={PackageCheck} accent="purple" sub={`${fmtFull(o.totalOrderQty)} units booked`} />
+      <KpiCard onDrill={() => openDrill({ kind: "ledgerAll", title: "Production Qty by work order", sort: { key: "finalOutputQty", dir: "desc" } })} label="Production Qty" value={fmt(o.totalProductionQty)} icon={Factory} accent="emerald" sub={`${fmtFull(o.totalProductionQty)} units produced`} />
+      <KpiCard onDrill={() => openDrill({ kind: "ledgerAll", title: "Wastage by work order", onlyWaste: true, sort: { key: "totalWasteQty", dir: "desc" } })} label="Total Wastage" value={fmt(o.totalWasteQty)} icon={TrendingDown} accent="rose" sub={`${fmtFull(o.totalWasteQty)} wastage units`} />
+      <KpiCard onDrill={() => openDrill({ kind: "ledgerAll", title: "Waste rate by work order", sort: { key: "wastePct", dir: "desc" } })} label="Avg Waste Rate" value={fmtPct(o.avgWastePct)} icon={Gauge} accent="amber"
         sub={
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: ok ? "#059669" : "#e11d48" }}>
             {ok ? <ShieldCheck size={12} /> : <AlertTriangle size={12} />}
@@ -2030,6 +2046,7 @@ function buildEntries(realRows) {
       customer: item.customerName || "-",
       job: item.jobDescription || "-",
       userLocations: Array.isArray(item.userLocations) ? item.userLocations.filter(Boolean) : [],
+      user: userOf(item),
       dStr,
       date: dStr || "-",
       from: item.productionFromTime || "",
@@ -2207,13 +2224,18 @@ function buildDrill(spec, data, realRows, reelRows) {
   const { kind, value } = spec;
 
   /* ---- Work-order level (completion buckets) ---- */
-  if (kind === "completion") {
-    const label = { Under: "Under-completed", Exact: "Exact (100%)", Over: "Over-completed" }[value] || value;
-    const rows = data.ledger.filter((r) => r.status === value);
+  if (kind === "completion" || kind === "ledgerAll") {
+    const isAll = kind === "ledgerAll";
+    const label = isAll
+      ? (spec.title || "All work orders")
+      : { Under: "Under-completed", Exact: "Exact (100%)", Over: "Over-completed" }[value] || value;
+    const rows = isAll
+      ? (spec.onlyWaste ? data.ledger.filter((r) => r.totalWasteQty > 0) : data.ledger)
+      : data.ledger.filter((r) => r.status === value);
     return {
       eyebrow: "Work orders",
       title: label,
-      sub: "Work orders in this completion bucket",
+      sub: isAll ? "Work orders in the current view" : "Work orders in this completion bucket",
       stats: (rs) => {
         const sum = (k) => rs.reduce((s, r) => s + (r[k] || 0), 0);
         return [
@@ -2227,6 +2249,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customers" },
         { key: "job", label: "Jobs" },
         { key: "type", label: "Types" },
+        { key: "users", label: "Users", split: true, alwaysShow: true },
         { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
       ],
       dateKey: null,
@@ -2245,15 +2268,16 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "events", label: "Events" },
         { key: "startDate", label: "Start" },
         { key: "endDate", label: "End" },
+        { key: "users", label: "User(s)", render: (r) => r.users || "-" },
       ],
       rows,
-      sort: { key: "completionPct", dir: "asc" },
+      sort: spec.sort || { key: "completionPct", dir: "asc" },
       note: null,
     };
   }
 
   /* ---- Reel register ---- */
-  if (kind === "reelCustomer" || kind === "reelMill" || kind === "reelWO") {
+  if (kind === "reelCustomer" || kind === "reelMill" || kind === "reelWO" || kind === "reelAll") {
     const recs = data.reel.records; // same order as the reel rows they were built from
     const rows = [];
     const woLocs = new Map();
@@ -2265,16 +2289,17 @@ function buildDrill(spec, data, realRows, reelRows) {
     });
     reelRows.forEach((r, i) => {
       const match =
+        kind === "reelAll" ? true :
         kind === "reelCustomer" ? (r.customerName || "Unknown") === value :
         kind === "reelMill" ? (r.mill || "Unknown") === value :
         String(r.efiWoNumber ?? "").trim() === value;
       if (!match || !recs[i]) return;
-      rows.push({ ...recs[i], output: toNum(r.productionOutput), plannedQty: toNum(r.liveOrderQty), userLocations: Array.from(woLocs.get(recs[i].wo) || []).join(", ") });
+      rows.push({ ...recs[i], user: userOf(r), output: toNum(r.productionOutput), plannedQty: toNum(r.liveOrderQty), userLocations: Array.from(woLocs.get(recs[i].wo) || []).join(", ") });
     });
     const what = kind === "reelCustomer" ? "Customer" : kind === "reelMill" ? "Mill" : "Work Order";
     return {
       eyebrow: "Reel Register",
-      title: `${what} — ${kind === "reelWO" ? `WO #${value}` : value}`,
+      title: kind === "reelAll" ? (spec.title || "All reels") : `${what} — ${kind === "reelWO" ? `WO #${value}` : value}`,
       sub: "Reel records",
       stats: (rs) => {
         const net = rs.reduce((s, r) => s + r.actualNet, 0);
@@ -2290,6 +2315,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "customer", label: "Customers" },
         { key: "mill", label: "Mills" },
         { key: "wo", label: "Work Orders" },
+        { key: "user", label: "Users", alwaysShow: true },
         { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
       ],
       dateKey: null,
@@ -2305,6 +2331,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "output", label: "Production Output", render: (r) => fmtFull(r.output) },
         { key: "plannedQty", label: "Planned Qty", render: (r) => fmtFull(r.plannedQty) },
         { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
+        { key: "user", label: "User", render: (r) => r.user || "-" },
       ],
       rows,
       sort: { key: "actualNet", dir: "desc" },
@@ -2363,8 +2390,8 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
         { key: "orderType", label: "Order Type" },
         { key: "supplier", label: "Supplier Name" },
-        { key: "user", label: "User" },
         { key: "status", label: "Status" },
+        { key: "user", label: "User" },
       ],
       rows,
       sort: { key: "poDate", dir: "desc" },
@@ -2417,6 +2444,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     machines: uniqJoin(e.pairs.map((p) => p.machine)),
     stages: uniqJoin(e.pairs.map((p) => p.stage)),
     userLocations: uniqJoin(e.userLocations),
+    user: e.user || "",
     time: e.from || e.to ? `${e.from || "—"} – ${e.to || "—"}` : "-",
     hours: Number(e.hours.toFixed(2)),
     orderQty: Math.round(e.orderQty),
@@ -2458,6 +2486,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     { key: "wasteQty", label: "Wastage Qty", render: (r) => fmtFull(r.wasteQty) },
   ];
   if (metric === "hours") columns.push({ key: "cHours", label: "Chart Hours", render: (r) => Number(r.cHours.toFixed(2)) });
+  columns.push({ key: "user", label: "User", render: (r) => r.user || "-" });
 
   return {
     eyebrow: "Production log",
@@ -2471,6 +2500,7 @@ function buildDrill(spec, data, realRows, reelRows) {
       { key: "status", label: "Statuses" },
       { key: "machines", label: "Machines", split: true },
       { key: "stages", label: "Stages", split: true },
+      { key: "user", label: "Users", alwaysShow: true },
       { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
     ],
     dateKey: "date",
@@ -3081,9 +3111,9 @@ function JobCompletionTab({ data, openWO }) {
   return (
     <div>
       <div className="kpi-grid-3">
-        <KpiCard label="Under-completed (<100%)" value={jc.under.toLocaleString("en-IN")} accent="amber" sub={`${share(jc.under)}% of work orders`} />
-        <KpiCard label="Exact completion (=100%)" value={jc.exact.toLocaleString("en-IN")} accent="emerald" sub={`${share(jc.exact)}% of work orders`} />
-        <KpiCard label="Over-completed (>100%)" value={jc.over.toLocaleString("en-IN")} accent="blue" sub={`${share(jc.over)}% of work orders`} />
+        <KpiCard onDrill={() => openDrill({ kind: "completion", value: "Under" })} label="Under-completed (<100%)" value={jc.under.toLocaleString("en-IN")} accent="amber" sub={`${share(jc.under)}% of work orders`} />
+        <KpiCard onDrill={() => openDrill({ kind: "completion", value: "Exact" })} label="Exact completion (=100%)" value={jc.exact.toLocaleString("en-IN")} accent="emerald" sub={`${share(jc.exact)}% of work orders`} />
+        <KpiCard onDrill={() => openDrill({ kind: "completion", value: "Over" })} label="Over-completed (>100%)" value={jc.over.toLocaleString("en-IN")} accent="blue" sub={`${share(jc.over)}% of work orders`} />
       </div>
       <div className="panel-grid-3">
         <Panel title="Completion Profile" icon={CheckCircle2} iconGrad={ACCENTS.amber.grad}>
@@ -3300,11 +3330,11 @@ function ReelTab({ data, openWO }) {
   return (
     <div>
       <div className="kpi-grid-4">
-        <KpiCard label="Total Net Weight" value={`${fmt(k.totalNetWeight)} kg`} icon={Scroll} accent="purple" sub={`${k.reelCount} reels from ${k.millCount} mills`} />
-        <KpiCard label="Total Reel Waste" value={`${fmt(k.totalWaste)} kg`} icon={TrendingDown} accent="rose" sub={`Across ${k.activeWO} work orders`} />
-        <KpiCard label="Overall Waste %" value={fmtPct(k.overallWastePct)} icon={Gauge} accent="amber"
+        <KpiCard onDrill={() => openDrill({ kind: "reelAll", title: "All reels — Net Weight" })} label="Total Net Weight" value={`${fmt(k.totalNetWeight)} kg`} icon={Scroll} accent="purple" sub={`${k.reelCount} reels from ${k.millCount} mills`} />
+        <KpiCard onDrill={() => openDrill({ kind: "reelAll", title: "All reels — Waste" })} label="Total Reel Waste" value={`${fmt(k.totalWaste)} kg`} icon={TrendingDown} accent="rose" sub={`Across ${k.activeWO} work orders`} />
+        <KpiCard onDrill={() => openDrill({ kind: "reelAll", title: "All reels — Waste %" })} label="Overall Waste %" value={fmtPct(k.overallWastePct)} icon={Gauge} accent="amber"
           sub={<span style={{ fontWeight: 700, color: wasteOk ? "#059669" : "#e11d48" }}>{wasteOk ? "Within threshold (<5%)" : "Above 5% threshold"}</span>} />
-        <KpiCard label="Active Work Orders" value={k.activeWO} icon={Layers} accent="emerald" sub="Reel batches evaluated" />
+        <KpiCard onDrill={() => openDrill({ kind: "reelAll", title: "All reels — Work Orders" })} label="Active Work Orders" value={k.activeWO} icon={Layers} accent="emerald" sub="Reel batches evaluated" />
       </div>
 
       <div className="panel-grid-2">
