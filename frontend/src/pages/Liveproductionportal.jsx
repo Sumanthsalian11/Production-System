@@ -3892,23 +3892,24 @@ export default function LiveProductionPortal() {
               isOpen={openFilter === "sections"} onToggle={(o) => setOpenFilter(o ? "sections" : null)}
             />
           </div>
+          {tabs.some((id) => id !== "overview") && (
+            <div className="no-print" style={{ gridColumn: "2 / -1", display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 6, minHeight: 32 }}>
+              {TABS.filter((t) => tabs.includes(t.id) && t.id !== "overview").map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`tab-btn-3d ${activeTab === t.id ? "active" : "inactive"}`}
+                  onClick={() => setActiveTab(t.id)}
+                >
+                  <t.icon size={12} /> {t.label}
+                </button>
+              ))}
+            </div>
+          )}
           </div>
         </div>
 
-        {tabs.some((id) => id !== "overview") && (
-          <div className="no-print" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, paddingTop: 12, marginTop: 10, borderTop: "1.5px solid #f1f5f9" }}>
-            {TABS.filter((t) => tabs.includes(t.id) && t.id !== "overview").map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className={`tab-btn-3d ${activeTab === t.id ? "active" : "inactive"}`}
-                onClick={() => setActiveTab(t.id)}
-              >
-                <t.icon size={12} /> {t.label}
-              </button>
-            ))}
-          </div>
-        )}
+
       </header>
 
       <main>
