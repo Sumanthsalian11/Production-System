@@ -61,6 +61,29 @@ const fmtPct = (n) => (n === null || n === undefined || isNaN(n) ? "—" : `${n.
 const toNum = (v) => (isNaN(Number(v)) ? 0 : Number(v));
 const pct = (part, whole) => (whole > 0 ? Number(((part / whole) * 100).toFixed(2)) : 0);
 const normWO = (s) => String(s || "").trim().replace(/^WO\s*#?\s*/i, "");
+
+/* ---- dynamic machine-status helpers ---- */
+const statusNorm = (s) => String(s || "").toUpperCase().replace(/[^A-Z]/g, "");
+// Production -> "production"; every other status -> "st_<NAME>".
+// The prefix match keeps spelling variants (Maintainance, Break Down...) in one column.
+const statusKeyFor = (s) => {
+  const n = statusNorm(s);
+  if (!n) return "";
+  if (n.startsWith("PRODUC")) return "production";
+  if (n.startsWith("IDLE")) return "st_IDLE";
+  if (n.startsWith("MAKE") && n.includes("READY")) return "st_MAKEREADY";
+  if (n.startsWith("BREAK")) return "st_BREAKDOWN";
+  if (n.startsWith("MAINT")) return "st_MAINTENANCE";
+  return `st_${n}`;
+};
+const statusColor = (label, i) => {
+  const n = statusNorm(label);
+  if (n.startsWith("IDLE")) return "#cbd5e1";
+  if (n.startsWith("MAKE")) return COLORS.amber;
+  if (n.startsWith("BREAK")) return COLORS.rose;
+  if (n.startsWith("MAINT")) return COLORS.steel;
+  return uniqueColor(i + 5);
+};
 // who entered the record: tries the common field names
 const userOf = (r) => {
   const u = r?.productionUser ?? r?.enteredBy ?? r?.user ?? r?.createdBy ?? r?.userName ?? r?.username
@@ -102,9 +125,21 @@ const hoursBetween = (dStr, fromTime, toTime) => {
   return (end - start) / (1000 * 60 * 60);
 };
 
-function buildDashboardData(realRows, reelRows) {
+function buildDashboardData(realRows, reelRows, masterStatuses = []) {
   const safeReal = Array.isArray(realRows) ? realRows : [];
   const safeReel = Array.isArray(reelRows) ? reelRows : [];
+
+  // dynamic Machine Utilization columns = every status in the master (except Production)
+  // + any extra status found in the production log
+  const statusLabelMap = new Map();
+  const addStatus = (name) => {
+    const k = statusKeyFor(name);
+    const lbl = String(name || "").trim();
+    if (k && k !== "production" && !statusLabelMap.has(k)) statusLabelMap.set(k, lbl);
+  };
+  (masterStatuses || []).forEach((s) => addStatus(s?.statusName ?? s));
+  safeReal.forEach((r) => addStatus(r.machineStatus));
+  const statusColumns = Array.from(statusLabelMap, ([key, label], i) => ({ key, label, color: statusColor(label, i) }));
 
   const woMap = new Map();
   const custMap = new Map();
@@ -257,7 +292,7 @@ function buildDashboardData(realRows, reelRows) {
       if (!machMap.has(machineName)) {
         machMap.set(machineName, {
           machine: machineName,
-          production: 0, idle: 0, makeReady: 0, breakdown: 0, maintenance: 0,
+          production: 0, hoursBy: {},
           prodQty: 0, wasteQty: 0, events: 0,
         });
       }
@@ -268,12 +303,9 @@ function buildDashboardData(realRows, reelRows) {
       // survives spelling variants (Maintainance, Maintainence, Maintanence,
       // Breakdown, Break Down, etc.) since typos almost always happen in the
       // tail of the word, not the first few letters.
-      const normStatus = status.replace(/[^A-Z]/g, "");
-      if (normStatus.startsWith("PRODUC")) mEntry.production += legHours;
-      else if (normStatus.startsWith("IDLE")) mEntry.idle += legHours;
-      else if (normStatus.startsWith("MAKE") && normStatus.includes("READY")) mEntry.makeReady += legHours;
-      else if (normStatus.startsWith("BREAK")) mEntry.breakdown += legHours;
-      else if (normStatus.startsWith("MAINT")) mEntry.maintenance += legHours;
+      const sk = statusKeyFor(status);
+      if (sk === "production") mEntry.production += legHours;
+      else if (sk) mEntry.hoursBy[sk] = (mEntry.hoursBy[sk] || 0) + legHours;
 
       mEntry.prodQty += prodQty * legShare;
       mEntry.wasteQty += wasteQty * legShare;
@@ -392,14 +424,13 @@ function buildDashboardData(realRows, reelRows) {
 
   const machineUtilization = Array.from(machMap.values())
     .map((m) => {
-      const totalHours = m.production + m.idle + m.makeReady + m.breakdown + m.maintenance;
+      const totalHours = m.production + Object.values(m.hoursBy).reduce((a, b) => a + b, 0);
+      const byStatus = {};
+      statusColumns.forEach((s) => { byStatus[s.key] = Number((m.hoursBy[s.key] || 0).toFixed(1)); });
       return {
         machine: m.machine,
         production: Number(m.production.toFixed(1)),
-        idle: Number(m.idle.toFixed(1)),
-        makeReady: Number(m.makeReady.toFixed(1)),
-        breakdown: Number(m.breakdown.toFixed(1)),
-        maintenance: Number(m.maintenance.toFixed(1)),
+        ...byStatus,
         totalHours: Number(totalHours.toFixed(1)),
         utilizationPct: totalHours > 0 ? Number(((m.production / totalHours) * 100).toFixed(1)) : 0,
       };
@@ -440,7 +471,7 @@ function buildDashboardData(realRows, reelRows) {
     },
     activity: stages.slice(0, 10).map((s) => ({ Activity: s.Stage, totalPages: s.prodQty })),
     utilization: machineUtilization.slice(0, 10).map((m) => ({
-      machine: m.machine, production: m.production, idle: m.idle, breakdown: m.breakdown,
+      machine: m.machine, production: m.production, idle: m.st_IDLE || 0, breakdown: m.st_BREAKDOWN || 0,
     })),
   };
 
@@ -547,7 +578,7 @@ function buildDashboardData(realRows, reelRows) {
     records: reelRecords,
   };
 
-  return { overview, ledger, stageTracker, stageTrackerProd, trend, machineUtilization, machineProdWaste, stages, customers, perso, reel };
+  return { overview, ledger, stageTracker, stageTrackerProd, trend, machineUtilization, machineProdWaste, stages, customers, perso, reel, statusColumns };
 }
 
 
@@ -2086,16 +2117,9 @@ const orderTypeOf = (t) => {
 };
 
 // Same status matching the dashboard builder uses (prefix based, typo tolerant).
-const statusKeyOf = (status) => {
-  const s = String(status || "").toUpperCase().replace(/[^A-Z]/g, "");
-  if (s.startsWith("PRODUC")) return "production";
-  if (s.startsWith("IDLE")) return "idle";
-  if (s.startsWith("MAKE") && s.includes("READY")) return "makeReady";
-  if (s.startsWith("BREAK")) return "breakdown";
-  if (s.startsWith("MAINT")) return "maintenance";
-  return "other";
-};
-const STATUS_LABEL = { production: "Production", idle: "Idle", makeReady: "Make-Ready", breakdown: "Breakdown", maintenance: "Maintenance" };
+const statusKeyOf = statusKeyFor;
+const statusLabelOf = (data, key) =>
+  key === "production" ? "Production" : (data.statusColumns || []).find((s) => s.key === key)?.label || key;
 
 // One normalised record per production-log entry, read the same way
 // buildDashboardData reads each row.
@@ -2587,7 +2611,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     picked = entries.filter((e) => e.customerKey === value).map((e) => ({ ...e, cHours: 0 }));
   } else if (kind === "machine") {
     const sk = spec.statusKey || null;
-    title = `Machine — ${value}${sk ? ` · ${STATUS_LABEL[sk] || sk}` : ""}`;
+    title = `Machine — ${value}${sk ? ` · ${statusLabelOf(data, sk)}` : ""}`;
     note = metric === "hours"
       ? "Chart Hours is each entry's duration, split evenly across the machines/stages that entry lists."
       : "Every entry is listed with its full quantity. The chart splits an entry's quantity evenly across the machines/stages it lists.";
@@ -3140,10 +3164,7 @@ function UtilizationTab({ data }) {
     { key: "machine", label: "Machine" },
     { key: "utilizationPct", label: "Utilization %", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>{r.utilizationPct}%</span> },
     { key: "production", label: "Production (h)" },
-    { key: "idle", label: "Idle (h)" },
-    { key: "makeReady", label: "Make-Ready (h)" },
-    { key: "breakdown", label: "Breakdown (h)" },
-    { key: "maintenance", label: "Maint. (h)" },
+    ...data.statusColumns.map((s) => ({ key: s.key, label: `${s.label} (h)` })),
     { key: "totalHours", label: "Total (h)" },
     {
       key: "tag", label: "Status", sortable: false,
@@ -3164,10 +3185,7 @@ function UtilizationTab({ data }) {
           stacked
           series={[
             { key: "production", name: "Production", color: COLORS.indigo },
-            { key: "idle", name: "Idle", color: "#cbd5e1" },
-            { key: "makeReady", name: "Make-Ready", color: COLORS.amber },
-            { key: "breakdown", name: "Breakdown", color: COLORS.rose },
-            { key: "maintenance", name: "Maintenance", color: COLORS.steel },
+            ...data.statusColumns.map((s) => ({ key: s.key, name: s.label, color: s.color })),
           ].filter((s) => !utilFilter.hidden.has(s.key))}
           height={320}
           unit="h"
@@ -3177,10 +3195,7 @@ function UtilizationTab({ data }) {
         <PieLegend
           items={[
             { name: "Production", color: COLORS.indigo, dataKey: "production" },
-            { name: "Idle", color: "#cbd5e1", dataKey: "idle" },
-            { name: "Make-Ready", color: COLORS.amber, dataKey: "makeReady" },
-            { name: "Breakdown", color: COLORS.rose, dataKey: "breakdown" },
-            { name: "Maintenance", color: COLORS.steel, dataKey: "maintenance" },
+            ...data.statusColumns.map((s) => ({ name: s.label, color: s.color, dataKey: s.key })),
           ]}
           hidden={utilFilter.hidden}
           toggle={utilFilter.toggle}
@@ -3824,6 +3839,7 @@ export default function LiveProductionPortal() {
   const [realRows, setRealRows] = useState([]);
   const [reelRows, setReelRows] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
+  const [masterStatuses, setMasterStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
@@ -3834,14 +3850,16 @@ export default function LiveProductionPortal() {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
-      const [realRes, reelRes, ordersRes] = await Promise.all([
+      const [realRes, reelRes, ordersRes, statusRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/production-real`, { headers }),
         axios.get(`${BASE_URL}/api/production`, { headers }),
         axios.get(`${BASE_URL}/api/customer-orders`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/api/master/machine-status`, { headers }).catch(() => ({ data: [] })),
       ]);
       setRealRows(Array.isArray(realRes.data) ? realRes.data : []);
       setReelRows(Array.isArray(reelRes.data) ? reelRes.data : []);
       setCustomerOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
+      setMasterStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
       setLastSyncTime(new Date());
     } catch (err) {
       console.error("Error loading portal data:", err);
@@ -4012,7 +4030,7 @@ export default function LiveProductionPortal() {
   // render with the full recompute synchronously.
   const deferredRealRows = useDeferredValue(filteredRealRows);
   const deferredReelRows = useDeferredValue(filteredReelRows);
-  const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows), [deferredRealRows, deferredReelRows]);
+  const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows, masterStatuses), [deferredRealRows, deferredReelRows, masterStatuses]);
 
   const openWO = (wo) => setDrawerWO(wo);
   const trackWO = (wo) => {
