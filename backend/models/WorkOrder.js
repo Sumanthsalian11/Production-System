@@ -93,6 +93,7 @@ activity2: [
     gsm: { type: String },
     paperSize: { type: String, required: true },
     paperQty:{type:Number, required:true},
+    rowIndex: { type: Number },
   }
 ],
       

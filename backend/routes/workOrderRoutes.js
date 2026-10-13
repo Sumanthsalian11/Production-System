@@ -87,6 +87,20 @@ if (customerOrderId) {
 }
 
 
+    // 🛑 Block duplicate work orders for the same order
+    if (customerOrderId) {
+      const already = await WorkOrder.findOne({ customerOrderId });
+      if (already) {
+        return res.status(409).json({ message: "Work Order already exists for this order" });
+      }
+    }
+    if (printingId) {
+      const already = await WorkOrder.findOne({ printingId });
+      if (already) {
+        return res.status(409).json({ message: "Work Order already exists for this printing order" });
+      }
+    }
+
     // 🔢 Auto increment SL No
     const lastWorkOrder = await WorkOrder.findOne().sort({ slNo: -1 });
     const nextSlNo = lastWorkOrder ? lastWorkOrder.slNo + 1 : 1;

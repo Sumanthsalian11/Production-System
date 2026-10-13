@@ -220,6 +220,8 @@ function PlannerDashboard() {
   const [showRowModal, setShowRowModal] = useState(false);
   const [editingRowIndex, setEditingRowIndex] = useState(null);
   const [isNewRow, setIsNewRow] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   const [workOrderForm, setWorkOrderForm] = useState({
     workorder2: "",
@@ -646,12 +648,25 @@ function PlannerDashboard() {
 
     const machinesArr = wo.machines || [];
     const materialsArr = wo.materials || [];
-    const rowCount = Math.max(machinesArr.length, materialsArr.length, 1);
+    const hasRowIndex = materialsArr.some(m => m.rowIndex !== undefined && m.rowIndex !== null);
+    const rowCount = Math.max(machinesArr.length, hasRowIndex ? 1 : materialsArr.length, 1);
 
     setWorkRows(
       Array.from({ length: rowCount }, (_, i) => {
         const pair = machinesArr[i] || {};
-        const mat = materialsArr[i] || {};
+        const mats = hasRowIndex
+          ? materialsArr.filter(m => m.rowIndex === i)
+          : [materialsArr[i] || {}];
+        const mat = mats[0] || {};
+        const extras = mats.slice(1).map(m => ({
+          materialCode: m.materialCode || "",
+          materialDescription: m.materialDescription || "",
+          materialGroupDescription: m.materialGroupDescription || "",
+          mill: m.mill || "",
+          gsm: m.gsm || "",
+          paperSize: m.paperSize || "",
+          paperQty: m.paperQty || ""
+        }));
         return {
           activityId: pair.activityId?._id || pair.activityId || "",
           machineId: pair.machineId?._id || pair.machineId || "",
@@ -668,7 +683,8 @@ function PlannerDashboard() {
           mill: mat.mill || "",
           gsm: mat.gsm || "",
           paperSize: mat.paperSize || "",
-          paperQty: mat.paperQty || ""
+          paperQty: mat.paperQty || "",
+          extraMaterials: extras
         };
       })
     );
@@ -861,6 +877,52 @@ function PlannerDashboard() {
     }
 
     setWorkRows(rows);
+  };
+
+  const emptyMaterial = {
+    materialCode: "", materialDescription: "", materialGroupDescription: "",
+    mill: "", gsm: "", paperSize: "", paperQty: ""
+  };
+
+  const addExtraMaterial = (index) => {
+    setWorkRows(prev => {
+      const rows = [...prev];
+      rows[index] = {
+        ...rows[index],
+        extraMaterials: [...(rows[index].extraMaterials || []), { ...emptyMaterial }]
+      };
+      return rows;
+    });
+  };
+
+  const removeExtraMaterial = (index, mIdx) => {
+    setWorkRows(prev => {
+      const rows = [...prev];
+      rows[index] = {
+        ...rows[index],
+        extraMaterials: (rows[index].extraMaterials || []).filter((_, i) => i !== mIdx)
+      };
+      return rows;
+    });
+  };
+
+  const handleExtraMaterialChange = (index, mIdx, field, value) => {
+    setWorkRows(prev => {
+      const rows = [...prev];
+      const extras = [...(rows[index].extraMaterials || [])];
+      const m = { ...extras[mIdx], [field]: value };
+      if (field === "materialCode") {
+        const material = materials.find(x => String(x.code).trim() === String(value).trim());
+        m.materialDescription = material?.description || "";
+        m.materialGroupDescription = material?.group || "";
+        m.mill = material?.mill || "";
+        m.gsm = material?.gsm || "";
+        m.paperSize = material?.paperSize || "";
+      }
+      extras[mIdx] = m;
+      rows[index] = { ...rows[index], extraMaterials: extras };
+      return rows;
+    });
   };
 
   const addWorkRow = () => {
@@ -1103,6 +1165,7 @@ function PlannerDashboard() {
   const handleSubmitWorkOrder = async (e) => {
     e.preventDefault();
     if (!selectedOrder) return;
+    if (submitLock.current) return;
 
     if (!selectedOrder.productType || selectedOrder.productType.trim() === "") {
       showAlert("Product Type is required");
@@ -1186,9 +1249,21 @@ function PlannerDashboard() {
           showAlert("Paper Quantity is required for all materials");
           return;
         }
+        for (const em of (row.extraMaterials || [])) {
+          if (!em.materialCode || em.materialCode.trim() === "") {
+            showAlert("Material Code is required for every added Paper material");
+            return;
+          }
+          if (!em.paperQty || Number(em.paperQty) <= 0) {
+            showAlert("Paper Quantity is required for every added Paper material");
+            return;
+          }
+        }
       }
     }
 
+    submitLock.current = true;
+    setIsSubmitting(true);
     try {
       const payload = {
         customerOrderId: selectedOrder.isPrinting ? null : selectedOrder.customerOrderId,
@@ -1211,17 +1286,20 @@ function PlannerDashboard() {
         dispatchLocation: workOrderForm.dispatchLocation,
         boxQty: Number(workOrderForm.boxQty) || 0,
         activity2: activity2,
-        materials: confirmedRows
-          .filter(row => row.materialCode && row.materialCode.trim() !== "")
-          .map(row => ({
-            materialCode: row.materialCode,
-            materialDescription: row.materialDescription,
-            materialGroupDescription: row.materialGroupDescription,
-            mill: row.mill,
-            gsm: row.gsm,
-            paperSize: row.paperSize,
-            paperQty: Number(row.paperQty) || 0,
-          })),
+        materials: confirmedRows.flatMap((row, rowIndex) =>
+          [row, ...(row.extraMaterials || [])]
+            .filter(m => m.materialCode && m.materialCode.trim() !== "")
+            .map(m => ({
+              materialCode: m.materialCode,
+              materialDescription: m.materialDescription,
+              materialGroupDescription: m.materialGroupDescription,
+              mill: m.mill,
+              gsm: m.gsm,
+              paperSize: m.paperSize,
+              paperQty: Number(m.paperQty) || 0,
+              rowIndex,
+            }))
+        ),
 
         orderQty: Number(workOrderForm.orderQty) || 0,
         wasteQty: Number(workOrderForm.wasteQty) || 0,
@@ -1329,6 +1407,9 @@ function PlannerDashboard() {
     } catch (err) {
       console.error("Error creating Work Order:", err.response?.data || err);
       showAlert("Error", "Error creating Work Order", "error");
+    } finally {
+      submitLock.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -4295,12 +4376,12 @@ function PlannerDashboard() {
                                   </td>
                                   {!(selectedOrder?.isPrinting && selectedOrder?.workorder2) && (
                                     <>
-                                      <td className="wo-accent" style={{ fontWeight: 600 }}>{row.materialCode || "-"}</td>
+                                      <td className="wo-accent" style={{ fontWeight: 600 }}>{[row.materialCode, ...(row.extraMaterials || []).map(m => m.materialCode)].filter(Boolean).join(", ") || "-"}</td>
                                       <td className="truncate" title={row.materialDescription}>
                                         {row.materialDescription || "-"}
                                       </td>
                                       <td>{row.gsm || "-"}</td>
-                                      <td style={{ fontWeight: 600 }}>{row.paperQty || "-"}</td>
+                                      <td style={{ fontWeight: 600 }}>{[row.paperQty, ...(row.extraMaterials || []).map(m => m.paperQty)].filter(Boolean).join(", ") || "-"}</td>
                                     </>
                                   )}
                                   <td className="wo-good">{imp.impFront}</td>
@@ -4370,8 +4451,8 @@ function PlannerDashboard() {
                     >
                       Cancel
                     </button>
-                    <button type="submit" className="wo-btn wo-btn-primary">
-                      {selectedOrder.status === "PLANNED" ? "Update work order" : "Save work order"}
+                    <button type="submit" className="wo-btn wo-btn-primary" disabled={isSubmitting}>
+                      {isSubmitting ? "Saving..." : selectedOrder.status === "PLANNED" ? "Update work order" : "Save work order"}
                     </button>
                   </div>
                 </form>
@@ -4571,6 +4652,9 @@ function PlannerDashboard() {
                       <div className="wo-panel">
                         <div className="wo-panel-head">
                           <span className="wo-panel-title">Paper material</span>
+                          <button type="button" className="wo-btn wo-btn-xs wo-btn-soft" onClick={() => addExtraMaterial(editingRowIndex)}>
+                            <Icons.Plus /> Paper material
+                          </button>
                         </div>
                         <div className="wo-modal-grid">
                           <PoField
@@ -4676,6 +4760,53 @@ function PlannerDashboard() {
                             />
                           </PoField>
                         </div>
+
+                        {(r.extraMaterials || []).map((em, mIdx) => (
+                          <div key={mIdx} style={{ marginTop: 14, paddingTop: 12, borderTop: "1px dashed var(--field-line)" }}>
+                            <div className="wo-panel-head">
+                              <span className="wo-panel-note" style={{ fontWeight: 700 }}>Paper material #{mIdx + 2}</span>
+                              <button type="button" className="wo-btn wo-btn-xs wo-btn-danger" onClick={() => removeExtraMaterial(editingRowIndex, mIdx)}>
+                                Remove
+                              </button>
+                            </div>
+                            <div className="wo-modal-grid">
+                              <PoField className="wo-field s2" icon="bi-upc-scan" label="Paper Code" required filled={has(em.materialCode)}>
+                                <input
+                                  type="text"
+                                  className="po-input"
+                                  style={{ fontWeight: 700 }}
+                                  value={em.materialCode}
+                                  onChange={(e) => handleExtraMaterialChange(editingRowIndex, mIdx, "materialCode", e.target.value)}
+                                />
+                              </PoField>
+                              <PoField className="wo-field s4" icon="bi-card-text" label="Description" alwaysFloat>
+                                <input className="po-input" value={em.materialDescription || "-"} readOnly />
+                              </PoField>
+                              <PoField className="wo-field s2" icon="bi-collection" label="Group Desc" alwaysFloat>
+                                <input className="po-input" value={em.materialGroupDescription || "-"} readOnly />
+                              </PoField>
+                              <PoField className="wo-field s2" icon="bi-building" label="Mill Name" alwaysFloat>
+                                <input className="po-input" value={em.mill || "-"} readOnly />
+                              </PoField>
+                              <PoField className="wo-field s2" icon="bi-aspect-ratio" label="Paper Size" alwaysFloat>
+                                <input className="po-input" value={em.paperSize || "-"} readOnly />
+                              </PoField>
+                              <PoField className="wo-field s2" icon="bi-speedometer2" label="GSM" alwaysFloat>
+                                <input className="po-input" value={em.gsm || "-"} readOnly />
+                              </PoField>
+                              <PoField className="wo-field s2" icon="bi-stack" label="Paper Qty" labelClass="wo-paper-qty" required filled={has(em.paperQty)}>
+                                <input
+                                  type="number"
+                                  className="po-input wo-paper-qty"
+                                  style={{ fontWeight: 700 }}
+                                  value={em.paperQty}
+                                  min="0"
+                                  onChange={(e) => handleExtraMaterialChange(editingRowIndex, mIdx, "paperQty", e.target.value)}
+                                />
+                              </PoField>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
 
