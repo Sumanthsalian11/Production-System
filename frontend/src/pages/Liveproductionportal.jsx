@@ -3657,11 +3657,11 @@ function BookingTab({ filters }) {
 
   return (
     <div>
-      <div className="kpi-grid-4">
+      <div className="kpi-grid-5">
         <KpiCard label="Active Scheduled WOs" value={view.activeWO.toLocaleString("en-IN")} icon={ClipboardList} accent="blue" sub="From Scheduler" onDrill={() => drill("Active scheduled work orders")} />
         <KpiCard label="Master Work Orders" value={masterCount.toLocaleString("en-IN")} icon={FileStack} accent="purple" sub="All-time" onDrill={() => openDrill({ kind: "masterWO", title: "Master work orders (all-time)", rows: masterRows })} />
         <KpiCard label="Scheduled Order Volume" value={fmt(view.volume)} icon={PackageCheck} accent="amber" sub={`${fmtFull(view.volume)} units`} onDrill={() => drill("Scheduled order volume")} />
-        <KpiCard label="Latest Plant Booking End" value={view.latest ? fmtDT(view.latest) : "—"} icon={CalendarCheck} accent="rose" sub={view.latestMachine} onDrill={() => drill(`Latest booking — ${view.latestMachine}`, (r) => r.machine === view.latestMachine)} />
+        <KpiCard label="Latest Plant Booking End" value={view.latest ? <span style={{ fontSize: 16 }}>{fmtDT(view.latest)}</span> : "—"} icon={CalendarCheck} accent="rose" sub={view.latestMachine} onDrill={() => drill(`Latest booking — ${view.latestMachine}`, (r) => r.machine === view.latestMachine)} />
       </div>
 
       <Panel title="Machine Booking Status & Availability" icon={CalendarCheck} iconGrad={ACCENTS.blue.grad}
