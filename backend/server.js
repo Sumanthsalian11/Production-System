@@ -107,6 +107,7 @@ app.use("/api/numbering-jobs", require("./routes/Numberingjobs"));
 app.use("/api/numbering-templates", require("./routes/Numberingtemplates"));
 
 app.use("/api/mail-settings", require("./routes/mailSettingsRoutes"));
+app.use("/api/csat", require("./routes/csatRoutes"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 

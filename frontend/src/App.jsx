@@ -45,6 +45,7 @@ import CalibrationDashboard from "./pages/Calibrationdashboard";
 import ReceivingInspectionDashboard from "./pages/ReceivingInspectionDashboard";
 import NewInspectionForm from "./pages/NewInspectionForm";
 import ClickReport from "./pages/Clickreport";
+import CustomerSatisfaction from "./pages/CustomerSatisfaction";
 
 
 
@@ -319,6 +320,9 @@ function App() {
     <ShreddingDashboard />
   </ProtectedRoute>}
 />
+  <Route path="/csat" element={<ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+    <CustomerSatisfaction />
+  </ProtectedRoute>} />
   <Route path="/inward-register" element={<ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
     <InwardRegister />
   </ProtectedRoute>} />
