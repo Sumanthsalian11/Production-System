@@ -683,6 +683,79 @@ export default function WastageReport() {
           color: #000000 !important;
         }
 
+        /* ── PAGE ANIMATIONS ── */
+        @keyframes wrFadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes wrRowIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes wrPillPop {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        /* Filters card, then table card, slide up one after the other */
+        .wastage-report-page > .card:nth-of-type(1) {
+          animation: wrFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+        }
+
+        .wastage-report-page > .card:nth-of-type(2) {
+          animation: wrFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.15s backwards;
+        }
+
+        .wastage-report-page .count-pill {
+          animation: wrPillPop 0.4s ease-out 0.35s backwards;
+        }
+
+        /* Table rows fade in with a short stagger (replays on page change / new data) */
+        .wastage-report-page tbody tr {
+          animation: wrRowIn 0.4s ease-out backwards;
+        }
+
+        .wastage-report-page tbody tr:nth-child(1)  { animation-delay: 0.30s; }
+        .wastage-report-page tbody tr:nth-child(2)  { animation-delay: 0.34s; }
+        .wastage-report-page tbody tr:nth-child(3)  { animation-delay: 0.38s; }
+        .wastage-report-page tbody tr:nth-child(4)  { animation-delay: 0.42s; }
+        .wastage-report-page tbody tr:nth-child(5)  { animation-delay: 0.46s; }
+        .wastage-report-page tbody tr:nth-child(6)  { animation-delay: 0.50s; }
+        .wastage-report-page tbody tr:nth-child(7)  { animation-delay: 0.54s; }
+        .wastage-report-page tbody tr:nth-child(8)  { animation-delay: 0.58s; }
+        .wastage-report-page tbody tr:nth-child(9)  { animation-delay: 0.62s; }
+        .wastage-report-page tbody tr:nth-child(10) { animation-delay: 0.66s; }
+        .wastage-report-page tbody tr:nth-child(n+11) { animation-delay: 0.70s; }
+
+        /* Respect users who prefer no motion */
+        @media (prefers-reduced-motion: reduce) {
+          .wastage-report-page > .card,
+          .wastage-report-page .count-pill,
+          .wastage-report-page tbody tr {
+            animation: none !important;
+          }
+        }
+
         @media (max-width: 768px) {
           .wastage-report-page {
             padding: 10px;

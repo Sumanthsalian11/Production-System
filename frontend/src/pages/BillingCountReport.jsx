@@ -183,6 +183,99 @@ const CSS = `
   .br-modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
   .br-modal-box * { box-sizing: border-box; }
 
+  /* ---------- PAGE ANIMATIONS ---------- */
+  @keyframes brFadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes brRowIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes brFabPop {
+    from { opacity: 0; transform: scale(0.4) rotate(-90deg); }
+    to   { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  @keyframes brOverlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes brModalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes brToastIn {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes brMsgIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Generated Reports card slides up, table header and body follow */
+  .br-root .pro-card {
+    animation: brFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+  .br-table-head {
+    animation: brFadeUp 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.15s backwards;
+  }
+  .br-body-wrap {
+    animation: brFadeUp 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.2s backwards;
+  }
+
+  /* Floating + button pops in */
+  .br-fab {
+    animation: brFabPop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.3s backwards;
+  }
+
+  /* Report rows fade in with a short stagger (rows load after the API call) */
+  .br-row {
+    animation: brRowIn 0.4s ease-out backwards;
+  }
+  .br-row:nth-child(1)  { animation-delay: 0.05s; }
+  .br-row:nth-child(2)  { animation-delay: 0.09s; }
+  .br-row:nth-child(3)  { animation-delay: 0.13s; }
+  .br-row:nth-child(4)  { animation-delay: 0.17s; }
+  .br-row:nth-child(5)  { animation-delay: 0.21s; }
+  .br-row:nth-child(6)  { animation-delay: 0.25s; }
+  .br-row:nth-child(7)  { animation-delay: 0.29s; }
+  .br-row:nth-child(8)  { animation-delay: 0.33s; }
+  .br-row:nth-child(9)  { animation-delay: 0.37s; }
+  .br-row:nth-child(10) { animation-delay: 0.41s; }
+  .br-row:nth-child(n+11) { animation-delay: 0.45s; }
+
+  /* Generate pop-up and delete-confirm pop-up */
+  .br-modal-overlay {
+    animation: brOverlayIn 0.2s ease-out backwards;
+  }
+  .br-modal-box {
+    animation: brModalIn 0.3s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+
+  /* Toast and inline message */
+  .br-toast {
+    animation: brToastIn 0.35s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+  .br-msg {
+    animation: brMsgIn 0.25s ease-out backwards;
+  }
+
+  /* Respect users who prefer no motion */
+  @media (prefers-reduced-motion: reduce) {
+    .br-root .pro-card,
+    .br-table-head,
+    .br-body-wrap,
+    .br-fab,
+    .br-row,
+    .br-modal-overlay,
+    .br-modal-box,
+    .br-toast,
+    .br-msg {
+      animation: none !important;
+    }
+  }
+
   @media (max-width: 768px) {
     .pro-container.br-root { padding: 12px; }
     .br-root .pro-header h1 { font-size: 23px; }

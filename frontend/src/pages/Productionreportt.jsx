@@ -336,6 +336,81 @@ const CSS = `
   .util-good { color: #059669 !important; font-weight: 800; }
   .util-bad  { color: #dc2626 !important; font-weight: 800; }
 
+  /* ── PAGE ANIMATIONS ── */
+  @keyframes prtFadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes prtRowIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes prtKpiPop {
+    from { opacity: 0; transform: translateY(14px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes prtPillPop {
+    from { opacity: 0; transform: scale(0.9); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* Filter card slides up first */
+  .pr-filter-card {
+    animation: prtFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+
+  .pr-filter-card .pr-count-pill {
+    animation: prtPillPop 0.4s ease-out 0.35s backwards;
+  }
+
+  /* Section headings (also play when a table is switched on from "Show Tables") */
+  .pr-section-title {
+    animation: prtFadeUp 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.12s backwards;
+  }
+
+  /* KPI cards pop in one by one */
+  .pr-kpi {
+    animation: prtKpiPop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+  .pr-kpi:nth-child(1) { animation-delay: 0.22s; }
+  .pr-kpi:nth-child(2) { animation-delay: 0.30s; }
+  .pr-kpi:nth-child(3) { animation-delay: 0.38s; }
+  .pr-kpi:nth-child(4) { animation-delay: 0.46s; }
+  .pr-kpi:nth-child(5) { animation-delay: 0.54s; }
+
+  /* Table cards slide up (also play when a table is switched on) */
+  .pr-table-card {
+    animation: prtFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.2s backwards;
+  }
+
+  /* Table rows fade in with a short stagger */
+  .pr-table tbody tr {
+    animation: prtRowIn 0.4s ease-out backwards;
+  }
+  .pr-table tbody tr:nth-child(1)  { animation-delay: 0.30s; }
+  .pr-table tbody tr:nth-child(2)  { animation-delay: 0.34s; }
+  .pr-table tbody tr:nth-child(3)  { animation-delay: 0.38s; }
+  .pr-table tbody tr:nth-child(4)  { animation-delay: 0.42s; }
+  .pr-table tbody tr:nth-child(5)  { animation-delay: 0.46s; }
+  .pr-table tbody tr:nth-child(6)  { animation-delay: 0.50s; }
+  .pr-table tbody tr:nth-child(7)  { animation-delay: 0.54s; }
+  .pr-table tbody tr:nth-child(8)  { animation-delay: 0.58s; }
+  .pr-table tbody tr:nth-child(9)  { animation-delay: 0.62s; }
+  .pr-table tbody tr:nth-child(10) { animation-delay: 0.66s; }
+  .pr-table tbody tr:nth-child(n+11) { animation-delay: 0.70s; }
+
+  /* Respect users who prefer no motion */
+  @media (prefers-reduced-motion: reduce) {
+    .pr-filter-card,
+    .pr-filter-card .pr-count-pill,
+    .pr-section-title,
+    .pr-kpi,
+    .pr-table-card,
+    .pr-table tbody tr {
+      animation: none !important;
+    }
+  }
+
   @media (max-width: 768px) {
     .pr-header { margin: 8px 10px 0; padding: 10px 14px; top: 0; position: relative; }
     .pr-root { padding: 12px; }

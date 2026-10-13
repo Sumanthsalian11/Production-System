@@ -233,6 +233,41 @@ export default function WelcomeBoardGenerator() {
         box-shadow: 0 0 0 2px rgba(27,62,140,0.1);
         outline: none;
       }
+
+      /* ---------- PAGE ANIMATIONS ---------- */
+      @keyframes wbgFadeUp {
+        from { opacity: 0; transform: translateY(18px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes wbgGuestIn {
+        from { opacity: 0; transform: translateX(-14px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+
+      /* Form card slides up first, then the live preview card */
+      .wbg-page > div:nth-child(1) {
+        animation: wbgFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+      }
+      .wbg-page > div:nth-child(2) {
+        animation: wbgFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.18s backwards;
+      }
+
+      /* Guest cards slide in one by one (a newly added guest animates in too) */
+      .wbg-guest-card {
+        animation: wbgGuestIn 0.4s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+      }
+      .wbg-guest-card:nth-child(1) { animation-delay: 0.25s; }
+      .wbg-guest-card:nth-child(2) { animation-delay: 0.33s; }
+      .wbg-guest-card:nth-child(3) { animation-delay: 0.41s; }
+      .wbg-guest-card:nth-child(n+4) { animation-delay: 0.45s; }
+
+      /* Respect users who prefer no motion */
+      @media (prefers-reduced-motion: reduce) {
+        .wbg-page > div,
+        .wbg-guest-card {
+          animation: none !important;
+        }
+      }
     `;
 
     document.head.appendChild(style);
@@ -414,6 +449,7 @@ export default function WelcomeBoardGenerator() {
       ===================================================== */}
 
       <div
+        className="wbg-page"
         style={{
           width: "100%",
           maxWidth: 1200,

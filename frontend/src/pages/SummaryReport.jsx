@@ -683,6 +683,88 @@ export default function SummaryReport() {
           color: #000000 !important;
         }
 
+        /* ── PAGE ANIMATIONS ── */
+        @keyframes srFadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes srRowIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes srPillPop {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        /* Sections slide up one after the other:
+           1 = filters, 2 = customer + mill row, 3 = work order, 4 = planned vs achieved */
+        .summary-report-page > div:nth-of-type(1) {
+          animation: srFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+        }
+
+        .summary-report-page > div:nth-of-type(2) {
+          animation: srFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.15s backwards;
+        }
+
+        .summary-report-page > div:nth-of-type(3) {
+          animation: srFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.3s backwards;
+        }
+
+        .summary-report-page > div:nth-of-type(4) {
+          animation: srFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.45s backwards;
+        }
+
+        .summary-report-page .count-pill {
+          animation: srPillPop 0.4s ease-out 0.35s backwards;
+        }
+
+        /* Table rows fade in with a short stagger */
+        .summary-report-page tbody tr {
+          animation: srRowIn 0.4s ease-out backwards;
+        }
+
+        .summary-report-page tbody tr:nth-child(1)  { animation-delay: 0.05s; }
+        .summary-report-page tbody tr:nth-child(2)  { animation-delay: 0.09s; }
+        .summary-report-page tbody tr:nth-child(3)  { animation-delay: 0.13s; }
+        .summary-report-page tbody tr:nth-child(4)  { animation-delay: 0.17s; }
+        .summary-report-page tbody tr:nth-child(5)  { animation-delay: 0.21s; }
+        .summary-report-page tbody tr:nth-child(6)  { animation-delay: 0.25s; }
+        .summary-report-page tbody tr:nth-child(7)  { animation-delay: 0.29s; }
+        .summary-report-page tbody tr:nth-child(8)  { animation-delay: 0.33s; }
+        .summary-report-page tbody tr:nth-child(9)  { animation-delay: 0.37s; }
+        .summary-report-page tbody tr:nth-child(10) { animation-delay: 0.41s; }
+        .summary-report-page tbody tr:nth-child(n+11) { animation-delay: 0.45s; }
+
+        /* Respect users who prefer no motion */
+        @media (prefers-reduced-motion: reduce) {
+          .summary-report-page > div,
+          .summary-report-page .count-pill,
+          .summary-report-page tbody tr {
+            animation: none !important;
+          }
+        }
+
         @media (max-width: 992px) {
           .dual-table-row {
             flex-direction: column !important;

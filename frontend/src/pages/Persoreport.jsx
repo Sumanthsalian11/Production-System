@@ -145,6 +145,80 @@ const CSS = `
   }
   .rpt-muted { color: var(--hint); }
 
+  /* ---------- PAGE ANIMATIONS ---------- */
+  @keyframes rptFadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes rptRowIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes rptMetaPop {
+    from { opacity: 0; transform: translateY(14px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* Filter card, then meta bar slide in */
+  .rpt-filter-card {
+    animation: rptFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+  }
+  .rpt-meta-bar {
+    animation: rptMetaPop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.15s backwards;
+  }
+
+  /* Section labels and table cards slide up one after the other */
+  .rpt-section-label {
+    animation: rptFadeUp 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.25s backwards;
+  }
+  .rpt-table-wrap {
+    animation: rptFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.3s backwards;
+  }
+  .rpt-body > .rpt-section-label:nth-of-type(2),
+  .rpt-body > .rpt-section-label:nth-of-type(2) + .rpt-table-wrap {
+    animation-delay: 0.4s;
+  }
+  .rpt-body > .rpt-section-label:nth-of-type(3),
+  .rpt-body > .rpt-section-label:nth-of-type(3) + .rpt-table-wrap {
+    animation-delay: 0.5s;
+  }
+
+  /* Table rows fade in with a short stagger (body rows only, totals stay put) */
+  .rpt-table tbody tr {
+    animation: rptRowIn 0.4s ease-out backwards;
+  }
+  .rpt-table tbody tr:nth-child(1)  { animation-delay: 0.35s; }
+  .rpt-table tbody tr:nth-child(2)  { animation-delay: 0.39s; }
+  .rpt-table tbody tr:nth-child(3)  { animation-delay: 0.43s; }
+  .rpt-table tbody tr:nth-child(4)  { animation-delay: 0.47s; }
+  .rpt-table tbody tr:nth-child(5)  { animation-delay: 0.51s; }
+  .rpt-table tbody tr:nth-child(6)  { animation-delay: 0.55s; }
+  .rpt-table tbody tr:nth-child(7)  { animation-delay: 0.59s; }
+  .rpt-table tbody tr:nth-child(8)  { animation-delay: 0.63s; }
+  .rpt-table tbody tr:nth-child(9)  { animation-delay: 0.67s; }
+  .rpt-table tbody tr:nth-child(10) { animation-delay: 0.71s; }
+  .rpt-table tbody tr:nth-child(n+11) { animation-delay: 0.75s; }
+
+  /* Respect users who prefer no motion, and keep print clean */
+  @media (prefers-reduced-motion: reduce) {
+    .rpt-filter-card,
+    .rpt-meta-bar,
+    .rpt-section-label,
+    .rpt-table-wrap,
+    .rpt-table tbody tr {
+      animation: none !important;
+    }
+  }
+  @media print {
+    .rpt-filter-card,
+    .rpt-meta-bar,
+    .rpt-section-label,
+    .rpt-table-wrap,
+    .rpt-table tbody tr {
+      animation: none !important;
+    }
+  }
+
   @media (max-width: 768px) {
     .rpt-root { padding: 12px; }
     .rpt-header { border-radius: 12px; }

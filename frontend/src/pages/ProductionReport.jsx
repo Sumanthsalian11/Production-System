@@ -886,6 +886,114 @@ function ProductionReport() {
           letter-spacing: -0.5px;
         }
 
+        /* ── PAGE ANIMATIONS ── */
+        @keyframes prFadeUp {
+          from {
+            opacity: 0;
+            transform: translateY(18px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes prRowIn {
+          from {
+            opacity: 0;
+            transform: translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes prKpiPop {
+          from {
+            opacity: 0;
+            transform: translateY(14px) scale(0.94);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        /* Sections slide up one after the other:
+           1 = filters, 2 = KPI row, 3-9 = the seven table cards */
+        .production-report-universe > div:nth-of-type(1) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(2) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.12s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(3) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.24s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(4) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.34s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(5) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.44s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(6) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.54s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(7) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.64s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(8) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.74s backwards;
+        }
+
+        .production-report-universe > div:nth-of-type(9) {
+          animation: prFadeUp 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.84s backwards;
+        }
+
+        /* KPI tiles pop in one by one */
+        .kpi-tile-3d {
+          animation: prKpiPop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+        }
+
+        .kpi-tile-3d:nth-child(1) { animation-delay: 0.20s; }
+        .kpi-tile-3d:nth-child(2) { animation-delay: 0.28s; }
+        .kpi-tile-3d:nth-child(3) { animation-delay: 0.36s; }
+        .kpi-tile-3d:nth-child(4) { animation-delay: 0.44s; }
+
+        /* Table rows fade in with a short stagger */
+        .production-report-universe tbody tr {
+          animation: prRowIn 0.4s ease-out backwards;
+        }
+
+        .production-report-universe tbody tr:nth-child(1)  { animation-delay: 0.30s; }
+        .production-report-universe tbody tr:nth-child(2)  { animation-delay: 0.34s; }
+        .production-report-universe tbody tr:nth-child(3)  { animation-delay: 0.38s; }
+        .production-report-universe tbody tr:nth-child(4)  { animation-delay: 0.42s; }
+        .production-report-universe tbody tr:nth-child(5)  { animation-delay: 0.46s; }
+        .production-report-universe tbody tr:nth-child(6)  { animation-delay: 0.50s; }
+        .production-report-universe tbody tr:nth-child(7)  { animation-delay: 0.54s; }
+        .production-report-universe tbody tr:nth-child(8)  { animation-delay: 0.58s; }
+        .production-report-universe tbody tr:nth-child(9)  { animation-delay: 0.62s; }
+        .production-report-universe tbody tr:nth-child(10) { animation-delay: 0.66s; }
+        .production-report-universe tbody tr:nth-child(n+11) { animation-delay: 0.70s; }
+
+        /* Respect users who prefer no motion */
+        @media (prefers-reduced-motion: reduce) {
+          .production-report-universe > div,
+          .kpi-tile-3d,
+          .production-report-universe tbody tr {
+            animation: none !important;
+          }
+        }
+
         @media (max-width: 768px) {
           .production-report-universe {
             padding: 12px;

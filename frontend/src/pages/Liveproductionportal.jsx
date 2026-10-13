@@ -730,7 +730,164 @@ function GlobalStyles() {
       .drill-filters input.select-3d { width: 132px; }
       .drill-filter-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
+      /* ================= PAGE + CHART ANIMATIONS ================= */
+      @keyframes lpvDrop   { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+      @keyframes lpvRise   { from { opacity: 0; transform: translateY(26px) scale(0.985); } to { opacity: 1; transform: none; } }
+      @keyframes lpvPop    { from { opacity: 0; transform: translateY(14px) scale(0.9); } to { opacity: 1; transform: none; } }
+      @keyframes lpvSlideX { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
+      @keyframes lpvMedal  { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: none; } }
+      @keyframes lpvValue  { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+      @keyframes lpvGrowX  { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes lpvSheen  { from { left: -60%; } to { left: 140%; } }
+      @keyframes lpvRow    { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+      @keyframes lpvFade   { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes lpvBarUp  { from { transform: scaleY(0); opacity: 0.2; } to { transform: scaleY(1); opacity: 1; } }
+      @keyframes lpvLineGrow { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
+      @keyframes lpvReveal {
+        from { clip-path: inset(-20% 100% -20% -2%); }
+        to   { clip-path: inset(-20% -2% -20% -2%); }
+      }
+      @keyframes lpvDot    { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+      @keyframes lpvSlice  { from { opacity: 0; transform: rotate(-120deg) scale(0.4); } to { opacity: 1; transform: none; } }
+      @keyframes lpvDrawerIn { from { transform: translateX(100%); } to { transform: none; } }
+      @keyframes lpvDrillIn  { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+      /* ---- header + filters ---- */
+      .portal-header-3d { animation: lpvDrop 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) backwards; }
+      .filters-row .filter-field { animation: lpvDrop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.35s backwards; }
+      .filters-row > .filter-field:nth-child(1) { animation-delay: 0.10s; }
+      .filters-row > .filter-field:nth-child(2) { animation-delay: 0.16s; }
+      .filters-row > .filter-field:nth-child(3) { animation-delay: 0.22s; }
+      .filters-row > .filter-field:nth-child(4) { animation-delay: 0.28s; }
+      .filters-row > .filter-field:nth-child(5) { animation-delay: 0.34s; }
+      .filters-row > .filter-field:nth-child(6) { animation-delay: 0.40s; }
+      .tab-btn-3d { animation: lpvPop 0.4s cubic-bezier(0.22, 0.8, 0.3, 1) 0.2s backwards; }
+      .tab-btn-3d:nth-child(2) { animation-delay: 0.26s; }
+      .tab-btn-3d:nth-child(3) { animation-delay: 0.32s; }
+      .tab-btn-3d:nth-child(4) { animation-delay: 0.38s; }
+      .tab-btn-3d:nth-child(n+5) { animation-delay: 0.44s; }
+
+      /* ---- KPI cards: pop in, accent bar grows, icon spins in, sheen sweeps across ---- */
+      .kpi-card-3d { animation: lpvPop 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) backwards; }
+      .kpi-card-3d:nth-child(1) { animation-delay: 0.15s; }
+      .kpi-card-3d:nth-child(2) { animation-delay: 0.24s; }
+      .kpi-card-3d:nth-child(3) { animation-delay: 0.33s; }
+      .kpi-card-3d:nth-child(4) { animation-delay: 0.42s; }
+      .kpi-card-3d:nth-child(5) { animation-delay: 0.51s; }
+      .kpi-card-3d::before { transform-origin: left; animation: lpvGrowX 0.9s cubic-bezier(0.22, 0.8, 0.3, 1) 0.5s backwards; }
+      .kpi-card-3d::after {
+        content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+        background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+        transform: skewX(-20deg); pointer-events: none;
+        animation: lpvSheen 1.2s ease-out 0.7s backwards;
+      }
+      .kpi-medallion-3d { animation: lpvMedal 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s backwards; }
+      .kpi-value { animation: lpvValue 0.65s ease-out 0.5s backwards; }
+
+      /* ---- panels rise one after another (replays whenever you switch section) ---- */
+      .panel-3d { animation: lpvRise 0.65s cubic-bezier(0.22, 0.8, 0.3, 1) 0.2s backwards; }
+      .panel-grid-2 > .panel-3d:nth-child(1), .panel-grid-3 > .panel-3d:nth-child(1) { animation-delay: 0.20s; }
+      .panel-grid-2 > .panel-3d:nth-child(2), .panel-grid-3 > .panel-3d:nth-child(2) { animation-delay: 0.32s; }
+      .panel-grid-2 > .panel-3d:nth-child(3) { animation-delay: 0.44s; }
+      .panel-grid-2 > .panel-3d:nth-child(4) { animation-delay: 0.56s; }
+      .panel-icon-badge { animation: lpvMedal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s backwards; }
+
+      /* ---- small cards + table rows ---- */
+      .mini-stat-box { animation: lpvPop 0.5s cubic-bezier(0.22, 0.8, 0.3, 1) 0.3s backwards; }
+      .mini-stat-box:nth-child(2) { animation-delay: 0.38s; }
+      .mini-stat-box:nth-child(3) { animation-delay: 0.46s; }
+      .mini-stat-box:nth-child(4) { animation-delay: 0.54s; }
+      .pipeline-card { animation: lpvSlideX 0.55s cubic-bezier(0.22, 0.8, 0.3, 1) 0.4s backwards; }
+      .pipeline-card:nth-child(2) { animation-delay: 0.48s; }
+      .pipeline-card:nth-child(3) { animation-delay: 0.56s; }
+      .pipeline-card:nth-child(4) { animation-delay: 0.64s; }
+      .pipeline-card:nth-child(n+5) { animation-delay: 0.72s; }
+      .table-3d tbody tr { animation: lpvRow 0.45s ease-out 0.4s backwards; }
+      .table-3d tbody tr:nth-child(2)  { animation-delay: 0.44s; }
+      .table-3d tbody tr:nth-child(3)  { animation-delay: 0.48s; }
+      .table-3d tbody tr:nth-child(4)  { animation-delay: 0.52s; }
+      .table-3d tbody tr:nth-child(5)  { animation-delay: 0.56s; }
+      .table-3d tbody tr:nth-child(6)  { animation-delay: 0.60s; }
+      .table-3d tbody tr:nth-child(7)  { animation-delay: 0.64s; }
+      .table-3d tbody tr:nth-child(8)  { animation-delay: 0.68s; }
+      .table-3d tbody tr:nth-child(n+9) { animation-delay: 0.72s; }
+
+      /* ---- drawers / drill-down pop-ups ---- */
+      .drawer-overlay, .drill-overlay { animation: lpvFade 0.25s ease-out backwards; }
+      .drawer-content { animation: lpvDrawerIn 0.4s cubic-bezier(0.22, 0.8, 0.3, 1) backwards; }
+      .drill-panel { animation: lpvDrillIn 0.4s cubic-bezier(0.22, 0.8, 0.3, 1) backwards; }
+
+      /* ========== CHARTS (targets the chart SVGs by structure; icons are excluded) ========== */
+
+      /* grid lines + baseline draw across */
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > line:not([stroke-dasharray]),
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > line {
+        transform-box: fill-box; transform-origin: 0 50%;
+        animation: lpvLineGrow 0.8s ease-out 0.15s backwards;
+      }
+
+      /* axis + category labels fade in */
+      .panel-3d svg:not([viewBox="0 0 24 24"]) text {
+        animation: lpvFade 0.6s ease-out 0.5s backwards;
+      }
+
+      /* BAR CHARTS: every bar grows up from the baseline, left to right */
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > g > rect {
+        transform-box: fill-box; transform-origin: 50% 100%;
+        animation: lpvBarUp 0.9s cubic-bezier(0.3, 1.25, 0.5, 1) 0.95s backwards;
+      }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(1)  > g > rect { animation-delay: 0.35s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(2)  > g > rect { animation-delay: 0.41s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(3)  > g > rect { animation-delay: 0.47s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(4)  > g > rect { animation-delay: 0.53s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(5)  > g > rect { animation-delay: 0.59s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(6)  > g > rect { animation-delay: 0.65s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(7)  > g > rect { animation-delay: 0.71s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(8)  > g > rect { animation-delay: 0.77s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(9)  > g > rect { animation-delay: 0.83s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(10) > g > rect { animation-delay: 0.89s; }
+
+      /* DONUT CHARTS: slices spin + scale in around the donut centre, one by one */
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > path:not([fill="none"]) {
+        transform-box: view-box; transform-origin: 50% 50%;
+        animation: lpvSlice 0.9s cubic-bezier(0.22, 0.9, 0.3, 1) 0.3s backwards;
+      }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(2) > path:not([fill="none"]) { animation-delay: 0.42s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(3) > path:not([fill="none"]) { animation-delay: 0.54s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(4) > path:not([fill="none"]) { animation-delay: 0.66s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(5) > path:not([fill="none"]) { animation-delay: 0.78s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g:nth-of-type(n+6) > path:not([fill="none"]) { animation-delay: 0.9s; }
+
+      /* LINE / AREA CHARTS: the line (and its area fill) is drawn left to right,
+         then the data points pop in along it */
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > path[fill="none"],
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > path {
+        animation: lpvReveal 1.4s cubic-bezier(0.4, 0, 0.2, 1) 0.35s backwards;
+      }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle {
+        transform-box: fill-box; transform-origin: center;
+        animation: lpvDot 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 1.6s backwards;
+      }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(1)  { animation-delay: 0.45s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(2)  { animation-delay: 0.55s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(3)  { animation-delay: 0.65s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(4)  { animation-delay: 0.75s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(5)  { animation-delay: 0.85s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(6)  { animation-delay: 0.95s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(7)  { animation-delay: 1.05s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(8)  { animation-delay: 1.15s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(9)  { animation-delay: 1.25s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(10) { animation-delay: 1.35s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(11) { animation-delay: 1.45s; }
+      .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(12) { animation-delay: 1.55s; }
+
+      /* ---- respect reduced motion + keep print clean ---- */
+      @media (prefers-reduced-motion: reduce) {
+        .portal-universe *, .portal-universe *::before, .portal-universe *::after,
+        .drill-overlay, .drill-panel { animation: none !important; }
+      }
       @media print {
+        .portal-universe *, .portal-universe *::before, .portal-universe *::after { animation: none !important; }
         .no-print { display: none !important; }
       }
     `}</style>
@@ -3482,10 +3639,123 @@ export default function LiveProductionPortal() {
     return (
       <div className="portal-universe" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <GlobalStyles />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 50, height: 50, border: "4px solid #e2e8f0", borderTop: "4px solid #0284c7", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-          <p style={{ fontWeight: 800, color: COLORS.ink, fontSize: 15 }}>Loading…</p>
-          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        <style>{`
+          .lpx-card {
+            display: flex; flex-direction: column; align-items: center; gap: 18px;
+            min-width: 320px; padding: 36px 44px; border-radius: 24px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.18), inset 0 2px 0 #ffffff;
+            animation: lpxCardIn 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
+          }
+          @keyframes lpxCardIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.96); }
+            to   { opacity: 1; transform: none; }
+          }
+          @keyframes lpxSpin { to { transform: rotate(360deg); } }
+
+          /* ---- orbit loader ---- */
+          .lpx-loader { position: relative; width: 120px; height: 120px; }
+          .lpx-ring { position: absolute; border-radius: 50%; border: 4px solid transparent; }
+          .lpx-ring-outer {
+            inset: 0;
+            border-top-color: #0284c7; border-right-color: #6366f1;
+            animation: lpxSpin 1.3s linear infinite;
+          }
+          .lpx-ring-inner {
+            inset: 16px;
+            border-bottom-color: #10b981; border-left-color: #f59e0b;
+            animation: lpxSpin 1.8s linear infinite reverse;
+          }
+          .lpx-orbit { position: absolute; inset: 0; animation: lpxSpin 3.2s linear infinite; }
+          .lpx-dot {
+            position: absolute; left: 50%; top: -5px; margin-left: -5px;
+            width: 10px; height: 10px; border-radius: 50%;
+            transform-origin: 5px 65px;
+          }
+          .lpx-dot-1 { background: #0284c7; box-shadow: 0 0 10px #0284c7; transform: rotate(0deg); }
+          .lpx-dot-2 { background: #10b981; box-shadow: 0 0 10px #10b981; transform: rotate(120deg); }
+          .lpx-dot-3 { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; transform: rotate(240deg); }
+          .lpx-core {
+            position: absolute; inset: 30px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; color: #ffffff;
+            background: linear-gradient(135deg, #0284c7, #6366f1);
+            box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.6);
+            animation: lpxPulse 1.6s ease-in-out infinite;
+          }
+          @keyframes lpxPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+          /* ---- title + cycling status messages (pure CSS) ---- */
+          .lpx-title { margin: 0; font-size: 17px; font-weight: 900; color: #0f172a; letter-spacing: -0.3px; }
+          .lpx-msgs { position: relative; height: 18px; width: 260px; text-align: center; }
+          .lpx-msgs span {
+            position: absolute; left: 0; right: 0;
+            font-size: 12.5px; font-weight: 700; color: #64748b;
+            opacity: 0; animation: lpxMsg 10s linear infinite;
+          }
+          .lpx-msgs span:nth-child(2) { animation-delay: 2.5s; }
+          .lpx-msgs span:nth-child(3) { animation-delay: 5s; }
+          .lpx-msgs span:nth-child(4) { animation-delay: 7.5s; }
+          @keyframes lpxMsg {
+            0%        { opacity: 0; transform: translateY(8px); }
+            4%, 22%   { opacity: 1; transform: translateY(0); }
+            26%, 100% { opacity: 0; transform: translateY(-8px); }
+          }
+
+          /* ---- dancing mini bar chart ---- */
+          .lpx-bars { display: flex; align-items: flex-end; gap: 6px; height: 38px; }
+          .lpx-bars span {
+            width: 9px; height: 100%; border-radius: 4px 4px 0 0;
+            background: linear-gradient(180deg, #38bdf8, #0284c7);
+            transform-origin: bottom;
+            animation: lpxBar 1.1s ease-in-out infinite;
+          }
+          @keyframes lpxBar { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+
+          /* ---- sliding progress bar ---- */
+          .lpx-progress { width: 260px; height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+          .lpx-progress span {
+            display: block; height: 100%; width: 40%; border-radius: 999px;
+            background: linear-gradient(90deg, #0284c7, #6366f1, #10b981);
+            animation: lpxSlide 1.4s ease-in-out infinite;
+          }
+          @keyframes lpxSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+
+          @media (prefers-reduced-motion: reduce) {
+            .lpx-card, .lpx-card * { animation: none !important; }
+            .lpx-msgs span:first-child { opacity: 1 !important; }
+          }
+        `}</style>
+
+        <div className="lpx-card">
+          <div className="lpx-loader">
+            <div className="lpx-ring lpx-ring-outer" />
+            <div className="lpx-ring lpx-ring-inner" />
+            <div className="lpx-orbit">
+              <span className="lpx-dot lpx-dot-1" />
+              <span className="lpx-dot lpx-dot-2" />
+              <span className="lpx-dot lpx-dot-3" />
+            </div>
+            <div className="lpx-core"><Factory size={26} /></div>
+          </div>
+
+          <h2 className="lpx-title">Production Dashboard</h2>
+
+          <div className="lpx-msgs">
+            <span>Fetching production log…</span>
+            <span>Reading reel register…</span>
+            <span>Syncing customer orders…</span>
+            <span>Building charts…</span>
+          </div>
+
+          <div className="lpx-bars">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <span key={i} style={{ animationDelay: `${i * 0.12}s` }} />
+            ))}
+          </div>
+
+          <div className="lpx-progress"><span /></div>
         </div>
       </div>
     );
