@@ -1405,7 +1405,7 @@ const DRILL_HINT = "Double-click to view records";
    light highlight band plus a floating tooltip card listing every visible
    series' value for that category. Double-clicking a bar calls
    onDrill(row, seriesKey); double-clicking the band calls onDrill(row, null). */
-function BarsChart({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill }) {
+function BarsChart({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill, askOnDrill = false }) {
   const containerRef = useRef(null);
   const menuRef = useRef(null);
   const [menu, setMenu] = useState(null);
@@ -1567,7 +1567,7 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
                 onMouseLeave={hideHover}
                 onDoubleClick={(e) => {
                   if (!onDrill) return;
-                  if (series.length > 1) {
+                  if (askOnDrill && series.length > 1) {
                     const r = containerRef.current.getBoundingClientRect();
                     setHover(null);
                     setMenu({ row, x: e.clientX - r.left, y: e.clientY - r.top });
@@ -3181,6 +3181,7 @@ function UtilizationTab({ data }) {
         <BarsChart
           data={chartRows}
           onDrill={(row, key) => openDrill({ kind: "machine", value: row.machine, metric: "hours", statusKey: key })}
+          askOnDrill
           categoryKey="machine"
           stacked
           series={[
