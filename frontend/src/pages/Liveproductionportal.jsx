@@ -1376,6 +1376,20 @@ const DRILL_HINT = "Double-click to view records";
    onDrill(row, seriesKey); double-clicking the band calls onDrill(row, null). */
 function BarsChart({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill }) {
   const containerRef = useRef(null);
+  const menuRef = useRef(null);
+  const [menu, setMenu] = useState(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e) => {
+      if (e.type === "keydown" ? e.key === "Escape" : !menuRef.current?.contains(e.target)) setMenu(null);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [menu]);
   const [hover, setHover] = useState(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [expandedLabels, setExpandedLabels] = useState(() => new Set());
@@ -1520,7 +1534,16 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
                 onMouseEnter={(e) => showHover(e, ci, row)}
                 onMouseMove={(e) => showHover(e, ci, row)}
                 onMouseLeave={hideHover}
-                onDoubleClick={() => onDrill && onDrill(row, null)}
+                onDoubleClick={(e) => {
+                  if (!onDrill) return;
+                  if (series.length > 1) {
+                    const r = containerRef.current.getBoundingClientRect();
+                    setHover(null);
+                    setMenu({ row, x: e.clientX - r.left, y: e.clientY - r.top });
+                  } else {
+                    onDrill(row, null);
+                  }
+                }}
                 style={{ cursor: "pointer" }}
               >
                 <rect x={bandX - bandW * 0.19} y={margin.top} width={groupW + bandW * 0.38} height={plotH} fill="#94a3b8" opacity={isHovered ? 0.16 : 0} rx={6} />
@@ -1534,14 +1557,7 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
                   cumulative += raw;
                   const color = categoryColors ? categoryColors[ci] : sr.color;
                   return (
-                    <g
-                      key={sr.key}
-                      onDoubleClick={(e) => {
-                        if (!onDrill) return;
-                        e.stopPropagation();
-                        onDrill(row, sr.key);
-                      }}
-                    >
+                    <g key={sr.key}>
                       <rect x={x0} y={yTop} width={barW} height={Math.max(yBase - yTop, 0)} fill={color} />
                     </g>
                   );
@@ -1569,6 +1585,50 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
         </svg>
         <ChartTooltip hover={hover} />
       </div>
+      {menu && (
+        <div
+          ref={menuRef}
+          style={{
+            position: "absolute",
+            left: Math.max(0, Math.min(menu.x, (containerWidth || 400) - 220)),
+            top: menu.y,
+            zIndex: 40,
+            minWidth: 200,
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            boxShadow: "0 12px 30px rgba(15, 23, 42, 0.22)",
+            padding: 8,
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748b", padding: "4px 8px 6px", textTransform: "uppercase" }}>
+            {String(menu.row[categoryKey])} — view records for
+          </div>
+          <button
+            type="button"
+            className="ms-option"
+            style={{ width: "100%", border: "none", background: "none", textAlign: "left" }}
+            onClick={() => { const r = menu.row; setMenu(null); onDrill(r, null); }}
+          >
+            <b>All records</b>
+          </button>
+          {series.map((sr) => (
+            <button
+              key={sr.key}
+              type="button"
+              className="ms-option"
+              style={{ width: "100%", border: "none", background: "none", textAlign: "left", justifyContent: "space-between" }}
+              onClick={() => { const r = menu.row; setMenu(null); onDrill(r, sr.key); }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: sr.color }} />
+                {sr.name}
+              </span>
+              <span style={{ color: "#64748b" }}>{fmtValue(Number(menu.row[sr.key]) || 0)}{unit}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -2424,6 +2484,27 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "hours", label: "Hours" },
         { key: "priority", label: "Priority" },
         { key: "location", label: "Location" },
+        { key: "slNo", label: "SL No" },
+        { key: "woDate", label: "WO Date" },
+        { key: "productType", label: "Product Type" },
+        { key: "job", label: "Job Description" },
+        { key: "colorFront", label: "Color Front" },
+        { key: "colorBack", label: "Color Back" },
+        { key: "inches", label: "Inches" },
+        { key: "slit", label: "Paper Slit" },
+        { key: "paperDesc", label: "Paper Description" },
+        { key: "paperGroup", label: "Paper Group Description" },
+        { key: "mill", label: "Mill" },
+        { key: "gsm", label: "GSM" },
+        { key: "paperSize", label: "Paper Size" },
+        { key: "paperQty", label: "Paper Qty" },
+        { key: "wastePct", label: "Waste %" },
+        { key: "jobSize", label: "Job Size" },
+        { key: "impFront", label: "IMP Front" },
+        { key: "impBack", label: "IMP Back" },
+        { key: "remarks", label: "Remarks" },
+        { key: "duration", label: "Duration", sortable: false },
+        { key: "status", label: "Status" },
         { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
         { key: "user", label: "Planning User" },
       ],
@@ -3580,6 +3661,9 @@ function BookingTab({ filters }) {
       const m = machMap.get(mName);
       const endMs = new Date(s.endTime).getTime();
       const startMs = new Date(s.startTime).getTime();
+      const mats = s.materials || [];
+      const joinVals = (arr) => arr.filter((v) => v !== undefined && v !== null && v !== "").join(", ") || "-";
+      const md = s.machinesDetail || [];
       rows.push({
         wo: String(s.workOrderId?.efiWoNumber || "-"),
         customer: String(cust),
@@ -3595,6 +3679,31 @@ function BookingTab({ filters }) {
         location: s.location || "-",
         userLocations: (Array.isArray(s.userLocations) ? s.userLocations.filter(Boolean) : []).join(", "),
         user: s.planningUser || "-",
+        slNo: s.slNo ?? "-",
+        woDate: s.workOrderId?.woDate ? dateOnly(s.workOrderId.woDate) : "-",
+        productType: s.productType ?? "-",
+        job: s.productName ?? "-",
+        colorFront: s.colorFront ?? "-",
+        colorBack: s.colorBack ?? "-",
+        inches: s.inches || joinVals(md.map((x) => x.inches)),
+        slit: s.slitNumber || joinVals(md.map((x) => x.slitNumber)),
+        paperDesc: joinVals(mats.map((m) => m.materialDescription)),
+        paperGroup: joinVals(mats.map((m) => m.materialGroupDescription)),
+        mill: joinVals(mats.map((m) => m.mill)),
+        gsm: joinVals(mats.map((m) => m.gsm)),
+        paperSize: joinVals(mats.map((m) => m.paperSize)),
+        paperQty: joinVals(mats.map((m) => m.paperQty)),
+        wastePct: s.wasteQty ?? "-",
+        jobSize: s.jobSize ?? "-",
+        impFront: s.impFront ?? "-",
+        impBack: s.impBack ?? "-",
+        remarks: s.remarks ?? "-",
+        duration: (() => {
+          const mins = Math.round((endMs - startMs) / 60000);
+          const h = Math.floor(mins / 60), m = mins % 60;
+          return h === 0 ? `${m} mins` : m === 0 ? `${h} hrs` : `${h} hrs ${m} mins`;
+        })(),
+        status: "SCHEDULED",
       });
       m.jobs += 1;
       m.imp += toNum(s.totalImp);
@@ -4163,7 +4272,7 @@ export default function LiveProductionPortal() {
           </div>
           {tabs.some((id) => id !== "overview") && (
             <div className="no-print" style={{ gridColumn: "2 / -1", display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 6, minHeight: 32 }}>
-              {TABS.filter((t) => tabs.includes(t.id) && t.id !== "overview").map((t) => (
+              {TABS.filter((t) => tabs.includes(t.id)).map((t) => (
                 <button
                   key={t.id}
                   type="button"
