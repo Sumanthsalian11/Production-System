@@ -32,6 +32,13 @@ const COLORS = {
   violet: "#6366f1",
 };
 const MILL_COLORS = [COLORS.indigo, COLORS.green, COLORS.amber, COLORS.violet, COLORS.rose, COLORS.steel];
+const UNIQUE_COLORS = [
+  "#0284c7", "#10b981", "#f59e0b", "#6366f1", "#f43f5e", "#0d9488",
+  "#a855f7", "#ea580c", "#84cc16", "#06b6d4", "#db2777", "#475569",
+  "#ca8a04", "#7c3aed", "#16a34a", "#dc2626", "#0ea5e9", "#be185d",
+];
+const uniqueColor = (i) =>
+  i < UNIQUE_COLORS.length ? UNIQUE_COLORS[i] : `hsl(${Math.round((i * 137.508) % 360)}, 65%, 50%)`;
 
 const ACCENTS = {
   blue: { cls: "blue", grad: "linear-gradient(135deg, #0284c7, #38bdf8)" },
@@ -2360,6 +2367,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "machine", label: "Machines" },
         { key: "activity", label: "Activities", split: true },
         { key: "priority", label: "Priority" },
+        { key: "userLocations", label: "User Locations", split: true, alwaysShow: true },
       ],
       dateKey: "startDate",
       columns: [
@@ -2374,6 +2382,7 @@ function buildDrill(spec, data, realRows, reelRows) {
         { key: "hours", label: "Hours" },
         { key: "priority", label: "Priority" },
         { key: "location", label: "Location" },
+        { key: "userLocations", label: "User Location(s)", render: (r) => r.userLocations || "-" },
         { key: "user", label: "Planning User" },
       ],
       rows: spec.rows || [],
@@ -3468,6 +3477,7 @@ function BookingTab({ filters }) {
   const [masterCount, setMasterCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const custFilter = useSeriesFilter();
+  const machFilter = useSeriesFilter();
   const openDrill = useDrill();
 
   useEffect(() => {
@@ -3539,6 +3549,7 @@ function BookingTab({ filters }) {
         hours: Number(((endMs - startMs) / 3600000).toFixed(1)),
         priority: s.priority || "-",
         location: s.location || "-",
+        userLocations: (Array.isArray(s.userLocations) ? s.userLocations.filter(Boolean) : []).join(", "),
         user: s.planningUser || "-",
       });
       m.jobs += 1;
@@ -3564,9 +3575,10 @@ function BookingTab({ filters }) {
   const fmtDT = (ms) => (ms ? new Date(ms).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
   const visibleCust = view.customers.filter((c) => !custFilter.hidden.has(c.name));
   const drill = (title, pick) => openDrill({ kind: "booking", title, rows: pick ? view.rows.filter(pick) : view.rows });
-  const donutData = view.machines
+  const allDonut = view.machines
     .filter((m) => m.imp > 0)
-    .map((m, i) => ({ name: m.machine, value: m.imp, color: MILL_COLORS[i % MILL_COLORS.length] }));
+    .map((m, i) => ({ name: m.machine, value: m.imp, color: uniqueColor(i) }));
+  const donutData = allDonut.filter((d) => !machFilter.hidden.has(d.name));
 
   const columns = [
     { key: "machine", label: "Machine Name" },
@@ -3601,7 +3613,7 @@ function BookingTab({ filters }) {
         </Panel>
         <Panel title="Machine Impression Load (IMP) Share" icon={Gauge} iconGrad={ACCENTS.amber.grad} sub="Share of total scheduled impressions">
           <DonutChart data={donutData} height={260} onDrill={(s) => drill(`Machine — ${s.name}`, (r) => r.machine === s.name)} />
-          <PieLegend items={donutData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={new Set()} toggle={() => {}} />
+          <PieLegend items={allDonut.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={machFilter.hidden} toggle={machFilter.toggle} />
         </Panel>
       </div>
     </div>
@@ -3622,7 +3634,7 @@ const TABS = [
 ];
 
 export default function LiveProductionPortal() {
-  const [tabs, setTabs] = useState(["overview", "booking"]); // sections currently ticked — only these are shown
+  const [tabs, setTabs] = useState(["overview"]); // sections currently ticked — only these are shown
   const [search, setSearch] = useState("");
   const [drawerWO, setDrawerWO] = useState(null);
   const [trackerWO, setTrackerWO] = useState(null);
