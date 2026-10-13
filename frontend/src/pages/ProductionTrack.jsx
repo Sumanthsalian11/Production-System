@@ -149,7 +149,11 @@ const formatHMS = (m) => {
   const sec = total % 60;
   return `${h}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
-
+// ---- dynamic machine-hours status helpers ----
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+const isProductionStatus = (s) => ["production", "working"].includes(normStatus(s));
+const statusColLabel = (label) =>
+  /time$/i.test(label.trim()) ? label.trim() : `${label.trim()} Time`;
 function ProductionRealDashboard() {
 
   const [workOrderDetails, setWorkOrderDetails] = useState(null);
@@ -1073,6 +1077,19 @@ function ProductionRealDashboard() {
 
     return "All Dates";
   };
+// dynamic Machine Hours columns = every status in the master (except Production) + any extra found in records
+const statusColumns = useMemo(() => {
+  const seen = new Map();
+  machineStatuses.forEach((s) => {
+    const k = normStatus(s.statusName);
+    if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, s.statusName.trim());
+  });
+  productionList.forEach((item) => {
+    const k = normStatus(item.machineStatus);
+    if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(item.machineStatus).trim());
+  });
+  return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
+}, [machineStatuses, productionList]);
 
   const buildProductionSummary = () => {
 
@@ -1104,9 +1121,7 @@ function ProductionRealDashboard() {
               dayEntered: false,
               nightEntered: false,
               prodMins: 0,
-              idleMins: 0,
-              breakdownMins: 0,
-              maintMins: 0,
+              statusMins: {},
               dayRemarks: new Set(),
               nightRemarks: new Set()
             });
@@ -1156,17 +1171,13 @@ function ProductionRealDashboard() {
         const remarks = item.remarks?.trim();
         const shift = String(item.shift || "").toLowerCase();
 
-        // machine hours by status (production / idle / breakdown / maintenance)
+        // machine hours by status (production + any dynamic status)
         const durMins = getDurationMins(item.productionFromTime, item.productionToTime);
-        const statusKey = String(item.machineStatus || "").toLowerCase();
-        if (statusKey === "production" || statusKey === "working") {
+        if (isProductionStatus(item.machineStatus)) {
           reportRow.prodMins += durMins;
-        } else if (statusKey === "idle" || statusKey === "idle time") {
-          reportRow.idleMins += durMins;
-        } else if (statusKey.includes("break")) {
-          reportRow.breakdownMins += durMins;
-        } else if (statusKey.includes("maint")) {
-          reportRow.maintMins += durMins;
+        } else {
+          const k = normStatus(item.machineStatus);
+          if (k) reportRow.statusMins[k] = (reportRow.statusMins[k] || 0) + durMins;
         }
 
         if (shift === "day") {
@@ -1201,7 +1212,9 @@ function ProductionRealDashboard() {
         dayRemarks: Array.from(row.dayRemarks).join(", ") || "-",
         nightRemarks: Array.from(row.nightRemarks).join(", ") || "-",
         grandTotal: row.dayQty + row.nightQty,
-        totalMins: row.prodMins + row.idleMins + row.breakdownMins + row.maintMins
+        totalMins:
+          row.prodMins +
+          Object.values(row.statusMins).reduce((a, b) => a + b, 0)
       }))
     }));
   };
@@ -1209,7 +1222,7 @@ function ProductionRealDashboard() {
   // still only computed while the Summary view is on screen
   const productionSummaryReport = useMemo(
     () => (recordsView === "summary" ? buildProductionSummary() : []),
-    [recordsView, filteredProductionList, activities, machines]
+    [recordsView, filteredProductionList, activities, machines, statusColumns]
   );
 
   // ================= JWT =================
@@ -1413,17 +1426,20 @@ function ProductionRealDashboard() {
     const summary = buildProductionSummary();
     if (!summary.length) return null;
 
+    const hoursCols = statusColumns.length + 2; // Production + dynamic + Total
+
     const aoa = [
-      ["DEI Machine", "Machine", `Date ${getReportDateLabel()}`, "", "", "", "", "Machine Hours", "", "", "", ""],
+      ["DEI Machine", "Machine", `Date ${getReportDateLabel()}`, "", "", "", "", "Machine Hours",
+        ...Array(hoursCols - 1).fill("")],
       ["", "", "Day Shift", "Remarks", "Night Shift", "Remarks", "Grand Total",
-        "Production Time", "Idle Time", "Breakdown Time", "Maintenance Time", "Total Timings"]
+        "Production Time", ...statusColumns.map((s) => s.label), "Total Timings"]
     ];
 
     const merges = [
       { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
       { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } },
       { s: { r: 0, c: 2 }, e: { r: 0, c: 6 } },
-      { s: { r: 0, c: 7 }, e: { r: 0, c: 11 } }
+      { s: { r: 0, c: 7 }, e: { r: 0, c: 7 + hoursCols - 1 } }
     ];
 
     summary.forEach((group) => {
@@ -1439,9 +1455,7 @@ function ProductionRealDashboard() {
           row.nightRemarks,
           (row.dayEntered || row.nightEntered) ? row.grandTotal : "-",
           formatHMS(row.prodMins),
-          formatHMS(row.idleMins),
-          formatHMS(row.breakdownMins),
-          formatHMS(row.maintMins),
+          ...statusColumns.map((s) => formatHMS(row.statusMins[s.key] || 0)),
           formatHMS(row.totalMins)
         ]);
       });
@@ -1459,7 +1473,7 @@ function ProductionRealDashboard() {
     ws["!cols"] = [
       { wch: 16 }, { wch: 24 }, { wch: 12 },
       { wch: 38 }, { wch: 12 }, { wch: 38 }, { wch: 14 },
-      { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 14 }
+      { wch: 16 }, ...statusColumns.map(() => ({ wch: 18 })), { wch: 14 }
     ];
 
     const side = { style: "thin", color: { rgb: "000000" } };
@@ -3281,7 +3295,7 @@ function ProductionRealDashboard() {
                   <th rowSpan="2" style={{ width: "8%" }}>DEI Machine</th>
                   <th rowSpan="2" style={{ width: "12%" }}>Machine</th>
                   <th colSpan="5">Date {getReportDateLabel()}</th>
-                  <th colSpan="5">Machine Hours</th>
+                  <th colSpan={statusColumns.length + 2}>Machine Hours</th>
                 </tr>
                 <tr>
                   <th style={{ width: "7%" }}>Day Shift</th>
@@ -3289,17 +3303,17 @@ function ProductionRealDashboard() {
                   <th style={{ width: "7%" }}>Night Shift</th>
                   <th style={{ width: "11%" }}>Remarks</th>
                   <th style={{ width: "8%" }}>Grand Total</th>
-                  <th style={{ width: "7.2%" }}>Production Time</th>
-                  <th style={{ width: "7.2%" }}>Idle Time</th>
-                  <th style={{ width: "7.2%" }}>Breakdown Time</th>
-                  <th style={{ width: "7.2%" }}>Maintenance Time</th>
-                  <th style={{ width: "7.2%" }}>Total Timings</th>
+                  <th style={{ width: `${36 / (statusColumns.length + 2)}%` }}>Production Time</th>
+                  {statusColumns.map((s) => (
+                    <th key={s.key} style={{ width: `${36 / (statusColumns.length + 2)}%` }}>{s.label}</th>
+                  ))}
+                  <th style={{ width: `${36 / (statusColumns.length + 2)}%` }}>Total Timings</th>
                 </tr>
               </thead>
               <tbody>
                 {productionSummaryReport.length === 0 ? (
                   <tr className="report-empty-row">
-                    <td colSpan="12">No production found for selected filters</td>
+                    <td colSpan={7 + statusColumns.length + 2}>No production found for selected filters</td>
                   </tr>
                 ) : (
                   productionSummaryReport.map((group) =>
@@ -3355,9 +3369,11 @@ function ProductionRealDashboard() {
 </td>
                         <td className="report-number-cell">{formatReportNumber(row.grandTotal, row.dayEntered || row.nightEntered)}</td>
                         <td className="report-number-cell" style={{ textAlign: "center" }}>{formatHMS(row.prodMins)}</td>
-                        <td className="report-number-cell" style={{ textAlign: "center" }}>{formatHMS(row.idleMins)}</td>
-                        <td className="report-number-cell" style={{ textAlign: "center" }}>{formatHMS(row.breakdownMins)}</td>
-                        <td className="report-number-cell" style={{ textAlign: "center" }}>{formatHMS(row.maintMins)}</td>
+                        {statusColumns.map((s) => (
+                          <td key={s.key} className="report-number-cell" style={{ textAlign: "center" }}>
+                            {formatHMS(row.statusMins[s.key] || 0)}
+                          </td>
+                        ))}
                         <td className="report-number-cell" style={{ textAlign: "center", fontWeight: 700 }}>{formatHMS(row.totalMins)}</td>
                       </tr>
                     ))

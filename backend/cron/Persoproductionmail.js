@@ -14,6 +14,20 @@ const MailSettings = require("../models/MailSettings");
 const pad = (n) => String(n).padStart(2, "0");
 let lastRunKey = "";
 
+// Machine Status master (adjust the file name to your model, same as Machine / Activity above)
+let MachineStatus = null;
+try {
+  MachineStatus = require("../models/MachineStatus");
+} catch (e) {
+  console.log("⚠️ MachineStatus model not found - status columns will come from the entries only. Fix the require path in this file.");
+}
+
+// ---- dynamic machine-hours status helpers ----
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+const isProductionStatus = (s) => ["production", "working"].includes(normStatus(s));
+const statusColLabel = (label) =>
+  /time$/i.test(label.trim()) ? label.trim() : `${label.trim()} Time`;
+
 // ---- time helpers (same logic as the Perso consolidated report) ----
 // minutes between "HH:MM" from/to times; equal or earlier To time = crossed midnight (equal = 24h)
 const getDurationMins = (from, to) => {
@@ -133,6 +147,13 @@ cron.schedule("* * * * *", async () => {
       else if (status === "idle" || status === "idle time") e.idleMins += dur;
       else if (status.includes("break")) e.breakdownMins += dur;
       else if (status.includes("maint")) e.maintenanceMins += dur;
+
+      // dynamic status minutes (used by the Summary table)
+      if (status && !(status === "production" || status === "working")) {
+        e.statusMins = e.statusMins || {};
+        const sk = normStatus(r.machineStatus);
+        e.statusMins[sk] = (e.statusMins[sk] || 0) + dur;
+      }
     });
 
     // ===== ALL machines + printers of the PERSO PRINTING activity (same logic as the app) =====
@@ -147,10 +168,23 @@ cron.schedule("* * * * *", async () => {
       (persoActivity?.machines || []).map(String)
     );
 
-    const [machineDocs, printerDocs] = await Promise.all([
+    const [machineDocs, printerDocs, statusDocs] = await Promise.all([
       Machine.find({}).lean(),
       Printer.find({}).lean(),
+      MachineStatus ? MachineStatus.find({}).lean() : Promise.resolve([]),
     ]);
+
+    // dynamic Machine Hours columns = every status in the master (except Production) + any extra found in entries
+    const statusSeen = new Map();
+    statusDocs.forEach((s) => {
+      const k = normStatus(s.statusName);
+      if (k && !isProductionStatus(k) && !statusSeen.has(k)) statusSeen.set(k, String(s.statusName).trim());
+    });
+    entries.forEach((e) => {
+      const k = normStatus(e.machineStatus);
+      if (k && !isProductionStatus(k) && !statusSeen.has(k)) statusSeen.set(k, String(e.machineStatus).trim());
+    });
+    const statusColumns = [...statusSeen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
 
     machineDocs
       .filter((m) => persoMachineIds.has(String(m._id)))
@@ -428,6 +462,14 @@ cron.schedule("* * * * *", async () => {
     const seenM = {};
 
     const sumOf = (o) => Object.values(o).reduce((s, v) => s + v, 0);
+
+    // dynamic machine-hours totals (Production + every status column)
+    const dynMins = (c) => c.printingMins + sumOf(c.statusMins || {});
+    const statusTotals = {};
+    statusColumns.forEach((s) => {
+      statusTotals[s.key] = consolidated.reduce((a, c) => a + ((c.statusMins || {})[s.key] || 0), 0);
+    });
+    const dynGrandMins = totals.printingMins + sumOf(statusTotals);
     const qtyCell = (o, sz) =>
       `<td style="text-align:right;">${o[sz] !== undefined ? o[sz].toLocaleString("en-IN") : "-"}</td>`;
 
@@ -444,7 +486,7 @@ cron.schedule("* * * * *", async () => {
         <tr>
           ${first ? `<td rowspan="${machineCnt[c.machineName]}" style="${td}font-weight:bold;">${escapeHtml(c.machineName)}</td>` : ""}
           <td style="${td}font-weight:bold;">${escapeHtml(c.printerName) || "-"}</td>
-          <td colspan="${2 * cols.length + 6}" style="text-align:center;font-weight:bold;color:#b45309;background:#fff7e6;">No entry made</td>
+          <td colspan="${2 * cols.length + 3 + statusColumns.length}" style="text-align:center;font-weight:bold;color:#b45309;background:#fff7e6;">No entry made</td>
         </tr>`;
         return;
       }
@@ -457,10 +499,10 @@ cron.schedule("* * * * *", async () => {
           ${cols.map((sz) => qtyCell(c.nightBySize, sz)).join("")}
           <td style="text-align:right;font-weight:bold;">${entered ? grand.toLocaleString("en-IN") : "-"}</td>
           <td style="${td}">${formatHMS(c.printingMins)}</td>
-          <td style="${td}">${formatHMS(c.idleMins)}</td>
-          <td style="${td}">${formatHMS(c.breakdownMins)}</td>
-          <td style="${td}">${formatHMS(c.maintenanceMins)}</td>
-          <td style="${td}font-weight:bold;${allMins(c) < 1440 ? "color:#dc2626;background:#fee2e2;" : ""}">${formatHMS(allMins(c))}</td>
+          ${statusColumns
+            .map((s) => `<td style="${td}">${formatHMS((c.statusMins || {})[s.key] || 0)}</td>`)
+            .join("")}
+          <td style="${td}font-weight:bold;${dynMins(c) < 1440 ? "color:#dc2626;background:#fee2e2;" : ""}">${formatHMS(dynMins(c))}</td>
         </tr>`;
     });
 
@@ -479,10 +521,10 @@ cron.schedule("* * * * *", async () => {
         ${cols.map((sz) => qtyCell(nightTotals, sz)).join("")}
         <td style="text-align:right;">${grandAll.toLocaleString("en-IN")}</td>
         <td style="${td}">${formatHMS(totals.printingMins)}</td>
-        <td style="${td}">${formatHMS(totals.idleMins)}</td>
-        <td style="${td}">${formatHMS(totals.breakdownMins)}</td>
-        <td style="${td}">${formatHMS(totals.maintenanceMins)}</td>
-        <td style="${td}">${formatHMS(allMins(totals))}</td>
+        ${statusColumns
+          .map((s) => `<td style="${td}">${formatHMS(statusTotals[s.key] || 0)}</td>`)
+          .join("")}
+        <td style="${td}">${formatHMS(dynGrandMins)}</td>
       </tr>`;
 
     const htmlSummary = `
@@ -493,16 +535,14 @@ cron.schedule("* * * * *", async () => {
             <th rowspan="3">MACHINE</th>
             <th rowspan="3">PRINTER</th>
             <th colspan="${1 + 2 * cols.length}">DATE ${dateStr}</th>
-            <th colspan="5">MACHINE HOURS</th>
+            <th colspan="${statusColumns.length + 2}">MACHINE HOURS</th>
           </tr>
           <tr>
             <th colspan="${cols.length}">DAY SHIFT</th>
             <th colspan="${cols.length}">NIGHT SHIFT</th>
             <th rowspan="2">GRAND TOTAL</th>
             <th rowspan="2">PRODUCTION TIME</th>
-            <th rowspan="2">IDLE TIME</th>
-            <th rowspan="2">BREAKDOWN TIME</th>
-            <th rowspan="2">MAINTENANCE TIME</th>
+            ${statusColumns.map((s) => `<th rowspan="2">${escapeHtml(s.label.toUpperCase())}</th>`).join("")}
             <th rowspan="2">TOTAL TIMINGS</th>
           </tr>
           <tr>

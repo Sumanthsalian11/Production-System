@@ -49,6 +49,12 @@ const formatHMS = (m) => {
   return `${h}:${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
+/* ── dynamic machine-hours status helpers ── */
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+const isProductionStatus = (s) => ["production", "working"].includes(normStatus(s));
+const statusColLabel = (label) =>
+  /time$/i.test(label.trim()) ? label.trim() : `${label.trim()} Time`;
+
 const truncateText = (text, length = 25) => {
   if (!text) return "-";
   return text.length > length ? text.substring(0, length) + "..." : text;
@@ -1172,6 +1178,20 @@ export default function ProductionMachineStatusModule() {
     return n.toLocaleString("en-IN");
   };
 
+  /* dynamic Machine Hours columns = every status in the master (except Production) + any extra found in records */
+  const statusColumns = useMemo(() => {
+    const seen = new Map();
+    machineStatuses.forEach((s) => {
+      const k = normStatus(s.statusName);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, s.statusName.trim());
+    });
+    records.forEach((item) => {
+      const k = normStatus(item.machineStatus);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(item.machineStatus).trim());
+    });
+    return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
+  }, [machineStatuses, records]);
+
   const buildSummary = () => {
     const groupMap = new Map();
 
@@ -1184,7 +1204,7 @@ export default function ProductionMachineStatusModule() {
           machineName, printerName,
           dayQty: 0, nightQty: 0, dayEntered: false, nightEntered: false,
           dayBySize: {}, nightBySize: {},
-          prodMins: 0, idleMins: 0, breakdownMins: 0, maintMins: 0,
+          prodMins: 0, statusMins: {},
           dayRemarks: new Set(), nightRemarks: new Set(),
         });
       }
@@ -1218,9 +1238,10 @@ export default function ProductionMachineStatusModule() {
 
       const durMins = getDurationMins(item.fromTime, item.toTime);
       if (isProd) row.prodMins += durMins;
-      else if (statusKey === "idle" || statusKey === "idle time") row.idleMins += durMins;
-      else if (statusKey.includes("break")) row.breakdownMins += durMins;
-      else if (statusKey.includes("maint")) row.maintMins += durMins;
+      else {
+        const k = normStatus(item.machineStatus);
+        if (k) row.statusMins[k] = (row.statusMins[k] || 0) + durMins;
+      }
 
       if (shift === "day") {
         if (isProd) { row.dayQty += qty; row.dayEntered = true; row.dayBySize[sizeKey] = (row.dayBySize[sizeKey] || 0) + qty; }
@@ -1237,7 +1258,9 @@ export default function ProductionMachineStatusModule() {
         dayRemarks: Array.from(r.dayRemarks).join(", ") || "-",
         nightRemarks: Array.from(r.nightRemarks).join(", ") || "-",
         grandTotal: r.dayQty + r.nightQty,
-        totalMins: r.prodMins + r.idleMins + r.breakdownMins + r.maintMins,
+        totalMins:
+          r.prodMins +
+          Object.values(r.statusMins).reduce((a, b) => a + b, 0),
       }));
       const order = [...new Set(rows.map((r) => r.machineName))];
       rows.sort((a, b) => order.indexOf(a.machineName) - order.indexOf(b.machineName));
@@ -1247,7 +1270,7 @@ export default function ProductionMachineStatusModule() {
 
   const summaryRows = useMemo(
     () => (recordsView === "summary" ? buildSummary() : []),
-    [recordsView, filteredRecords, activities, machines, printers, persoActivity]
+    [recordsView, filteredRecords, activities, machines, printers, persoActivity, statusColumns]
   );
 
   const summarySizes = useMemo(
@@ -1266,14 +1289,15 @@ export default function ProductionMachineStatusModule() {
     const nightEnd = nightStart + n - 1;
     const dateEnd = nightEnd + 1;
     const hoursStart = dateEnd + 1;
-    const hoursEnd = hoursStart + 4;
+    const hoursCount = statusColumns.length + 2; // Production + dynamic + Total
+    const hoursEnd = hoursStart + hoursCount - 1;
     const blank = (k) => Array(Math.max(k, 0)).fill("");
 
     const aoa = [
-      ["Machine", "Printer", `Date ${getReportDateLabel()}`, ...blank(dateEnd - 2), "Machine Hours", ...blank(4)],
+      ["Machine", "Printer", `Date ${getReportDateLabel()}`, ...blank(dateEnd - 2), "Machine Hours", ...blank(hoursCount - 1)],
       ["", "", "Day Shift", ...blank(n - 1), "Night Shift", ...blank(n - 1), "Grand Total",
-        "Production Time", "Idle Time", "Breakdown Time", "Maintenance Time", "Total Timings"],
-      ["", "", ...sizes, ...sizes, ...blank(6)],
+        "Production Time", ...statusColumns.map((s) => s.label), "Total Timings"],
+      ["", "", ...sizes, ...sizes, ...blank(1 + hoursCount)],
     ];
     const merges = [
       { s: { r: 0, c: 0 }, e: { r: 2, c: 0 } },
@@ -1300,9 +1324,7 @@ export default function ProductionMachineStatusModule() {
           ...sizes.map((s) => (row.nightBySize[s] !== undefined ? row.nightBySize[s] : "-")),
           (row.dayEntered || row.nightEntered) ? row.grandTotal : "-",
           formatHMS(row.prodMins),
-          formatHMS(row.idleMins),
-          formatHMS(row.breakdownMins),
-          formatHMS(row.maintMins),
+          ...statusColumns.map((s) => formatHMS(row.statusMins[s.key] || 0)),
           formatHMS(row.totalMins),
         ]);
       });
@@ -1324,7 +1346,7 @@ export default function ProductionMachineStatusModule() {
       { wch: 24 }, { wch: 22 },
       ...sizes.map(() => ({ wch: 12 })),
       ...sizes.map(() => ({ wch: 12 })),
-      { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 14 },
+      { wch: 14 }, { wch: 16 }, ...statusColumns.map(() => ({ wch: 18 })), { wch: 14 },
     ];
 
     const side = { style: "thin", color: { rgb: "000000" } };
@@ -1992,16 +2014,16 @@ export default function ProductionMachineStatusModule() {
                       <th rowSpan="3">Machine</th>
                       <th rowSpan="3">Printer</th>
                       <th colSpan={1 + 2 * summarySizes.length}>Date {getReportDateLabel()}</th>
-                      <th colSpan="5">Machine Hours</th>
+                      <th colSpan={statusColumns.length + 2}>Machine Hours</th>
                     </tr>
                     <tr>
                       <th colSpan={summarySizes.length || 1}>Day Shift</th>
                       <th colSpan={summarySizes.length || 1}>Night Shift</th>
                       <th rowSpan="2">Grand Total</th>
                       <th rowSpan="2">Production Time</th>
-                      <th rowSpan="2">Idle Time</th>
-                      <th rowSpan="2">Breakdown Time</th>
-                      <th rowSpan="2">Maintenance Time</th>
+                      {statusColumns.map((s) => (
+                        <th key={s.key} rowSpan="2">{s.label}</th>
+                      ))}
                       <th rowSpan="2">Total Timings</th>
                     </tr>
                     <tr>
@@ -2037,9 +2059,11 @@ export default function ProductionMachineStatusModule() {
                             ))}
                             <td className="pms-sum-num">{fmtReportNum(row.grandTotal, row.dayEntered || row.nightEntered)}</td>
                             <td className="pms-sum-time">{formatHMS(row.prodMins)}</td>
-                            <td className="pms-sum-time">{formatHMS(row.idleMins)}</td>
-                            <td className="pms-sum-time">{formatHMS(row.breakdownMins)}</td>
-                            <td className="pms-sum-time">{formatHMS(row.maintMins)}</td>
+                            {statusColumns.map((s) => (
+                              <td key={s.key} className="pms-sum-time">
+                                {formatHMS(row.statusMins[s.key] || 0)}
+                              </td>
+                            ))}
                             <td className="pms-sum-time" style={{ fontWeight: 800 }}>{formatHMS(row.totalMins)}</td>
                           </tr>
                         );

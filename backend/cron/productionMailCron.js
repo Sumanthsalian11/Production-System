@@ -9,6 +9,20 @@ const { TO: DEFAULT_TO, CC: DEFAULT_CC } = require("../utils/productionMailConfi
 const pad = (n) => String(n).padStart(2, "0");
 let lastRunKey = "";
 
+// Machine Status master (adjust the file name to your model, same as Activity / Machine above)
+let MachineStatus = null;
+try {
+  MachineStatus = require("../models/MachineStatus");
+} catch (e) {
+  console.log("⚠️ MachineStatus model not found - status columns will come from the entries only. Fix the require path in this file.");
+}
+
+// ---- dynamic machine-hours status helpers ----
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+const isProductionStatus = (s) => ["production", "working"].includes(normStatus(s));
+const statusColLabel = (label) =>
+  /time$/i.test(label.trim()) ? label.trim() : `${label.trim()} Time`;
+
 
 
 // ---- machine hours helpers (same logic as the Perso consolidated report) ----
@@ -133,10 +147,23 @@ cron.schedule("* * * * *", async () => {
     const grouped = {};
 
     // seed EVERY activity + machine so all machines appear (zeros if no entry)
-    const [allActivities, allMachines] = await Promise.all([
+    const [allActivities, allMachines, allStatuses] = await Promise.all([
       Activity.find({}).lean(),
       Machine.find({}).lean(),
+      MachineStatus ? MachineStatus.find({}).lean() : Promise.resolve([]),
     ]);
+
+    // dynamic Machine Hours columns = every status in the master (except Production) + any extra found in entries
+    const statusSeen = new Map();
+    allStatuses.forEach((s) => {
+      const k = normStatus(s.statusName);
+      if (k && !isProductionStatus(k) && !statusSeen.has(k)) statusSeen.set(k, String(s.statusName).trim());
+    });
+    entries.forEach((e) => {
+      const k = normStatus(e.machineStatus);
+      if (k && !isProductionStatus(k) && !statusSeen.has(k)) statusSeen.set(k, String(e.machineStatus).trim());
+    });
+    const statusColumns = [...statusSeen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
 
     allActivities.forEach((act) => {
       if (isExcluded(act.activityName)) return;
@@ -154,9 +181,7 @@ cron.schedule("* * * * *", async () => {
               day: 0,
               night: 0,
               prodMins: 0,
-              idleMins: 0,
-              breakdownMins: 0,
-              maintMins: 0,
+              statusMins: {},
             };
           }
         });
@@ -186,9 +211,7 @@ cron.schedule("* * * * *", async () => {
             night: 0,
 
             prodMins: 0,
-            idleMins: 0,
-            breakdownMins: 0,
-            maintMins: 0,
+            statusMins: {},
           };
         }
 
@@ -200,15 +223,12 @@ cron.schedule("* * * * *", async () => {
           grouped[key].night += qty;
         }
 
-        // machine hours (production / idle / breakdown / maintenance)
-        if (statusKey === "production" || statusKey === "working") {
+        // machine hours (production + any dynamic status)
+        if (isProductionStatus(entry.machineStatus)) {
           grouped[key].prodMins += durMins;
-        } else if (statusKey === "idle" || statusKey === "idle time") {
-          grouped[key].idleMins += durMins;
-        } else if (statusKey.includes("break")) {
-          grouped[key].breakdownMins += durMins;
-        } else if (statusKey.includes("maint")) {
-          grouped[key].maintMins += durMins;
+        } else if (statusKey) {
+          const k = normStatus(entry.machineStatus);
+          grouped[key].statusMins[k] = (grouped[key].statusMins[k] || 0) + durMins;
         }
       });
     });
@@ -231,7 +251,9 @@ cron.schedule("* * * * *", async () => {
 
         const grandTotal = r.day + r.night;
 
-        const totalMins = r.prodMins + r.idleMins + r.breakdownMins + r.maintMins;
+        const totalMins =
+          r.prodMins +
+          Object.values(r.statusMins).reduce((a, b) => a + b, 0);
 const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : "";
 
         rows += `<tr>`;
@@ -242,7 +264,7 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
         if (!r.hasEntry) {
           rows += `
           <td>${r.machineName}</td>
-          <td colspan="8" style="text-align:center;font-weight:bold;color:#b45309;background:#fff7e6;">No entry made</td>
+          <td colspan="${5 + statusColumns.length}" style="text-align:center;font-weight:bold;color:#b45309;background:#fff7e6;">No entry made</td>
         </tr>`;
           return;
         }
@@ -255,9 +277,9 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
 
                  <td style="text-align:center;">${grandTotal}</td>
           <td style="text-align:center;">${formatHMS(r.prodMins)}</td>
-          <td style="text-align:center;">${formatHMS(r.idleMins)}</td>
-          <td style="text-align:center;">${formatHMS(r.breakdownMins)}</td>
-          <td style="text-align:center;">${formatHMS(r.maintMins)}</td>
+          ${statusColumns
+            .map((s) => `<td style="text-align:center;">${formatHMS(r.statusMins[s.key] || 0)}</td>`)
+            .join("")}
           <td style="text-align:center;font-weight:bold;${timingStyle}">${formatHMS(totalMins)}</td>
         </tr>`;
       });
@@ -271,16 +293,14 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
             <th rowspan="2">DEI Machine</th>
             <th rowspan="2">Machine</th>
             <th colspan="3">Date ${dateStr}</th>
-            <th colspan="5">Machine Hours</th>
+            <th colspan="${statusColumns.length + 2}">Machine Hours</th>
           </tr>
           <tr>
             <th>Day Shift</th>
             <th>Night Shift</th>
             <th>Grand Total</th>
             <th>Production Time</th>
-            <th>Idle Time</th>
-            <th>Breakdown Time</th>
-            <th>Maintenance Time</th>
+            ${statusColumns.map((s) => `<th>${s.label}</th>`).join("")}
             <th>Total Timings</th>
           </tr>
         </thead>
