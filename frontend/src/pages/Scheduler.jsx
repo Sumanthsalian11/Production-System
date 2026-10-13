@@ -565,6 +565,60 @@ const STYLES = `
   .sch-root .gantt_scale_cell { font-size: 11px !important; font-weight: 600 !important; }
   .sch-root .gantt_cell { font-size: 12px !important; }
   .sch-root .gantt_task_line .gantt_task_content { font-size: 11px !important; font-weight: 600 !important; }
+
+  /* =====================================================================
+     page entrance animation (appended, css only)
+     ===================================================================== */
+  @keyframes pgfadeup {
+    from { opacity: 0; transform: translatey(18px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes pgrow {
+    from { opacity: 0; transform: translatey(8px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+
+  /* page container (fade only, keeps the fixed background stable) */
+  .sch-root {
+    animation: pgfade 0.45s ease-out backwards;
+  }
+
+  /* cards: staggered rise */
+  .sch-root .sch-body > .sch-card {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .sch-root .sch-body > .sch-card:nth-child(1) { animation-delay: 0.10s; }
+  .sch-root .sch-body > .sch-card:nth-child(2) { animation-delay: 0.20s; }
+  .sch-root .sch-body > .sch-card:nth-child(3) { animation-delay: 0.30s; }
+  .sch-root .sch-body > .sch-card:nth-child(4) { animation-delay: 0.40s; }
+
+  /* schedule form (plays each time it opens, no delay) */
+  .sch-root #schedule-form.sch-card { animation-delay: 0s; }
+
+  /* pending table rows: quick stagger on the first rows */
+  .sch-root .wo-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+  .sch-root .wo-table tbody tr:nth-child(1)  { animation-delay: 0.30s; }
+  .sch-root .wo-table tbody tr:nth-child(2)  { animation-delay: 0.35s; }
+  .sch-root .wo-table tbody tr:nth-child(3)  { animation-delay: 0.40s; }
+  .sch-root .wo-table tbody tr:nth-child(4)  { animation-delay: 0.45s; }
+  .sch-root .wo-table tbody tr:nth-child(5)  { animation-delay: 0.50s; }
+  .sch-root .wo-table tbody tr:nth-child(6)  { animation-delay: 0.55s; }
+  .sch-root .wo-table tbody tr:nth-child(7)  { animation-delay: 0.60s; }
+  .sch-root .wo-table tbody tr:nth-child(8)  { animation-delay: 0.65s; }
+  .sch-root .wo-table tbody tr:nth-child(n+9) { animation-delay: 0.70s; }
+
+  /* respect users who disable motion */
+  @media (prefers-reduced-motion: reduce) {
+    .sch-root,
+    .sch-root .sch-card,
+    .sch-root .wo-table tbody tr {
+      animation: none !important;
+    }
+  }
 `;
 
 const Scheduler = () => {

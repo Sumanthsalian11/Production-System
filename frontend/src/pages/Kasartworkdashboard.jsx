@@ -170,6 +170,97 @@ const kasArtworkStyles = `
   .paw-split .po-actions .btn-po-save:hover:not(:disabled){background:#c9461f!important;border-color:#c9461f!important}
   .paw-split .po-actions .btn-po-save:disabled{background:#e2e4ea!important;border-color:#e2e4ea!important;color:#9DA2B0!important;box-shadow:none}
   @media(max-width:992px){.paw-split.po-split{flex-direction:column}.paw-split .po-side{flex:none;min-height:150px;padding:20px;gap:14px}.paw-split .po-side-hero h1{font-size:28px;margin-bottom:6px}.paw-split .po-main{padding:18px 14px}.paw-split .po-grid{grid-template-columns:1fr}}
+
+  /* =====================================================================
+     page entrance animation (appended, css only)
+     ===================================================================== */
+  @keyframes pgfadeup {
+    from { opacity: 0; transform: translatey(18px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfadedown {
+    from { opacity: 0; transform: translatey(-14px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgpop {
+    from { opacity: 0; transform: translatey(16px) scale(0.98); }
+    to   { opacity: 1; transform: translatey(0) scale(1); }
+  }
+  @keyframes pgslideright {
+    from { opacity: 0; transform: translatex(-18px); }
+    to   { opacity: 1; transform: translatex(0); }
+  }
+  @keyframes pgfade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes pgrow {
+    from { opacity: 0; transform: translatey(8px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfab {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* page container (fade only) */
+  .paw-container { animation: pgfade 0.45s ease-out backwards; }
+
+  /* header drops in */
+  .paw-container .paw-heading {
+    animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+  }
+
+  /* list view: filters + table */
+  .paw-container .filter-bar {
+    animation: pgfadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+  }
+  .paw-container .production-real-table-wrap {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
+  }
+
+  /* table rows: quick stagger on the first rows */
+  .paw-container .production-real-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+  .paw-container .production-real-table tbody tr:nth-child(1)  { animation-delay: 0.45s; }
+  .paw-container .production-real-table tbody tr:nth-child(2)  { animation-delay: 0.50s; }
+  .paw-container .production-real-table tbody tr:nth-child(3)  { animation-delay: 0.55s; }
+  .paw-container .production-real-table tbody tr:nth-child(4)  { animation-delay: 0.60s; }
+  .paw-container .production-real-table tbody tr:nth-child(5)  { animation-delay: 0.65s; }
+  .paw-container .production-real-table tbody tr:nth-child(6)  { animation-delay: 0.70s; }
+  .paw-container .production-real-table tbody tr:nth-child(7)  { animation-delay: 0.75s; }
+  .paw-container .production-real-table tbody tr:nth-child(8)  { animation-delay: 0.80s; }
+  .paw-container .production-real-table tbody tr:nth-child(n+9) { animation-delay: 0.85s; }
+
+  /* floating + button */
+  .paw-container .paw-fab { animation: pgfab 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.55s backwards; }
+
+  /* new ticket form (plays every time it opens) */
+  .paw-container .paw-split {
+    animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+  }
+  .paw-container .paw-split .po-side {
+    animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards;
+  }
+  .paw-container .paw-split .po-heading,
+  .paw-container .paw-split .po-grid,
+  .paw-container .paw-split .po-actions { animation: pgfadeup 0.45s ease-out backwards; }
+  .paw-container .paw-split .po-heading { animation-delay: 0.30s; }
+  .paw-container .paw-split .po-grid    { animation-delay: 0.38s; }
+  .paw-container .paw-split .po-actions { animation-delay: 0.46s; }
+
+  /* ticket detail / chat */
+  .paw-container .paw-detail-card {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+  }
+  .paw-container .paw-thread > div { animation: pgrow 0.35s ease-out 0.35s backwards; }
+
+  /* respect users who disable motion */
+  @media (prefers-reduced-motion: reduce) {
+    .paw-container,
+    .paw-container * {
+      animation: none !important;
+    }
+  }
 `;
 
 // Outlined floating-label field with a leading icon (Planner styling)

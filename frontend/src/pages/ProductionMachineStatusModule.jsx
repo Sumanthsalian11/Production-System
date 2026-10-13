@@ -586,6 +586,77 @@ const CSS = `
     .pms-header-inner { justify-content: center; flex-direction: column; min-height: 0; }
     .pms-header-inner > div:first-child { position: static; transform: none; white-space: normal; }
   }
+
+  /* =====================================================================
+     page entrance animation (appended, css only)
+     ===================================================================== */
+  @keyframes pgfadeup {
+    from { opacity: 0; transform: translatey(18px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfadedown {
+    from { opacity: 0; transform: translatey(-14px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes pgrow {
+    from { opacity: 0; transform: translatey(8px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+
+  /* page container (fade only) */
+  .pms-root { animation: pgfade 0.45s ease-out backwards; }
+
+  /* entry form card */
+  .pms-root .pms-body > .pms-card:first-child {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+  }
+
+  /* form sections: staggered (also plays when production sections appear) */
+  .pms-root .pms-section,
+  .pms-root .ts-section { animation: pgfadeup 0.45s ease-out backwards; }
+  .pms-root .pms-form-body > .pms-section:nth-child(1) { animation-delay: 0.25s; }
+  .pms-root .pms-form-body > .pms-section:nth-child(2) { animation-delay: 0.33s; }
+  .pms-root .pms-form-body > .pms-section:nth-child(3) { animation-delay: 0.41s; }
+  .pms-root .ts-slot-row { animation: pgrow 0.3s ease-out backwards; }
+
+  /* filters card */
+  .pms-root .card {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
+  }
+
+  /* view toggle */
+  .pms-root .pms-toggle-wrap {
+    animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.4s backwards;
+  }
+
+  /* records / summary card */
+  .pms-root .pms-body > .pms-card:not(:first-child) {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.5s backwards;
+  }
+
+  /* table rows: quick stagger on the first rows (also replays when you change page) */
+  .pms-root .pms-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+  .pms-root .pms-table tbody tr:nth-child(1)  { animation-delay: 0.65s; }
+  .pms-root .pms-table tbody tr:nth-child(2)  { animation-delay: 0.70s; }
+  .pms-root .pms-table tbody tr:nth-child(3)  { animation-delay: 0.75s; }
+  .pms-root .pms-table tbody tr:nth-child(4)  { animation-delay: 0.80s; }
+  .pms-root .pms-table tbody tr:nth-child(5)  { animation-delay: 0.85s; }
+  .pms-root .pms-table tbody tr:nth-child(6)  { animation-delay: 0.90s; }
+  .pms-root .pms-table tbody tr:nth-child(7)  { animation-delay: 0.95s; }
+  .pms-root .pms-table tbody tr:nth-child(8)  { animation-delay: 1s; }
+  .pms-root .pms-table tbody tr:nth-child(n+9) { animation-delay: 1.05s; }
+
+  /* respect users who disable motion */
+  @media (prefers-reduced-motion: reduce) {
+    .pms-root,
+    .pms-root * {
+      animation: none !important;
+    }
+  }
 `;
 
 /* ── Helpers ── */

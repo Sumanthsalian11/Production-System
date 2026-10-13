@@ -297,6 +297,54 @@ const DASHBOARD_STYLES = `
 .inv-dash .inv-modal .modal-footer { background: rgba(214, 239, 252, 0.55); border-color: #cfe8f6; }
 .inv-dash .comment-bubble { background: #f3faff; border-color: #cfe8f6; border-left-color: #1b8fd6; }
 .inv-dash .progress { background: #dff1fb; }
+
+/* ===== entrance animations ===== */
+@keyframes invfadeup {
+  from { opacity: 0; transform: translatey(24px) scale(0.98); }
+  to   { opacity: 1; transform: translatey(0) scale(1); }
+}
+@keyframes invfadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes invslideright {
+  from { opacity: 0; transform: translatex(-16px); }
+  to   { opacity: 1; transform: translatex(0); }
+}
+@keyframes invgrow {
+  from { width: 0; }
+}
+
+.inv-dash .filter-card,
+.inv-dash .section-title-wrap,
+.inv-dash .card-kpi,
+.inv-dash .chart-box,
+.inv-dash .table-card {
+  animation: invfadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.inv-dash .section-title-wrap { animation-name: invslideright; animation-duration: 0.5s; }
+
+.inv-dash .filter-card { animation-delay: 0.05s; }
+.inv-dash .kpi-grid .card-kpi:nth-child(1) { animation-delay: 0.20s; }
+.inv-dash .kpi-grid .card-kpi:nth-child(2) { animation-delay: 0.30s; }
+.inv-dash .kpi-grid .card-kpi:nth-child(3) { animation-delay: 0.40s; }
+.inv-dash .kpi-grid .card-kpi:nth-child(4) { animation-delay: 0.50s; }
+.inv-dash .analytics-grid .chart-box:nth-child(1) { animation-delay: 0.30s; }
+.inv-dash .analytics-grid .chart-box:nth-child(2) { animation-delay: 0.42s; }
+.inv-dash .watchlist-grid .table-card:nth-child(1) { animation-delay: 0.30s; }
+.inv-dash .watchlist-grid .table-card:nth-child(2) { animation-delay: 0.42s; }
+
+.inv-dash .progress-bar { animation: invgrow 1s cubic-bezier(0.22, 1, 0.36, 1) 0.6s backwards; }
+
+.inv-dash .inv-modal-backdrop.show-modal { animation: invfadein 0.2s ease; }
+.inv-dash .inv-modal-backdrop.show-modal .inv-modal { animation: invfadeup 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-dash *, .inv-dash *::before, .inv-dash *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 `;
 
 const API_BASE = `${BASE_URL}/api/inventory-dashboard`;
@@ -567,6 +615,7 @@ export default function InventoryDashboard() {
           {
             responsive: true,
             maintainAspectRatio: false,
+            animation: { duration: 900, delay: 300, easing: "easeOutQuart" },
             plugins: {
               legend: {
                 display: true,

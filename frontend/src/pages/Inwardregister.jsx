@@ -868,6 +868,71 @@ function InwardRegister() {
       .ir-wrap { padding: 10px; }
       .ir-header { border-radius: 20px; }
     }
+
+    /* =====================================================================
+       page entrance animation (appended, css only)
+       ===================================================================== */
+    @keyframes pgfadeup {
+      from { opacity: 0; transform: translatey(18px); }
+      to   { opacity: 1; transform: translatey(0); }
+    }
+    @keyframes pgpop {
+      from { opacity: 0; transform: translatey(16px) scale(0.98); }
+      to   { opacity: 1; transform: translatey(0) scale(1); }
+    }
+    @keyframes pgfade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes pgrow {
+      from { opacity: 0; transform: translatey(8px); }
+      to   { opacity: 1; transform: translatey(0); }
+    }
+
+    /* page container (fade only, keeps the fixed background stable) */
+    .ir-wrap { animation: pgfade 0.45s ease-out backwards; }
+
+    /* search card + records card */
+    .ir-wrap .ir-card {
+      animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+    }
+    .ir-wrap .ir-card.ir-card-slate { animation-delay: 0.3s; }
+
+    /* work order + entry form card (plays every time a work order is fetched) */
+    .ir-wrap .ir-card.ir-animate {
+      animation: pgpop 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0s backwards;
+    }
+    .ir-wrap .ir-wo-item { animation: pgfadeup 0.4s ease-out backwards; }
+    .ir-wrap .ir-wo-item:nth-child(1) { animation-delay: 0.10s; }
+    .ir-wrap .ir-wo-item:nth-child(2) { animation-delay: 0.15s; }
+    .ir-wrap .ir-wo-item:nth-child(3) { animation-delay: 0.20s; }
+    .ir-wrap .ir-wo-item:nth-child(4) { animation-delay: 0.25s; }
+    .ir-wrap .ir-wo-item:nth-child(5) { animation-delay: 0.30s; }
+    .ir-wrap .ir-wo-item:nth-child(6) { animation-delay: 0.35s; }
+    .ir-wrap .ir-wo-item:nth-child(7) { animation-delay: 0.40s; }
+    .ir-wrap .ir-wo-item:nth-child(8) { animation-delay: 0.45s; }
+    .ir-wrap .ir-card.ir-animate .ir-form-grid { animation: pgfadeup 0.45s ease-out 0.35s backwards; }
+    .ir-wrap .ir-card.ir-animate .ir-form-actions { animation: pgfadeup 0.45s ease-out 0.45s backwards; }
+
+    /* table rows: quick stagger on the first rows (replays when you change page) */
+    .ir-wrap .ir-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+    .ir-wrap .ir-table tbody tr:nth-child(1)  { animation-delay: 0.45s; }
+    .ir-wrap .ir-table tbody tr:nth-child(2)  { animation-delay: 0.50s; }
+    .ir-wrap .ir-table tbody tr:nth-child(3)  { animation-delay: 0.55s; }
+    .ir-wrap .ir-table tbody tr:nth-child(4)  { animation-delay: 0.60s; }
+    .ir-wrap .ir-table tbody tr:nth-child(5)  { animation-delay: 0.65s; }
+    .ir-wrap .ir-table tbody tr:nth-child(6)  { animation-delay: 0.70s; }
+    .ir-wrap .ir-table tbody tr:nth-child(7)  { animation-delay: 0.75s; }
+    .ir-wrap .ir-table tbody tr:nth-child(8)  { animation-delay: 0.80s; }
+    .ir-wrap .ir-table tbody tr:nth-child(n+9) { animation-delay: 0.85s; }
+
+    /* respect users who disable motion */
+    @media (prefers-reduced-motion: reduce) {
+      .ir-wrap,
+      .ir-wrap * {
+        animation: none !important;
+      }
+    }
   `;
 
   return (

@@ -1037,6 +1037,57 @@ function CalibrationDashboard() {
           color: #55798e;
           font-weight: 700;
         }
+
+        /* ---------- entrance animations ---------- */
+        @keyframes cafadeup {
+          from { opacity: 0; transform: translatey(24px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes cadropin {
+          from { opacity: 0; transform: translatey(-18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes carowin {
+          from { opacity: 0; transform: translatex(-12px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+
+        /* "backwards" fill keeps your hover lift effects working */
+        .calib-container-3d { animation: cafadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        .calib-header { animation: cadropin 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.10s backwards; }
+
+        .metric-card-3d { animation: cafadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        .calib-metrics-grid .metric-card-3d:nth-child(1) { animation-delay: 0.20s; }
+        .calib-metrics-grid .metric-card-3d:nth-child(2) { animation-delay: 0.30s; }
+        .calib-metrics-grid .metric-card-3d:nth-child(3) { animation-delay: 0.40s; }
+        .calib-metrics-grid .metric-card-3d:nth-child(4) { animation-delay: 0.50s; }
+
+        .calib-container-3d .card-glass-3d { animation: cafadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        .calib-container-3d > .card-glass-3d:nth-of-type(2) { animation-delay: 0.55s; }
+        .calib-container-3d > .card-glass-3d:nth-of-type(3) { animation-delay: 0.65s; }
+        .calib-container-3d > .card-glass-3d:nth-of-type(4) { animation-delay: 0.75s; }
+
+        /* table rows slide in one by one (first 12 are staggered) */
+        .table-calib tbody tr { animation: carowin 0.4s ease backwards; }
+        .table-calib tbody tr:nth-child(1)  { animation-delay: 0.85s; }
+        .table-calib tbody tr:nth-child(2)  { animation-delay: 0.90s; }
+        .table-calib tbody tr:nth-child(3)  { animation-delay: 0.95s; }
+        .table-calib tbody tr:nth-child(4)  { animation-delay: 1.00s; }
+        .table-calib tbody tr:nth-child(5)  { animation-delay: 1.05s; }
+        .table-calib tbody tr:nth-child(6)  { animation-delay: 1.10s; }
+        .table-calib tbody tr:nth-child(7)  { animation-delay: 1.15s; }
+        .table-calib tbody tr:nth-child(8)  { animation-delay: 1.20s; }
+        .table-calib tbody tr:nth-child(9)  { animation-delay: 1.25s; }
+        .table-calib tbody tr:nth-child(10) { animation-delay: 1.30s; }
+        .table-calib tbody tr:nth-child(11) { animation-delay: 1.35s; }
+        .table-calib tbody tr:nth-child(12) { animation-delay: 1.40s; }
+        .table-calib tbody tr:nth-child(n+13) { animation-delay: 1.45s; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .calib-page-wrapper *, .calib-page-wrapper *::before, .calib-page-wrapper *::after {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       {/* ✅ NEW: Toast Notification Stack */}

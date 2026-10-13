@@ -1267,6 +1267,87 @@ function NewIndent() {
 .indent-app-container .po-field input[type="date"].po-input {
   padding-right: 6px;
 }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgfadedown {
+          from { opacity: 0; transform: translatey(-14px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgpop {
+          from { opacity: 0; transform: translatey(16px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes pgslideright {
+          from { opacity: 0; transform: translatex(-18px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+        @keyframes pgfade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* page container (fade only) */
+        .indent-app-container { animation: pgfade 0.45s ease-out backwards; }
+
+        /* top button drops in */
+        .indent-app-container .mode-toggle-bar {
+          animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+        }
+
+        /* entry form (plays every time it opens) */
+        .indent-app-container .indent-split {
+          animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
+        }
+        .indent-app-container .indent-split .po-side {
+          animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+        }
+        .indent-app-container .indent-split .po-heading,
+        .indent-app-container .indent-split .gl-inner,
+        .indent-app-container .indent-split .text-center {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+        .indent-app-container .indent-split .po-heading { animation-delay: 0.25s; }
+        .indent-app-container .indent-split form > .gl-inner:nth-child(1) { animation-delay: 0.32s; }
+        .indent-app-container .indent-split form > .gl-inner:nth-child(2) { animation-delay: 0.40s; }
+        .indent-app-container .indent-split form > .gl-inner:nth-child(3) { animation-delay: 0.48s; }
+        .indent-app-container .indent-split form > .gl-inner:nth-child(4) { animation-delay: 0.56s; }
+        .indent-app-container .indent-split form > .text-center { animation-delay: 0.64s; }
+
+        /* filter card + table card */
+        .indent-app-container .bar-card {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards;
+        }
+        .indent-app-container .bar-card + .bar-card { animation-delay: 0.38s; }
+
+        /* table rows: quick stagger on the first rows */
+        .indent-app-container .custom-table-container tbody tr { animation: pgrow 0.35s ease-out backwards; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(1)  { animation-delay: 0.55s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(2)  { animation-delay: 0.60s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(3)  { animation-delay: 0.65s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(4)  { animation-delay: 0.70s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(5)  { animation-delay: 0.75s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(6)  { animation-delay: 0.80s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(7)  { animation-delay: 0.85s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(8)  { animation-delay: 0.90s; }
+        .indent-app-container .custom-table-container tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .indent-app-container,
+          .indent-app-container * {
+            animation: none !important;
+          }
+        }
 `}</style>
 
       <div className="indent-app-container">

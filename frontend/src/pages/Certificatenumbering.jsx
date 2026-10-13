@@ -1640,4 +1640,51 @@ const CSS = `
   .cn-stage{order:-1;min-height:480px}
   .cn-canvas-wrap{min-height:360px}
 }
+
+/* ---------- entrance animations ---------- */
+@keyframes cnfadeup{
+  from{opacity:0;transform:translatey(18px)}
+  to{opacity:1;transform:translatey(0)}
+}
+@keyframes cnfadein{from{opacity:0}to{opacity:1}}
+@keyframes cnslideleft{
+  from{opacity:0;transform:translatex(-24px)}
+  to{opacity:1;transform:translatex(0)}
+}
+@keyframes cnslideright{
+  from{opacity:0;transform:translatex(24px)}
+  to{opacity:1;transform:translatex(0)}
+}
+@keyframes cnslideup{
+  from{opacity:0;transform:translatey(100%)}
+  to{opacity:1;transform:translatey(0)}
+}
+
+/* "backwards" fill so nothing stays locked after the animation ends */
+.cn-root{animation:cnfadein .4s ease backwards}
+.cn-side{animation:cnslideleft .55s cubic-bezier(.22,1,.36,1) .05s backwards}
+.cn-stage{animation:cnfadeup .6s cubic-bezier(.22,1,.36,1) .15s backwards}
+.cn-props{animation:cnslideright .55s cubic-bezier(.22,1,.36,1) .25s backwards}
+.cn-gen{animation:cnslideup .5s cubic-bezier(.22,1,.36,1) .4s backwards}
+
+/* sidebar sections cascade */
+.cn-side form>.cn-sec{animation:cnfadeup .45s cubic-bezier(.22,1,.36,1) backwards}
+.cn-side form>.cn-sec:nth-child(1){animation-delay:.25s}
+.cn-side form>.cn-sec:nth-child(2){animation-delay:.31s}
+.cn-side form>.cn-sec:nth-child(3){animation-delay:.37s}
+.cn-side form>.cn-sec:nth-child(4){animation-delay:.43s}
+.cn-side form>.cn-sec:nth-child(5){animation-delay:.49s}
+.cn-side form>.cn-sec:nth-child(6){animation-delay:.55s}
+.cn-side form>.cn-sec:nth-child(7){animation-delay:.61s}
+
+/* canvas fades in after the stage */
+.cn-preview-canvas{animation:cnfadein .6s ease .45s backwards}
+
+/* excel column items and inspector content */
+.cn-col{animation:cnfadein .3s ease backwards}
+.cn-props-body{animation:cnfadein .4s ease .5s backwards}
+
+@media (prefers-reduced-motion:reduce){
+  .cn-root,.cn-root *,.cn-root *::before,.cn-root *::after{animation:none!important}
+}
 `;

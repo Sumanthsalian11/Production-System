@@ -1401,6 +1401,90 @@ function CustomerDashboard() {
         /* filter bar heading */
         .customer-dashboard-universe .po-filter-title { font-size: 13.5px; }
         .customer-dashboard-universe .po-filter-count { font-size: 11px; color: #000000; }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgfadedown {
+          from { opacity: 0; transform: translatey(-14px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgpop {
+          from { opacity: 0; transform: translatey(16px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes pgslideright {
+          from { opacity: 0; transform: translatex(-18px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* page container */
+        .customer-dashboard-universe {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+
+        /* top tabs */
+        .customer-dashboard-universe .mode-toggle-bar {
+          animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+        }
+
+        /* entry form (also plays each time it opens) */
+        .customer-dashboard-universe .po-split {
+          animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+        }
+        .customer-dashboard-universe .po-side {
+          animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+        }
+        .customer-dashboard-universe .po-main .po-heading,
+        .customer-dashboard-universe .po-main .po-radio-row,
+        .customer-dashboard-universe .po-main .po-section,
+        .customer-dashboard-universe .po-main .row {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+        .customer-dashboard-universe .po-main .po-heading   { animation-delay: 0.40s; }
+        .customer-dashboard-universe .po-main .po-radio-row { animation-delay: 0.46s; }
+        .customer-dashboard-universe .po-main .row          { animation-delay: 0.52s; }
+        .customer-dashboard-universe .po-main .po-section   { animation-delay: 0.58s; }
+        .customer-dashboard-universe .po-submit {
+          animation: pgfadeup 0.45s ease-out 0.7s backwards;
+        }
+
+        /* filters + tables */
+        .customer-dashboard-universe .po-filter {
+          animation: pgfadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.3s backwards;
+        }
+        .customer-dashboard-universe .card {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.4s backwards;
+        }
+        .customer-dashboard-universe .card .card { animation: none; }
+
+        /* table rows: quick stagger on the first rows */
+        .customer-dashboard-universe tbody tr { animation: pgrow 0.35s ease-out backwards; }
+        .customer-dashboard-universe tbody tr:nth-child(1)  { animation-delay: 0.55s; }
+        .customer-dashboard-universe tbody tr:nth-child(2)  { animation-delay: 0.60s; }
+        .customer-dashboard-universe tbody tr:nth-child(3)  { animation-delay: 0.65s; }
+        .customer-dashboard-universe tbody tr:nth-child(4)  { animation-delay: 0.70s; }
+        .customer-dashboard-universe tbody tr:nth-child(5)  { animation-delay: 0.75s; }
+        .customer-dashboard-universe tbody tr:nth-child(6)  { animation-delay: 0.80s; }
+        .customer-dashboard-universe tbody tr:nth-child(7)  { animation-delay: 0.85s; }
+        .customer-dashboard-universe tbody tr:nth-child(8)  { animation-delay: 0.90s; }
+        .customer-dashboard-universe tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .customer-dashboard-universe,
+          .customer-dashboard-universe * {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       {/* Toast */}

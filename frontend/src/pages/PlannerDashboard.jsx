@@ -3411,6 +3411,109 @@ function PlannerDashboard() {
           font-weight: 700;
           border-bottom: 1px solid #8fbcc7;
         }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgfadedown {
+          from { opacity: 0; transform: translatey(-14px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgpop {
+          from { opacity: 0; transform: translatey(16px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes pgslideright {
+          from { opacity: 0; transform: translatex(-18px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgfade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+
+        /* page container */
+        .planner-dashboard-root {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+
+        /* top tabs */
+        .planner-dashboard-root .quick-nav {
+          animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+        }
+
+        /* cards (received, printing, planned, outer label) */
+        .planner-dashboard-root .card-glass-3d {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards;
+        }
+        .planner-dashboard-root .premium-toolbar {
+          animation: pgfadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.4s backwards;
+        }
+        .planner-dashboard-root .scrollable-table-container {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.5s backwards;
+        }
+
+        /* work order form (plays every time it opens) */
+        .planner-dashboard-root .wo-split {
+          animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
+        }
+        .planner-dashboard-root .wo-split .po-side {
+          animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+        }
+        .planner-dashboard-root .wo-split .po-heading,
+        .planner-dashboard-root .wo-split .wo-panel,
+        .planner-dashboard-root .wo-split .wo-foot {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+        .planner-dashboard-root .wo-split .po-heading         { animation-delay: 0.25s; }
+        .planner-dashboard-root .wo-split .wo-panel:nth-of-type(1) { animation-delay: 0.32s; }
+        .planner-dashboard-root .wo-split .wo-panel:nth-of-type(2) { animation-delay: 0.40s; }
+        .planner-dashboard-root .wo-split .wo-panel:nth-of-type(3) { animation-delay: 0.48s; }
+        .planner-dashboard-root .wo-split .wo-foot            { animation-delay: 0.56s; }
+
+        /* activity / paper modal */
+        .planner-dashboard-root .wo-overlay { animation: pgfade 0.25s ease-out backwards; }
+        .planner-dashboard-root .wo-modal   { animation: pgpop 0.35s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+        /* table rows: quick stagger on the first rows */
+        .planner-dashboard-root .table-modern tbody tr,
+        .planner-dashboard-root .planned-workorders-table tbody tr {
+          animation: pgrow 0.35s ease-out backwards;
+        }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(1),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(1)  { animation-delay: 0.55s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(2),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(2)  { animation-delay: 0.60s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(3),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(3)  { animation-delay: 0.65s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(4),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(4)  { animation-delay: 0.70s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(5),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(5)  { animation-delay: 0.75s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(6),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(6)  { animation-delay: 0.80s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(7),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(7)  { animation-delay: 0.85s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(8),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(8)  { animation-delay: 0.90s; }
+        .planner-dashboard-root .table-modern tbody tr:nth-child(n+9),
+        .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .planner-dashboard-root,
+          .planner-dashboard-root * {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       <div className="planner-container-3d">

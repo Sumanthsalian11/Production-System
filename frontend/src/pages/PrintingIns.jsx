@@ -2001,6 +2001,74 @@ const expandTd = (order, key, value) => {
     .pi-badge-red { background: #fbdcdc; border-color: #f0b4b4; }
     .pi-badge-purple { background: #ece8fb; border-color: #cfc5f2; }
     .pi-badge-orange { background: #fde3d8; border-color: #f5b9a1; }
+
+    /* =====================================================================
+       page entrance animation (appended, css only)
+       ===================================================================== */
+    @keyframes pgfadeup {
+      from { opacity: 0; transform: translatey(18px); }
+      to   { opacity: 1; transform: translatey(0); }
+    }
+    @keyframes pgfadedown {
+      from { opacity: 0; transform: translatey(-14px); }
+      to   { opacity: 1; transform: translatey(0); }
+    }
+    @keyframes pgfade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes pgrow {
+      from { opacity: 0; transform: translatey(8px); }
+      to   { opacity: 1; transform: translatey(0); }
+    }
+
+    /* page container (fade only) */
+    .pi-root {
+      animation: pgfade 0.45s ease-out backwards;
+    }
+
+    /* master / perso tabs */
+    .pi-root .pi-seg {
+      animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+    }
+
+    /* form sections (also plays when a section is shown or a product is added) */
+    .pi-root .pi-panel,
+    .pi-root .pi-sec-head,
+    .pi-root .pi-toggle-wrap {
+      animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+    }
+    .pi-root .pi-sub {
+      animation: pgfadeup 0.4s ease-out backwards;
+    }
+
+    /* filters + table */
+    .pi-root .pi-filter {
+      animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+    }
+    .pi-root .pi-table-wrap {
+      animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.45s backwards;
+    }
+
+    /* table rows: quick stagger on the first rows */
+    .pi-root .pi-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+    .pi-root .pi-table tbody tr:nth-child(1)  { animation-delay: 0.60s; }
+    .pi-root .pi-table tbody tr:nth-child(2)  { animation-delay: 0.65s; }
+    .pi-root .pi-table tbody tr:nth-child(3)  { animation-delay: 0.70s; }
+    .pi-root .pi-table tbody tr:nth-child(4)  { animation-delay: 0.75s; }
+    .pi-root .pi-table tbody tr:nth-child(5)  { animation-delay: 0.80s; }
+    .pi-root .pi-table tbody tr:nth-child(6)  { animation-delay: 0.85s; }
+    .pi-root .pi-table tbody tr:nth-child(7)  { animation-delay: 0.90s; }
+    .pi-root .pi-table tbody tr:nth-child(8)  { animation-delay: 0.95s; }
+    .pi-root .pi-table tbody tr:nth-child(n+9) { animation-delay: 1s; }
+
+    /* respect users who disable motion */
+    @media (prefers-reduced-motion: reduce) {
+      .pi-root,
+      .pi-root * {
+        animation: none !important;
+      }
+    }
   `}</style>
 
   <div className="pi-container">

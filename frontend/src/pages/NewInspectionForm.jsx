@@ -538,6 +538,46 @@ function NewInspectionForm() {
         }
         .btn-3d-submit:hover { transform: translateY(-2px); color: #ffffff; filter: brightness(1.05); }
         .btn-3d-submit:active { transform: translateY(3px); box-shadow: 0 1px 0 #0d8a5a, 0 4px 8px rgba(20, 168, 112, 0.22); }
+
+        /* ---------- Entrance animations ---------- */
+        @keyframes nfFadeUp {
+          from { opacity: 0; transform: translateY(24px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes nfFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes nfPop {
+          from { opacity: 0; transform: scale(0.9); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+
+        /* Main card rises in; "backwards" fill avoids locking the end state */
+        .report-card-3d { animation: nfFadeUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+        /* Content inside the card cascades in after it */
+        .report-card-3d .banner-header-3d { animation: nfFadeIn 0.5s ease 0.15s backwards; }
+        .report-card-3d .grid-table-3d    { animation: nfFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.25s backwards; }
+        .report-card-3d .table-responsive { animation: nfFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.38s backwards; }
+        .report-card-3d .criteria-card-3d { animation: nfFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.50s backwards; }
+        .report-card-3d .btn-3d-submit    { animation: nfPop 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.70s backwards; }
+
+        /* Parameter rows fade in one by one when a material is selected */
+        .parameter-row { animation: nfFadeIn 0.4s ease backwards; }
+        .parameter-row:nth-child(1) { animation-delay: 0.00s; }
+        .parameter-row:nth-child(2) { animation-delay: 0.05s; }
+        .parameter-row:nth-child(3) { animation-delay: 0.10s; }
+        .parameter-row:nth-child(4) { animation-delay: 0.15s; }
+        .parameter-row:nth-child(5) { animation-delay: 0.20s; }
+        .parameter-row:nth-child(6) { animation-delay: 0.25s; }
+        .parameter-row:nth-child(n+7) { animation-delay: 0.30s; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .form-page-container *, .form-page-container *::before, .form-page-container *::after {
+            animation: none !important;
+          }
+        }
       `}</style>
 
 

@@ -1151,6 +1151,57 @@ export default function ClickReport() {
           animation: crSpin 0.6s linear infinite;
         }
         @keyframes crSpin { to { transform: rotate(360deg); } }
+
+        /* =====================================================================
+           PAGE ENTRANCE ANIMATION (appended, CSS only)
+           ===================================================================== */
+        @keyframes pgFadeUp {
+          from { opacity: 0; transform: translateY(18px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pgFade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes pgRow {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* page container (fade only) */
+        .planner-dashboard-root { animation: pgFade 0.45s ease-out backwards; }
+
+        /* machine unit cards, command dock and ledger: staggered rise
+           (a new machine unit also animates when you add it) */
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d {
+          animation: pgFadeUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+        }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:first-child { animation-delay: 0.10s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:nth-last-child(2) { animation-delay: 0.25s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child { animation-delay: 0.35s; }
+
+        /* new reading rows slide in when you add a track */
+        .planner-dashboard-root .table-modern tbody tr {
+          animation: pgRow 0.35s ease-out backwards;
+        }
+        /* saved records ledger: quick stagger on the first rows */
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(1)  { animation-delay: 0.50s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(2)  { animation-delay: 0.55s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(3)  { animation-delay: 0.60s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(4)  { animation-delay: 0.65s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(5)  { animation-delay: 0.70s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(6)  { animation-delay: 0.75s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(7)  { animation-delay: 0.80s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(8)  { animation-delay: 0.85s; }
+        .planner-dashboard-root .planner-container-3d > .card-glass-3d:last-child .table-modern tbody tr:nth-child(n+9) { animation-delay: 0.90s; }
+
+        /* respect users who disable motion (the save spinner keeps spinning) */
+        @media (prefers-reduced-motion: reduce) {
+          .planner-dashboard-root,
+          .planner-dashboard-root *:not(.cr-spinner-3d) {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       <div className="planner-container-3d">

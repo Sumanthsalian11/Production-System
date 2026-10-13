@@ -831,6 +831,63 @@ return(
     .dm-span-3 { grid-column: span 1; }
     .dm-header { border-radius: 20px; }
   }
+
+  /* ---------- entrance animations ---------- */
+  @keyframes dmfadeup {
+    from { opacity: 0; transform: translatey(24px) scale(0.98); }
+    to   { opacity: 1; transform: translatey(0) scale(1); }
+  }
+  @keyframes dmslideleft {
+    from { opacity: 0; transform: translatex(-28px); }
+    to   { opacity: 1; transform: translatex(0); }
+  }
+  @keyframes dmslideright {
+    from { opacity: 0; transform: translatex(28px); }
+    to   { opacity: 1; transform: translatex(0); }
+  }
+  @keyframes dmrowin {
+    from { opacity: 0; transform: translatex(-12px); }
+    to   { opacity: 1; transform: translatex(0); }
+  }
+
+  /* "backwards" fill so nothing stays locked after the animation ends */
+  .dm-inner > .dm-card { animation: dmfadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .dm-inner > .dm-card:nth-of-type(1) { animation-delay: 0.05s; }
+
+  /* split form: appears after "fetch details" is clicked */
+  .dm-split { animation: dmfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .dm-split-left  { animation: dmslideleft 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards; }
+  .dm-split-right { animation: dmslideright 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards; }
+  .dm-form-grid .dm-field { animation: dmfadeup 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .dm-form-grid .dm-field:nth-child(1)  { animation-delay: 0.30s; }
+  .dm-form-grid .dm-field:nth-child(2)  { animation-delay: 0.34s; }
+  .dm-form-grid .dm-field:nth-child(3)  { animation-delay: 0.38s; }
+  .dm-form-grid .dm-field:nth-child(4)  { animation-delay: 0.42s; }
+  .dm-form-grid .dm-field:nth-child(5)  { animation-delay: 0.46s; }
+  .dm-form-grid .dm-field:nth-child(6)  { animation-delay: 0.50s; }
+  .dm-form-grid .dm-field:nth-child(7)  { animation-delay: 0.54s; }
+  .dm-form-grid .dm-field:nth-child(8)  { animation-delay: 0.58s; }
+  .dm-form-grid .dm-field:nth-child(n+9) { animation-delay: 0.62s; }
+
+  /* table rows slide in one by one (first 12 staggered) */
+  .dm-table tbody tr { animation: dmrowin 0.4s ease backwards; }
+  .dm-table tbody tr:nth-child(1)  { animation-delay: 0.45s; }
+  .dm-table tbody tr:nth-child(2)  { animation-delay: 0.50s; }
+  .dm-table tbody tr:nth-child(3)  { animation-delay: 0.55s; }
+  .dm-table tbody tr:nth-child(4)  { animation-delay: 0.60s; }
+  .dm-table tbody tr:nth-child(5)  { animation-delay: 0.65s; }
+  .dm-table tbody tr:nth-child(6)  { animation-delay: 0.70s; }
+  .dm-table tbody tr:nth-child(7)  { animation-delay: 0.75s; }
+  .dm-table tbody tr:nth-child(8)  { animation-delay: 0.80s; }
+  .dm-table tbody tr:nth-child(9)  { animation-delay: 0.85s; }
+  .dm-table tbody tr:nth-child(10) { animation-delay: 0.90s; }
+  .dm-table tbody tr:nth-child(11) { animation-delay: 0.95s; }
+  .dm-table tbody tr:nth-child(12) { animation-delay: 1.00s; }
+  .dm-table tbody tr:nth-child(n+13) { animation-delay: 1.05s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dm-wrap *, .dm-wrap *::before, .dm-wrap *::after { animation: none !important; }
+  }
 `}</style>
 
 <div className="dm-inner">

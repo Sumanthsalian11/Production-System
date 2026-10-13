@@ -248,6 +248,91 @@ const preprocessStyles = `
   .pp-modal .po-actions .btn-po-save:hover:not(:disabled){background:#c9461f!important;border-color:#c9461f!important}
   .pp-modal .po-actions .btn-po-save:disabled{background:#e2e4ea!important;border-color:#e2e4ea!important;color:#9DA2B0!important;box-shadow:none}
   @media(max-width:992px){.pp-modal.po-split{flex-direction:column}.pp-modal .po-side{flex:none;min-height:150px;padding:20px;gap:14px}.pp-modal .po-side-hero h1{font-size:28px;margin-bottom:6px}.pp-modal .po-main{padding:18px 14px}.pp-modal .po-grid{grid-template-columns:1fr}}
+
+  /* =====================================================================
+     page entrance animation (appended, css only)
+     ===================================================================== */
+  @keyframes pgfadeup {
+    from { opacity: 0; transform: translatey(18px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfadedown {
+    from { opacity: 0; transform: translatey(-14px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgpop {
+    from { opacity: 0; transform: translatey(16px) scale(0.98); }
+    to   { opacity: 1; transform: translatey(0) scale(1); }
+  }
+  @keyframes pgslideright {
+    from { opacity: 0; transform: translatex(-18px); }
+    to   { opacity: 1; transform: translatex(0); }
+  }
+  @keyframes pgfade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes pgrow {
+    from { opacity: 0; transform: translatey(8px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgfab {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* page container (fade only) */
+  .dashboard-container { animation: pgfade 0.45s ease-out backwards; }
+
+  /* header drops in */
+  .dashboard-container .dashboard-heading {
+    animation: pgfadedown 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+  }
+
+  /* filters, section headings, tables (replays when you switch views) */
+  .dashboard-container .filter-bar {
+    animation: pgfadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+  }
+  .dashboard-container .card-heading-row {
+    animation: pgfadeup 0.45s ease-out 0.25s backwards;
+  }
+  .dashboard-container .production-real-table-wrap {
+    animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+  }
+
+  /* table rows: quick stagger on the first rows */
+  .dashboard-container .production-real-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+  .dashboard-container .production-real-table tbody tr:nth-child(1)  { animation-delay: 0.50s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(2)  { animation-delay: 0.55s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(3)  { animation-delay: 0.60s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(4)  { animation-delay: 0.65s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(5)  { animation-delay: 0.70s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(6)  { animation-delay: 0.75s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(7)  { animation-delay: 0.80s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(8)  { animation-delay: 0.85s; }
+  .dashboard-container .production-real-table tbody tr:nth-child(n+9) { animation-delay: 0.90s; }
+
+  /* floating + button */
+  .dashboard-container .pt-fab { animation: pgfab 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.6s backwards; }
+
+  /* plate tracker entry modal (plays each time it opens) */
+  .dashboard-container .pp-overlay { animation: pgfade 0.25s ease-out backwards; }
+  .dashboard-container .pp-modal   { animation: pgpop 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  .dashboard-container .pp-modal .po-side { animation: pgslideright 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.15s backwards; }
+  .dashboard-container .pp-modal .po-heading,
+  .dashboard-container .pp-modal .po-grid,
+  .dashboard-container .pp-modal .po-actions { animation: pgfadeup 0.45s ease-out backwards; }
+  .dashboard-container .pp-modal .po-heading { animation-delay: 0.20s; }
+  .dashboard-container .pp-modal .po-grid    { animation-delay: 0.28s; }
+  .dashboard-container .pp-modal .po-actions { animation-delay: 0.36s; }
+
+  /* respect users who disable motion */
+  @media (prefers-reduced-motion: reduce) {
+    .dashboard-container,
+    .dashboard-container * {
+      animation: none !important;
+    }
+  }
 `;
 
 const emptyProductionForm = {

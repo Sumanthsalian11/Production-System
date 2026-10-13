@@ -460,6 +460,41 @@ function ReceivingInspectionDashboard() {
         .table-iqc td { border: 1px solid #000; font-size: 0.8rem; padding: 5px; vertical-align: middle; }
         .report-card .bg-light { background: linear-gradient(180deg, #f4fbff 0%, #e9f7fe 100%) !important; border-color: #a6d6ee !important; }
 
+        /* ---------- entrance animations ---------- */
+        @keyframes rifadeup {
+          from { opacity: 0; transform: translatey(24px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes ridropin {
+          from { opacity: 0; transform: translatey(-18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* "backwards" fill keeps your card hover lift working */
+        .company-header { animation: ridropin 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+
+        .kpi-card,
+        .filter-card,
+        .chart-card,
+        .table-card,
+        .report-card {
+          animation: rifadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        }
+
+        .kpi-grid-container .kpi-card:nth-child(1) { animation-delay: 0.10s; }
+        .kpi-grid-container .kpi-card:nth-child(2) { animation-delay: 0.20s; }
+        .kpi-grid-container .kpi-card:nth-child(3) { animation-delay: 0.30s; }
+        #dashboardview .filter-card { animation-delay: 0.35s; }
+        .charts-row-pair .chart-card-wrapper:nth-child(1) .chart-card { animation-delay: 0.45s; }
+        .charts-row-pair .chart-card-wrapper:nth-child(2) .chart-card { animation-delay: 0.55s; }
+        #dashboardview .table-card { animation-delay: 0.65s; }
+
+        @media (prefers-reduced-motion: reduce), print {
+          .dashboard-container *, .dashboard-container *::before, .dashboard-container *::after {
+            animation: none !important;
+          }
+        }
+
         @media (max-width: 768px) {
           .kpi-grid-container { grid-template-columns: 1fr; }
           .charts-row-pair { grid-template-columns: 1fr; }

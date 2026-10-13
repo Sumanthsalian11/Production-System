@@ -2598,6 +2598,78 @@ function ProductionRealDashboard() {
         }
 
         .production-dashboard-page [class^="col-"] > .form-label .pd-ico { display: inline-block; }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgslideright {
+          from { opacity: 0; transform: translatex(-18px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+        @keyframes pgfade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* page container (fade only) */
+        .production-dashboard-page.container { animation: pgfade 0.45s ease-out backwards; }
+
+        /* find work order card + filters card */
+        .production-dashboard-page .card.pd-section {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards;
+        }
+        .production-dashboard-page .card.pd-filter {
+          animation-delay: 0.25s;
+        }
+
+        /* entry form (plays every time it opens; the popup keeps its own pop animation) */
+        .production-dashboard-page .pd-modal .pd-left {
+          animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.15s backwards;
+        }
+        .production-dashboard-page .pd-modal .gl-head,
+        .production-dashboard-page .pd-modal .gl-inner {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+        .production-dashboard-page .pd-modal .gl-head { animation-delay: 0.20s; }
+        .production-dashboard-page .pd-modal form > .gl-inner:nth-of-type(1) { animation-delay: 0.30s; }
+        .production-dashboard-page .pd-modal form > .gl-inner:nth-of-type(2) { animation-delay: 0.38s; }
+        .production-dashboard-page .pd-modal form > .gl-inner:nth-of-type(3) { animation-delay: 0.46s; }
+
+        /* view toggle + records / summary card */
+        .production-dashboard-page .report-toggle-wrap {
+          animation: pgfadeup 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+        }
+        .production-dashboard-page .card.mt-4 {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.45s backwards;
+        }
+
+        /* table rows: quick stagger on the first rows (also replays when you change page) */
+        .production-dashboard-page .card.mt-4 tbody tr { animation: pgrow 0.35s ease-out backwards; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(1)  { animation-delay: 0.60s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(2)  { animation-delay: 0.65s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(3)  { animation-delay: 0.70s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(4)  { animation-delay: 0.75s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(5)  { animation-delay: 0.80s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(6)  { animation-delay: 0.85s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(7)  { animation-delay: 0.90s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(8)  { animation-delay: 0.95s; }
+        .production-dashboard-page .card.mt-4 tbody tr:nth-child(n+9) { animation-delay: 1s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .production-dashboard-page.container,
+          .production-dashboard-page.container * {
+            animation: none !important;
+          }
+        }
       `}</style>
 
 

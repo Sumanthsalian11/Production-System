@@ -568,6 +568,53 @@ function ShreddingDashboard() {
           font-style: normal;
           padding: 28px !important;
         }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgfade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* page container (fade only) */
+        .shredding-dashboard-wrapper { animation: pgfade 0.45s ease-out backwards; }
+
+        /* cards: staggered rise */
+        .shredding-dashboard-wrapper .forge-card {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+        }
+        .shredding-dashboard-wrapper .shred-shell > .forge-card:nth-child(1) { animation-delay: 0.10s; }
+        .shredding-dashboard-wrapper .shred-shell > .forge-card:nth-child(2) { animation-delay: 0.22s; }
+        .shredding-dashboard-wrapper .shred-shell > .forge-card:nth-child(3) { animation-delay: 0.34s; }
+
+        /* table rows: quick stagger on the first rows (replays after fetch) */
+        .shredding-dashboard-wrapper .custom-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(1)  { animation-delay: 0.10s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(2)  { animation-delay: 0.15s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(3)  { animation-delay: 0.20s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(4)  { animation-delay: 0.25s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(5)  { animation-delay: 0.30s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(6)  { animation-delay: 0.35s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(7)  { animation-delay: 0.40s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(8)  { animation-delay: 0.45s; }
+        .shredding-dashboard-wrapper .custom-table tbody tr:nth-child(n+9) { animation-delay: 0.50s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .shredding-dashboard-wrapper,
+          .shredding-dashboard-wrapper * {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       <div className="shred-shell">

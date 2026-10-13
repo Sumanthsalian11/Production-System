@@ -923,6 +923,81 @@ function Productiondashboard() {
         @media (max-width: 600px) {
           .pd-form-grid, .pd-bottom-row .summary-dashboard-cards { grid-template-columns: 1fr; }
         }
+
+        /* =====================================================================
+           page entrance animation (appended, css only)
+           ===================================================================== */
+        @keyframes pgfadeup {
+          from { opacity: 0; transform: translatey(18px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+        @keyframes pgpop {
+          from { opacity: 0; transform: translatey(16px) scale(0.98); }
+          to   { opacity: 1; transform: translatey(0) scale(1); }
+        }
+        @keyframes pgslideright {
+          from { opacity: 0; transform: translatex(-18px); }
+          to   { opacity: 1; transform: translatex(0); }
+        }
+        @keyframes pgfade {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes pgrow {
+          from { opacity: 0; transform: translatey(8px); }
+          to   { opacity: 1; transform: translatey(0); }
+        }
+
+        /* page container (fade only) */
+        .pd-root { animation: pgfade 0.45s ease-out backwards; }
+
+        /* work order retrieval card */
+        .pd-root .pd-glass {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards;
+        }
+
+        /* split form (plays when the work order is fetched) */
+        .pd-root .pd-split {
+          animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards;
+        }
+        .pd-root .pd-split-left {
+          animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards;
+        }
+        .pd-root .pd-split-right .pd-right-title,
+        .pd-root .pd-split-right .pd-sub-head,
+        .pd-root .pd-split-right .pd-form-grid,
+        .pd-root .pd-split-right .pd-bottom-row {
+          animation: pgfadeup 0.45s ease-out backwards;
+        }
+        .pd-root .pd-split-right .pd-right-title { animation-delay: 0.25s; }
+        .pd-root .pd-split-right .pd-sub-head    { animation-delay: 0.30s; }
+        .pd-root .pd-split-right .pd-form-grid   { animation-delay: 0.36s; }
+        .pd-root .pd-split-right .pd-bottom-row  { animation-delay: 0.50s; }
+
+        /* reel register entries card (after the form) */
+        .pd-root .pd-split ~ .pd-glass {
+          animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+        }
+
+        /* table rows: quick stagger on the first rows */
+        .pd-root .colorful-3d-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(1)  { animation-delay: 0.50s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(2)  { animation-delay: 0.55s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(3)  { animation-delay: 0.60s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(4)  { animation-delay: 0.65s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(5)  { animation-delay: 0.70s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(6)  { animation-delay: 0.75s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(7)  { animation-delay: 0.80s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(8)  { animation-delay: 0.85s; }
+        .pd-root .colorful-3d-table tbody tr:nth-child(n+9) { animation-delay: 0.90s; }
+
+        /* respect users who disable motion */
+        @media (prefers-reduced-motion: reduce) {
+          .pd-root,
+          .pd-root * {
+            animation: none !important;
+          }
+        }
       `}</style>
 
       <div className="pd-shell">
