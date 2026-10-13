@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useDeferredValue } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../styles/adminPro.css";
@@ -34,7 +34,6 @@ const AD_CSS = `
       radial-gradient(circle at 88% 18%, rgba(160,222,250,0.7) 0, rgba(160,222,250,0) 32%),
       radial-gradient(circle at 50% 100%, rgba(255,255,255,0.7) 0, rgba(255,255,255,0) 45%),
       linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%) !important;
-    background-attachment: fixed !important;
   }
   .ad-root * { box-sizing: border-box; }
 
@@ -141,6 +140,7 @@ const AD_CSS = `
     border: 1px solid #86c6e8 !important; font-size: 12.5px; font-weight: 800; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
   }
   .ad-root .pro-list { list-style: none; }
+  .ad-root .pro-list > li { content-visibility: auto; contain-intrinsic-size: auto 48px; }
   .ad-root .pro-list li {
     padding: 8px 12px; margin-bottom: 6px; border-radius: 14px; gap: 10px;
     background: #fff !important; border: 1px solid #d3e8f4 !important; color: var(--ink) !important; font-weight: 600; font-size: 13px;
@@ -164,10 +164,23 @@ const AD_CSS = `
 
   .ad-hint { text-align: center; margin: 18px 0; font-size: 14px; font-weight: 700; color: #4a6f8c; }
 
+  /* pagination bar */
+  .ad-pager {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 10px; padding: 8px 12px; border-radius: 14px;
+    background: rgba(255,255,255,0.8); border: 1px solid #cfe8f6;
+  }
+  .ad-pager-info { font-size: 12.5px; font-weight: 700; color: #34526b; }
+  .ad-pager-btns { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+  .ad-pager .pro-btn { min-height: 30px; padding: 3px 12px; font-size: 12.5px; }
+  .ad-pager .pro-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .ad-pager-page { font-size: 12.5px; font-weight: 800; color: #0a4f8c; padding: 0 6px; }
+  .ad-pager .ad-pager-size { min-height: 30px; height: 30px; width: auto; padding: 2px 10px; font-size: 12.5px; }
+
   /* master form popup (split card, same look as the Add New User popup) */
   .ad-overlay {
     position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 16px;
-    background: rgba(40,90,130,0.38); backdrop-filter: blur(6px); animation: adFade .18s ease;
+    background: rgba(40,90,130,0.5); animation: adFade .18s ease;
   }
   @keyframes adFade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes adPop { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
@@ -220,7 +233,7 @@ const AD_CSS = `
   /* message box (replaces the browser alert / confirm) */
   .ad-msg-overlay {
     position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px;
-    background: rgba(40,90,130,0.38); backdrop-filter: blur(6px); animation: adFade .15s ease;
+    background: rgba(40,90,130,0.5); animation: adFade .15s ease;
   }
   .ad-msg-box {
     width: 380px; max-width: 94vw; padding: 22px 26px 20px; text-align: center; border-radius: 28px;
@@ -257,6 +270,52 @@ const AD_CSS = `
 `;
 
 const TAB_TINTS = ["lavender", "peach", "mint", "sky", "rose", "lemon"];
+
+const PAGE_SIZES = [10, 25, 50, 100];
+
+function Pager({ page, totalPages, total, pageSize, onPage, onPageSize }) {
+  const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+
+  return (
+    <div className="ad-pager">
+      <span className="ad-pager-info">
+        Showing {start.toLocaleString("en-IN")}–{end.toLocaleString("en-IN")} of{" "}
+        {total.toLocaleString("en-IN")}
+      </span>
+
+      <div className="ad-pager-btns">
+        <button type="button" className="pro-btn" disabled={page <= 1} onClick={() => onPage(1)}>
+          «
+        </button>
+        <button type="button" className="pro-btn" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+          Prev
+        </button>
+        <span className="ad-pager-page">
+          Page {page} / {totalPages}
+        </span>
+        <button type="button" className="pro-btn" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
+          Next
+        </button>
+        <button type="button" className="pro-btn" disabled={page >= totalPages} onClick={() => onPage(totalPages)}>
+          »
+        </button>
+
+        <select
+          className="pro-input ad-pager-size"
+          value={pageSize}
+          onChange={(e) => onPageSize(Number(e.target.value))}
+        >
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 
 function AdminDashboard() {
   const navigate = useNavigate();
@@ -370,6 +429,11 @@ function AdminDashboard() {
     width: "",
   });
   const [showMaterialList, setShowMaterialList] = useState(false);
+
+  const [itemPage, setItemPage] = useState(1);
+  const [itemPageSize, setItemPageSize] = useState(25);
+  const [materialPage, setMaterialPage] = useState(1);
+  const [materialPageSize, setMaterialPageSize] = useState(25);
   const [uploadingMaterials, setUploadingMaterials] = useState(false);
   const [materialUploadResult, setMaterialUploadResult] = useState(null);
 
@@ -542,9 +606,12 @@ function AdminDashboard() {
   const openSection = (id) => {
     resetForms();
     setActiveSection(id);
-    fetchMasters();
-    fetchMachineCapacity();
-    fetchGst();
+    // refresh the latest data after the popup has painted, so opening never freezes
+    setTimeout(() => {
+      fetchMasters();
+      fetchMachineCapacity();
+      fetchGst();
+    }, 150);
   };
 
   const closeSection = () => {
@@ -1318,30 +1385,35 @@ function AdminDashboard() {
     );
   });
 
-  const filteredItems = items.filter((item) => {
-    const codeSearch = (searchItemCode || itemFilter.itemCode || "").toLowerCase();
-    const matchCode = (item.itemCode || "").toLowerCase().includes(codeSearch);
-    const matchCustomer = (item.customerName || "").toLowerCase().includes(itemFilter.customerName.toLowerCase());
-    const matchDesc = (item.description || "").toLowerCase().includes(itemFilter.description.toLowerCase());
-    const matchMat = (item.materialType || "").toLowerCase().includes(itemFilter.materialType.toLowerCase());
-    const matchFront = (item.colorFront || "").toLowerCase().includes(itemFilter.colorFront.toLowerCase());
-    const matchBack = (item.colorBack || "").toLowerCase().includes(itemFilter.colorBack.toLowerCase());
-    const matchWaste = String(item.wasteQty || "").toLowerCase().includes(itemFilter.wasteQty.toLowerCase());
-    const matchJob = (item.jobSize || "").toLowerCase().includes(itemFilter.jobSize.toLowerCase());
-    const matchInk = (item.inkDetails || "").toLowerCase().includes(itemFilter.inkDetails.toLowerCase());
+   const deferredItemFilter = useDeferredValue(itemFilter);
+  const deferredSearchItemCode = useDeferredValue(searchItemCode);
 
-    return (
-      matchCode &&
-      matchCustomer &&
-      matchDesc &&
-      matchMat &&
-      matchFront &&
-      matchBack &&
-      matchWaste &&
-      matchJob &&
-      matchInk
+  const filteredItems = useMemo(() => {
+    if (activeSection !== "items" || !showItemList) return [];
+    const f = deferredItemFilter;
+    const codeSearch = (deferredSearchItemCode || f.itemCode || "").toLowerCase();
+    const customer = f.customerName.toLowerCase();
+    const desc = f.description.toLowerCase();
+    const mat = f.materialType.toLowerCase();
+    const front = f.colorFront.toLowerCase();
+    const back = f.colorBack.toLowerCase();
+    const waste = f.wasteQty.toLowerCase();
+    const job = f.jobSize.toLowerCase();
+    const ink = f.inkDetails.toLowerCase();
+
+    return items.filter(
+      (item) =>
+        (item.itemCode || "").toLowerCase().includes(codeSearch) &&
+        (item.customerName || "").toLowerCase().includes(customer) &&
+        (item.description || "").toLowerCase().includes(desc) &&
+        (item.materialType || "").toLowerCase().includes(mat) &&
+        (item.colorFront || "").toLowerCase().includes(front) &&
+        (item.colorBack || "").toLowerCase().includes(back) &&
+        String(item.wasteQty || "").toLowerCase().includes(waste) &&
+        (item.jobSize || "").toLowerCase().includes(job) &&
+        (item.inkDetails || "").toLowerCase().includes(ink)
     );
-  });
+  }, [items, activeSection, showItemList, deferredItemFilter, deferredSearchItemCode]);
 
   const filteredTransportations = transportations.filter((t) =>
     (t.name || "").toLowerCase().includes(transportationFilter.toLowerCase())
@@ -1431,29 +1503,52 @@ function AdminDashboard() {
     const matchAddress = (l.address || "").toLowerCase().includes(locationFilter.address.toLowerCase());
     return matchName && matchAddress;
   });
+  const deferredMaterialFilter = useDeferredValue(materialFilter);
+  const deferredSearchMaterialCode = useDeferredValue(searchMaterialCode);
 
-  const filteredMaterials = materials.filter((m) => {
-    const codeSearch = (searchMaterialCode || materialFilter.code || "").toLowerCase();
-    const matchCode = String(m.code || "").toLowerCase().includes(codeSearch);
-    const matchDesc = String(m.description || "").toLowerCase().includes(materialFilter.description.toLowerCase());
-    const matchGroup = String(m.group || "").toLowerCase().includes(materialFilter.group.toLowerCase());
-    const matchMill = String(m.mill || "").toLowerCase().includes(materialFilter.mill.toLowerCase());
-    const matchGsm = String(m.gsm || "").toLowerCase().includes(materialFilter.gsm.toLowerCase());
-    const matchPaper = String(m.paperSize || "").toLowerCase().includes(materialFilter.paperSize.toLowerCase());
-    const matchLength = String(m.length || "").toLowerCase().includes(materialFilter.length.toLowerCase());
-    const matchWidth = String(m.width || "").toLowerCase().includes(materialFilter.width.toLowerCase());
+  const filteredMaterials = useMemo(() => {
+    if (activeSection !== "materials" || !showMaterialList) return [];
+    const f = deferredMaterialFilter;
+    const codeSearch = (deferredSearchMaterialCode || f.code || "").toLowerCase();
+    const desc = f.description.toLowerCase();
+    const group = f.group.toLowerCase();
+    const mill = f.mill.toLowerCase();
+    const gsm = f.gsm.toLowerCase();
+    const paper = f.paperSize.toLowerCase();
+    const length = f.length.toLowerCase();
+    const width = f.width.toLowerCase();
 
-    return (
-      matchCode &&
-      matchDesc &&
-      matchGroup &&
-      matchMill &&
-      matchGsm &&
-      matchPaper &&
-      matchLength &&
-      matchWidth
+    return materials.filter(
+      (m) =>
+        String(m.code || "").toLowerCase().includes(codeSearch) &&
+        String(m.description || "").toLowerCase().includes(desc) &&
+        String(m.group || "").toLowerCase().includes(group) &&
+        String(m.mill || "").toLowerCase().includes(mill) &&
+        String(m.gsm || "").toLowerCase().includes(gsm) &&
+        String(m.paperSize || "").toLowerCase().includes(paper) &&
+        String(m.length || "").toLowerCase().includes(length) &&
+        String(m.width || "").toLowerCase().includes(width)
     );
-  });
+  }, [materials, activeSection, showMaterialList, deferredMaterialFilter, deferredSearchMaterialCode]);
+
+  // ---- pagination (Items + Materials) ----
+  useEffect(() => {
+    setItemPage(1);
+  }, [itemFilter, searchItemCode, showItemList, activeSection, itemPageSize]);
+  useEffect(() => {
+    setMaterialPage(1);
+  }, [materialFilter, searchMaterialCode, showMaterialList, activeSection, materialPageSize]);
+
+  const itemTotalPages = Math.max(1, Math.ceil(filteredItems.length / itemPageSize));
+  const safeItemPage = Math.min(itemPage, itemTotalPages);
+  const pagedItems = filteredItems.slice((safeItemPage - 1) * itemPageSize, safeItemPage * itemPageSize);
+
+  const materialTotalPages = Math.max(1, Math.ceil(filteredMaterials.length / materialPageSize));
+  const safeMaterialPage = Math.min(materialPage, materialTotalPages);
+  const pagedMaterials = filteredMaterials.slice(
+    (safeMaterialPage - 1) * materialPageSize,
+    safeMaterialPage * materialPageSize
+  );
 
   return (
     <motion.div
@@ -2130,7 +2225,7 @@ function AdminDashboard() {
               {/* Scrollable Records */}
               <div style={scrollContainerStyle}>
                 <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
-                  {filteredItems.map((i) => (
+                  {pagedItems.map((i) => (
                     <li key={i._id} className="d-flex justify-content-between align-items-center">
                       {editingId === i._id ? (
                         <>
@@ -2241,6 +2336,15 @@ function AdminDashboard() {
                   )}
                 </ul>
               </div>
+
+              <Pager
+                page={safeItemPage}
+                totalPages={itemTotalPages}
+                total={filteredItems.length}
+                pageSize={itemPageSize}
+                onPage={setItemPage}
+                onPageSize={setItemPageSize}
+              />
             </>
           )}
         </motion.div>
@@ -4243,7 +4347,7 @@ function AdminDashboard() {
               {/* Scrollable Records */}
               <div style={scrollContainerStyle}>
                 <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
-                  {filteredMaterials.map((m) => (
+                  {pagedMaterials.map((m) => (
                     <li key={m._id} className="d-flex justify-content-between align-items-center">
                       {editingId === m._id ? (
                         <>
@@ -4315,6 +4419,15 @@ function AdminDashboard() {
                   )}
                 </ul>
               </div>
+
+              <Pager
+                page={safeMaterialPage}
+                totalPages={materialTotalPages}
+                total={filteredMaterials.length}
+                pageSize={materialPageSize}
+                onPage={setMaterialPage}
+                onPageSize={setMaterialPageSize}
+              />
             </>
           )}
         </motion.div>
