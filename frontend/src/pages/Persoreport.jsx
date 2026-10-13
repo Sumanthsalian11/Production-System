@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import * as XLSX from "xlsx";
@@ -231,6 +231,13 @@ const CSS = `
   }
 `;
 
+// ---- dynamic machine-hours status helpers ----
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+const isProductionStatus = (s) => ["production", "working"].includes(normStatus(s));
+const statusColLabel = (label) =>
+  /time$/i.test(label.trim()) ? label.trim() : `${label.trim()} Time`;
+const sumVals = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
+
 const toMins = (hms) => {
   if (!hms) return 0;
   const parts = hms.split(":").map(Number);
@@ -306,6 +313,20 @@ const [filters, setFilters] = useState({
     load();
   }, [token]);
 
+  // dynamic columns = every status in the master (except Production) + any extra found in records
+  const statusColumns = useMemo(() => {
+    const seen = new Map();
+    machineStatuses.forEach((s) => {
+      const k = normStatus(s.statusName);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, s.statusName.trim());
+    });
+    records.forEach((r) => {
+      const k = normStatus(r.machineStatus);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(r.machineStatus).trim());
+    });
+    return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
+  }, [machineStatuses, records]);
+
   const filtered = useMemo(() => {
     return records.filter((r) => {
       const d = r.productionDate ? new Date(r.productionDate) : null;
@@ -333,20 +354,18 @@ const consolidated = useMemo(() => {
     const mName = r.machineId?.machineName || r.machineName || "Unknown";
     const printer = r.printerName || "";
     const key = `${mName}||${printer}`;
-    if (!map[key]) map[key] = { machineName: mName, printerName: printer, counts: {}, printingMins: 0, idleMins: 0, breakdownMins: 0, maintenanceMins: 0 };
+    if (!map[key]) map[key] = { machineName: mName, printerName: printer, counts: {}, printingMins: 0, statusMins: {} };
     const e = map[key];
     const sz = (r.paperSize || "Unknown").toUpperCase();
     const pages = Number(r.totalPages) || 0;
     e.counts[sz] = (e.counts[sz] || 0) + pages;
     const dur = toMins(elapsed(r.fromTime, r.toTime));
     const status = r.machineStatus?.toLowerCase();
-    if (status === "production" || status === "working") e.printingMins += dur;
-  else if (
-  status === "idle" ||
-  status === "idle time"
-)e.idleMins += dur;
-    else if (status?.includes("break")) e.breakdownMins += dur;
-    else if (status?.includes("maint")) e.maintenanceMins += dur;
+    if (isProductionStatus(status)) e.printingMins += dur;
+    else if (status) {
+      const k = normStatus(status);
+      e.statusMins[k] = (e.statusMins[k] || 0) + dur;
+    }
   });
   return Object.values(map);
 }, [filtered]);
@@ -376,10 +395,11 @@ const paperSizeColumns = useMemo(() => {
       return acc;
     }, {}),
     printingMins: consolidated.reduce((s, c) => s + c.printingMins, 0),
-    idleMins: consolidated.reduce((s, c) => s + c.idleMins, 0),
-    breakdownMins: consolidated.reduce((s, c) => s + c.breakdownMins, 0),
-    maintenanceMins: consolidated.reduce((s, c) => s + c.maintenanceMins, 0),
-  }), [consolidated, paperSizeColumns]);
+    statusMins: statusColumns.reduce((acc, s) => {
+      acc[s.key] = consolidated.reduce((t, c) => t + ((c.statusMins || {})[s.key] || 0), 0);
+      return acc;
+    }, {}),
+  }), [consolidated, paperSizeColumns, statusColumns]);
 
   /* DETAIL ROWS — grouped by job so production/idle/breakdown show in one row */
   const detailRows = useMemo(() => {
@@ -408,9 +428,7 @@ const paperSizeColumns = useMemo(() => {
           totalPages: 0,
           wastageSheets: 0,
           print: { from: [], to: [], mins: 0 },
-          idle: { from: [], to: [], mins: 0 },
-          brk: { from: [], to: [], mins: 0 },
-          maint: { from: [], to: [], mins: 0 },
+          stat: {},
           reasons: [],
           remarksList: [],
         };
@@ -427,13 +445,12 @@ const paperSizeColumns = useMemo(() => {
       if (r.reason) row.reasons.push(r.reason);
       if (r.remarks) row.remarksList.push(r.remarks);
 
-      if (st === "production" || st === "working") addTime(row.print, r, dur);
-     else if (
-  st === "idle" ||
-  st === "idle time"
-) addTime(row.idle, r, dur);
-      else if (st?.includes("break")) addTime(row.brk, r, dur);
-      else if (st?.includes("maint")) addTime(row.maint, r, dur);
+      if (isProductionStatus(st)) addTime(row.print, r, dur);
+      else if (st) {
+        const k = normStatus(st);
+        if (!row.stat[k]) row.stat[k] = { from: [], to: [], mins: 0 };
+        addTime(row.stat[k], r, dur);
+      }
     });
 
     return Object.values(map).map((r) => ({
@@ -441,22 +458,16 @@ const paperSizeColumns = useMemo(() => {
       printFrom: joinValues(r.print.from),
       printTo: joinValues(r.print.to),
       printTotal: fromMins(r.print.mins),
-      idleFrom: joinValues(r.idle.from),
-      idleTo: joinValues(r.idle.to),
-      idleTotal: fromMins(r.idle.mins),
-      brkFrom: joinValues(r.brk.from),
-      brkTo: joinValues(r.brk.to),
-      brkTotal: fromMins(r.brk.mins),
-      maintFrom: joinValues(r.maint.from),
-      maintTo: joinValues(r.maint.to),
-      maintTotal: fromMins(r.maint.mins),
+      statusCells: Object.fromEntries(
+        Object.entries(r.stat).map(([k, v]) => [
+          k,
+          { from: joinValues(v.from), to: joinValues(v.to), mins: v.mins, total: fromMins(v.mins) },
+        ])
+      ),
       reason: joinValues(r.reasons),
       remarks: joinValues(r.remarksList),
-      dur: fromMins(r.print.mins + r.idle.mins + r.brk.mins + r.maint.mins),
+      dur: fromMins(r.print.mins + Object.values(r.stat).reduce((a, v) => a + v.mins, 0)),
       printMins: r.print.mins,
-      idleMins: r.idle.mins,
-      brkMins: r.brk.mins,
-      maintMins: r.maint.mins,
     }));
   }, [filtered]);
 
@@ -464,11 +475,12 @@ const paperSizeColumns = useMemo(() => {
     pages: detailRows.reduce((s, r) => s + (Number(r.totalPages) || 0), 0),
     waste: detailRows.reduce((s, r) => s + (Number(r.wastageSheets) || 0), 0),
     printMins: detailRows.reduce((s, r) => s + (r.printMins || 0), 0),
-    idleMins:  detailRows.reduce((s, r) => s + (r.idleMins || 0), 0),
-    brkMins:   detailRows.reduce((s, r) => s + (r.brkMins || 0), 0),
-    maintMins: detailRows.reduce((s, r) => s + (r.maintMins || 0), 0),
+    statusMins: statusColumns.reduce((acc, s) => {
+      acc[s.key] = detailRows.reduce((t, r) => t + (r.statusCells[s.key]?.mins || 0), 0);
+      return acc;
+    }, {}),
     allMins:   detailRows.reduce((s, r) => s + toMins(r.dur), 0),
-  }), [detailRows]);
+  }), [detailRows, statusColumns]);
 
   const machineOptions = useMemo(() =>
     [...new Set(records.map((r) => r.machineId?.machineName || r.machineName).filter(Boolean))],
@@ -493,12 +505,12 @@ const exportExcel = () => {
     const conGroupRow = [
       "", "", "",
       ...paperSizeColumns.map((_, i) => i === 0 ? "PRODUCTION COUNT" : ""),
-      "PRINTING TIME", "IDLE TIME", "BREAKDOWN TIME", "MAINTENANCE TIME", "TOTAL TIMINGS",
+      "PRINTING TIME", ...statusColumns.map((s) => s.label.toUpperCase()), "TOTAL TIMINGS",
     ];
     const conSubRow = [
       "#", "Machine Name", "Printer Name",
       ...paperSizeColumns,
-      "Printing Time", "Idle Time", "Breakdown Time", "Maintenance Time", "Total Time",
+      "Printing Time", ...statusColumns.map((s) => s.label), "Total Time",
     ];
     const conDataRows = consolidated.map((c, i) => [
       i + 1,
@@ -506,19 +518,15 @@ const exportExcel = () => {
       c.printerName || "",
       ...paperSizeColumns.map((sz) => c.counts[sz] || 0),
       fromMins(c.printingMins),
-      fromMins(c.idleMins),
-      fromMins(c.breakdownMins),
-      fromMins(c.maintenanceMins),
-      fromMins(c.printingMins + c.idleMins + c.breakdownMins + c.maintenanceMins),
+      ...statusColumns.map((s) => fromMins((c.statusMins || {})[s.key] || 0)),
+      fromMins(c.printingMins + sumVals(c.statusMins)),
     ]);
     const conTotalRow = [
       "TOTAL", "", "",
       ...paperSizeColumns.map((sz) => conTotals.counts[sz] || 0),
       fromMins(conTotals.printingMins),
-      fromMins(conTotals.idleMins),
-      fromMins(conTotals.breakdownMins),
-      fromMins(conTotals.maintenanceMins),
-      fromMins(conTotals.printingMins + conTotals.idleMins + conTotals.breakdownMins + conTotals.maintenanceMins),
+      ...statusColumns.map((s) => fromMins(conTotals.statusMins[s.key] || 0)),
+      fromMins(conTotals.printingMins + sumVals(conTotals.statusMins)),
     ];
     const conSheet = XLSX.utils.aoa_to_sheet([conGroupRow, conSubRow, ...conDataRows, conTotalRow]);
     if (paperSizeColumns.length > 1) {
@@ -530,7 +538,7 @@ const exportExcel = () => {
     conSheet["!cols"] = [
       { wch: 4 }, { wch: 22 }, { wch: 20 },
       ...paperSizeColumns.map(() => ({ wch: 12 })),
-      { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 },
+      { wch: 14 }, ...statusColumns.map(() => ({ wch: 16 })), { wch: 14 },
     ];
     XLSX.utils.book_append_sheet(wb, conSheet, "Consolidated");
 
@@ -538,18 +546,14 @@ const exportExcel = () => {
     const detGroupRow = [
       "", "", "", "", "", "", "", "", "", "", "",
       "PRINTING TIME", "", "",
-      "IDLE TIME", "", "",
-      "BREAKDOWN TIME", "", "",
-      "MAINTENANCE TIME", "", "",
+      ...statusColumns.flatMap((s) => [s.label.toUpperCase(), "", ""]),
       "", "", "", "",
     ];
     const detSubRow = [
       "#", "Date", "WO No.", "Shift", "Machine", "Printer", "Customer",
       "Item", "Page Size", "Total Pages", "Wastage",
       "From", "To", "Total",
-      "From", "To", "Total",
-      "From", "To", "Total",
-      "From", "To", "Total",
+      ...statusColumns.flatMap(() => ["From", "To", "Total"]),
       "Reason", "Remarks", "GT", "Operator"
     ];
     const detDataRows = detailRows.map((r, i) => [
@@ -567,15 +571,10 @@ const exportExcel = () => {
       r.printFrom || "",
       r.printTo || "",
       r.printMins ? r.printTotal : "",
-      r.idleFrom || "",
-      r.idleTo || "",
-      r.idleMins ? r.idleTotal : "",
-      r.brkFrom || "",
-      r.brkTo || "",
-      r.brkMins ? r.brkTotal : "",
-      r.maintFrom || "",
-      r.maintTo || "",
-      r.maintMins ? r.maintTotal : "",
+      ...statusColumns.flatMap((s) => {
+        const c = r.statusCells[s.key];
+        return [c?.from || "", c?.to || "", c?.mins ? c.total : ""];
+      }),
       r.reason || "",
       r.remarks || "",
       r.dur,
@@ -586,27 +585,25 @@ const exportExcel = () => {
       detTotals.pages,
       detTotals.waste,
       "", "", fromMins(detTotals.printMins),
-      "", "", fromMins(detTotals.idleMins),
-      "", "", fromMins(detTotals.brkMins),
-      "", "", fromMins(detTotals.maintMins),
+      ...statusColumns.flatMap((s) => ["", "", fromMins(detTotals.statusMins[s.key] || 0)]),
       "", "",
       fromMins(detTotals.allMins), "",
     ];
     const detSheet = XLSX.utils.aoa_to_sheet([detGroupRow, detSubRow, ...detDataRows, detTotalRow]);
-    // Merge group headers
+    // dynamic merges + widths (override the fixed ones above)
     detSheet["!merges"] = [
       { s: { r: 0, c: 11 }, e: { r: 0, c: 13 } }, // PRINTING TIME
-      { s: { r: 0, c: 14 }, e: { r: 0, c: 16 } }, // IDLE TIME
-      { s: { r: 0, c: 17 }, e: { r: 0, c: 19 } }, // BREAKDOWN TIME
-      { s: { r: 0, c: 20 }, e: { r: 0, c: 22 } }, // MAINTENANCE TIME
+      ...statusColumns.map((_, i) => ({
+        s: { r: 0, c: 14 + i * 3 },
+        e: { r: 0, c: 16 + i * 3 },
+      })),
     ];
     detSheet["!cols"] = [
       { wch: 4 },  { wch: 12 }, { wch: 8 },  { wch: 20 }, { wch: 18 },
       { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 11 },
-      { wch: 9 },  { wch: 8 },  { wch: 8 },  { wch: 10 },
+      { wch: 9 },
       { wch: 8 },  { wch: 8 },  { wch: 10 },
-      { wch: 8 },  { wch: 8 },  { wch: 10 },
-      { wch: 8 },  { wch: 8 },  { wch: 10 },
+      ...statusColumns.flatMap(() => [{ wch: 8 }, { wch: 8 }, { wch: 10 }]),
       { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 14 },
     ];
     XLSX.utils.book_append_sheet(wb, detSheet, "Detail");
@@ -729,9 +726,9 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                   <th rowSpan={2} style={{ textAlign: "left" }}>PRINTER NAME</th>
                   <th colSpan={paperSizeColumns.length} className="rpt-thead-group">PRODUCTION COUNT</th>
                   <th rowSpan={2}>PRINTING TIME</th>
-                  <th rowSpan={2}>IDLE TIME</th>
-                  <th rowSpan={2}>BREAKDOWN TIME</th>
-                  <th rowSpan={2}>MAINTENANCE TIME</th>
+                  {statusColumns.map((s) => (
+                    <th key={s.key} rowSpan={2}>{s.label.toUpperCase()}</th>
+                  ))}
                   <th rowSpan={2}>TOTAL TIMINGS</th>
                 </tr>
                 <tr>
@@ -750,10 +747,10 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                       <td key={sz} className="rpt-con-num">{(c.counts[sz] || 0).toLocaleString()}</td>
                     ))}
                     <td className="rpt-con-time">{fromMins(c.printingMins)}</td>
-                    <td className="rpt-con-time">{fromMins(c.idleMins)}</td>
-                    <td className="rpt-con-time">{fromMins(c.breakdownMins)}</td>
-                    <td className="rpt-con-time">{fromMins(c.maintenanceMins)}</td>
-                    <td className="rpt-con-total">{fromMins(c.printingMins + c.idleMins + c.breakdownMins + c.maintenanceMins)}</td>
+                    {statusColumns.map((s) => (
+                      <td key={s.key} className="rpt-con-time">{fromMins((c.statusMins || {})[s.key] || 0)}</td>
+                    ))}
+                    <td className="rpt-con-total">{fromMins(c.printingMins + sumVals(c.statusMins))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -764,10 +761,10 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                     <td key={sz}>{(conTotals.counts[sz] || 0).toLocaleString()}</td>
                   ))}
                   <td>{fromMins(conTotals.printingMins)}</td>
-                  <td>{fromMins(conTotals.idleMins)}</td>
-                  <td>{fromMins(conTotals.breakdownMins)}</td>
-                  <td>{fromMins(conTotals.maintenanceMins)}</td>
-                  <td>{fromMins(conTotals.printingMins + conTotals.idleMins + conTotals.breakdownMins + conTotals.maintenanceMins)}</td>
+                  {statusColumns.map((s) => (
+                    <td key={s.key}>{fromMins(conTotals.statusMins[s.key] || 0)}</td>
+                  ))}
+                  <td>{fromMins(conTotals.printingMins + sumVals(conTotals.statusMins))}</td>
                 </tr>
               </tfoot>
             </table>
@@ -821,9 +818,9 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                   <th rowSpan={2}>Total Pages</th>
                   <th rowSpan={2}>Wastage</th>
                   <th colSpan={3} className="rpt-thead-group">PRINTING TIME</th>
-                  <th colSpan={3} className="rpt-thead-group">IDLE TIME</th>
-                  <th colSpan={3} className="rpt-thead-group">BREAKDOWN TIME</th>
-                  <th colSpan={3} className="rpt-thead-group">MAINTENANCE TIME</th>
+                  {statusColumns.map((s) => (
+                    <th key={s.key} colSpan={3} className="rpt-thead-group">{s.label.toUpperCase()}</th>
+                  ))}
                   <th rowSpan={2}>Reason</th>
                   <th rowSpan={2}>Remarks</th>
                   <th rowSpan={2}>Grand Total</th>
@@ -832,15 +829,13 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                   <th className="rpt-thead-group">FROM</th>
                   <th className="rpt-thead-group">TO</th>
                   <th className="rpt-thead-group">TOTAL</th>
-                  <th className="rpt-thead-group">FROM</th>
-                  <th className="rpt-thead-group">TO</th>
-                  <th className="rpt-thead-group">TOTAL</th>
-                  <th className="rpt-thead-group">FROM</th>
-                  <th className="rpt-thead-group">TO</th>
-                  <th className="rpt-thead-group">TOTAL</th>
-                  <th className="rpt-thead-group">FROM</th>
-                  <th className="rpt-thead-group">TO</th>
-                  <th className="rpt-thead-group">TOTAL</th>
+                  {statusColumns.map((s) => (
+                    <Fragment key={s.key}>
+                      <th className="rpt-thead-group">FROM</th>
+                      <th className="rpt-thead-group">TO</th>
+                      <th className="rpt-thead-group">TOTAL</th>
+                    </Fragment>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -862,18 +857,16 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                     <td className="mono">{r.printFrom || <span className="rpt-muted">—</span>}</td>
                     <td className="mono">{r.printTo || <span className="rpt-muted">—</span>}</td>
                     <td className="mono">{r.printMins ? r.printTotal : <span className="rpt-muted">—</span>}</td>
-                    {/* IDLE TIME */}
-                    <td className="mono">{r.idleFrom || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.idleTo || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.idleMins ? r.idleTotal : <span className="rpt-muted">—</span>}</td>
-                    {/* BREAKDOWN TIME */}
-                    <td className="mono">{r.brkFrom || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.brkTo || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.brkMins ? r.brkTotal : <span className="rpt-muted">—</span>}</td>
-                    {/* MAINTENANCE TIME */}
-                    <td className="mono">{r.maintFrom || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.maintTo || <span className="rpt-muted">—</span>}</td>
-                    <td className="mono">{r.maintMins ? r.maintTotal : <span className="rpt-muted">—</span>}</td>
+                    {statusColumns.map((s) => {
+                      const c = r.statusCells[s.key];
+                      return (
+                        <Fragment key={s.key}>
+                          <td className="mono">{c?.from || <span className="rpt-muted">—</span>}</td>
+                          <td className="mono">{c?.to || <span className="rpt-muted">—</span>}</td>
+                          <td className="mono">{c?.mins ? c.total : <span className="rpt-muted">—</span>}</td>
+                        </Fragment>
+                      );
+                    })}
                     <td className="left" style={{ maxWidth: 160, whiteSpace: "normal", fontSize: 11 }}>
                       {r.reason|| <span className="rpt-muted">—</span>}
                     </td>
@@ -890,9 +883,11 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
                   <td>{detTotals.pages.toLocaleString()}</td>
                   <td>{detTotals.waste.toLocaleString()}</td>
                   <td>—</td><td>—</td><td>{fromMins(detTotals.printMins)}</td>
-                  <td>—</td><td>—</td><td>{fromMins(detTotals.idleMins)}</td>
-                  <td>—</td><td>—</td><td>{fromMins(detTotals.brkMins)}</td>
-                  <td>—</td><td>—</td><td>{fromMins(detTotals.maintMins)}</td>
+                  {statusColumns.map((s) => (
+                    <Fragment key={s.key}>
+                      <td>—</td><td>—</td><td>{fromMins(detTotals.statusMins[s.key] || 0)}</td>
+                    </Fragment>
+                  ))}
                   <td>—</td>
                   <td>—</td>
                   <td>{fromMins(detTotals.allMins)}</td>
