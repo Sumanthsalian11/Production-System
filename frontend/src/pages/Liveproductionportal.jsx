@@ -9,7 +9,7 @@ import {
   Factory, Search, LayoutDashboard, ClipboardList, Route,
   Gauge, Cpu, CheckCircle2, Users, Scroll, FileStack, X, Layers,
   TrendingUp, TrendingDown, ArrowUpDown, PackageCheck, RefreshCw, AlertTriangle,
-  ShieldCheck, ChevronDown, Download,
+  ShieldCheck, ChevronDown, Download, CalendarCheck,
 } from "lucide-react";
 import BASE_URL from "../config/api";
 
@@ -1168,7 +1168,7 @@ function SingleSelectDropdown({ options, value, onChange, width = 280, placehold
   );
 }
 
-function DataTable({ columns, rows, pageSize = 12, onRowClick, initialSort }) {
+function DataTable({ columns, rows, pageSize = 12, onRowClick, onRowDoubleClick, initialSort }) {
   const [sort, setSort] = useState(initialSort || null);
   const [page, setPage] = useState(0);
 
@@ -1210,7 +1210,7 @@ function DataTable({ columns, rows, pageSize = 12, onRowClick, initialSort }) {
           </thead>
           <tbody>
             {pageRows.map((r, i) => (
-              <tr key={i} onClick={() => onRowClick && onRowClick(r)} className={onRowClick ? "clickable" : ""}>
+              <tr key={i} onClick={() => onRowClick && onRowClick(r)} onDoubleClick={() => onRowDoubleClick && onRowDoubleClick(r)} className={onRowClick || onRowDoubleClick ? "clickable" : ""}>
                 {columns.map((c) => (
                   <td key={c.key}>{c.render ? c.render(r) : r[c.key]}</td>
                 ))}
@@ -2339,6 +2339,49 @@ function buildDrill(spec, data, realRows, reelRows) {
     };
   }
 
+  /* ---- Plant booking (scheduler entries) ---- */
+  if (kind === "booking") {
+    return {
+      eyebrow: "Plant Booking",
+      title: spec.title || "Scheduled work orders",
+      sub: "Scheduled entries",
+      stats: (rs) => {
+        const byWO = new Map();
+        rs.forEach((r) => byWO.set(r.wo, r.orderQty));
+        return [
+          ["Entries", rs.length.toLocaleString("en-IN")],
+          ["Work Orders", byWO.size.toLocaleString("en-IN")],
+          ["Order Qty", fmtFull(Array.from(byWO.values()).reduce((s, v) => s + v, 0))],
+          ["Total IMP", fmtFull(rs.reduce((s, r) => s + r.imp, 0))],
+        ];
+      },
+      fields: [
+        { key: "customer", label: "Customers" },
+        { key: "machine", label: "Machines" },
+        { key: "activity", label: "Activities", split: true },
+        { key: "priority", label: "Priority" },
+      ],
+      dateKey: "startDate",
+      columns: [
+        { key: "wo", label: "WO #", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
+        { key: "customer", label: "Customer" },
+        { key: "activity", label: "Activity" },
+        { key: "machine", label: "Machine" },
+        { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
+        { key: "imp", label: "Total IMP", render: (r) => fmtFull(r.imp) },
+        { key: "start", label: "Start", sortable: false },
+        { key: "end", label: "End", sortable: false },
+        { key: "hours", label: "Hours" },
+        { key: "priority", label: "Priority" },
+        { key: "location", label: "Location" },
+        { key: "user", label: "Planning User" },
+      ],
+      rows: spec.rows || [],
+      sort: { key: "startDate", dir: "desc" },
+      note: null,
+    };
+  }
+
   /* ---- Customer orders by order type ---- */
   if (kind === "orderType") {
     const rows = (spec.rows || []).map((o) => ({
@@ -3420,7 +3463,153 @@ function ReelTab({ data, openWO }) {
 /* ------------------------------------------------------------------ */
 /* Root                                                                 */
 /* ------------------------------------------------------------------ */
+function BookingTab({ filters }) {
+  const [schedules, setSchedules] = useState([]);
+  const [masterCount, setMasterCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const custFilter = useSeriesFilter();
+  const openDrill = useDrill();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+        const [sch, wo] = await Promise.all([
+          axios.get(`${BASE_URL}/api/schedule`).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/workorders`, { headers }).catch(() => ({ data: [] })),
+        ]);
+        setSchedules(Array.isArray(sch.data) ? sch.data : []);
+        setMasterCount(Array.isArray(wo.data) ? wo.data.length : 0);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const view = useMemo(() => {
+    const f = filters || {};
+    const q = normWO(f.search).toLowerCase();
+    const live = schedules.filter((s) => {
+      if (s.isBlocked || !s.startTime || !s.endTime) return false;
+      const cust = String(s.workOrderId?.customer?.name || s.workOrderId?.customer || "");
+      const mName = s.machineId?.machineName || "Unassigned";
+      const job = String(s.productName || "");
+      const wo = String(s.workOrderId?.efiWoNumber || "");
+      const loc = typeof s.location === "object" ? (s.location?.locationName || "") : String(s.location || "");
+      const userLocs = Array.isArray(s.userLocations) ? s.userLocations : [];
+      const d = dateOnly(s.startTime);
+
+      if (f.selectedCustomers?.length && !f.selectedCustomers.includes(cust)) return false;
+      if (f.selectedJobs?.length && !f.selectedJobs.includes(job)) return false;
+      if (f.selectedMachines?.length && !f.selectedMachines.includes(mName)) return false;
+      if (f.selectedOrderLocations?.length && !f.selectedOrderLocations.includes(loc)) return false;
+      if (f.selectedLocations?.length && !userLocs.some((l) => f.selectedLocations.includes(l))) return false;
+      if (f.dateFrom && (!d || d < f.dateFrom)) return false;
+      if (f.dateTo && (!d || d > f.dateTo)) return false;
+      if (q && !wo.toLowerCase().includes(q) && !cust.toLowerCase().includes(q) && !job.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const rows = [];
+    const dt = (ms) => new Date(ms).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+    const woMap = new Map();
+    const machMap = new Map();
+    let latest = 0, latestMachine = "-";
+    const now = Date.now();
+
+    live.forEach((s) => {
+      const woKey = String(s.workOrderId?._id || s.workOrderId || s._id);
+      const cust = s.workOrderId?.customer?.name || s.workOrderId?.customer || "Unknown";
+      if (!woMap.has(woKey)) woMap.set(woKey, { customer: String(cust), qty: toNum(s.orderQty ?? s.workOrderId?.orderQty) });
+
+      const mName = s.machineId?.machineName || "Unassigned";
+      if (!machMap.has(mName)) machMap.set(mName, { machine: mName, jobs: 0, imp: 0, latestEndMs: 0 });
+      const m = machMap.get(mName);
+      const endMs = new Date(s.endTime).getTime();
+      const startMs = new Date(s.startTime).getTime();
+      rows.push({
+        wo: String(s.workOrderId?.efiWoNumber || "-"),
+        customer: String(cust),
+        activity: s.activityId?.activityName || (s.machinesDetail || []).map((x) => x.activityId?.activityName).filter(Boolean).join(", ") || "-",
+        machine: mName,
+        orderQty: toNum(s.orderQty ?? s.workOrderId?.orderQty),
+        imp: toNum(s.totalImp),
+        startDate: dateOnly(s.startTime) || "-",
+        start: dt(startMs),
+        end: dt(endMs),
+        hours: Number(((endMs - startMs) / 3600000).toFixed(1)),
+        priority: s.priority || "-",
+        location: s.location || "-",
+        user: s.planningUser || "-",
+      });
+      m.jobs += 1;
+      m.imp += toNum(s.totalImp);
+      if (endMs > m.latestEndMs) m.latestEndMs = endMs;
+      if (endMs > latest) { latest = endMs; latestMachine = mName; }
+    });
+
+    const custMap = new Map();
+    woMap.forEach((w) => custMap.set(w.customer, (custMap.get(w.customer) || 0) + w.qty));
+    const customers = Array.from(custMap, ([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty);
+    const machines = Array.from(machMap.values())
+      .map((m) => ({ ...m, status: m.latestEndMs > now ? "Booked" : "Free" }))
+      .sort((a, b) => b.latestEndMs - a.latestEndMs);
+
+    return {
+      activeWO: woMap.size,
+      volume: Array.from(woMap.values()).reduce((s, w) => s + w.qty, 0),
+      latest, latestMachine, customers, machines, rows,
+    };
+  }, [schedules, filters]);
+
+  const fmtDT = (ms) => (ms ? new Date(ms).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
+  const visibleCust = view.customers.filter((c) => !custFilter.hidden.has(c.name));
+  const drill = (title, pick) => openDrill({ kind: "booking", title, rows: pick ? view.rows.filter(pick) : view.rows });
+  const donutData = view.machines
+    .filter((m) => m.imp > 0)
+    .map((m, i) => ({ name: m.machine, value: m.imp, color: MILL_COLORS[i % MILL_COLORS.length] }));
+
+  const columns = [
+    { key: "machine", label: "Machine Name" },
+    { key: "jobs", label: "Active Jobs" },
+    { key: "imp", label: "Total Impressions (IMP)", render: (r) => fmtFull(r.imp) },
+    { key: "latestEndMs", label: "Latest Booking End Time", render: (r) => <span style={{ fontWeight: 800, color: "#b45309" }}>{fmtDT(r.latestEndMs)}</span> },
+    { key: "status", label: "Availability", render: (r) => r.status === "Booked"
+        ? <Tag bg="#fef3c7" fg="#92400e">Booked until {fmtDT(r.latestEndMs)}</Tag>
+        : <Tag bg="#d1fae5" fg="#065f46">Free since {fmtDT(r.latestEndMs)}</Tag> },
+  ];
+
+  if (loading) return <Panel><p style={{ fontSize: 13, color: COLORS.slate, margin: 0 }}>Loading scheduler data…</p></Panel>;
+
+  return (
+    <div>
+      <div className="kpi-grid-4">
+        <KpiCard label="Active Scheduled WOs" value={view.activeWO.toLocaleString("en-IN")} icon={ClipboardList} accent="blue" sub="From Scheduler" onDrill={() => drill("Active scheduled work orders")} />
+        <KpiCard label="Master Work Orders" value={masterCount.toLocaleString("en-IN")} icon={FileStack} accent="purple" sub="All-time" />
+        <KpiCard label="Scheduled Order Volume" value={fmt(view.volume)} icon={PackageCheck} accent="amber" sub={`${fmtFull(view.volume)} units`} onDrill={() => drill("Scheduled order volume")} />
+        <KpiCard label="Latest Plant Booking End" value={view.latest ? fmtDT(view.latest) : "—"} icon={CalendarCheck} accent="rose" sub={view.latestMachine} onDrill={() => drill(`Latest booking — ${view.latestMachine}`, (r) => r.machine === view.latestMachine)} />
+      </div>
+
+      <Panel title="Machine Booking Status & Availability" icon={CalendarCheck} iconGrad={ACCENTS.blue.grad}
+        sub="Latest booking end time per machine, from the Scheduler" tag={`${view.machines.length} machines`}>
+        <DataTable columns={columns} rows={view.machines} pageSize={14} initialSort={{ key: "latestEndMs", dir: "desc" }} onRowDoubleClick={(r) => drill(`Machine — ${r.machine}`, (x) => x.machine === r.machine)} />
+      </Panel>
+
+      <div className="panel-grid-2">
+        <Panel title="Scheduled Order Volume by Customer" icon={Users} iconGrad={ACCENTS.blue.grad} sub="Order qty of scheduled work orders">
+          <BarsChart data={visibleCust} onDrill={(row) => drill(`Customer — ${row.name}`, (r) => r.customer === row.name)} categoryKey="name" series={[{ key: "qty", name: "Order Qty", color: COLORS.violet }]}
+            height={280} rotateLabels={-25} valueFormatter={fmtFull} />
+        </Panel>
+        <Panel title="Machine Impression Load (IMP) Share" icon={Gauge} iconGrad={ACCENTS.amber.grad} sub="Share of total scheduled impressions">
+          <DonutChart data={donutData} height={260} onDrill={(s) => drill(`Machine — ${s.name}`, (r) => r.machine === s.name)} />
+          <PieLegend items={donutData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={new Set()} toggle={() => {}} />
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
 const TABS = [
+  { id: "booking", label: "Plant Booking", icon: CalendarCheck },
   { id: "overview", label: "Overview KPIs", icon: LayoutDashboard },
   { id: "reel", label: "Reel Register", icon: Scroll },
   { id: "tracker", label: "Stage Tracker", icon: Route },
@@ -3433,7 +3622,7 @@ const TABS = [
 ];
 
 export default function LiveProductionPortal() {
-  const [tabs, setTabs] = useState(["overview"]); // sections currently ticked — only these are shown
+  const [tabs, setTabs] = useState(["overview", "booking"]); // sections currently ticked — only these are shown
   const [search, setSearch] = useState("");
   const [drawerWO, setDrawerWO] = useState(null);
   const [trackerWO, setTrackerWO] = useState(null);
@@ -3611,6 +3800,11 @@ export default function LiveProductionPortal() {
       return true;
     });
   }, [customerOrders, search, selectedCustomers, selectedOrderLocations, dateFrom, dateTo]);
+
+  const bookingFilters = useMemo(
+    () => ({ search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo }),
+    [search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo]
+  );
 
   const hasActiveFilters =
     Boolean(search) || selectedCustomers.length > 0 || selectedJobs.length > 0 ||
@@ -3926,6 +4120,7 @@ export default function LiveProductionPortal() {
         {activeTab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
         {activeTab === "customers" && <CustomersTab data={data} />}
         {activeTab === "perso" && <PersoTab data={data} />}
+        {activeTab === "booking" && <BookingTab filters={bookingFilters} />}
       </main>
       {drawerWO && <StageDrawer wo={drawerWO} data={data} onClose={() => setDrawerWO(null)} onTrack={trackWO} />}
       {drillSpec && <DrillModal spec={drillSpec} data={data} realRows={deferredRealRows} reelRows={deferredReelRows} onClose={() => setDrillSpec(null)} />}
