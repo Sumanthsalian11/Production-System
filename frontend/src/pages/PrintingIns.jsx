@@ -1513,7 +1513,6 @@ const expandTd = (order, key, value) => {
   {/* 💅 SCOPED SKY-BLUE FROSTED-GLASS STYLES (no separate CSS file needed)  */}
   {/* ===================================================================== */}
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
     .pi-root {
       background: radial-gradient(circle at 10% 20%, #d8f1fb 0%, #edf9fe 90.2%);
       min-height: 100vh;

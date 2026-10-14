@@ -598,8 +598,6 @@ function Productiondashboard() {
           CRISP PURE-BLACK FONT & LIGHT TABLE HEADER THEME
           ====================================================================== */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap');
-
         /* ---------- Theme tokens with Pure Black Text & Crisp Light Header ---------- */
         .pd-root {
           --brand: #e4572e;

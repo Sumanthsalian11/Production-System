@@ -2020,7 +2020,7 @@ const statusColumns = useMemo(() => {
   return (
     <div className="container mt-2 production-dashboard-page">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+    
 
         /* =====================================================================
            PROFESSIONAL TEAL / ORANGE ENTERPRISE THEME
