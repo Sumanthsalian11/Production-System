@@ -354,18 +354,16 @@ function ProductionRealDashboard() {
     return prodQty;
   };
   const getQuantity2 = (rawQty, pages) => {
-    const qty = Number(rawQty) || 0;
     const pagesVal = Number(pages) || 0;
 
     // booklet quantity only when pages exist
-    if (qty <= 0 || pagesVal <= 0) return "";
+    if (pagesVal <= 0) return "";
 
-    // sheet fed: keep the undivided quantity
-    if (isSheetFedSelected()) {
-      return qty;
-    }
+    // Booklet Quantity = Production Qty (same value shown in the Production Qty field) / Pages
+    const prodQty = Number(getProductionQty(rawQty)) || 0;
+    if (prodQty <= 0) return "";
 
-    return qty / pagesVal;
+    return prodQty / pagesVal;
   };
 
   useEffect(() => {
