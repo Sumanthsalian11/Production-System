@@ -32,7 +32,7 @@ const FIELD_ICONS = {
   "Product Type:": FiTag, "Job Size:": FiMaximize, "Material Code:": FiHash,
   "Pages:": FiBookOpen, "Material Description:": FiList, "Material Group Desc.:": FiLayers,
   "Mill:": FiBriefcase, "GSM:": FiBox, "Paper Size:": FiMaximize,
-  "Planner UPS:": FiGrid, "Order Qty:": FiPackage, "Entered By": FiUser
+  "Planner UPS:": FiGrid, "Planner Impression:": FiTrendingUp, "Order Qty:": FiPackage, "Entered By": FiUser
 };
 const FieldIcon = ({ name }) => {
   const Icon = FIELD_ICONS[name];
@@ -445,6 +445,26 @@ function ProductionRealDashboard() {
     });
 
     setSelectedMaterialIndex(item.materials?.length ? 0 : "");
+
+    // load planner data (machines[].totalImp / activityId) so Planner Impression shows in edit too
+    if (Number(item.workOrder) > 0) {
+      axios
+        .get(`${BASE_URL}/api/production/workorder/${item.workOrder}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        .then((res) => {
+          const woMaterials = res.data.materials || [];
+          const woMachines = res.data.machines || [];
+          const savedCode = item.materials?.[0]?.materialCode;
+          const idx = woMaterials.findIndex((m) => m.materialCode === savedCode);
+
+          setWorkOrderDetails((prev) =>
+            prev ? { ...prev, materials: woMaterials, machines: woMachines } : prev
+          );
+          setSelectedMaterialIndex(idx >= 0 ? idx : 0);
+        })
+        .catch((err) => console.error("Error loading planner data for edit:", err));
+    }
 
     setActivityMachinePairs(
       item.machiness?.map(pair => ({
@@ -1722,71 +1742,47 @@ const statusColumns = useMemo(() => {
       return;
     }
 
-    // 🚫 Per-activity cumulative validation (same Work Order + same Material Code + same Activity)
-    // Each activity gets its own limit = Order Qty + 10%. Saving again for the same activity
-    // is blocked if the running total would go past that limit.
-    if (form.machineStatus?.toLowerCase() === "production") {
-      const orderQty = Number(workOrderDetails?.orderQty) || 0;
-      const maxAllowedQty = orderQty * 1.50;
+    // 🚫 Per-activity impression validation: total Production Impression entered for this
+    // Work Order + Activity must not cross the Total Impression planned in Planner Dashboard.
+    if (!isOffDay && form.machineStatus?.toLowerCase() === "production") {
+      for (const pair of activityMachinePairs) {
+        const pairActivityId = String(pair.activityId?._id || pair.activityId);
+        const pairActivity = activities.find((a) => String(a._id) === pairActivityId);
 
-      // quantity that counts toward the limit for ONE entry (same as your existing logic)
-      // sheet fed  -> productionQty
-      // has pages  -> quantity2 (booklet quantity)
-      // otherwise  -> productionQty
-      const qtyForLimit = ({ productionQty, quantity2, pages }) => {
-        if (sheetFedSelected) return Number(productionQty) || 0;
-        if (Number(pages) > 0) return Number(quantity2) || 0;
-        return Number(productionQty) || 0;
-      };
+        // planned Total Impression for this activity (from the Work Order's machines rows)
+        let plannedImp = (workOrderDetails?.machines || [])
+          .filter((m) => String(m.activityId?._id || m.activityId) === pairActivityId)
+          .reduce((sum, m) => sum + (Number(m.totalImp) || 0), 0);
 
-      if (orderQty > 0) {
-        for (const pair of activityMachinePairs) {
-          const pairActivity = activities.find(
-            (a) => String(a._id) === String(pair.activityId)
+        // fallback: machines row of the selected material (same row the Planner Impression tile uses)
+        if (plannedImp <= 0) plannedImp = Number(selectedMachineData?.totalImp) || 0;
+
+        console.log("IMP CHECK", { pairActivityId, plannedImp, machines: workOrderDetails?.machines });
+
+        if (plannedImp <= 0) {
+          showAlert("Planner Total Impression not found for this activity, cannot validate", "warning");
+          return;
+        }
+
+        // already-saved Production Impression for this WO + SAME activity
+        const existingImp = productionList.reduce((sum, item) => {
+          if (editingId && item._id === editingId) return sum;
+          if (String(item.workOrder) !== String(workOrderNumber)) return sum;
+          const sameActivity = item.machiness?.some(
+            (m) => String(m.activityId?._id || m.activityId) === pairActivityId
           );
+          if (!sameActivity) return sum;
+          return sum + (Number(item.productionImpression) || 0);
+        }, 0);
 
-          // already-saved quantity for this WO + material + SAME activity
-          const existingTotal = productionList.reduce((sum, item) => {
-            if (editingId && item._id === editingId) return sum;
+        const totalImp = existingImp + (Number(form.productionImpression) || 0);
 
-            if (String(item.workOrder) !== String(workOrderNumber)) return sum;
-
-            const sameMaterial = item.materials?.some(
-              (m) => m.materialCode === selectedMaterial?.materialCode
-            );
-            if (!sameMaterial) return sum;
-
-            const sameActivity = item.machiness?.some(
-              (m) =>
-                String(m.activityId?._id || m.activityId) === String(pair.activityId)
-            );
-            if (!sameActivity) return sum;
-
-            return (
-              sum +
-              qtyForLimit({
-                productionQty: item.productionQty,
-                quantity2: item.quantity2,
-                pages: item.pages,
-              })
-            );
-          }, 0);
-
-          const currentQty = qtyForLimit({
-            productionQty: form.productionQty,
-            quantity2: form.quantity2,
-            pages: form.pages,
-          });
-
-          const totalQty = existingTotal + currentQty;
-
-          if (totalQty > maxAllowedQty) {
-            showAlert(
-              `${pairActivity?.activityName || "Activity"}: total Production Quantity for this WO & Material (${totalQty.toFixed(2)}) exceeds allowed limit (${maxAllowedQty.toFixed(2)} = Order Qty ${orderQty} +50%).`,
-              "warning"
-            );
-            return;
-          }
+        if (totalImp > plannedImp) {
+          showAlert(
+            `${pairActivity?.activityName || "Activity"}: total Production Impression for this WO (${totalImp.toLocaleString("en-IN")}) exceeds Planner Total Impression (${plannedImp.toLocaleString("en-IN")}).`,
+            "warning"
+          );
+          return;
         }
       }
     }
@@ -2911,6 +2907,12 @@ const statusColumns = useMemo(() => {
                             .filter(v => v !== 0 && v !== null && v !== undefined && v !== "")
                             .join(", ")
                           : selectedUps || ""}
+                      </InfoTile>
+
+                      <InfoTile label="Planner Impression:" col="col-6 col-md-2">
+                        {selectedMaterialIndex !== "" && Number(selectedMachineData?.totalImp) > 0
+                          ? Number(selectedMachineData.totalImp).toLocaleString("en-IN")
+                          : "-"}
                       </InfoTile>
 
                       <InfoTile label="Order Qty:" col="col-6 col-md-2">
