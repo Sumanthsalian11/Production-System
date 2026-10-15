@@ -343,6 +343,10 @@ function AdminDashboard() {
   const [newMachineStatus, setNewMachineStatus] = useState("");
   const [transportations, setTransportations] = useState([]);
   const [newTransportation, setNewTransportation] = useState("");
+const [suppliers, setSuppliers] = useState([]);
+const [newSupplier, setNewSupplier] = useState("");
+const [showSupplierList, setShowSupplierList] = useState(false);
+const [supplierFilter, setSupplierFilter] = useState("");
   const [newPriority, setNewPriority] = useState("");
   const [orders, setOrders] = useState([]);
   const [paperSizes, setPaperSizes] = useState([]);
@@ -617,6 +621,9 @@ function AdminDashboard() {
     setShowActivityList(false);
     setShowLocationList(false);
     setShowMaterialList(false);
+    setNewSupplier("");
+    setShowSupplierList(false);
+    setSupplierFilter("");
 
     // upload results + searches + filters
     setUploadResult(null);
@@ -1003,6 +1010,7 @@ function AdminDashboard() {
     { id: "innerPacking", label: "Inner Packing", icon: Package },
     { id: "items", label: "Items", icon: Package },
     { id: "transportation", label: "Transportation", icon: Factory },
+    { id: "supplier", label: "Supplier Master", icon: Factory },
     { id: "freightCharge", label: "Freight Charge Type", icon: Layers },
     { id: "freightType", label: "Freight Type", icon: Layers },
     { id: "machineStatus", label: "Machine Status", icon: Activity },
@@ -1038,6 +1046,7 @@ function AdminDashboard() {
       paperSizesRes,
       printersRes,
       rmIqcRes,
+      supplierRes,
     ] = await Promise.all([
       axios.get(`${BASE_URL}/api/master/customers`, config),
       axios.get(`${BASE_URL}/api/master/items`, config),
@@ -1055,6 +1064,7 @@ function AdminDashboard() {
       axios.get(`${BASE_URL}/api/master/paper-sizes`, config),
       axios.get(`${BASE_URL}/api/master/printers`, config),
       axios.get(`${BASE_URL}/api/master/rm-iqc`, config),
+      axios.get(`${BASE_URL}/api/master/suppliers`, config),
     ]);
 
     setBranches(branches.data);
@@ -1073,6 +1083,7 @@ function AdminDashboard() {
     setPaperSizes(paperSizesRes.data);
     setPrinters(printersRes.data);
     setInspections(rmIqcRes.data);
+    setSuppliers(supplierRes.data);
   };
 
   const fetchOrdersByCustomer = async (id) => {
@@ -1176,6 +1187,21 @@ function AdminDashboard() {
       outerPack: "",
       innerPerOuter: "",
     });
+    fetchMasters();
+  };
+
+  const addSupplier = async () => {
+    if (!newSupplier.trim()) return;
+    const exists = suppliers.some(
+      (s) => s.name.trim().toLowerCase() === newSupplier.trim().toLowerCase()
+    );
+    if (exists) return showAlert("Supplier already exists");
+    await axios.post(
+      `${BASE_URL}/api/master/suppliers`,
+      { name: newSupplier.trim() },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    setNewSupplier("");
     fetchMasters();
   };
 
@@ -1466,6 +1492,10 @@ function AdminDashboard() {
         (item.inkDetails || "").toLowerCase().includes(ink)
     );
   }, [items, activeSection, showItemList, deferredItemFilter, deferredSearchItemCode]);
+
+  const filteredSuppliers = suppliers.filter((s) =>
+    (s.name || "").toLowerCase().includes(supplierFilter.toLowerCase())
+  );
 
   const filteredTransportations = transportations.filter((t) =>
     (t.name || "").toLowerCase().includes(transportationFilter.toLowerCase())
@@ -2506,6 +2536,98 @@ function AdminDashboard() {
                   {filteredTransportations.length === 0 && (
                     <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
                       No matching transportation records found
+                    </li>
+                  )}
+                </ul>
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
+
+      {/* SUPPLIER MASTER */}
+      {activeSection === "supplier" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Factory size={18} /> Supplier Master</span>
+          </div>
+
+          <div className="pro-form-row">
+            <input
+              className="pro-input"
+              placeholder="Supplier Name"
+              value={newSupplier}
+              onChange={(e) => setNewSupplier(e.target.value)}
+            />
+            <button className="pro-btn primary" onClick={addSupplier}>
+              <PlusCircle size={16} /> Add
+            </button>
+          </div>
+
+          <div className="material-toggle" onClick={() => setShowSupplierList(!showSupplierList)}>
+            {showSupplierList ? "Hide Suppliers ▲" : "Show Suppliers ▼"}
+          </div>
+
+          {showSupplierList && (
+            <>
+              <div style={filterBoxStyle}>
+                <div style={filterTitleStyle}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Filter size={14} /> Filter Suppliers
+                  </span>
+                  {supplierFilter && (
+                    <button type="button" onClick={() => setSupplierFilter("")} style={clearBtnStyle}>
+                      <X size={12} /> Clear
+                    </button>
+                  )}
+                </div>
+                <input
+                  style={filterInputStyle}
+                  placeholder="Filter by Supplier Name..."
+                  value={supplierFilter}
+                  onChange={(e) => setSupplierFilter(e.target.value)}
+                />
+              </div>
+
+              <div style={scrollContainerStyle}>
+                <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+                  {filteredSuppliers.map((s) => (
+                    <li key={s._id} className="d-flex justify-content-between align-items-center">
+                      {editingId === s._id ? (
+                        <>
+                          <input
+                            className="pro-input"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                          />
+                          <button
+                            className="pro-btn primary"
+                            onClick={() => updateMaster("suppliers", s._id, { name: editingValue })}
+                          >
+                            Save
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span>{s.name}</span>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button
+                              className="pro-btn"
+                              onClick={() => { setEditingId(s._id); setEditingValue(s.name); }}
+                            >
+                              Edit
+                            </button>
+                            <button className="pro-btn" onClick={() => deleteMaster("suppliers", s._id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                  {filteredSuppliers.length === 0 && (
+                    <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+                      No matching suppliers found
                     </li>
                   )}
                 </ul>

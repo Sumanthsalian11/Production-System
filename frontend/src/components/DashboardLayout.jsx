@@ -143,7 +143,14 @@ export default function DashboardLayout() {
   // Year filter (shown only on the production portal page)
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
 
-  const yearOptions = Array.from({ length: 7 }, (_, i) => String(new Date().getFullYear() - i));
+  const [dataYears, setDataYears] = useState([]);
+
+  const yearOptions = useMemo(() => {
+    const cur = new Date().getFullYear();
+    const set = new Set(Array.from({ length: 7 }, (_, i) => String(cur - i)));
+    dataYears.forEach((y) => set.add(String(y)));
+    return Array.from(set).sort((a, b) => Number(b) - Number(a));
+  }, [dataYears]);
 
   // App Launcher State (Admin only)
   const [showAppLauncher, setShowAppLauncher] = useState(false);
@@ -1625,7 +1632,7 @@ export default function DashboardLayout() {
           <div style={{ height: isMobile ? 64 : 58 }} />
 
           <div className="mpi-page-white">
-            <Outlet context={{ selectedYear }} />
+            <Outlet context={{ selectedYear, setDataYears }} />
           </div>
         </div>
       </div>

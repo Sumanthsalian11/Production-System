@@ -3940,6 +3940,7 @@ const TABS = [
 export default function LiveProductionPortal() {
   const outlet = useOutletContext();
   const selectedYear = outlet?.selectedYear || "all";
+  const setDataYears = outlet?.setDataYears;
   const yearOf = (d) => (dateOnly(d) || "").slice(0, 4);
   const [tabs, setTabs] = useState(["overview"]); // sections currently ticked — only these are shown
   const [search, setSearch] = useState("");
@@ -3995,6 +3996,21 @@ export default function LiveProductionPortal() {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Send the years found in the data up to the layout so the Year filter lists them
+  useEffect(() => {
+    if (!setDataYears) return;
+    const years = new Set();
+    realRows.forEach((r) => {
+      const y = (dateOnly(r.productionDate) || "").slice(0, 4);
+      if (y) years.add(y);
+    });
+    customerOrders.forEach((o) => {
+      const y = (dateOnly(o.poDate) || "").slice(0, 4);
+      if (y) years.add(y);
+    });
+    setDataYears(Array.from(years));
+  }, [realRows, customerOrders]);
 
   // Options for the global Customer / Job filters, drawn from the full unfiltered dataset.
   const customerOptions = useMemo(() => {

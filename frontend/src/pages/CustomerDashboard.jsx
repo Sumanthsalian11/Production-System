@@ -65,6 +65,7 @@ function CustomerDashboard() {
   const [errors, setErrors] = useState({});
   const [showToast, setShowToast] = useState(false);
   const [locations, setLocations] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [poSearch, setPoSearch] = useState("");
@@ -133,7 +134,19 @@ function CustomerDashboard() {
     fetchLocations();
     fetchOrders();
     fetchIndentRequests();
+    fetchSuppliers();
   }, []);
+
+  const fetchSuppliers = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/suppliers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuppliers(res.data || []);
+    } catch {
+      setSuppliers([]);
+    }
+  };
 
   const fetchLocations = async () => {
     try {
@@ -1873,17 +1886,22 @@ function CustomerDashboard() {
                           className="col-12"
                           icon="bi-truck"
                           label="Supplier Name"
-                          area
-                          filled={has(indentForm.remarks)}
+                          required
+                          alwaysFloat
+                          caret
                         >
-                          <textarea
+                          <select
                             name="remarks"
                             className="po-input"
-                            rows="2"
                             value={indentForm.remarks}
                             onChange={handleIndentFormChange}
                             required
-                          />
+                          >
+                            <option value="">Select Supplier</option>
+                            {suppliers.map((s) => (
+                              <option key={s._id} value={s.name}>{s.name}</option>
+                            ))}
+                          </select>
                         </PoField>
                       )}
 
@@ -2203,18 +2221,26 @@ function CustomerDashboard() {
                         className="col-md-8"
                         icon="bi-truck"
                         label="Supplier Name"
-                        area
-                        filled={has(form.remarks)}
+                        required
+                        alwaysFloat
+                        caret
                       >
-                        <textarea
+                        <select
                           name="remarks"
                           className="po-input"
-                          rows="2"
                           value={form.remarks}
                           onChange={handleChange}
                           required
-                          readOnly={editingId !== null}
-                        />
+                          disabled={editingId !== null}
+                        >
+                          <option value="">Select Supplier</option>
+                          {suppliers.map((s) => (
+                            <option key={s._id} value={s.name}>{s.name}</option>
+                          ))}
+                          {form.remarks && !suppliers.some((s) => s.name === form.remarks) && (
+                            <option value={form.remarks}>{form.remarks}</option>
+                          )}
+                        </select>
                       </PoField>
                     )}
 
