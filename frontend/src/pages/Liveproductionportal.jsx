@@ -305,7 +305,7 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
       if (!machMap.has(machineName)) {
         machMap.set(machineName, {
           machine: machineName,
-          production: 0, hoursBy: {},
+          production: 0, hoursBy: {}, imp: 0,
           prodQty: 0, wasteQty: 0, events: 0,
         });
       }
@@ -321,6 +321,7 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
       else if (sk) mEntry.hoursBy[sk] = (mEntry.hoursBy[sk] || 0) + legHours;
 
       mEntry.prodQty += prodQty * legShare;
+      if (isProd) mEntry.imp += toNum(item.productionImpression) * legShare;
       mEntry.wasteQty += wasteQty * legShare;
       mEntry.events += 1;
 
@@ -464,6 +465,7 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
         machine: m.machine,
         production: Number(m.production.toFixed(1)),
         ...byStatus,
+        impression: Math.round(m.imp),
         totalHours: Number(totalHours.toFixed(1)),
         utilizationPct: totalHours > 0 ? Number(((m.production / totalHours) * 100).toFixed(1)) : 0,
       };
@@ -3271,10 +3273,57 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
   );
 }
 
-function UtilizationTab({ data }) {
+function UtilizationTab({ data, realRows = [] }) {
   const openDrill = useDrill();
   const rows = data.machineUtilization;
   const chartRows = rows;
+
+  // machine capacity (per hour) from Admin → Machine Capacity
+  const [capById, setCapById] = useState({});
+  const [machineList, setMachineList] = useState([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+        const [capRes, machRes] = await Promise.all([
+          axios.get(`${BASE_URL}/api/capacity`),
+          axios.get(`${BASE_URL}/api/master/machines`, { headers }),
+        ]);
+        const map = {};
+        (capRes.data || []).forEach((c) => { map[String(c.machineId)] = Number(c.capacityPerHour) || 0; });
+        setCapById(map);
+        setMachineList(Array.isArray(machRes.data) ? machRes.data : []);
+      } catch (err) {
+        console.error("Error loading machine capacity:", err);
+      }
+    })();
+  }, []);
+
+  const capFilter = useSeriesFilter();
+  const [capFrom, setCapFrom] = useState("");
+  const [capTo, setCapTo] = useState("");
+  const capDays = capFrom && capTo
+    ? Math.max(1, Math.round((new Date(capTo) - new Date(capFrom)) / 86400000) + 1)
+    : 1;
+  const capacityRows = useMemo(() => {
+    const idByName = new Map(machineList.map((m) => [m.machineName, String(m._id)]));
+    const impByMachine = new Map();
+    (Array.isArray(realRows) ? realRows : []).forEach((item) => {
+      if (statusKeyFor(item.machineStatus) !== "production") return;
+      const d = dateOnly(item.productionDate);
+      if (capFrom && (!d || d < capFrom)) return;
+      if (capTo && (!d || d > capTo)) return;
+      const pairs = item.machiness?.length ? item.machiness : [{}];
+      pairs.forEach((p) => {
+        const name = p.machineId?.machineName || "Unassigned";
+        impByMachine.set(name, (impByMachine.get(name) || 0) + toNum(item.productionImpression) / pairs.length);
+      });
+    });
+    return rows.map((r) => {
+      const perHour = capById[idByName.get(r.machine)] || 0;
+      return { machine: r.machine, capacity: perHour * 24 * capDays, impression: Math.round(impByMachine.get(r.machine) || 0) };
+    });
+  }, [rows, machineList, capById, realRows, capFrom, capTo, capDays]);
   const columns = [
     { key: "machine", label: "Machine" },
     { key: "utilizationPct", label: "Utilization %", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>{r.utilizationPct}%</span> },
@@ -3317,6 +3366,48 @@ function UtilizationTab({ data }) {
           toggle={utilFilter.toggle}
         />
       </Panel>
+      <Panel title="Machine Capacity vs Production Impression" icon={Cpu} iconGrad={ACCENTS.emerald.grad} sub="Capacity per hour × 24 vs total production impression of each machine"
+        actions={
+          <div className="no-print" style={{ display: "flex", alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            <div className="filter-field">
+              <label className="filter-label" htmlFor="cap-date-from">From Date</label>
+              <input id="cap-date-from" name="capDateFrom" type="date" value={capFrom} onChange={(e) => setCapFrom(e.target.value)} className="select-3d" />
+            </div>
+            <div className="filter-field">
+              <label className="filter-label" htmlFor="cap-date-to">To Date</label>
+              <input id="cap-date-to" name="capDateTo" type="date" value={capTo} onChange={(e) => setCapTo(e.target.value)} className="select-3d" />
+            </div>
+            {(capFrom || capTo) && (
+              <button type="button" onClick={() => { setCapFrom(""); setCapTo(""); }} className="btn-3d btn-3d-secondary btn-3d-sm">
+                <X size={13} /> Clear
+              </button>
+            )}
+          </div>
+        }>
+        <BarsChart
+          data={capacityRows}
+          onDrill={(row) => openDrill({ kind: "machine", value: row.machine, metric: "hours" })}
+          askOnDrill
+          categoryKey="machine"
+          stacked
+          series={[
+            { key: "capacity", name: `Capacity (× ${capDays * 24} h)`, color: COLORS.slate },
+            { key: "impression", name: "Production Impression", color: COLORS.indigo },
+          ].filter((s) => !capFilter.hidden.has(s.key))}
+          height={320}
+          rotateLabels={-25}
+          valueFormatter={fmtFull}
+        />
+        <PieLegend
+          items={[
+            { name: `Capacity (× ${capDays * 24} h)`, color: COLORS.slate, dataKey: "capacity" },
+            { name: "Production Impression", color: COLORS.indigo, dataKey: "impression" },
+          ]}
+          hidden={capFilter.hidden}
+          toggle={capFilter.toggle}
+        />
+      </Panel>
+
       <Panel title="All Machines — Utilization Detail" icon={ClipboardList} iconGrad={ACCENTS.emerald.grad} sub={`${rows.length} machines with logged activity`}>
         <DataTable columns={columns} rows={rows} pageSize={14} initialSort={{ key: "utilizationPct", dir: "desc" }} />
       </Panel>
@@ -4454,7 +4545,7 @@ export default function LiveProductionPortal() {
         {activeTab === "overview" && <OverviewTab data={data} />}
         {activeTab === "reel" && <ReelTab data={data} openWO={openWO} />}
         {activeTab === "tracker" && <StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} />}
-        {activeTab === "utilization" && <UtilizationTab data={data} />}
+        {activeTab === "utilization" && <UtilizationTab data={data} realRows={deferredRealRows} />}
         {activeTab === "prodwaste" && <ProdWasteTab data={data} />}
         {activeTab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} customerOrders={filteredCustomerOrders} />}
         {activeTab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
