@@ -1555,7 +1555,7 @@ export default function DashboardLayout() {
               <div
                 className="header-user-logout-pill"
                 onClick={logout}
-                title={`Logged in as ${displayName} (${loggedInUser || "User"}) • Click to Logout`}
+                title={`Logged in as ${displayName} (${(loggedInUser || "User").toUpperCase()}) • Click to Logout`}
               >
                 <div className="user-avatar-badge">
                   <span className="avatar-initial">{firstLetter}</span>
@@ -1566,7 +1566,7 @@ export default function DashboardLayout() {
                   <span className="header-user-name text-truncate">
                     {displayName}
                   </span>
-                  <span className="header-user-subtext text-capitalize">
+                  <span className="header-user-subtext text-uppercase">
                     ● {loggedInUser || "Online"}
                   </span>
                 </div>
