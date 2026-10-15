@@ -460,7 +460,14 @@ function ProductionRealDashboard() {
           const idx = woMaterials.findIndex((m) => m.materialCode === savedCode);
 
           setWorkOrderDetails((prev) =>
-            prev ? { ...prev, materials: woMaterials, machines: woMachines } : prev
+            prev
+              ? {
+                  ...prev,
+                  date: res.data.date,
+                  materials: woMaterials,
+                  machines: woMachines
+                }
+              : prev
           );
           setSelectedMaterialIndex(idx >= 0 ? idx : 0);
         })
