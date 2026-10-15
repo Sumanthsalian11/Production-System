@@ -245,6 +245,7 @@ function ProductionRealDashboard() {
   const [pageSize, setPageSize] = useState(25);
   const tableWrapRef = useRef(null);
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
+  const [impWastePct, setImpWastePct] = useState(0);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
 
   const selectedMaterial =
@@ -1344,7 +1345,19 @@ const statusColumns = useMemo(() => {
     }
   };
 
+  const fetchImpWaste = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/impression-waste`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setImpWastePct(Number(res.data.percent) || 0);
+    } catch (err) {
+      console.error("Error fetching impression waste %:", err);
+    }
+  };
+
   useEffect(() => {
+    fetchImpWaste();
     fetchActivities();
     fetchMachines();
     fetchMachineStatuses(); // 👈 ADD THIS
@@ -1787,9 +1800,11 @@ const statusColumns = useMemo(() => {
 
         const totalImp = existingImp + (Number(form.productionImpression) || 0);
 
-        if (totalImp > plannedImp) {
+        const allowedImp = Math.round(plannedImp * (1 + impWastePct / 100));
+
+        if (totalImp > allowedImp) {
           showAlert(
-            `${pairActivity?.activityName || "Activity"}: total Production Impression for this WO (${totalImp.toLocaleString("en-IN")}) exceeds Planner Total Impression (${plannedImp.toLocaleString("en-IN")}).`,
+            `${pairActivity?.activityName || "Activity"}: total Production Impression for this WO (${totalImp.toLocaleString("en-IN")}) exceeds the allowed limit (${allowedImp.toLocaleString("en-IN")} = Planner ${plannedImp.toLocaleString("en-IN")} + ${impWastePct}% waste).`,
             "warning"
           );
           return;

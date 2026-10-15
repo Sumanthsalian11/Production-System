@@ -111,6 +111,7 @@ app.use("/api/mail-settings", require("./routes/mailSettingsRoutes"));
 app.use("/api/csat", require("./routes/csatRoutes"));
 const supplierRoutes = require("./routes/supplierRoutes");
 app.use("/api/master/suppliers", supplierRoutes);
+app.use("/api/master/impression-waste", require("./routes/impressionWasteRoutes"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 

@@ -343,6 +343,7 @@ function AdminDashboard() {
   const [newMachineStatus, setNewMachineStatus] = useState("");
   const [transportations, setTransportations] = useState([]);
   const [newTransportation, setNewTransportation] = useState("");
+const [impWaste, setImpWaste] = useState("");
 const [suppliers, setSuppliers] = useState([]);
 const [newSupplier, setNewSupplier] = useState("");
 const [showSupplierList, setShowSupplierList] = useState(false);
@@ -497,6 +498,31 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [roles, setRoles] = useState([]);
   const [newRole, setNewRole] = useState({ name: "", modules: [] });
   const [showRoleList, setShowRoleList] = useState(false);
+
+  const fetchImpWaste = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/impression-waste`, { headers: { Authorization: `Bearer ${token}` } });
+      setImpWaste(String(res.data.percent ?? 0));
+    } catch (err) {
+      console.error("Error fetching impression waste:", err);
+    }
+  };
+
+  const saveImpWaste = async () => {
+    if (impWaste === "" || Number(impWaste) < 0) return showAlert("Enter a valid waste %");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/master/impression-waste`,
+        { percent: Number(impWaste) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Waste % saved successfully");
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save waste %");
+    }
+  };
+
+  useEffect(() => { fetchImpWaste(); }, []);
 
   const fetchRoles = async () => {
     try {
@@ -669,6 +695,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       fetchMachineCapacity();
       fetchGst();
       fetchRoles();
+      fetchImpWaste();
     }, 150);
   };
 
@@ -1011,6 +1038,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "items", label: "Items", icon: Package },
     { id: "transportation", label: "Transportation", icon: Factory },
     { id: "supplier", label: "Supplier Master", icon: Factory },
+    { id: "impWaste", label: "Impression Waste %", icon: Activity },
     { id: "freightCharge", label: "Freight Charge Type", icon: Layers },
     { id: "freightType", label: "Freight Type", icon: Layers },
     { id: "machineStatus", label: "Machine Status", icon: Activity },
@@ -2542,6 +2570,36 @@ const [supplierFilter, setSupplierFilter] = useState("");
               </div>
             </>
           )}
+        </motion.div>
+      )}
+
+      {/* IMPRESSION WASTE % */}
+      {activeSection === "impWaste" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Activity size={18} /> Impression Waste %</span>
+          </div>
+
+          <div className="activity-name-field" style={{ marginBottom: "10px" }}>
+            <label>Allowed waste % over Planner Impression</label>
+            <input
+              className="pro-input"
+              type="number"
+              min="0"
+              step="any"
+              placeholder="e.g. 5"
+              value={impWaste}
+              onChange={(e) => setImpWaste(e.target.value)}
+            />
+          </div>
+
+          <button className="pro-btn primary" onClick={saveImpWaste}>
+            Save
+          </button>
+
+          <p style={{ marginTop: 12, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
+            Production Entry allows total Production Impression up to Planner Impression + this %.
+          </p>
         </motion.div>
       )}
 
