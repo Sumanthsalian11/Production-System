@@ -3083,9 +3083,9 @@ function AdminDashboard() {
                                   <button
                                     className="pro-btn primary"
                                     onClick={async () => {
-                                      await axios.put(
-                                        `${BASE_URL}/api/master/printers/${p.machineName}/${name}`,
-                                        { newName: editingValue },
+                                      await axios.post(
+                                        `${BASE_URL}/api/master/printers/rename`,
+                                        { machineName: p.machineName, oldName: name, newName: editingValue },
                                         { headers: { Authorization: `Bearer ${token}` } }
                                       );
                                       setEditingId(null);
@@ -3124,8 +3124,9 @@ function AdminDashboard() {
                                     onClick={async () => {
                                       if (!(await askConfirm(`Delete "${name}" from ${p.machineName}?`)))
                                         return;
-                                      await axios.delete(
-                                        `${BASE_URL}/api/master/printers/${p.machineName}/${name}`,
+                                      await axios.post(
+                                        `${BASE_URL}/api/master/printers/remove`,
+                                        { machineName: p.machineName, printerName: name },
                                         { headers: { Authorization: `Bearer ${token}` } }
                                       );
                                       fetchMasters();

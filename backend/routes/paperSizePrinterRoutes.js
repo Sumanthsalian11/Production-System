@@ -130,4 +130,48 @@ router.put("/printers/:machineName/:oldName", authMiddleware, async (req, res) =
     res.status(500).json({ message: err.message });
   }
 });
+router.post("/printers/remove", authMiddleware, async (req, res) => {
+  try {
+    const { machineName, printerName } = req.body;
+    const record = await PrinterMaster.findOne({ machineName });
+    if (!record) return res.status(404).json({ message: "Machine not found" });
+
+    const before = record.printerNames.length;
+    record.printerNames = record.printerNames.filter(
+      (p) => String(p).trim() !== String(printerName).trim()
+    );
+    if (record.printerNames.length === before) {
+      return res.status(404).json({ message: "Printer name not found" });
+    }
+
+    if (record.printerNames.length === 0) {
+      await PrinterMaster.findByIdAndDelete(record._id);
+      return res.json({ message: "Machine entry deleted as no printers remain" });
+    }
+    await record.save();
+    res.json(record);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/printers/rename", authMiddleware, async (req, res) => {
+  try {
+    const { machineName, oldName, newName } = req.body;
+    const printer = await PrinterMaster.findOne({ machineName });
+    if (!printer) return res.status(404).json({ message: "Machine not found" });
+
+    const idx = printer.printerNames.findIndex(
+      (p) => String(p).trim() === String(oldName).trim()
+    );
+    if (idx === -1) return res.status(404).json({ message: "Printer name not found" });
+
+    printer.printerNames[idx] = newName;
+    await printer.save();
+    res.json(printer);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
