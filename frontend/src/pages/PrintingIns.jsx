@@ -211,8 +211,26 @@ const fetchMaterialList = async () => {
 
 const materialGroupOptions = [...new Set(materialList.map(m => m.group).filter(Boolean))];
 
+// all GSM values available for one material group (unique, sorted)
+const getGsmsForGroup = (group) =>
+  [...new Set(
+    materialList
+      .filter(m => m.group === group)
+      .map(m => String(m.gsm ?? "").trim())
+      .filter(Boolean)
+  )].sort((a, b) => Number(a) - Number(b));
+
+const gsmOptions = (() => {
+  const list = getGsmsForGroup(form.materialGroup);
+  // keep an already-saved value visible when editing, even if it is no longer in the master
+  if (form.materialGsm && !list.includes(String(form.materialGsm))) {
+    list.unshift(String(form.materialGsm));
+  }
+  return list;
+})();
+
 const handleMaterialGroupChange = (value) => {
-  setErrors(prev => ({ ...prev, materialGroup: "" }));
+  setErrors(prev => ({ ...prev, materialGroup: "", materialGsm: "" }));
 
   if (!value) {
     setForm(prev => ({
@@ -223,12 +241,13 @@ const handleMaterialGroupChange = (value) => {
     return;
   }
 
-  const match = materialList.find(m => m.group === value);
+  const gsms = getGsmsForGroup(value);
 
   setForm(prev => ({
     ...prev,
     materialGroup: value,
-    materialGsm: match?.gsm || ""
+    // only one GSM -> pick it automatically, otherwise the user chooses
+    materialGsm: gsms.length === 1 ? gsms[0] : ""
   }));
 };
 const isPersow = orderMode === "PERSOW";
@@ -715,6 +734,11 @@ const validateForm = () => {
   if (orderMode === "MASTER" && !form.materialGroup) {
     newErrors.materialGroup = "Material Group is required";
     firstErrorField = firstErrorField || "materialGroup";
+  }
+
+  if (orderMode === "MASTER" && form.materialGroup && !form.materialGsm) {
+    newErrors.materialGsm = "GSM is required";
+    firstErrorField = firstErrorField || "materialGsm";
   }
 
   if (!form.quantity) {
@@ -2190,8 +2214,19 @@ const expandTd = (order, key, value) => {
                 ))}
               </select>
             </Field>
-            <Field col="col-md-2" icon="layers-half" label="GSM">
-              <input className="pi-input" value={form.materialGsm} readOnly />
+            <Field col="col-md-2" icon="layers-half" label="GSM" error={errors.materialGsm && <small className="text-danger">{errors.materialGsm}</small>}>
+              <select
+                name="materialGsm"
+                className="pi-input"
+                value={form.materialGsm}
+                onChange={handleChange}
+                disabled={!form.materialGroup}
+              >
+                <option value="">{form.materialGroup ? "Select GSM" : "Select group first"}</option>
+                {gsmOptions.map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
             </Field>
           </>
         )}
