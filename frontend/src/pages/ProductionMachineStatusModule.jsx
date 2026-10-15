@@ -932,12 +932,17 @@ export default function ProductionMachineStatusModule() {
     }
 
     /* ── 24-hour machine time validation ── */
+    const toMin = (t) => {
+      const [h, m] = String(t).split(":").map(Number);
+      return h * 60 + m;
+    };
     const getEntryHours = (dateStr, fromTime, toTime) => {
       if (!dateStr || !fromTime || !toTime) return 0;
-      const start = new Date(`${dateStr}T${fromTime}`);
-      const end = new Date(`${dateStr}T${toTime}`);
-      if (end <= start) end.setDate(end.getDate() + 1);
-      return (end - start) / (1000 * 60 * 60);
+      const start = toMin(fromTime);
+      let end = toMin(toTime);
+      if (String(toTime).slice(0, 5) === "23:59") end = 1440; // 23:59 counts as end of day (24:00)
+      if (end <= start) end += 1440; // crosses midnight
+      return end - start; // returns MINUTES
     };
 
     let totalHours = getEntryHours(form.productionDate, form.fromTime, form.toTime);
@@ -961,7 +966,7 @@ export default function ProductionMachineStatusModule() {
       totalHours += getEntryHours(form.productionDate, item.fromTime, item.toTime);
     });
 
-    if (totalHours > 24) {
+    if (totalHours > 1440) {
       const machineName =
         machines.find((m) => m._id === form.machineId)?.machineName || "Machine";
       return showAlert(`${form.printerName || machineName} exceeds 24 hours`, "warning");

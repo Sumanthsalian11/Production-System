@@ -141,20 +141,8 @@ export default function DashboardLayout() {
   }, [theme]);
 
   // Year filter (shown only on the production portal page)
-  const [selectedYear, setSelectedYear] = useState(() => {
-    try {
-      return localStorage.getItem("mpi-year") || "all";
-    } catch {
-      return "all";
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem("mpi-year", selectedYear);
-    } catch {
-      // Silent ignore if storage is blocked
-    }
-  }, [selectedYear]);
+  const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
+
   const yearOptions = Array.from({ length: 7 }, (_, i) => String(new Date().getFullYear() - i));
 
   // App Launcher State (Admin only)
