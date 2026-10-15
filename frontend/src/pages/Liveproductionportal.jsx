@@ -114,6 +114,11 @@ const monthLabel = (dStr) => {
   return dt.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 };
 
+const dayLabel = (dStr) => {
+  const dt = new Date(dStr);
+  return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+};
+
 const hoursBetween = (dStr, fromTime, toTime) => {
   if (!dStr || !fromTime || !toTime) return 0;
   const start = new Date(`${dStr}T${fromTime}`);
@@ -140,6 +145,13 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
   (masterStatuses || []).forEach((s) => addStatus(s?.statusName ?? s));
   safeReal.forEach((r) => addStatus(r.machineStatus));
   const statusColumns = Array.from(statusLabelMap, ([key, label], i) => ({ key, label, color: statusColor(label, i) }));
+
+  // group the trend by day when the data spans ~2 months or less, else by month
+  const trendDates = safeReal.map((r) => dateOnly(r.productionDate)).filter(Boolean).sort();
+  const trendSpanDays = trendDates.length
+    ? (new Date(trendDates[trendDates.length - 1]) - new Date(trendDates[0])) / 86400000
+    : 0;
+  const trendByDay = false; // always group the trend by month
 
   const woMap = new Map();
   const custMap = new Map();
@@ -271,9 +283,9 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
     }
 
     if (dStr) {
-      const mk = monthKey(dStr);
+      const mk = trendByDay ? dStr : monthKey(dStr);
       if (!monthMap.has(mk)) {
-        monthMap.set(mk, { Month: monthLabel(dStr), sortKey: mk, prodQty: 0, wasteQty: 0 });
+        monthMap.set(mk, { Month: trendByDay ? dayLabel(dStr) : monthLabel(dStr), sortKey: mk, prodQty: 0, wasteQty: 0 });
       }
       const m = monthMap.get(mk);
       m.prodQty += prodQty;
@@ -418,9 +430,29 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
     uniqueMachines: machMap.size,
   };
 
-  const trend = Array.from(monthMap.values())
-    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
-    .map((m) => ({ Month: m.Month, prodQty: Math.round(m.prodQty), wastePct: pct(m.wasteQty, m.prodQty) }));
+  // every month of every year present in the data (empty months show as 0)
+  const trend = (() => {
+    const keys = Array.from(monthMap.keys()).sort();
+    if (!keys.length) return [];
+    const startYear = Number(keys[0].slice(0, 4));
+    const endYear = Number(keys[keys.length - 1].slice(0, 4));
+    const lastKey = keys[keys.length - 1]; // last month that has data
+    const out = [];
+    for (let y = startYear; y <= endYear; y++) {
+      for (let mth = 1; mth <= 12; mth++) {
+        const k = `${y}-${String(mth).padStart(2, "0")}`;
+        if (k > lastKey) break; // don't add months after the last data month
+        const m = monthMap.get(k);
+        out.push({
+          Month: new Date(y, mth - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
+          prodQty: m ? Math.round(m.prodQty) : 0,
+          wasteQty: m ? Math.round(m.wasteQty) : 0,
+          wastePct: m ? pct(m.wasteQty, m.prodQty) : 0,
+        });
+      }
+    }
+    return out.reverse(); // newest month first
+  })();
 
   const machineUtilization = Array.from(machMap.values())
     .map((m) => {
@@ -1796,6 +1828,7 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
   const leftSeries = series.filter((s) => (s.axis || "left") === "left");
   const rightSeries = series.filter((s) => s.axis === "right");
   const hasRight = rightSeries.length > 0;
+  const hasBars = series.some((s) => s.type === "bar");
 
   const nPts = data.length;
   const needsScroll = nPts > 8;
@@ -1811,7 +1844,10 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
   const plotH = Math.max(height - margin.top - margin.bottom, 40);
   const baseline = margin.top + plotH;
   const n = data.length;
-  const xAt = (i) => (n <= 1 ? margin.left + plotW / 2 : margin.left + (i / (n - 1)) * plotW);
+  const xAt = (i) =>
+    hasBars ? margin.left + ((i + 0.5) / n) * plotW
+    : n <= 1 ? margin.left + plotW / 2
+    : margin.left + (i / (n - 1)) * plotW;
 
   const axisMax = (list) => {
     let max = 0;
@@ -1893,7 +1929,7 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
               </text>
               {hasRight && (
                 <text x={margin.left + plotW + 8} y={y + 4} textAnchor="start" fontSize={11} fill="#64748b" fontWeight={600}>
-                  {(rightMax * (1 - f)).toFixed(0)}{rightUnit}
+                  {(rightMax * (1 - f)).toFixed(rightMax < 5 ? 2 : rightMax < 10 ? 1 : 0)}{rightUnit}
                 </text>
               )}
             </g>
@@ -1909,7 +1945,24 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
           <path key={`area-${si}`} d={buildArea(s)} fill={`url(#lines-grad-${s.key})`} stroke="none" />
         ))}
 
-        {series.map((s, si) => (
+        {series.filter((s) => s.type === "bar").map((s) => {
+          const yScale = yForSeries(s);
+          const bw = Math.min((plotW / n) * 0.5, 80);
+          return (
+            <g key={`bar-${s.key}`}>
+              {data.map((row, i) => {
+                const y = yScale(Number(row[s.key]) || 0);
+                return (
+                  <rect key={i} x={xAt(i) - bw / 2} y={y} width={bw}
+                    height={Math.max(baseline - y, 0)} fill={s.color}
+                    opacity={hoverIdx === i ? 1 : 0.85} rx={4} />
+                );
+              })}
+            </g>
+          );
+        })}
+
+        {series.filter((s) => s.type !== "bar").map((s, si) => (
           <g key={`line-${si}`}>
             <path d={buildLine(s)} fill="none" stroke={s.color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
             {data.map((row, i) => {
@@ -2671,7 +2724,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     picked = entries.filter((e) => e.wo === spec.wo && e.pairs.some((p) => p.stage === value)).map((e) => ({ ...e, cHours: 0 }));
   } else if (kind === "month") {
     title = `Month — ${value}`;
-    picked = entries.filter((e) => e.dStr && monthLabel(e.dStr) === value).map((e) => ({ ...e, cHours: 0 }));
+    picked = entries.filter((e) => e.dStr && (monthLabel(e.dStr) === value || dayLabel(e.dStr) === value)).map((e) => ({ ...e, cHours: 0 }));
   }
 
   const rows = picked.map((e) => ({
@@ -2959,20 +3012,22 @@ function OverviewTab({ data }) {
       </div>
 
       <Panel title="Production vs Waste — Monthly Trend" icon={TrendingUp} iconGrad={ACCENTS.blue.grad} sub="Output volume and wastage rate across the dataset period">
-        <LinesChart
+        <BarsChart
           data={data.trend}
           onDrill={(row) => openDrill({ kind: "month", value: row.Month })}
           categoryKey="Month"
           series={[
-            { key: "prodQty", name: "Production Qty", color: COLORS.indigo, axis: "left", format: fmtFull },
-            { key: "wastePct", name: "Waste %", color: COLORS.rose, axis: "right", format: (v) => `${v.toFixed(2)}%` },
+            { key: "prodQty", name: "Production Qty", color: COLORS.indigo },
+            { key: "wasteQty", name: "Waste Qty", color: COLORS.rose },
           ].filter((s) => !trendFilter.hidden.has(s.key))}
           height={260}
+          rotateLabels={0}
+          valueFormatter={fmtFull}
         />
         <PieLegend
           items={[
             { name: "Production Qty", color: COLORS.indigo, dataKey: "prodQty" },
-            { name: "Waste %", color: COLORS.rose, dataKey: "wastePct" },
+            { name: "Waste Qty", color: COLORS.rose, dataKey: "wasteQty" },
           ]}
           hidden={trendFilter.hidden}
           toggle={trendFilter.toggle}
