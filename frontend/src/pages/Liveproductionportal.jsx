@@ -2187,6 +2187,7 @@ function buildEntries(realRows) {
       orderQty: toNum(item.liveOrderQty ?? item.orderQty),
       prodQty: toNum(item.productionQty),
       wasteQty: toNum(item.wastageQty),
+      remarks: String(item.remarks || "").trim(),
       pairs: pairsRaw.map((p) => ({
         stage: p.activityId?.activityName || "Unassigned",
         machine: p.machineId?.machineName || "Unassigned",
@@ -2652,7 +2653,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     const sk = spec.statusKey || null;
     title = `Machine — ${value}${sk ? ` · ${statusLabelOf(data, sk)}` : ""}`;
     note = metric === "hours"
-      ? "Chart Hours is each entry's duration, split evenly across the machines/stages that entry lists."
+      ? "Total Hours is each entry's duration, split evenly across the machines/stages that entry lists."
       : "Every entry is listed with its full quantity. The chart splits an entry's quantity evenly across the machines/stages it lists.";
     entries.forEach((e) => {
       const cnt = e.pairs.filter((p) => p.machine === value).length;
@@ -2689,6 +2690,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     prodQty: Math.round(e.prodQty),
     wasteQty: Math.round(e.wasteQty),
     cHours: e.cHours,
+    remarks: e.remarks || "",
   }));
 
   const stats = (rs) => {
@@ -2696,7 +2698,7 @@ function buildDrill(spec, data, realRows, reelRows) {
     return metric === "hours"
       ? [
           ["Entries", rs.length.toLocaleString("en-IN")],
-          ["Chart Hours", `${sum("cHours").toFixed(1)} h`],
+          ["Total Hours", `${sum("cHours").toFixed(1)} h`],
           ["Production Qty", fmtFull(sum("prodQty"))],
           ["Wastage Qty", fmtFull(sum("wasteQty"))],
         ]
@@ -2723,7 +2725,17 @@ function buildDrill(spec, data, realRows, reelRows) {
     { key: "prodQty", label: "Production Qty", render: (r) => fmtFull(r.prodQty) },
     { key: "wasteQty", label: "Wastage Qty", render: (r) => fmtFull(r.wasteQty) },
   ];
-  if (metric === "hours") columns.push({ key: "cHours", label: "Chart Hours", render: (r) => Number(r.cHours.toFixed(2)) });
+  if (metric === "hours") {
+    columns.push({
+      key: "remarks",
+      label: "Remarks",
+      render: (r) => (
+        <span title={r.remarks} style={{ display: "inline-block", maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "bottom" }}>
+          {r.remarks || "-"}
+        </span>
+      ),
+    });
+  }
   columns.push({ key: "user", label: "User", render: (r) => r.user || "-" });
 
   return {
@@ -2972,7 +2984,15 @@ function OverviewTab({ data }) {
 
 function StageTrackerTab({ data, wo, setWo, openWO }) {
   const openDrill = useDrill();
-  const options = useMemo(() => [...data.ledger].sort((a, b) => b.orderQty - a.orderQty), [data.ledger]);
+  // latest work order first: the one with the most recently saved production entry
+  const options = useMemo(() => {
+    const lastSaved = (w) =>
+      (data.stageTracker[w] || []).reduce((m, l) => Math.max(m, l.lastCreated || 0), 0);
+    return [...data.ledger]
+      .map((r) => ({ r, ts: lastSaved(r.wo) }))
+      .sort((a, b) => (b.ts - a.ts) || ((Number(b.r.wo) || 0) - (Number(a.r.wo) || 0)))
+      .map((x) => x.r);
+  }, [data.ledger, data.stageTracker]);
   const current = data.ledger.some((r) => r.wo === wo) ? wo : options[0]?.wo;
   const row = data.ledger.find((r) => r.wo === current);
 
