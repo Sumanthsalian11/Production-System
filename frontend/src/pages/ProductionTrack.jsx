@@ -240,6 +240,7 @@ function ProductionRealDashboard() {
   const [locationOptions, setLocationOptions] = useState([]);
   const [selectedMaterialIndex, setSelectedMaterialIndex] = useState("");
   const [recordsView, setRecordsView] = useState("details");
+  const [pageLoading, setPageLoading] = useState(Boolean(token)); // first load of the records only
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const tableWrapRef = useRef(null);
@@ -1319,6 +1320,8 @@ const statusColumns = useMemo(() => {
       setLocationOptions([...locSet]);
     } catch (err) {
       console.error("Error fetching Production:", err);
+    } finally {
+      setPageLoading(false);
     }
   };
   // ================= FETCH MACHINES =================
@@ -2042,6 +2045,7 @@ const statusColumns = useMemo(() => {
           --ok: #1f9d6b;
           --danger: #d64545;
           max-width: 100% !important;
+          position: relative;
           min-height: 100vh;
           margin-top: 0 !important;
           padding: 16px 24px 32px;
@@ -2688,6 +2692,31 @@ const statusColumns = useMemo(() => {
         .production-dashboard-page .card.mt-4 tbody tr:nth-child(8)  { animation-delay: 0.95s; }
         .production-dashboard-page .card.mt-4 tbody tr:nth-child(n+9) { animation-delay: 1s; }
 
+        /* ===== PAGE LOADER ===== */
+        @keyframes pdSpin { to { transform: rotate(360deg); } }
+        @keyframes pdLoaderIn { from { opacity: 0; } to { opacity: 1; } }
+        .production-dashboard-page .pd-loader-overlay {
+          position: absolute; inset: 0; z-index: 50;
+          display: flex; justify-content: center; align-items: flex-start;
+          background: rgba(244, 246, 248, 0.8);
+          backdrop-filter: blur(2px);
+          animation: pdLoaderIn 0.25s ease-out 0.4s backwards;
+        }
+        .production-dashboard-page .pd-loader-box {
+          position: sticky; top: 35vh; height: fit-content;
+          display: flex; flex-direction: column; align-items: center; gap: 12px;
+          padding: 26px 38px; border-radius: 8px;
+          background: #ffffff; border: 1px solid #e3e7ec;
+          box-shadow: 0 16px 36px rgba(16, 24, 40, 0.18);
+        }
+        .production-dashboard-page .pd-spinner {
+          width: 46px; height: 46px; border-radius: 50%;
+          border: 5px solid #fdeee8;
+          border-top-color: #e4572e;
+          animation: pdSpin 0.8s linear infinite;
+        }
+        .production-dashboard-page .pd-loader-text { font-size: 13px; font-weight: 700; color: #000; }
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .production-dashboard-page.container,
@@ -2699,6 +2728,15 @@ const statusColumns = useMemo(() => {
 
 
 
+
+      {pageLoading && (
+        <div className="pd-loader-overlay">
+          <div className="pd-loader-box">
+            <div className="pd-spinner" />
+            <span className="pd-loader-text">Loading production records…</span>
+          </div>
+        </div>
+      )}
 
          {/* WORK ORDER INPUT */}
       <div

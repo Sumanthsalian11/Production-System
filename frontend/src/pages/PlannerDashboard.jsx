@@ -156,6 +156,7 @@ function PlannerDashboard() {
 
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true); // first load only
   const [expandedCell, setExpandedCell] = useState(null);
 
   // ===== Locations master (for Outer Label auto-fill) =====
@@ -344,6 +345,7 @@ function PlannerDashboard() {
         setOrders([]);
       }
       setLoading(false);
+      setPageLoading(false);
     };
 
     fetchData();
@@ -2381,6 +2383,7 @@ function PlannerDashboard() {
 
         .planner-dashboard-root {
           background: var(--page);
+          position: relative;
           min-height: 100vh;
           padding: 24px 28px 40px;
           font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
@@ -3588,6 +3591,31 @@ function PlannerDashboard() {
         .planner-dashboard-root .table-modern tbody tr:nth-child(n+9),
         .planner-dashboard-root .planned-workorders-table tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
 
+        /* ===== PAGE LOADER ===== */
+        @keyframes plSpin { to { transform: rotate(360deg); } }
+        @keyframes plLoaderIn { from { opacity: 0; } to { opacity: 1; } }
+        .planner-dashboard-root .pl-loader-overlay {
+          position: absolute; inset: 0; z-index: 200;
+          display: flex; justify-content: center; align-items: flex-start;
+          background: rgba(244, 246, 248, 0.8);
+          backdrop-filter: blur(2px);
+          animation: plLoaderIn 0.25s ease-out 0.4s backwards;
+        }
+        .planner-dashboard-root .pl-loader-box {
+          position: sticky; top: 35vh; height: fit-content;
+          display: flex; flex-direction: column; align-items: center; gap: 12px;
+          padding: 26px 38px; border-radius: 8px;
+          background: #ffffff; border: 1px solid #e3e7ec;
+          box-shadow: 0 16px 36px rgba(16, 24, 40, 0.18);
+        }
+        .planner-dashboard-root .pl-spinner {
+          width: 46px; height: 46px; border-radius: 50%;
+          border: 5px solid #fdeee8;
+          border-top-color: #e4572e;
+          animation: plSpin 0.8s linear infinite;
+        }
+        .planner-dashboard-root .pl-loader-text { font-size: 13px; font-weight: 700; color: #000; }
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .planner-dashboard-root,
@@ -3596,6 +3624,15 @@ function PlannerDashboard() {
           }
         }
       `}</style>
+
+      {pageLoading && (
+        <div className="pl-loader-overlay">
+          <div className="pl-loader-box">
+            <div className="pl-spinner" />
+            <span className="pl-loader-text">Loading planner data…</span>
+          </div>
+        </div>
+      )}
 
       <div className="planner-container-3d">
         {/* QUICK-NAV TABS */}

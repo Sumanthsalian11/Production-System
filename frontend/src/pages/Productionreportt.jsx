@@ -51,6 +51,7 @@ const CSS = `
   @keyframes prGlowPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.7; } }
 
   .pr-root {
+    position: relative;
     min-height: 100vh;
     box-sizing: border-box;
     color: #08283d;
@@ -399,6 +400,35 @@ const CSS = `
   .pr-table tbody tr:nth-child(10) { animation-delay: 0.66s; }
   .pr-table tbody tr:nth-child(n+11) { animation-delay: 0.70s; }
 
+  /* ── PAGE LOADER ── */
+  @keyframes prSpin { to { transform: rotate(360deg); } }
+  @keyframes prLoaderIn { from { opacity: 0; } to { opacity: 1; } }
+  .pr-loader-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    display: flex; justify-content: center; align-items: flex-start;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+    animation: prLoaderIn 0.25s ease-out 0.4s backwards;
+  }
+  .pr-loader-box {
+    position: sticky; top: 35vh; height: fit-content;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 26px 38px; border-radius: 14px;
+    background: rgba(221, 243, 252, 0.98);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
+  }
+  .pr-spinner {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 5px solid rgba(20, 111, 156, 0.2);
+    border-top-color: #0877ad;
+    animation: prSpin 0.8s linear infinite;
+  }
+  .pr-loader-text { font-size: 13px; font-weight: 800; color: #06324d; }
+  @media (prefers-reduced-motion: reduce) {
+    .pr-spinner { animation-duration: 2s !important; }
+  }
+
   /* Respect users who prefer no motion */
   @media (prefers-reduced-motion: reduce) {
     .pr-filter-card,
@@ -535,6 +565,7 @@ export default function Productionreportt() {
   const [records, setRecords]                 = useState([]);
   const [machines, setMachines]               = useState([]);
   const [machineStatuses, setMachineStatuses] = useState([]);
+  const [loading, setLoading] = useState(Boolean(token));
   const [expanded, setExpanded]               = useState(null);
 
   /* all tables visible by default */
@@ -558,7 +589,8 @@ export default function Productionreportt() {
     if (!token) return;
     axios.get(`${BASE_URL}/api/production-machine-status`, authHeaders)
       .then(r => setRecords((r.data || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))))
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoading(false));
     axios.get(`${BASE_URL}/api/master/machines`, authHeaders)
       .then(r => setMachines(r.data || [])).catch(console.error);
     axios.get(`${BASE_URL}/api/master/machine-status`, authHeaders)
@@ -1117,6 +1149,15 @@ export default function Productionreportt() {
         )}
 
       </div>
+
+      {loading && (
+        <div className="pr-loader-overlay">
+          <div className="pr-loader-box">
+            <div className="pr-spinner" />
+            <span className="pr-loader-text">Loading production report…</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

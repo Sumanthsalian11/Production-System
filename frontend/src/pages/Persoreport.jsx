@@ -11,6 +11,7 @@ const CSS = `
     --accent: #06324d; --line: rgba(20, 93, 130, 0.28); --line-strong: rgba(20, 111, 156, 0.42);
     --mono: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    position: relative;
     min-height: 100vh;
     padding: 18px;
     font-family: var(--sans); font-size: 14px; color: var(--ink);
@@ -198,6 +199,36 @@ const CSS = `
   .rpt-table tbody tr:nth-child(9)  { animation-delay: 0.67s; }
   .rpt-table tbody tr:nth-child(10) { animation-delay: 0.71s; }
   .rpt-table tbody tr:nth-child(n+11) { animation-delay: 0.75s; }
+
+  /* ---------- PAGE LOADER ---------- */
+  .rpt-root .rpt-loader-overlay {
+    position: absolute; inset: 0; z-index: 50;
+    display: flex; justify-content: center; align-items: flex-start;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+    animation: rptLoaderIn 0.25s ease-out 0.4s backwards;
+  }
+  .rpt-root .rpt-loader-box {
+    position: sticky; top: 35vh; height: fit-content;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 26px 38px; border-radius: 14px;
+    background: rgba(221, 243, 252, 0.98);
+    border: 1px solid rgba(20, 111, 156, 0.42);
+    box-shadow: 0 12px 28px rgba(14, 86, 122, 0.22);
+  }
+  .rpt-root .rpt-spinner {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 5px solid rgba(20, 111, 156, 0.2);
+    border-top-color: #0877ad;
+    animation: rptSpin 0.8s linear infinite;
+  }
+  .rpt-root .rpt-loader-text { font-size: 13px; font-weight: 800; color: #06324d; }
+  @keyframes rptSpin { to { transform: rotate(360deg); } }
+  @keyframes rptLoaderIn { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .rpt-root .rpt-spinner { animation-duration: 2s !important; }
+  }
+  @media print { .rpt-loader-overlay { display: none !important; } }
 
   /* Respect users who prefer no motion, and keep print clean */
   @media (prefers-reduced-motion: reduce) {
@@ -898,6 +929,15 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
         </div>
 
       </div>
+
+      {loading && (
+        <div className="rpt-loader-overlay">
+          <div className="rpt-loader-box">
+            <div className="rpt-spinner" />
+            <span className="rpt-loader-text">Loading Perso report…</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
