@@ -140,6 +140,23 @@ export default function DashboardLayout() {
     }
   }, [theme]);
 
+  // Year filter (shown only on the production portal page)
+  const [selectedYear, setSelectedYear] = useState(() => {
+    try {
+      return localStorage.getItem("mpi-year") || "all";
+    } catch {
+      return "all";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("mpi-year", selectedYear);
+    } catch {
+      // Silent ignore if storage is blocked
+    }
+  }, [selectedYear]);
+  const yearOptions = Array.from({ length: 7 }, (_, i) => String(new Date().getFullYear() - i));
+
   // App Launcher State (Admin only)
   const [showAppLauncher, setShowAppLauncher] = useState(false);
   const [launcherSearch, setLauncherSearch] = useState("");
@@ -437,6 +454,7 @@ export default function DashboardLayout() {
   const firstLetter = displayName.charAt(0).toUpperCase();
   const topOffset = isMobile ? 52 : 0;
   const isDark = theme === "dark";
+  const showYearFilter = location.pathname.startsWith("/production-portal");
 
   return (
     <div
@@ -668,6 +686,32 @@ export default function DashboardLayout() {
           background: var(--hover);
           border-color: var(--border-strong);
           transform: translateY(-1px);
+        }
+
+        /* ===== YEAR FILTER ===== */
+        .year-filter-wrap {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          height: 36px;
+          padding: 0 8px 0 12px;
+          margin-right: 10px;
+          border-radius: 50px;
+          background: var(--glass);
+          border: 1px solid var(--border);
+          color: var(--accent);
+          box-shadow: var(--shadow-sm);
+          transition: all 0.2s ease;
+        }
+        .year-filter-wrap:hover { background: var(--hover); border-color: var(--border-strong); }
+        .year-filter-select {
+          border: none;
+          outline: none;
+          background: transparent;
+          color: var(--text);
+          font-size: 0.8rem;
+          font-weight: 700;
+          cursor: pointer;
         }
 
         /* ===== CLICK-TO-LOGOUT USER PILL ===== */
@@ -1543,6 +1587,21 @@ export default function DashboardLayout() {
 
             {/* RIGHT SIDE: THEME TOGGLE + CLICKABLE USER PILL */}
             <div className="d-flex align-items-center">
+              {showYearFilter && (
+                <div className="year-filter-wrap" title="Filter this page by year">
+                  <i className="bi bi-calendar3"></i>
+                  <select
+                    className="year-filter-select"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                  >
+                    <option value="all">All Years</option>
+                    {yearOptions.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <button
                 type="button"
                 className="theme-toggle-btn"
@@ -1578,7 +1637,7 @@ export default function DashboardLayout() {
           <div style={{ height: isMobile ? 64 : 58 }} />
 
           <div className="mpi-page-white">
-            <Outlet />
+            <Outlet context={{ selectedYear }} />
           </div>
         </div>
       </div>

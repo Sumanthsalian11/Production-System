@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useLayoutEffect, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import axios from "axios";
+import { useOutletContext } from "react-router-dom";
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -3764,6 +3765,7 @@ function BookingTab({ filters }) {
       const userLocs = Array.isArray(s.userLocations) ? s.userLocations : [];
       const d = dateOnly(s.startTime);
 
+      if (f.selectedYear && f.selectedYear !== "all" && (d || "").slice(0, 4) !== f.selectedYear) return false;
       if (f.selectedCustomers?.length && !f.selectedCustomers.includes(cust)) return false;
       if (f.selectedJobs?.length && !f.selectedJobs.includes(job)) return false;
       if (f.selectedMachines?.length && !f.selectedMachines.includes(mName)) return false;
@@ -3936,6 +3938,9 @@ const TABS = [
 ];
 
 export default function LiveProductionPortal() {
+  const outlet = useOutletContext();
+  const selectedYear = outlet?.selectedYear || "all";
+  const yearOf = (d) => (dateOnly(d) || "").slice(0, 4);
   const [tabs, setTabs] = useState(["overview"]); // sections currently ticked — only these are shown
   const [search, setSearch] = useState("");
   const [drawerWO, setDrawerWO] = useState(null);
@@ -4040,6 +4045,7 @@ export default function LiveProductionPortal() {
     const fromDate = dateFrom ? new Date(dateFrom) : null;
     const toDate = dateTo ? new Date(dateTo) : null;
     return realRows.filter((row) => {
+      if (selectedYear !== "all" && yearOf(row.productionDate) !== selectedYear) return false;
       if (selectedCustomers.length && !selectedCustomers.includes(row.customerName || "")) return false;
       if (selectedJobs.length && !selectedJobs.includes(row.jobDescription || "")) return false;
 
@@ -4069,7 +4075,7 @@ export default function LiveProductionPortal() {
       }
       return true;
     });
-  }, [realRows, search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, dateFrom, dateTo]);
+  }, [realRows, selectedYear, search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, dateFrom, dateTo]);
 
   // Reel Register rows have no job field, so a job filter narrows them via the
   // set of work orders that already passed the job filter on the production log.
@@ -4082,7 +4088,7 @@ export default function LiveProductionPortal() {
   // filters narrow reel rows the same way the job filter already does: via
   // the set of work orders that passed those filters on the production log.
   const hasWOGatingFilters =
-    selectedJobs.length > 0 || selectedMachines.length > 0 || selectedLocations.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
+    selectedYear !== "all" || selectedJobs.length > 0 || selectedMachines.length > 0 || selectedLocations.length > 0 || Boolean(dateFrom) || Boolean(dateTo);
 
   const filteredReelRows = useMemo(() => {
     const q = normWO(search).toLowerCase();
@@ -4102,6 +4108,7 @@ export default function LiveProductionPortal() {
   const filteredCustomerOrders = useMemo(() => {
     const q = normWO(search).toLowerCase();
     return customerOrders.filter((o) => {
+      if (selectedYear !== "all" && yearOf(o.poDate) !== selectedYear) return false;
       if (selectedCustomers.length && !selectedCustomers.includes(o.customerName || "")) return false;
       if (selectedOrderLocations.length && !selectedOrderLocations.includes(o.location?.locationName || "")) return false;
       if (dateFrom || dateTo) {
@@ -4116,11 +4123,11 @@ export default function LiveProductionPortal() {
       }
       return true;
     });
-  }, [customerOrders, search, selectedCustomers, selectedOrderLocations, dateFrom, dateTo]);
+  }, [customerOrders, selectedYear, search, selectedCustomers, selectedOrderLocations, dateFrom, dateTo]);
 
   const bookingFilters = useMemo(
-    () => ({ search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo }),
-    [search, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo]
+    () => ({ search, selectedYear, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo }),
+    [search, selectedYear, selectedCustomers, selectedJobs, selectedMachines, selectedLocations, selectedOrderLocations, dateFrom, dateTo]
   );
 
   const hasActiveFilters =
