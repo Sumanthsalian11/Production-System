@@ -311,6 +311,59 @@ router.delete("/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// =============================================
+// ADMIN: EDIT ORDER QTY (only for work orders in admin's own location)
+// =============================================
+router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+
+    const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) {
+      return res.status(404).json({ message: "Work Order not found" });
+    }
+
+    // location check: admin must share a location with the work order
+    const myLocs = req.user.locations || [];
+    const woLocs = workOrder.userLocations || [];
+    if (!woLocs.some((l) => myLocs.includes(l))) {
+      return res.status(403).json({ message: "Not allowed for this location" });
+    }
+
+    const { orderQty, totalQty, impFront, impBack, totalImp, machinesImp = [] } = req.body;
+
+    if (!(Number(orderQty) > 0)) {
+      return res.status(400).json({ message: "Invalid quantity" });
+    }
+    if (Number(workOrder.boxQty) > Number(orderQty)) {
+      return res.status(400).json({ message: "Quantity in Box cannot exceed Order Qty" });
+    }
+
+    workOrder.orderQty = Number(orderQty);
+    workOrder.totalQty = Number(totalQty) || 0;
+    workOrder.impFront = Number(impFront) || 0;
+    workOrder.impBack = Number(impBack) || 0;
+    workOrder.totalImp = Number(totalImp) || 0;
+
+    (workOrder.machines || []).forEach((m, i) => {
+      if (machinesImp[i]) {
+        m.impFront = machinesImp[i].impFront;
+        m.impBack = machinesImp[i].impBack;
+        m.totalImp = machinesImp[i].totalImp;
+      }
+    });
+    workOrder.markModified("machines");
+
+    await workOrder.save();
+    res.json(workOrder);
+  } catch (err) {
+    console.error("ORDER QTY UPDATE ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET WORK ORDER BY EFI NUMBER
 router.get("/efi/:efi", authMiddleware, async (req, res) => {
   try {

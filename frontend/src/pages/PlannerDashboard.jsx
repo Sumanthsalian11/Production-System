@@ -147,6 +147,10 @@ function PlannerDashboard() {
   const [hiddenOrders, setHiddenOrders] = useState([]);
   const [filterUserLocation, setFilterUserLocation] = useState("");
   const [statusFilter, setStatusFilter] = useState("ORDER_RECEIVED");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [qtyEditWo, setQtyEditWo] = useState(null);
+  const [qtyEditValue, setQtyEditValue] = useState("");
+  const [qtySaving, setQtySaving] = useState(false);
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
@@ -267,6 +271,7 @@ function PlannerDashboard() {
         const decoded = jwtDecode(token);
         setLoggedInUser(decoded.name || "");
         setUserLocations(decoded.locations || []);
+        setIsAdmin(String(decoded.role || "").toUpperCase() === "ADMIN");
       } catch (err) {
         console.error("Token decoding failed:", err);
       }
@@ -595,6 +600,78 @@ function PlannerDashboard() {
     } catch (err) {
       console.error(err);
       showAlert("Error deleting Work Order", "", "error");
+    }
+  };
+
+  // admin may edit qty only for work orders in his own location(s)
+  const canEditQty = (wo) =>
+    isAdmin && (wo.userLocations || []).some((loc) => userLocations.includes(loc));
+
+  // same impression rules as the work order form
+  const calcQtyChange = (wo, newQty) => {
+    const colorFront = Number(wo.colorFront) || 0;
+    const colorBack = Number(wo.colorBack) || 0;
+    const waste = Number(wo.wasteQty) || 0;
+    const totalQty = Math.round(newQty + newQty * (waste / 100));
+
+    const machinesImp = (wo.machines || []).map((m) => {
+      const ups = Number(m.UPS) || 0;
+      if (ups <= 0) return { impFront: 0, impBack: 0, totalImp: 0 };
+
+      const pages = Number(m.pages) || 0;
+      const base = m.isBooklet && pages > 0 ? totalQty * pages : totalQty;
+      const imp = Math.round(base / ups);
+      const impFront = colorFront > 0 ? imp : 0;
+      const impBack = colorBack > 0 ? imp : 0;
+
+      const useOffsetRule = isOffsetActivity(m.activityId?._id || m.activityId) || m.isPerfecting;
+      const totalImp = useOffsetRule
+        ? impFront > 0 && impBack > 0
+          ? Math.round((impFront + impBack) / 2)
+          : impFront + impBack
+        : impFront + impBack;
+
+      return { impFront, impBack, totalImp };
+    });
+
+    const sum = (k) => machinesImp.reduce((s, r) => s + r[k], 0);
+    return {
+      orderQty: newQty,
+      totalQty,
+      impFront: sum("impFront"),
+      impBack: sum("impBack"),
+      totalImp: sum("totalImp"),
+      machinesImp
+    };
+  };
+
+  const openQtyEdit = (wo) => {
+    setQtyEditWo(wo);
+    setQtyEditValue(String(wo.orderQty ?? ""));
+  };
+
+  const handleSaveQty = async () => {
+    const newQty = Number(qtyEditValue);
+    if (!newQty || newQty <= 0) return showAlert("Enter a valid Order Quantity");
+    if (Number(qtyEditWo.boxQty) > newQty)
+      return showAlert("Quantity in Box cannot be greater than Order Qty");
+    if (qtySaving) return;
+
+    setQtySaving(true);
+    try {
+      await axios.patch(
+        `${BASE_URL}/api/workorders/${qtyEditWo._id}/order-qty`,
+        calcQtyChange(qtyEditWo, newQty),
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+      showAlert("Success", `Order Qty updated for WO ${qtyEditWo.efiWoNumber} ✅`, "success");
+      setQtyEditWo(null);
+      await fetchWorkOrders();
+    } catch (err) {
+      console.error(err);
+      showAlert("Error", err.response?.data?.message || "Error updating Order Qty", "error");
+    } finally {
+      setQtySaving(false);
     }
   };
 
@@ -4884,6 +4961,52 @@ function PlannerDashboard() {
 
             {/* ========================================================================= */}
             {/* 6. PLANNED WORK ORDERS SECTION (Main Registry)                            */}
+
+            {qtyEditWo && (
+              <div className="wo-overlay" onClick={() => setQtyEditWo(null)}>
+                <div className="wo-modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+                  <div className="wo-head">
+                    <div className="wo-head-left">
+                      <div className="wo-icon"><Icons.Layers /></div>
+                      <div>
+                        <h5 className="wo-title">Edit Order Quantity</h5>
+                        <div className="wo-sub">WO {qtyEditWo.efiWoNumber}</div>
+                      </div>
+                    </div>
+                    <button type="button" className="wo-close" onClick={() => setQtyEditWo(null)}>✕</button>
+                  </div>
+
+                  <div className="wo-info-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))", marginBottom: 12 }}>
+                    <div className="wo-info"><span>Current qty</span><b>{qtyEditWo.orderQty}</b></div>
+                    <div className="wo-info"><span>Waste %</span><b>{qtyEditWo.wasteQty}%</b></div>
+                    <div className="wo-info wide">
+                      <span>New total qty (after waste)</span>
+                      <b>{calcQtyChange(qtyEditWo, Number(qtyEditValue) || 0).totalQty}</b>
+                    </div>
+                  </div>
+
+                  <PoField icon="bi-123" label="New Order Quantity" required filled={has(qtyEditValue)}>
+                    <input
+                      type="number"
+                      min="1"
+                      className="po-input"
+                      value={qtyEditValue}
+                      onChange={(e) => setQtyEditValue(e.target.value)}
+                      autoFocus
+                    />
+                  </PoField>
+
+                  <div className="wo-foot" style={{ marginTop: 16 }}>
+                    <button type="button" className="wo-btn wo-btn-ghost" onClick={() => setQtyEditWo(null)}>
+                      Cancel
+                    </button>
+                    <button type="button" className="wo-btn wo-btn-primary" onClick={handleSaveQty} disabled={qtySaving}>
+                      {qtySaving ? "Saving..." : "Update Qty"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* ========================================================================= */}
             {(statusFilter === "PLANNED" || statusFilter === "") && workOrders.length > 0 && (
               <div className="card-glass-3d p-3 mt-4">
@@ -5232,19 +5355,33 @@ function PlannerDashboard() {
                               : "-"}
                           </td>
                           <td className="text-center">
-                            {loggedInUser &&
-                            wo.planningUser &&
-                            wo.planningUser.trim() === loggedInUser.trim() ? (
-                              <button
-                                className="btn-3d btn-3d-warning btn-sm"
-                                style={{ padding: "3px 10px", fontSize: "11px" }}
-                                onClick={() => handleEditWorkOrder(wo)}
-                              >
-                                Edit
-                              </button>
-                            ) : (
-                              "-"
-                            )}
+                            <div className="d-inline-flex gap-1">
+                              {loggedInUser &&
+                                wo.planningUser &&
+                                wo.planningUser.trim() === loggedInUser.trim() && (
+                                  <button
+                                    className="btn-3d btn-3d-warning btn-sm"
+                                    style={{ padding: "3px 10px", fontSize: "11px" }}
+                                    onClick={() => handleEditWorkOrder(wo)}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              {canEditQty(wo) && (
+                                <button
+                                  className="btn-3d btn-3d-info btn-sm"
+                                  style={{ padding: "3px 10px", fontSize: "11px" }}
+                                  onClick={() => openQtyEdit(wo)}
+                                >
+                                  Edit Qty
+                                </button>
+                              )}
+                              {!(
+                                loggedInUser &&
+                                wo.planningUser &&
+                                wo.planningUser.trim() === loggedInUser.trim()
+                              ) && !canEditQty(wo) && "-"}
+                            </div>
                           </td>
                           <td className="text-center">
                             {loggedInUser &&
