@@ -1,5 +1,7 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
+import axios from "axios";
+import BASE_URL from "./config/api";
 import { Toaster } from "react-hot-toast";
 
 import DashboardLayout from "./components/DashboardLayout";
@@ -50,7 +52,14 @@ import CustomerSatisfaction from "./pages/CustomerSatisfaction";
 
 
 /* PROTECTED ROUTE */
-import ProtectedRoute from "./components/ProtectedRoute";
+import BaseProtectedRoute from "./components/ProtectedRoute";
+
+const RolesCtx = createContext([]);
+// Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
+const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
+  const extra = useContext(RolesCtx);
+  return <BaseProtectedRoute {...props} allowedRoles={allowedRoles.length > 1 ? [...allowedRoles, ...extra] : allowedRoles} />;
+};
 
 // Routes where the chat widget should NOT appear (e.g. pre-login pages)
 const HIDE_CHAT_ON = ["/", "/register"];
@@ -58,6 +67,19 @@ const HIDE_CHAT_ON = ["/", "/register"];
 function App() {
   const location = useLocation();
   const showChat = !HIDE_CHAT_ON.includes(location.pathname);
+
+  const [extraRoles, setExtraRoles] = useState([]);
+  const [rolesToken, setRolesToken] = useState(null);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { setExtraRoles([]); setRolesToken(null); return; }
+    if (token === rolesToken) return;
+    axios
+      .get(`${BASE_URL}/api/master/roles`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => setExtraRoles((r.data || []).map((x) => String(x.name).toUpperCase())))
+      .catch(() => {})
+      .finally(() => setRolesToken(token));
+  }, [location.pathname, rolesToken]);
 
 // ⭐ Shows immediately on a hard refresh / first app load only — content waits, loader doesn't
   const [appInitializing, setAppInitializing] = useState(true);
@@ -69,7 +91,8 @@ function App() {
   }, []);
 
   // While initializing, show ONLY the loader — don't mount routes/content underneath yet
-  if (appInitializing) {
+  const tk = localStorage.getItem("token");
+  if (appInitializing || (tk && rolesToken !== tk)) {
     return (
       <>
         <Toaster position="top-right" />
@@ -82,6 +105,7 @@ function App() {
     <>
       <Toaster position="top-right" />
 
+      <RolesCtx.Provider value={extraRoles}>
       <Routes>
 
         {/* 🔐 LOGIN ROUTES */}
@@ -330,6 +354,7 @@ function App() {
       
 
       </Routes>
+      </RolesCtx.Provider>
 
       {/* {showChat && <ChatWidget />} */}
 

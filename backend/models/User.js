@@ -25,7 +25,9 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      enum: ["PURCHASE ORDER", "ADMIN","INDENTER", "PLANNER", "SUPERVISOR", "PRODUCTION","DISPATCH","KAS","SCANNER","PREPRESS","QUALITY CONTROL"],
+      required: true,
+      uppercase: true,
+      trim: true,
     },
 
     // ✅ STORE AS STRING

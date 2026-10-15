@@ -37,6 +37,19 @@ const menuItems = [
   { to: "/certificate-numbering", icon: "bi-file-earmark-text", label: "Special Job", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
 ];
 
+export const BASE_ROLES = [
+  { value: "ADMIN", label: "Admin" },
+  { value: "PLANNER", label: "Planner" },
+  { value: "INDENTER", label: "Indenter" },
+  { value: "SUPERVISOR", label: "Supervisor" },
+  { value: "PRODUCTION", label: "Production" },
+  { value: "PURCHASE ORDER", label: "Purchase Order" },
+  { value: "DISPATCH", label: "Dispatch" },
+  { value: "KAS", label: "KAS" },
+  { value: "SCANNER", label: "Scanner" },
+  { value: "PREPRESS", label: "Prepress" },
+];
+
 // Returns the modules a given role (e.g. "PLANNER", case-insensitive) can access
 export const getModulesForRole = (role) => {
   if (!role) return [];

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../styles/adminPro.css";
 import BASE_URL from "../config/api";
+import { getAllModules } from "../config/menuItems";
 
 import { motion } from "framer-motion";
 import {
@@ -489,6 +490,55 @@ function AdminDashboard() {
 
   const token = localStorage.getItem("token");
 
+  const [roles, setRoles] = useState([]);
+  const [newRole, setNewRole] = useState({ name: "", modules: [] });
+  const [showRoleList, setShowRoleList] = useState(false);
+
+  const fetchRoles = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/roles`, { headers: { Authorization: `Bearer ${token}` } });
+      setRoles(res.data);
+    } catch (err) {
+      console.error("Error fetching roles:", err);
+    }
+  };
+  useEffect(() => { fetchRoles(); }, []);
+
+  const toggleRoleModule = (setter, to) =>
+    setter((prev) => ({
+      ...prev,
+      modules: (prev.modules || []).includes(to) ? prev.modules.filter((m) => m !== to) : [...(prev.modules || []), to],
+    }));
+
+  const addRole = async () => {
+    const name = newRole.name.trim().toUpperCase();
+    if (!name) return showAlert("Enter role name");
+    try {
+      await axios.post(`${BASE_URL}/api/master/roles`, { name, modules: newRole.modules }, { headers: { Authorization: `Bearer ${token}` } });
+      setNewRole({ name: "", modules: [] });
+      fetchRoles();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save role");
+    }
+  };
+
+  const saveRole = async (id) => {
+    try {
+      await axios.put(`${BASE_URL}/api/master/roles/${id}`, { modules: editingData.modules || [] }, { headers: { Authorization: `Bearer ${token}` } });
+      setEditingId(null);
+      setEditingData({});
+      fetchRoles();
+    } catch (err) {
+      showAlert("Failed to update role");
+    }
+  };
+
+  const removeRole = async (id) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    await axios.delete(`${BASE_URL}/api/master/roles/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    fetchRoles();
+  };
+
   const showAlert = (message) => {
     const m = String(message ?? "");
     const low = m.toLowerCase();
@@ -611,6 +661,7 @@ function AdminDashboard() {
       fetchMasters();
       fetchMachineCapacity();
       fetchGst();
+      fetchRoles();
     }, 150);
   };
 
@@ -965,6 +1016,7 @@ function AdminDashboard() {
     { id: "inspection", label: "RM-IQC Specs", icon: Layers },
     { id: "gstMaster", label: "GST Master", icon: Layers },
     { id: "indentMail", label: "Mail Settings", icon: Activity },
+    { id: "roles", label: "Roles", icon: Activity },
   ];
 
   const fetchMasters = async () => {
@@ -3386,6 +3438,87 @@ function AdminDashboard() {
                   <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
                     No GST records found
                   </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </motion.div>
+      )}
+      {/* ROLES MASTER */}
+      {activeSection === "roles" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Activity size={18} /> Roles</span>
+          </div>
+
+          <div className="activity-builder">
+            <div className="activity-name-field">
+              <label>Role Name</label>
+              <input
+                className="pro-input"
+                placeholder="e.g. QC Head"
+                value={newRole.name}
+                onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+              />
+            </div>
+            <div className="machine-picker">
+              <div className="picker-header">
+                <span>Modules this role can open</span>
+                <strong>{newRole.modules.length} selected</strong>
+              </div>
+              <div className="machine-grid">
+                {getAllModules().filter((m) => m.to !== "/internal-register" && m.to !== "/admin").map((m) => (
+                  <label key={m.to} className={`machine-tile ${newRole.modules.includes(m.to) ? "selected" : ""}`}>
+                    <input type="checkbox" checked={newRole.modules.includes(m.to)} onChange={() => toggleRoleModule(setNewRole, m.to)} />
+                    <span>{m.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <button className="pro-btn primary" onClick={addRole}>
+            <PlusCircle size={16} /> Add Role
+          </button>
+
+          <div className="material-toggle" onClick={() => setShowRoleList(!showRoleList)}>
+            {showRoleList ? "Hide Stored Roles ▲" : "Show Stored Roles ▼"}
+          </div>
+
+          {showRoleList && (
+            <div style={scrollContainerStyle}>
+              <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+                {roles.map((r) => (
+                  <li key={r._id} className="d-flex justify-content-between align-items-center">
+                    {editingId === r._id ? (
+                      <>
+                        <div className="activity-builder edit-mode">
+                          <div className="activity-name-field"><label>Role</label><strong>{r.name}</strong></div>
+                          <div className="machine-grid">
+                            {getAllModules().filter((m) => m.to !== "/internal-register" && m.to !== "/admin").map((m) => (
+                              <label key={m.to} className={`machine-tile ${(editingData.modules || []).includes(m.to) ? "selected" : ""}`}>
+                                <input type="checkbox" checked={(editingData.modules || []).includes(m.to)} onChange={() => toggleRoleModule(setEditingData, m.to)} />
+                                <span>{m.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <button className="pro-btn primary" onClick={() => saveRole(r._id)}>Save</button>
+                        <button className="pro-btn" onClick={() => { setEditingId(null); setEditingData({}); }}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <span><strong>{r.name}</strong> • {(r.modules || []).length} modules</span>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button className="pro-btn" onClick={() => { setEditingId(r._id); setEditingData({ modules: r.modules || [] }); }}>Edit</button>
+                          <button className="pro-btn" onClick={() => removeRole(r._id)}>Delete</button>
+                        </div>
+                      </>
+                    )}
+                  </li>
+                ))}
+                {roles.length === 0 && (
+                  <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>No custom roles yet</li>
                 )}
               </ul>
             </div>

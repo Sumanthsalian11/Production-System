@@ -371,7 +371,7 @@ export default function DashboardLayout() {
 
   const allowedModules = useMemo(() => {
     return menuItems.filter((item) => {
-      const hasRole = !loggedInUser || loggedInUser === "admin" || item.roles.includes(loggedInUser);
+      const hasRole = !loggedInUser || loggedInUser === "admin" || item.roles.includes(loggedInUser) || userModules.includes(item.to);
       if (!hasRole) return false;
       if (loggedInUser !== "admin" && userModules.length > 0 && !userModules.includes(item.to)) {
         return false;

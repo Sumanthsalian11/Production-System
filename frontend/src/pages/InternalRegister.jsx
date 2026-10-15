@@ -6,7 +6,7 @@ import { MdEmail } from "react-icons/md";
 import { FaUserSecret } from "react-icons/fa";
 import { RiLockPasswordFill } from "react-icons/ri";
 import BASE_URL from "../config/api";
-import { getModulesForRole, getModuleLabel, getAllModules } from "../config/menuItems";
+import { getModulesForRole, getModuleLabel, getAllModules, BASE_ROLES } from "../config/menuItems";
 
 // Announcement Theme Presets
 const ANNOUNCEMENT_THEMES = [
@@ -57,6 +57,7 @@ function InternalRegister() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [locations, setLocations] = useState([]);
+  const [masterRoles, setMasterRoles] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [selectedModules, setSelectedModules] = useState([]);
   const [moduleDropdownOpen, setModuleDropdownOpen] = useState(false);
@@ -226,9 +227,53 @@ function InternalRegister() {
     setLocations(res.data);
   };
 
+  const fetchRoles = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${BASE_URL}/api/master/roles`, { headers: { Authorization: `Bearer ${token}` } });
+      setMasterRoles(res.data || []);
+    } catch {
+      setMasterRoles([]);
+    }
+  };
+
   useEffect(() => {
     fetchLocations();
+    fetchRoles();
   }, []);
+
+  const [showNewRole, setShowNewRole] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleModules, setNewRoleModules] = useState([]);
+
+  const saveNewRole = async () => {
+    const name = newRoleName.trim().toUpperCase();
+    if (!name) {
+      setError("Enter a role name");
+      return;
+    }
+    if (newRoleModules.length === 0) {
+      setError("Select at least one module for the new role");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `${BASE_URL}/api/master/roles`,
+        { name, modules: newRoleModules },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      await fetchRoles();
+      setForm((f) => ({ ...f, role: name }));
+      setSelectedModules(newRoleModules);
+      setNewRoleName("");
+      setNewRoleModules([]);
+      setShowNewRole(false);
+      setError("");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save role");
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -397,6 +442,12 @@ function InternalRegister() {
   };
 
   const currentTheme = ANNOUNCEMENT_THEMES.find((t) => t.id === announcementType) || ANNOUNCEMENT_THEMES[0];
+  const roleOptions = [
+    ...BASE_ROLES,
+    ...masterRoles
+      .map((r) => ({ value: String(r.name).toUpperCase(), label: r.name, modules: r.modules || [] }))
+      .filter((r) => !BASE_ROLES.some((b) => b.value === r.value)),
+  ];
   const inputShadow = "none";
 
   const styles = {
@@ -1591,9 +1642,16 @@ function InternalRegister() {
                   </div>
 
                   <div style={styles.formGroup}>
-                    <label style={styles.formLabel}>
-                      <span>🎭</span> Role
-                    </label>
+                    <div style={{ ...styles.formLabel, justifyContent: "space-between" }}>
+                      <span><span>🎭</span> Role</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewRole((o) => !o)}
+                        style={{ background: "none", border: "none", color: C.teal, fontSize: "0.74rem", fontWeight: 700, cursor: "pointer", padding: 0 }}
+                      >
+                        {showNewRole ? "✕ Close" : "+ New Role"}
+                      </button>
+                    </div>
                     <select
                       name="role"
                       value={form.role}
@@ -1602,19 +1660,15 @@ function InternalRegister() {
                         handleChange(e);
                         if (e.target.value === "ADMIN") {
                           setSelectedModules([]);
+                        } else {
+                          const r = roleOptions.find((o) => o.value === e.target.value);
+                          if (r?.modules) setSelectedModules(r.modules);
                         }
                       }}
                     >
-                      <option value="ADMIN">Admin</option>
-                      <option value="PLANNER">Planner</option>
-                      <option value="INDENTER">Indenter</option>
-                      <option value="SUPERVISOR">Supervisor</option>
-                      <option value="PRODUCTION">Production</option>
-                      <option value="PURCHASE ORDER">Purchase Order</option>
-                      <option value="DISPATCH">Dispatch</option>
-                      <option value="KAS">KAS</option>
-                      <option value="SCANNER">Scanner</option>
-                      <option value="PREPRESS">Prepress</option>
+                      {roleOptions.map((r) => (
+                        <option key={r.value} value={r.value}>{r.label}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -1674,6 +1728,43 @@ function InternalRegister() {
                       </div>
                     )}
                   </div>
+
+                  {showNewRole && (
+                    <div style={{ gridColumn: "1 / -1", background: "#fffbeb", border: "1px dashed #f3c35a", borderRadius: "8px", padding: "0.6rem 0.8rem" }}>
+                      <label style={styles.formLabel}>Create new role</label>
+                      <input
+                        style={{ ...styles.formInput, marginBottom: "0.5rem" }}
+                        placeholder="Role name (e.g. CEO)"
+                        value={newRoleName}
+                        onChange={(e) => setNewRoleName(e.target.value)}
+                      />
+                      <div className="ur-scroll" style={{ ...styles.locationsGrid, maxHeight: "110px" }}>
+                        {getAllModules()
+                          .filter((m) => m.to !== "/internal-register" && m.to !== "/admin")
+                          .map((m) => (
+                            <label
+                              key={m.to}
+                              style={{ ...styles.locationChip, ...(newRoleModules.includes(m.to) ? styles.locationChipActive : {}) }}
+                            >
+                              <input
+                                type="checkbox"
+                                style={styles.locationCheckbox}
+                                checked={newRoleModules.includes(m.to)}
+                                onChange={() =>
+                                  setNewRoleModules((prev) =>
+                                    prev.includes(m.to) ? prev.filter((x) => x !== m.to) : [...prev, m.to]
+                                  )
+                                }
+                              />
+                              {newRoleModules.includes(m.to) ? "✓" : "○"} {m.label}
+                            </label>
+                          ))}
+                      </div>
+                      <button type="button" className="ur-secondary" style={{ marginTop: "0.5rem" }} onClick={saveNewRole}>
+                        💾 Save Role
+                      </button>
+                    </div>
+                  )}
 
                   <div style={{ ...styles.formGroup, ...styles.locationsSection }}>
                     <label style={styles.formLabel}>
@@ -1791,16 +1882,9 @@ function InternalRegister() {
               style={{ ...styles.formSelect, maxWidth: "150px", padding: "0.2rem 0.5rem", fontSize: "0.78rem", height: "30px" }}
             >
               <option value="">All Roles</option>
-              <option value="ADMIN">Admin</option>
-              <option value="PLANNER">Planner</option>
-              <option value="INDENTER">Indenter</option>
-              <option value="SUPERVISOR">Supervisor</option>
-              <option value="PRODUCTION">Production</option>
-              <option value="PURCHASE ORDER">Purchase Order</option>
-              <option value="DISPATCH">Dispatch</option>
-              <option value="KAS">KAS</option>
-              <option value="SCANNER">Scanner</option>
-              <option value="PREPRESS">Prepress</option>
+              {roleOptions.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
             </select>
 
             <select

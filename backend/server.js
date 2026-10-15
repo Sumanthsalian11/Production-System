@@ -26,6 +26,7 @@ app.use(express.json());
 // Auth routes (if you have login system)
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/master/items", require("./routes/items"));
+app.use("/api/master/roles", require("./routes/roleRoutes"));
 app.use("/api/master", require("./routes/material"));
 // Master data routes
 app.use("/api/master", require("./routes/masterRoutes"));
