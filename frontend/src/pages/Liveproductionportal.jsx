@@ -2000,6 +2000,12 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
     .map((e, idx) => ({ ...e, idx }))
     .sort((a, b) => (b.lastTs - a.lastTs) || (b.lastCreated - a.lastCreated) || (b.idx - a.idx));
   const reelRows = data.reel.records.filter((r) => r.wo === wo);
+  const woSummaryRows = data.reel.wos.filter((w) => normWO(w.WO) === normWO(wo));
+  const woSummaryTotal = woSummaryRows.reduce(
+    (acc, w) => { acc.weight += w.netWeight; acc.waste += w.waste; return acc; },
+    { weight: 0, waste: 0 }
+  );
+  const woPct = (waste, weight) => (weight > 0 ? ((waste / weight) * 100).toFixed(2) : "0.00");
 
   return (
     <div className="drawer-overlay no-print" onClick={onClose}>
@@ -2057,6 +2063,39 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
             ))}
             {events.length === 0 && <p style={{ fontSize: 12, color: COLORS.slate }}>No stage-level events logged for this work order.</p>}
           </div>
+
+          {woSummaryRows.length > 0 && (
+            <div style={{ marginTop: 26 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, color: COLORS.ink }}>
+                <Scroll size={15} color={COLORS.indigo} /> Work Order Summary
+              </h3>
+              <div className="table-scroll-3d">
+                <table className="table-3d" style={{ minWidth: 0, fontSize: 11.5, textAlign: "center" }}>
+                  <thead><tr>
+                    {["Work Order", "Customer", "Actual Net Weight", "Total Waste", "Waste %"].map((h) => <th key={h} style={{ textAlign: "center" }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody>
+                    {woSummaryRows.map((w, i) => (
+                      <tr key={i}>
+                        <td style={{ fontWeight: 800 }}>#{w.WO}</td>
+                        <td style={{ fontWeight: 600 }}>{w.customer}</td>
+                        <td>{w.netWeight.toFixed(2)}</td>
+                        <td style={{ color: "#dc2626", fontWeight: 700 }}>{w.waste.toFixed(2)}</td>
+                        <td style={{ fontWeight: 800 }}>{woPct(w.waste, w.netWeight)}%</td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: "#eef7f9", fontWeight: 800 }}>
+                      <td>TOTAL</td>
+                      <td>--</td>
+                      <td>{woSummaryTotal.weight.toFixed(2)}</td>
+                      <td style={{ color: "#dc2626" }}>{woSummaryTotal.waste.toFixed(2)}</td>
+                      <td>{woPct(woSummaryTotal.waste, woSummaryTotal.weight)}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {reelRows.length > 0 && (
             <div style={{ marginTop: 26 }}>
