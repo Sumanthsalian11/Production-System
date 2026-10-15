@@ -3387,7 +3387,6 @@ function UtilizationTab({ data, realRows = [] }) {
         <BarsChart
           data={capacityRows}
           onDrill={(row) => openDrill({ kind: "machine", value: row.machine, metric: "hours" })}
-          askOnDrill
           categoryKey="machine"
           stacked
           series={[
