@@ -3204,23 +3204,42 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
     ];
   }, [customerOrders]);
   const inhouseStatusVisible = inhouseStatusData.filter((d) => !ihFilter.hidden.has(d.name));
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [woQ, setWoQ] = useState("");
+  const [custSel, setCustSel] = useState([]);
+  const [jobSel, setJobSel] = useState([]);
+  const [typeSel, setTypeSel] = useState([]);
+  const [statusSel, setStatusSel] = useState([]);
+  const [openFilter, setOpenFilter] = useState(null);
+
+  const uniqSorted = (key) =>
+    Array.from(new Set(data.ledger.map((r) => r[key]).filter((v) => v && v !== "-"))).sort((a, b) => String(a).localeCompare(String(b)));
+  const customerOpts = useMemo(() => uniqSorted("customer"), [data.ledger]);
+  const jobOpts = useMemo(() => uniqSorted("job"), [data.ledger]);
+  const typeOpts = useMemo(() => uniqSorted("type"), [data.ledger]);
+  const statusOpts = ["Under", "Exact", "Over", "N/A"];
+
+  const hasLedgerFilters = Boolean(woQ) || custSel.length > 0 || jobSel.length > 0 || typeSel.length > 0 || statusSel.length > 0;
+  const clearLedgerFilters = () => { setWoQ(""); setCustSel([]); setJobSel([]); setTypeSel([]); setStatusSel([]); };
+
   const filtered = useMemo(() => {
     const q = normWO(search).toLowerCase();
+    const wq = normWO(woQ).toLowerCase();
     return data.ledger.filter((r) => {
-      const matchesSearch = !q || r.wo.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q) || r.job.toLowerCase().includes(q);
-      const matchesStatus =
-        statusFilter === "All" ? true :
-        statusFilter === "HighWaste" ? r.wastePct > 10 :
-        r.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      if (q && !r.wo.toLowerCase().includes(q) && !r.customer.toLowerCase().includes(q) && !r.job.toLowerCase().includes(q)) return false;
+      if (wq && !r.wo.toLowerCase().includes(wq)) return false;
+      if (custSel.length && !custSel.includes(r.customer)) return false;
+      if (jobSel.length && !jobSel.includes(r.job)) return false;
+      if (typeSel.length && !typeSel.includes(r.type)) return false;
+      if (statusSel.length && !statusSel.includes(r.status)) return false;
+      return true;
     });
-  }, [data.ledger, search, statusFilter]);
+  }, [data.ledger, search, woQ, custSel, jobSel, typeSel, statusSel]);
 
   const columns = [
     { key: "wo", label: "WO #", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
     { key: "customer", label: "Customer" },
     { key: "job", label: "Job Description" },
+    { key: "type", label: "Product Type", render: (r) => r.type || "-" },
     { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
     { key: "finalOutputQty", label: "Final Output", render: (r) => fmtFull(r.finalOutputQty) },
     { key: "completionPct", label: "Completion", render: (r) => `${r.completionPct}%` },
@@ -3236,6 +3255,30 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
       ),
     },
   ];
+
+  const exportPlanning = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadXlsx({
+      fileName: `Planning ${stamp}.xlsx`,
+      sheetName: "Planning",
+      columns: [
+        { key: "wo", label: "WO #" },
+        { key: "customer", label: "Customer" },
+        { key: "job", label: "Job Description" },
+        { key: "type", label: "Product Type" },
+        { key: "orderQty", label: "Order Qty" },
+        { key: "finalOutputQty", label: "Final Output" },
+        { key: "completionPct", label: "Completion %" },
+        { key: "status", label: "Status" },
+        { key: "totalWasteQty", label: "Wastage Qty" },
+        { key: "wastePct", label: "Waste %" },
+        { key: "events", label: "Events" },
+        { key: "startDate", label: "Start" },
+        { key: "endDate", label: "End" },
+      ],
+      rows: filtered,
+    });
+  };
 
   return (
     <div>
@@ -3260,12 +3303,60 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
           <PieLegend items={inhouseStatusData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={ihFilter.hidden} toggle={ihFilter.toggle} />
         </Panel>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        {[["All", "All"], ["Under", "Under"], ["Exact", "Exact"], ["Over", "Over"], ["HighWaste", "High wastage (>10%)"]].map(([id, label]) => (
-          <Chip key={id} active={statusFilter === id} onClick={() => setStatusFilter(id)}>{label}</Chip>
-        ))}
-      </div>
-      <Panel>
+      <Panel
+        title="Planning — Work Orders"
+        icon={ClipboardList}
+        iconGrad={ACCENTS.blue.grad}
+        sub={`${filtered.length.toLocaleString("en-IN")} work orders`}
+        actions={
+          <button
+            type="button"
+            onClick={exportPlanning}
+            disabled={filtered.length === 0}
+            className="btn-3d btn-3d-primary btn-3d-sm no-print"
+          >
+            <Download size={13} /> Export Excel
+          </button>
+        }
+      >
+        <div className="filters-row no-print" style={{ paddingTop: 0, marginBottom: 14 }}>
+          <div className="filter-field">
+            <label className="filter-label" htmlFor="planning-wo-filter">WO Number</label>
+            <div className="search-container">
+              <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#020408" }} />
+              <input id="planning-wo-filter" name="planningWoFilter" autoComplete="off" type="text" placeholder="Search WO#" value={woQ} onChange={(e) => setWoQ(e.target.value)} />
+            </div>
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Customer Name</span>
+            <MultiSelectDropdown label="Customers" options={customerOpts} selected={custSel} onChange={setCustSel}
+              isOpen={openFilter === "pCust"} onToggle={(o) => setOpenFilter(o ? "pCust" : null)} />
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Job Description</span>
+            <MultiSelectDropdown label="Jobs" options={jobOpts} selected={jobSel} onChange={setJobSel}
+              isOpen={openFilter === "pJob"} onToggle={(o) => setOpenFilter(o ? "pJob" : null)} />
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Product Type</span>
+            <MultiSelectDropdown label="Product Types" options={typeOpts} selected={typeSel} onChange={setTypeSel}
+              isOpen={openFilter === "pType"} onToggle={(o) => setOpenFilter(o ? "pType" : null)} />
+          </div>
+          <div className="filter-field">
+            <span className="filter-label">Status</span>
+            <MultiSelectDropdown label="Status" options={statusOpts} selected={statusSel} onChange={setStatusSel}
+              isOpen={openFilter === "pStatus"} onToggle={(o) => setOpenFilter(o ? "pStatus" : null)} />
+          </div>
+          {hasLedgerFilters && (
+            <div className="filter-field">
+              <span className="filter-label">&nbsp;</span>
+              <button type="button" onClick={clearLedgerFilters} className="btn-3d btn-3d-secondary btn-3d-sm" style={{ height: 32 }}>
+                <X size={13} /> Clear
+              </button>
+            </div>
+          )}
+        </div>
+
         <DataTable columns={columns} rows={filtered} pageSize={14} onRowClick={(r) => openWO(r.wo)} initialSort={{ key: "orderQty", dir: "desc" }} />
       </Panel>
       <p style={{ fontSize: 12, color: COLORS.slate }}>Click a row for the routing drawer, or Track sequence to open it in the Stage Tracker.</p>
