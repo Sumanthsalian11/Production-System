@@ -3,7 +3,7 @@ import JsBarcode from "jsbarcode";
 import JSZip from "jszip";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
-import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
+import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker&inline";
 
 const API = import.meta.env.VITE_API_URL;
 
@@ -192,7 +192,9 @@ const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 /* first page of a PDF -> PNG blob, rendered so that 1 page-mm = 1 artwork-mm at the returned dpi */
 async function rasterPdf(file, dpi) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+  if (!pdfjs.GlobalWorkerOptions.workerPort) {
+    pdfjs.GlobalWorkerOptions.workerPort = new PdfWorker();
+  }
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const page = await pdf.getPage(1);
   const base = page.getViewport({ scale: 1 });
