@@ -14,8 +14,8 @@ import '@fontsource/playfair-display/500.css';
 import '@fontsource/playfair-display/600.css';
 import '@fontsource/playfair-display/700.css';
 ReactDOM.createRoot(document.getElementById("root")).render(
-    // <BrowserRouter basename="/Productionsystem">
-<BrowserRouter> 
+    <BrowserRouter basename="/Productionsystem">
+{/* <BrowserRouter>  */}
     <App />
   </BrowserRouter>,
 );
