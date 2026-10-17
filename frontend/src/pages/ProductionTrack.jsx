@@ -2514,15 +2514,15 @@ const statusColumns = useMemo(() => {
         .production-dashboard-page .pd-empty { padding: 28px 12px; text-align: center; color: var(--hint); font-weight: 600; }
 
         /* summary report table */
-        .production-dashboard-page .production-summary-table { font-size: 12px; table-layout: fixed; }
+        .production-dashboard-page .production-summary-table { font-size: 12px; table-layout: auto; min-width: 1400px; width: max-content; }
         .production-dashboard-page .production-summary-table thead { position: sticky; top: 0; z-index: 2; }
-        .production-dashboard-page .production-summary-table th { text-align: center; white-space: normal; font-size: 11.5px; padding: 9px 4px; word-break: normal; overflow-wrap: normal; }
-        .production-dashboard-page .production-summary-table td { padding: 6px 8px; vertical-align: middle; }
+        .production-dashboard-page .production-summary-table th { text-align: center; white-space: nowrap; font-size: 11.5px; padding: 9px 12px; }
+        .production-dashboard-page .production-summary-table td { padding: 6px 10px; vertical-align: middle; white-space: nowrap; }
         .production-dashboard-page .production-summary-table .report-group-cell,
         .production-dashboard-page .production-summary-table .report-machine-cell { font-weight: 700; text-align: center; color: var(--teal-mid); }
         .production-dashboard-page .production-summary-table .report-number-cell { text-align: right; font-variant-numeric: tabular-nums; }
         .production-dashboard-page .production-summary-table .report-remarks-cell {
-          font-size: 11px; text-align: center; word-break: break-word; overflow: hidden; text-overflow: ellipsis; max-width: 0;
+          font-size: 11px; text-align: center; word-break: break-word; overflow: hidden; text-overflow: ellipsis; min-width: 160px; max-width: 240px;
         }
         .production-dashboard-page .production-summary-table .report-empty-row td { height: 42px; text-align: center; font-weight: 700; }
 
@@ -3389,26 +3389,26 @@ const statusColumns = useMemo(() => {
             <strong><FiBarChart2 className="pd-ico" /> Production Summary Report</strong>
           </div>
 
-          <div className="table-responsive" style={{ maxHeight: "500px", overflowY: "auto" }}>
+          <div className="table-responsive" style={{ maxHeight: "500px", overflowX: "auto", overflowY: "auto" }}>
             <table className="table table-bordered mb-0 production-summary-table">
               <thead>
                 <tr>
-                  <th rowSpan="2" style={{ width: "8%" }}>DEI Machine</th>
-                  <th rowSpan="2" style={{ width: "12%" }}>Machine</th>
+                  <th rowSpan="2">DEI Machine</th>
+                  <th rowSpan="2">Machine</th>
                   <th colSpan="5">Date {getReportDateLabel()}</th>
                   <th colSpan={statusColumns.length + 2}>Machine Hours</th>
                 </tr>
                 <tr>
-                  <th style={{ width: "7%" }}>Day Shift</th>
-                  <th style={{ width: "11%" }}>Remarks</th>
-                  <th style={{ width: "7%" }}>Night Shift</th>
-                  <th style={{ width: "11%" }}>Remarks</th>
-                  <th style={{ width: "8%" }}>Grand Total</th>
-                  <th style={{ width: `${36 / (statusColumns.length + 2)}%` }}>Production Time</th>
+                  <th>Day Shift</th>
+                  <th>Remarks</th>
+                  <th>Night Shift</th>
+                  <th>Remarks</th>
+                  <th>Grand Total</th>
+                  <th>Production Time</th>
                   {statusColumns.map((s) => (
-                    <th key={s.key} style={{ width: `${36 / (statusColumns.length + 2)}%` }}>{s.label}</th>
+                    <th key={s.key}>{s.label}</th>
                   ))}
-                  <th style={{ width: `${36 / (statusColumns.length + 2)}%` }}>Total Timings</th>
+                  <th>Total Timings</th>
                 </tr>
               </thead>
               <tbody>
