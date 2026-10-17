@@ -4196,7 +4196,10 @@ function BookingTab({ filters }) {
 
       <Panel title="Machine Booking Status & Availability" icon={CalendarCheck} iconGrad={ACCENTS.blue.grad}
         sub="Latest booking end time per machine, from the Scheduler" tag={`${view.machines.length} machines`}>
-        <DataTable columns={columns} rows={view.machines} pageSize={14} initialSort={{ key: "latestEndMs", dir: "desc" }} onRowDoubleClick={(r) => drill(`Machine — ${r.machine}`, (x) => x.machine === r.machine)} />
+        <style>{`.booking-compact .table-3d { font-size: 11.5px; } .booking-compact .table-3d thead th { padding: 8px 12px; font-size: 10px; } .booking-compact .table-3d tbody td { padding: 6px 12px; }`}</style>
+        <div className="booking-compact">
+        <DataTable columns={columns} rows={view.machines} pageSize={10} initialSort={{ key: "latestEndMs", dir: "desc" }} onRowDoubleClick={(r) => drill(`Machine — ${r.machine}`, (x) => x.machine === r.machine)} />
+        </div>
       </Panel>
 
       <div className="panel-grid-2">
