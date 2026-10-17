@@ -111,7 +111,7 @@ router.get("/report", authMiddleware, async (req, res) => {
 
     const data = await ProductionReal.find(query)
       .select(
-        "workOrder customerName orderQty productionDate productionFromTime productionToTime productionQty wastageQty wastePercent machineStatus userLocations createdAt machiness.machineId"
+        "workOrder customerName orderQty productionDate productionFromTime productionToTime productionQty wastageQty wastePercent machineStatus userLocations createdAt productType machiness.machineId machiness.activityId"
       )
       .populate("machiness.machineId", "machineName")
       .lean();

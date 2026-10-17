@@ -59,6 +59,11 @@ const slimRecord = (item) => {
     wastePercent: item.wastePercent,
     machineStatus: item.machineStatus,
     userLocations: item.userLocations,
+    productType: item.productType,
+    _pairs: (item.machiness || []).map((p) => ({
+      act: String(p.activityId?._id || p.activityId || ""),
+      machine: p.machineId?.machineName || "Unassigned"
+    })),
     // precomputed
     _woLower: String(item.workOrder).toLowerCase(),
     _cust: item.customerName?.trim(),
@@ -120,6 +125,7 @@ function ProductionReport() {
   const [expandedHeader, setExpandedHeader] = useState(null);
   const [usedMachines, setUsedMachines] = useState([]);
   const [wastageVisible, setWastageVisible] = useState(50);
+  const [itemStages, setItemStages] = useState([]);
   const reqId = useRef(0);
   const debouncedSearchWO = useDebounced(searchWO, 300);
 
@@ -161,6 +167,7 @@ function ProductionReport() {
   useEffect(() => {
     fetchMachines();
     fetchMachineStatuses();
+    fetchItemStages();
   }, []);
 
   const clearFilters = () => {
@@ -193,6 +200,47 @@ function ProductionReport() {
       console.error("Error fetching machine statuses:", err);
     }
   };
+
+  const fetchItemStages = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/item-stages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItemStages(res.data || []);
+    } catch (err) {
+      console.error("Error fetching item stages:", err);
+    }
+  };
+
+  // Item Stages master: product type -> activityId of its LAST stage
+  const stageRankByType = useMemo(() => {
+    const map = new Map();
+    itemStages.forEach((rec) => {
+      const key = String(rec.itemName || "").trim().toUpperCase();
+      if (!key || !rec.stages?.length) return;
+      const rank = new Map();
+      [...rec.stages]
+        .sort((a, b) => a.order - b.order)
+        .forEach((s, idx) => {
+          const id = String(s.activityId?._id || s.activityId || "");
+          if (id) rank.set(id, idx);
+        });
+      map.set(key, rank);
+    });
+    return map;
+  }, [itemStages]);
+
+  const lastStageByType = useMemo(() => {
+    const map = new Map();
+    itemStages.forEach((rec) => {
+      const key = String(rec.itemName || "").trim().toUpperCase();
+      if (!key || !rec.stages?.length) return;
+      const last = [...rec.stages].sort((a, b) => a.order - b.order).pop();
+      const id = String(last.activityId?._id || last.activityId || "");
+      if (id) map.set(key, id);
+    });
+    return map;
+  }, [itemStages]);
 
   // ================= FILTERED DATA (memoized) =================
   const filteredData = useMemo(() => {
@@ -294,17 +342,39 @@ function ProductionReport() {
           workOrder: wo,
           customer: item.customerName,
           orderQty: item.orderQty,
+          productType: item.productType,
           latestProduction: 0,
+          latestWastage: 0,
           latestTime: -Infinity,
+          byActivity: {},
           machines: {},
           lastMachine: null
         };
       }
 
       const currentTime = item._createdMs;
+      const prodQty = Number(item.productionQty) || 0;
+      const wasteQty = Number(item.wastageQty) || 0;
+
       if (currentTime > entry.latestTime) {
         entry.latestTime = currentTime;
-        entry.latestProduction = Number(item.productionQty) || 0;
+        entry.latestProduction = prodQty;
+        entry.latestWastage = wasteQty;
+        if (item.productType) entry.productType = item.productType;
+      }
+
+      // latest entry of each machine inside each activity
+      const pairs = item._pairs;
+      for (let k = 0; k < pairs.length; k++) {
+        const { act, machine } = pairs[k];
+        if (!act) continue;
+        const byMachine = entry.byActivity[act] || (entry.byActivity[act] = {});
+        const prevM = byMachine[machine];
+        byMachine[machine] = {
+          time: Math.max(prevM?.time || 0, currentTime),
+          production: (prevM?.production || 0) + prodQty,
+          wastage: (prevM?.wastage || 0) + wasteQty
+        };
       }
 
       const names = item._names;
@@ -320,8 +390,38 @@ function ProductionReport() {
       }
     }
 
+    // figure shown per work order: last-stage entry if matched, else latest entry
+    Object.values(map).forEach((e) => {
+      const rankMap = stageRankByType.get(String(e.productType || "").trim().toUpperCase());
+      let lastActId = null;
+      if (rankMap) {
+        let best = -1;
+        Object.keys(e.byActivity).forEach((a) => {
+          const r = rankMap.get(a);
+          if (r !== undefined && r > best) {
+            best = r;
+            lastActId = a;
+          }
+        });
+      }
+      const machinesInLast = lastActId ? e.byActivity[lastActId] : null;
+      if (machinesInLast) {
+        let p = 0;
+        let w = 0;
+        Object.values(machinesInLast).forEach((m) => {
+          p += m.production;
+          w += m.wastage;
+        });
+        e.finalProduction = p;
+        e.finalWastage = w;
+      } else {
+        e.finalProduction = e.latestProduction;
+        e.finalWastage = e.latestWastage;
+      }
+    });
+
     return map;
-  }, [filteredData]);
+  }, [filteredData, lastStageByType, stageRankByType]);
 
   const jobPerformance = useMemo(
     () =>
@@ -329,7 +429,7 @@ function ProductionReport() {
         workOrder: j.workOrder,
         customer: j.customer,
         orderQty: j.orderQty,
-        production: j.latestProduction
+        production: j.finalProduction
       })),
     [jobAggregates]
   );
@@ -346,7 +446,9 @@ function ProductionReport() {
           customer: j.customer,
           orderQty: j.orderQty,
           machines,
-          lastMachine: j.lastMachine
+          lastMachine: j.lastMachine,
+          finalProduction: j.finalProduction,
+          finalWastage: j.finalWastage
         };
       }),
     [jobAggregates]
@@ -396,44 +498,23 @@ function ProductionReport() {
 
   // ================= WORK ORDER PRODUCTION (memoized) =================
   const woCustomerProduction = useMemo(() => {
-    const acc = {};
+    const woQ = debouncedSearchWO ? debouncedSearchWO.toLowerCase() : "";
+    const custQ = customerFilter ? customerFilter.trim() : "";
 
-    jobMachinePerformance.forEach((job) => {
-      let matchWO = debouncedSearchWO
-        ? String(job.workOrder).toLowerCase().includes(debouncedSearchWO.toLowerCase())
-        : true;
-
-      let matchCustomer = customerFilter
-        ? job.customer?.trim() === customerFilter.trim()
-        : true;
-
-      if (!(matchWO && matchCustomer)) return;
-
-      const key = job.workOrder;
-
-      if (!acc[key]) {
-        acc[key] = {
-          workOrder: job.workOrder,
-          customer: job.customer,
-          production: 0,
-          wastage: 0,
-          orderQty: job.orderQty
-        };
-      }
-
-      const wastageForJob = jobWastageMap.get(job.workOrder);
-
-      Object.keys(job.machines || {}).forEach((machine) => {
-        const production = job.machines?.[machine] || 0;
-        const wastage = wastageForJob?.machines?.[machine] || 0;
-
-        acc[key].production += Number(production);
-        acc[key].wastage += Number(wastage);
-      });
-    });
-
-    return Object.values(acc);
-  }, [jobMachinePerformance, debouncedSearchWO, customerFilter, jobWastageMap]);
+    return jobMachinePerformance
+      .filter((job) => {
+        if (woQ && !String(job.workOrder).toLowerCase().includes(woQ)) return false;
+        if (custQ && job.customer?.trim() !== custQ) return false;
+        return true;
+      })
+      .map((job) => ({
+        workOrder: job.workOrder,
+        customer: job.customer,
+        production: job.finalProduction,
+        wastage: job.finalWastage,
+        orderQty: job.orderQty
+      }));
+  }, [jobMachinePerformance, debouncedSearchWO, customerFilter]);
 
   // ================= MACHINE PRODUCTION (memoized) =================
   const machineProduction = useMemo(() => {
