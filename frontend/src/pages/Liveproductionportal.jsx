@@ -4803,20 +4803,20 @@ export default function LiveProductionPortal() {
               isOpen={openFilter === "sections"} onToggle={(o) => setOpenFilter(o ? "sections" : null)}
             />
           </div>
-          {tabs.some((id) => id !== "overview") && (
-            <div className="no-print" style={{ gridColumn: "2 / -1", display: "flex", alignItems: "flex-end", flexWrap: "wrap", gap: 6, minHeight: 32 }}>
-              {TABS.filter((t) => tabs.includes(t.id)).map((t) => (
+          {tabs.some((id) => id !== "overview") &&
+            TABS.filter((t) => tabs.includes(t.id)).map((t) => (
+              <div key={t.id} className="filter-field no-print">
+                <span className="filter-label">&nbsp;</span>
                 <button
-                  key={t.id}
                   type="button"
                   className={`tab-btn-3d ${activeTab === t.id ? "active" : "inactive"}`}
+                  style={{ height: 32, width: "100%", justifyContent: "flex-start", boxSizing: "border-box" }}
                   onClick={() => setActiveTab(t.id)}
                 >
                   <t.icon size={12} /> {t.label}
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            ))}
           </div>
         </div>
 
