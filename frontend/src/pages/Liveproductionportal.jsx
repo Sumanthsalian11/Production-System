@@ -1447,7 +1447,7 @@ const DRILL_HINT = "Double-click to view records";
    light highlight band plus a floating tooltip card listing every visible
    series' value for that category. Double-clicking a bar calls
    onDrill(row, seriesKey); double-clicking the band calls onDrill(row, null). */
-function BarsChart({ data, categoryKey, series, stacked = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill, askOnDrill = false }) {
+function BarsChart({ data, categoryKey, series, stacked = false, overlay = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill, askOnDrill = false }) {
   const containerRef = useRef(null);
   const menuRef = useRef(null);
   const [menu, setMenu] = useState(null);
@@ -1540,7 +1540,7 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
 
   const bandW = plotW / n;
   const groupW = bandW * 0.62;
-  const barW = stacked ? groupW : groupW / seriesCount;
+  const barW = (stacked || overlay) ? groupW : groupW / seriesCount;
 
   const gridTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * niceMax);
 
@@ -1624,14 +1624,15 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
                   const raw = Number(row[sr.key]) || 0;
                   const h = yScale(raw);
                   if (h <= 0) return null;
-                  const x0 = stacked ? bandX : bandX + si * barW;
+                  const ovInset = 0;
+                  const x0 = overlay ? bandX + ovInset : stacked ? bandX : bandX + si * barW;
                   const yTop = stacked ? baseline - yScale(cumulative + raw) : baseline - h;
                   const yBase = stacked ? baseline - yScale(cumulative) : baseline;
                   cumulative += raw;
                   const color = categoryColors ? categoryColors[ci] : sr.color;
                   return (
                     <g key={sr.key}>
-                      <rect x={x0} y={yTop} width={barW} height={Math.max(yBase - yTop, 0)} fill={color} />
+                      <rect x={x0} y={yTop} width={overlay ? barW - ovInset * 2 : barW} height={Math.max(yBase - yTop, 0)} fill={color} />
                     </g>
                   );
                 })}
@@ -1656,8 +1657,8 @@ function BarsChart({ data, categoryKey, series, stacked = false, height = 280, u
             );
           })}
         </svg>
-        <ChartTooltip hover={hover} />
       </div>
+      <ChartTooltip hover={hover} />
       {menu && (
         <div
           ref={menuRef}
@@ -3450,7 +3451,7 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [], realRow
   );
 }
 
-function UtilizationTab({ data, realRows = [] }) {
+function UtilizationTab({ data, realRows = [], dateFrom = "", dateTo = "" }) {
   const openDrill = useDrill();
   const rows = data.machineUtilization;
   const chartRows = rows;
@@ -3479,8 +3480,22 @@ function UtilizationTab({ data, realRows = [] }) {
   const capFilter = useSeriesFilter();
   const [capFrom, setCapFrom] = useState("");
   const [capTo, setCapTo] = useState("");
-  const capDays = capFrom && capTo
-    ? Math.max(1, Math.round((new Date(capTo) - new Date(capFrom)) / 86400000) + 1)
+  // period used for capacity: this panel's own dates, else the page filter dates,
+  // else the first-to-last production date found in the loaded data
+  const dataSpan = useMemo(() => {
+    let min = "", max = "";
+    (Array.isArray(realRows) ? realRows : []).forEach((item) => {
+      const d = dateOnly(item.productionDate);
+      if (!d) return;
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    });
+    return { min, max };
+  }, [realRows]);
+  const effFrom = capFrom || dateFrom || dataSpan.min;
+  const effTo = capTo || dateTo || dataSpan.max;
+  const capDays = effFrom && effTo
+    ? Math.max(1, Math.round((new Date(effTo) - new Date(effFrom)) / 86400000) + 1)
     : 1;
   const capacityRows = useMemo(() => {
     const idByName = new Map(machineList.map((m) => [m.machineName, String(m._id)]));
@@ -3569,7 +3584,7 @@ function UtilizationTab({ data, realRows = [] }) {
           toggle={utilFilter.toggle}
         />
       </Panel>
-      <Panel title="Machine Capacity vs Production Impression" icon={Cpu} iconGrad={ACCENTS.emerald.grad} sub="Capacity per hour × 24 vs total production impression of each machine"
+      <Panel title="Machine Capacity vs Production Impression" icon={Cpu} iconGrad={ACCENTS.emerald.grad} sub={`Capacity per hour × 24 h × ${capDays} day${capDays > 1 ? "s" : ""} (${effFrom || "—"} → ${effTo || "—"}) vs total production impression of each machine`}
         actions={
           <div className="no-print" style={{ display: "flex", alignItems: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <div className="filter-field">
@@ -3591,7 +3606,7 @@ function UtilizationTab({ data, realRows = [] }) {
           data={capacityRows}
           onDrill={(row) => openDrill({ kind: "machine", value: row.machine, metric: "hours" })}
           categoryKey="machine"
-          stacked
+          overlay
           series={[
             { key: "capacity", name: `Capacity (× ${capDays * 24} h)`, color: COLORS.slate },
             { key: "impression", name: "Production Impression", color: COLORS.indigo },
@@ -4831,7 +4846,7 @@ export default function LiveProductionPortal() {
         {activeTab === "overview" && <OverviewTab data={data} />}
         {activeTab === "reel" && <ReelTab data={data} openWO={openWO} />}
         {activeTab === "tracker" && <StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} />}
-        {activeTab === "utilization" && <UtilizationTab data={data} realRows={deferredRealRows} />}
+        {activeTab === "utilization" && <UtilizationTab data={data} realRows={deferredRealRows} dateFrom={dateFrom} dateTo={dateTo} />}
         {activeTab === "prodwaste" && <ProdWasteTab data={data} />}
         {activeTab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} customerOrders={filteredCustomerOrders} realRows={deferredRealRows} />}
         {activeTab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
