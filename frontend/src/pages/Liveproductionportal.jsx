@@ -2417,7 +2417,7 @@ function buildDrill(spec, data, realRows, reelRows) {
       ? (spec.title || "All work orders")
       : { Under: "Under-completed", Exact: "Exact (100%)", Over: "Over-completed" }[value] || value;
     const rows = isAll
-      ? (spec.onlyWaste ? data.ledger.filter((r) => r.totalWasteQty > 0) : data.ledger)
+      ? (spec.rows || (spec.onlyWaste ? data.ledger.filter((r) => r.totalWasteQty > 0) : data.ledger))
       : data.ledger.filter((r) => r.status === value);
     return {
       eyebrow: "Work orders",
@@ -3204,6 +3204,23 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
     ];
   }, [customerOrders]);
   const inhouseStatusVisible = inhouseStatusData.filter((d) => !ihFilter.hidden.has(d.name));
+
+  const ptFilter = useSeriesFilter();
+  const productTypeData = useMemo(() => {
+    const map = new Map();
+    data.ledger.forEach((r) => {
+      const name = r.type && r.type !== "-" ? r.type : "Not specified";
+      if (!map.has(name)) map.set(name, { name, value: 0, rows: [] });
+      const e = map.get(name);
+      e.value += r.totalProdQty;
+      e.rows.push(r);
+    });
+    return Array.from(map.values())
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .map((d, i) => ({ ...d, color: uniqueColor(i) }));
+  }, [data.ledger]);
+  const productTypeVisible = productTypeData.filter((d) => !ptFilter.hidden.has(d.name));
   const [woQ, setWoQ] = useState("");
   const [custSel, setCustSel] = useState([]);
   const [jobSel, setJobSel] = useState([]);
@@ -3301,6 +3318,21 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
             onDrill={(s) => openDrill({ kind: "orderType", value: s.name, title: `Inhouse — ${s.name}`, rows: inhouseStatusData.find((d) => d.name === s.name)?.rows || [] })}
           />
           <PieLegend items={inhouseStatusData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={ihFilter.hidden} toggle={ihFilter.toggle} />
+        </Panel>
+
+        <Panel title="Product Type Mix" icon={Layers} iconGrad={ACCENTS.amber.grad}
+          sub={`${fmtFull(productTypeData.reduce((s, d) => s + d.value, 0))} units produced — by product type`}>
+          <DonutChart
+            data={productTypeVisible.map((d) => ({ name: d.name, value: d.value, color: d.color }))}
+            height={240}
+            onDrill={(s) => openDrill({
+              kind: "ledgerAll",
+              title: `Product Type — ${s.name}`,
+              rows: productTypeData.find((d) => d.name === s.name)?.rows || [],
+              sort: { key: "finalOutputQty", dir: "desc" },
+            })}
+          />
+          <PieLegend items={productTypeData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={ptFilter.hidden} toggle={ptFilter.toggle} />
         </Panel>
       </div>
       <Panel
