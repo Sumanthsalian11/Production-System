@@ -4095,6 +4095,7 @@ function BookingTab({ filters }) {
         startDate: dateOnly(s.startTime) || "-",
         start: dt(startMs),
         end: dt(endMs),
+        endMs,
         hours: Number(((endMs - startMs) / 3600000).toFixed(1)),
         priority: s.priority || "-",
         location: s.location || "-",
@@ -4166,6 +4167,32 @@ function BookingTab({ filters }) {
   );
 
   const fmtDT = (ms) => (ms ? new Date(ms).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—");
+
+  const woRows = useMemo(() => {
+    const map = new Map();
+    view.rows.forEach((r) => {
+      const key = `${r.wo}__${r.customer}`;
+      if (!map.has(key)) {
+        map.set(key, { wo: r.wo, customer: r.customer, job: r.job, productType: r.productType, orderQty: r.orderQty, latestEndMs: 0, jobs: 0, imp: 0 });
+      }
+      const e = map.get(key);
+      e.jobs += 1;
+      e.imp += r.imp;
+      if (r.endMs > e.latestEndMs) e.latestEndMs = r.endMs;
+    });
+    return Array.from(map.values());
+  }, [view.rows]);
+
+  const woColumns = [
+    { key: "wo", label: "WO No", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>WO {r.wo}</span> },
+    { key: "customer", label: "Customer" },
+    { key: "job", label: "Job Description" },
+    { key: "productType", label: "Product Type" },
+    { key: "orderQty", label: "Order Qty", render: (r) => fmtFull(r.orderQty) },
+    { key: "imp", label: "Total Impression", render: (r) => fmtFull(r.imp) },
+    { key: "latestEndMs", label: "Latest Booking End Time", render: (r) => <span style={{ fontWeight: 800, color: "#b45309" }}>{fmtDT(r.latestEndMs)}</span> },
+    { key: "jobs", label: "Active Jobs" },
+  ];
   const visibleCust = view.customers.filter((c) => !custFilter.hidden.has(c.name));
   const drill = (title, pick) => openDrill({ kind: "booking", title, rows: pick ? view.rows.filter(pick) : view.rows });
   const allDonut = view.machines
@@ -4196,10 +4223,14 @@ function BookingTab({ filters }) {
 
       <Panel title="Machine Booking Status & Availability" icon={CalendarCheck} iconGrad={ACCENTS.blue.grad}
         sub="Latest booking end time per machine, from the Scheduler" tag={`${view.machines.length} machines`}>
-        <style>{`.booking-compact .table-3d { font-size: 11.5px; } .booking-compact .table-3d thead th { padding: 8px 12px; font-size: 10px; } .booking-compact .table-3d tbody td { padding: 6px 12px; }`}</style>
-        <div className="booking-compact">
+
         <DataTable columns={columns} rows={view.machines} pageSize={10} initialSort={{ key: "latestEndMs", dir: "desc" }} onRowDoubleClick={(r) => drill(`Machine — ${r.machine}`, (x) => x.machine === r.machine)} />
-        </div>
+      </Panel>
+
+      <Panel title="Scheduled Work Orders" icon={ClipboardList} iconGrad={ACCENTS.purple.grad}
+        sub="Booking summary per work order, from the Scheduler" tag={`${woRows.length} work orders`}>
+        <DataTable columns={woColumns} rows={woRows} pageSize={8} initialSort={{ key: "latestEndMs", dir: "desc" }}
+          onRowDoubleClick={(r) => drill(`WO ${r.wo} — ${r.customer}`, (x) => x.wo === r.wo)} />
       </Panel>
 
       <div className="panel-grid-2">
