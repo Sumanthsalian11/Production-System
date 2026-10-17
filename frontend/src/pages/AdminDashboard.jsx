@@ -407,6 +407,11 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [showActivityList, setShowActivityList] = useState(false);
   const [showLocationList, setShowLocationList] = useState(false);
 
+  const [itemStages, setItemStages] = useState([]);
+  const [newItemStage, setNewItemStage] = useState({ itemName: "", stages: [] }); // stages = activityIds in tick order
+  const [showItemStageList, setShowItemStageList] = useState(false);
+  const [itemStageFilter, setItemStageFilter] = useState("");
+
   const [selectedCustomer, setSelectedCustomer] = useState("");
   const [machineCapacity, setMachineCapacity] = useState({});
   const [newCustomer, setNewCustomer] = useState("");
@@ -644,6 +649,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
     setShowGstList(false);
     setShowMachineList(false);
     setShowMachineCapacity(false);
+    setNewItemStage({ itemName: "", stages: [] });
+    setShowItemStageList(false);
+    setItemStageFilter("");
+    setNewItemStage({ itemName: "", stages: [] });
+    setShowItemStageList(false);
+    setItemStageFilter("");
     setShowActivityList(false);
     setShowLocationList(false);
     setShowMaterialList(false);
@@ -696,6 +707,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       fetchGst();
       fetchRoles();
       fetchImpWaste();
+      fetchItemStages();
     }, 150);
   };
 
@@ -804,6 +816,146 @@ const [supplierFilter, setSupplierFilter] = useState("");
   useEffect(() => {
     fetchGst();
   }, []);
+
+  /* ---------- ITEM STAGES ---------- */
+  const fetchItemStages = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/item-stages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setItemStages(res.data);
+    } catch (err) {
+      console.error("Error fetching item stages:", err);
+    }
+  };
+  useEffect(() => { fetchItemStages(); }, []);
+
+  // tick order = stage order; unticking renumbers automatically
+  const toggleStage = (setter, id) =>
+    setter((prev) => ({
+      ...prev,
+      stages: prev.stages.includes(id) ? prev.stages.filter((s) => s !== id) : [...prev.stages, id],
+    }));
+
+  const moveStage = (setter, idx, dir) =>
+    setter((prev) => {
+      const j = idx + dir;
+      if (j < 0 || j >= prev.stages.length) return prev;
+      const next = [...prev.stages];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return { ...prev, stages: next };
+    });
+
+  const activityNameById = (id) => activities.find((a) => a._id === id)?.activityName || "?";
+
+  // item list = unique Material Types from the Items master, minus the ones already configured
+  const materialTypeOptions = useMemo(() => {
+    const used = new Set(itemStages.map((r) => (r.itemName || "").trim().toUpperCase()));
+    const seen = new Map();
+    items.forEach((i) => {
+      const mt = (i.materialType || "").trim();
+      const key = mt.toUpperCase();
+      if (mt && !seen.has(key)) seen.set(key, mt);
+    });
+    return [...seen.entries()]
+      .map(([key, label]) => ({ label, added: used.has(key) }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  }, [items, itemStages]);
+
+  const stageIdsOf = (rec) =>
+    [...(rec.stages || [])]
+      .sort((a, b) => a.order - b.order)
+      .map((s) => s.activityId?._id || s.activityId);
+
+  const addItemStage = async () => {
+    if (!newItemStage.itemName.trim()) return showAlert("Enter item name");
+    if (newItemStage.stages.length === 0) return showAlert("Tick at least one stage");
+    try {
+      await axios.post(
+        `${BASE_URL}/api/master/item-stages`,
+        { itemName: newItemStage.itemName.trim(), activityIds: newItemStage.stages },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewItemStage({ itemName: "", stages: [] });
+      fetchItemStages();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save item stages");
+    }
+  };
+
+  const saveItemStage = async (id) => {
+    if (!editingData.stages?.length) return showAlert("Tick at least one stage");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/master/item-stages/${id}`,
+        { activityIds: editingData.stages },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditingId(null);
+      setEditingData({});
+      fetchItemStages();
+    } catch (err) {
+      showAlert("Failed to update item stages");
+    }
+  };
+
+  const deleteItemStage = async (id) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/master/item-stages/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchItemStages();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
+
+  const renderStagePicker = (stages, setter) => (
+    <div className="machine-picker">
+      <div className="picker-header">
+        <span>Tick stages in order (first tick = Stage 1)</span>
+        <strong>{stages.length} selected</strong>
+      </div>
+
+      <div className="machine-grid">
+        {activities.map((a) => {
+          const pos = stages.indexOf(a._id);
+          const selected = pos !== -1;
+          return (
+            <label key={a._id} className={`machine-tile ${selected ? "selected" : ""}`}>
+              <input type="checkbox" checked={selected} onChange={() => toggleStage(setter, a._id)} />
+              <span>
+                {selected && <b>{pos + 1}. </b>}
+                {a.activityName}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {stages.length > 0 && (
+        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          {stages.map((id, idx) => (
+            <span
+              key={id}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px",
+                borderRadius: 999, background: "#d6f0fd", border: "1px solid #7fc3e8",
+                fontSize: 12, fontWeight: 800, color: "#08406b",
+              }}
+            >
+              S{idx + 1}: {activityNameById(id)}
+              <button type="button" style={{ border: 0, background: "none", cursor: "pointer" }}
+                disabled={idx === 0} onClick={() => moveStage(setter, idx, -1)}>◀</button>
+              <button type="button" style={{ border: 0, background: "none", cursor: "pointer" }}
+                disabled={idx === stages.length - 1} onClick={() => moveStage(setter, idx, 1)}>▶</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   const taxesToArray = (obj) =>
     Object.entries(obj).map(([name, rate]) => ({ name, rate: Number(rate) || 0 }));
@@ -1045,6 +1197,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "machines", label: "Machines", icon: Factory },
     { id: "machineCapacity", label: "Machine Capacity", icon: Factory },
     { id: "activities", label: "Activities", icon: Activity },
+    { id: "itemStages", label: "Item Stages", icon: Layers },
     { id: "locations", label: "Locations", icon: MapPin },
     { id: "materials", label: "Materials", icon: Layers },
     { id: "paperSize", label: "Paper Size", icon: Layers },
@@ -4113,6 +4266,134 @@ const [supplierFilter, setSupplierFilter] = useState("");
           )}
         </motion.div>
       )}
+
+      {/* ITEM STAGES */}
+      {activeSection === "itemStages" && (() => {
+        const rows = itemStages.filter((r) =>
+          (r.itemName || "").toLowerCase().includes(itemStageFilter.toLowerCase())
+        );
+        const maxStages = Math.max(1, ...rows.map((r) => (r.stages || []).length));
+
+        return (
+          <motion.div className="pro-card">
+            <div className="pro-card-header">
+              <span><Layers size={18} /> Item Stages</span>
+            </div>
+
+            <div className="activity-builder">
+              <div className="activity-name-field">
+                <label>Item (Material Type)</label>
+                <select
+                  className="pro-input"
+                  value={newItemStage.itemName}
+                  onChange={(e) => setNewItemStage({ ...newItemStage, itemName: e.target.value })}
+                >
+                  <option value="">Select item</option>
+                  {materialTypeOptions.map((mt) => (
+                    <option key={mt.label} value={mt.label} disabled={mt.added}>
+                      {mt.label}{mt.added ? " (already added)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {renderStagePicker(newItemStage.stages, setNewItemStage)}
+            </div>
+
+            <button className="pro-btn primary" onClick={addItemStage}>
+              <PlusCircle size={16} /> Add Item Stages
+            </button>
+
+            <div className="material-toggle" onClick={() => setShowItemStageList(!showItemStageList)}>
+              {showItemStageList ? "Hide Stored Item Stages ▲" : "Show Stored Item Stages ▼"}
+            </div>
+
+            {showItemStageList && (
+              <>
+                <div style={filterBoxStyle}>
+                  <div style={filterTitleStyle}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Filter size={14} /> Filter Items
+                    </span>
+                    {itemStageFilter && (
+                      <button type="button" onClick={() => setItemStageFilter("")} style={clearBtnStyle}>
+                        <X size={12} /> Clear
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    style={filterInputStyle}
+                    placeholder="Filter by Item..."
+                    value={itemStageFilter}
+                    onChange={(e) => setItemStageFilter(e.target.value)}
+                  />
+                </div>
+
+                <div style={tableScrollContainerStyle}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={stickyThStyle}>Sl No</th>
+                        <th style={stickyThStyle}>Item</th>
+                        {Array.from({ length: maxStages }, (_, i) => (
+                          <th key={i} style={stickyThStyle}>Stage {i + 1}</th>
+                        ))}
+                        <th style={stickyThStyle}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r, idx) => {
+                        const ids = stageIdsOf(r);
+                        if (editingId === r._id) {
+                          return (
+                            <tr key={r._id}>
+                              <td style={tdStyle}>{idx + 1}</td>
+                              <td style={tdStyle} colSpan={maxStages + 2}>
+                                <strong>{r.itemName}</strong>
+                                {renderStagePicker(editingData.stages || [], setEditingData)}
+                                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                                  <button className="pro-btn primary" onClick={() => saveItemStage(r._id)}>Save</button>
+                                  <button className="pro-btn" onClick={() => { setEditingId(null); setEditingData({}); }}>Cancel</button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        return (
+                          <tr key={r._id}>
+                            <td style={tdStyle}>{idx + 1}</td>
+                            <td style={{ ...tdStyle, fontWeight: 800 }}>{r.itemName}</td>
+                            {Array.from({ length: maxStages }, (_, i) => (
+                              <td key={i} style={tdStyle}>
+                                {ids[i] ? activityNameById(ids[i]) : "—"}
+                              </td>
+                            ))}
+                            <td style={tdStyle}>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button className="pro-btn"
+                                  onClick={() => { setEditingId(r._id); setEditingData({ stages: ids }); }}>
+                                  Edit
+                                </button>
+                                <button className="pro-btn" onClick={() => deleteItemStage(r._id)}>Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {rows.length === 0 && (
+                        <tr>
+                          <td colSpan={maxStages + 3} style={{ padding: 14, textAlign: "center", color: "#4a6f8c" }}>
+                            No item stages found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </motion.div>
+        );
+      })()}
 
       {/* 14. ACTIVITIES */}
       {activeSection === "activities" && (
