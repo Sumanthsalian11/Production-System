@@ -246,6 +246,7 @@ function ProductionRealDashboard() {
   const tableWrapRef = useRef(null);
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
   const [impWastePct, setImpWastePct] = useState(0);
+  const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
 
   const selectedMaterial =
@@ -273,6 +274,26 @@ function ProductionRealDashboard() {
   };
 
   const hasMaterials = Boolean(workOrderDetails?.materials?.length);
+
+  // activities configured for this item in Item Stages (in stage order); all activities if none set
+  const allowedActivities = useMemo(() => {
+    if (isOffDay) return activities;
+    const pt = String(workOrderDetails?.productType || "").trim().toUpperCase();
+    if (!pt) return activities;
+
+    const rec = itemStages.find(
+      (r) => String(r.itemName || "").trim().toUpperCase() === pt
+    );
+    if (!rec || !rec.stages?.length) return activities;
+
+    const ids = [...rec.stages]
+      .sort((a, b) => a.order - b.order)
+      .map((s) => String(s.activityId?._id || s.activityId));
+
+    return ids
+      .map((id) => activities.find((a) => String(a._id) === id))
+      .filter(Boolean);
+  }, [activities, itemStages, workOrderDetails, isOffDay]);
 
   const selectedMachineData = useMemo(() => {
     if (!workOrderDetails) return null;
@@ -1354,6 +1375,17 @@ const statusColumns = useMemo(() => {
     }
   };
 
+  const fetchItemStages = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/item-stages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItemStages(res.data || []);
+    } catch (err) {
+      console.error("Error fetching item stages:", err);
+    }
+  };
+
   const fetchImpWaste = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/master/impression-waste`, {
@@ -1369,7 +1401,8 @@ const statusColumns = useMemo(() => {
     fetchImpWaste();
     fetchActivities();
     fetchMachines();
-    fetchMachineStatuses(); // 👈 ADD THIS
+    fetchMachineStatuses();
+    fetchItemStages();
     fetchProductionReal();
   }, [token]);
 
@@ -3054,7 +3087,15 @@ const statusColumns = useMemo(() => {
                               required
                             >
                               <option value="">Select Activity</option>
-                              {activities.map(a => (
+                              {[
+                                ...allowedActivities,
+                                // keep an already-saved activity visible when editing an old entry
+                                ...activities.filter(
+                                  (a) =>
+                                    String(a._id) === String(pair.activityId) &&
+                                    !allowedActivities.some((x) => x._id === a._id)
+                                ),
+                              ].map(a => (
                                 <option key={a._id} value={a._id}>
                                   {a.activityName}
                                 </option>
