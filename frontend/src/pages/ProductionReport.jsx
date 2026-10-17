@@ -91,6 +91,11 @@ const topN = (arr, n, cmp) => {
   return out;
 };
 
+const monthStart = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+};
+
 const useDebounced = (value, delay = 300) => {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -108,7 +113,7 @@ function ProductionReport() {
   const [searchWO, setSearchWO] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
+  const [fromDate, setFromDate] = useState(monthStart);
   const [toDate, setToDate] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [locationOptions, setLocationOptions] = useState([]);
@@ -121,7 +126,7 @@ function ProductionReport() {
   const fetchProduction = async (from = fromDate, to = toDate) => {
     const id = ++reqId.current; // ignore stale responses
     try {
-      const res = await axios.get(`${BASE_URL}/api/production-real`, {
+      const res = await axios.get(`${BASE_URL}/api/production-real/report`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { from: from || undefined, to: to || undefined }
       });

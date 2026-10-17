@@ -6,7 +6,9 @@ const connectDB = require("./config/db");
 dotenv.config();
 connectDB();
 
+const compression = require("compression");
 const app = express();
+app.use(compression());
 require("./cron/indentMailScheduler");
 require("./cron/productionMailCron");
 require("./cron/Persoproductionmail")

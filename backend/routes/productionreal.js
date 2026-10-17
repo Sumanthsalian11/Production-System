@@ -97,6 +97,32 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
+// LIGHTWEIGHT feed for the Production Report page (only the fields it reads)
+router.get("/report", authMiddleware, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+
+    const query = {};
+    if (from || to) {
+      query.productionDate = {};
+      if (from) query.productionDate.$gte = new Date(`${from}T00:00:00.000Z`);
+      if (to) query.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
+    }
+
+    const data = await ProductionReal.find(query)
+      .select(
+        "workOrder customerName orderQty productionDate productionFromTime productionToTime productionQty wastageQty wastePercent machineStatus userLocations createdAt machiness.machineId"
+      )
+      .populate("machiness.machineId", "machineName")
+      .lean();
+
+    res.json(data);
+  } catch (error) {
+    console.error("Error fetching production report:", error);
+    res.status(500).json({ message: "Error fetching data" });
+  }
+});
+
 // UPDATE Production Real and keep user locations
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
