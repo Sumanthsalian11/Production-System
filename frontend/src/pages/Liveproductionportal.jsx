@@ -3447,6 +3447,32 @@ function UtilizationTab({ data, realRows = [] }) {
       return { machine: r.machine, capacity: perHour * 24 * capDays, impression: Math.round(impByMachine.get(r.machine) || 0) };
     });
   }, [rows, machineList, capById, realRows, capFrom, capTo, capDays]);
+
+  const capacityTableRows = useMemo(() => {
+    const idByName = new Map(machineList.map((m) => [m.machineName, String(m._id)]));
+    return capacityRows.map((r) => {
+      const perHour = capById[idByName.get(r.machine)] || 0;
+      return {
+        machine: r.machine,
+        capacityPerHour: perHour,
+        capacity24: r.capacity,
+        impression: r.impression,
+        ratio: r.impression > 0 ? r.capacity / r.impression : 0,
+      };
+    });
+  }, [capacityRows, machineList, capById]);
+
+  const capacityTableColumns = [
+    { key: "machine", label: "Machine Name" },
+    { key: "capacityPerHour", label: "Capacity (per hour)", render: (r) => fmtFull(r.capacityPerHour) },
+    { key: "capacity24", label: `Capacity × ${capDays * 24} h`, render: (r) => fmtFull(r.capacity24) },
+    { key: "impression", label: "Production Impression", render: (r) => fmtFull(r.impression) },
+    {
+      key: "ratio",
+      label: `Capacity × ${capDays * 24} h ÷ Production Impression`,
+      render: (r) => (r.impression > 0 ? r.ratio.toFixed(2) : "—"),
+    },
+  ];
   const columns = [
     { key: "machine", label: "Machine" },
     { key: "utilizationPct", label: "Utilization %", render: (r) => <span style={{ fontWeight: 800, color: COLORS.indigoDeep }}>{r.utilizationPct}%</span> },
@@ -3528,6 +3554,9 @@ function UtilizationTab({ data, realRows = [] }) {
           hidden={capFilter.hidden}
           toggle={capFilter.toggle}
         />
+        <div style={{ marginTop: 18 }}>
+          <DataTable columns={capacityTableColumns} rows={capacityTableRows} pageSize={14} initialSort={{ key: "capacity24", dir: "desc" }} />
+        </div>
       </Panel>
 
       <Panel title="All Machines — Utilization Detail" icon={ClipboardList} iconGrad={ACCENTS.emerald.grad} sub={`${rows.length} machines with logged activity`}>
