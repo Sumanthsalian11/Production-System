@@ -131,6 +131,13 @@ const hoursBetween = (dStr, fromTime, toTime) => {
   return (end - start) / (1000 * 60 * 60);
 };
 
+const lastWeekRange = () => {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 6);
+  return { from: dateOnly(start), to: dateOnly(end) };
+};
+
 function buildDashboardData(realRows, reelRows, masterStatuses = []) {
   const safeReal = Array.isArray(realRows) ? realRows : [];
   const safeReel = Array.isArray(reelRows) ? reelRows : [];
@@ -4274,8 +4281,9 @@ export default function LiveProductionPortal() {
   const [selectedMachines, setSelectedMachines] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]); // "User Locations" — production rows: userLocations
   const [selectedOrderLocations, setSelectedOrderLocations] = useState([]); // "Location" — customer orders: location.locationName
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [weekOnly, setWeekOnly] = useState(true);
+  const [dateFrom, setDateFrom] = useState(() => lastWeekRange().from);
+  const [dateTo, setDateTo] = useState(() => lastWeekRange().to);
   const [drillSpec, setDrillSpec] = useState(null);
   const [activeTab, setActiveTab] = useState("overview"); // the one page currently shown
   const [openFilter, setOpenFilter] = useState(null); // "orderLocations" | "locations" | "customers" | "jobs" | "machines" | "sections" | null — only one open at a time
@@ -4294,8 +4302,11 @@ export default function LiveProductionPortal() {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
+      const range = {};
+      if (dateFrom) range.from = dateFrom;
+      if (dateTo) range.to = dateTo;
       const [realRes, reelRes, ordersRes, statusRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/production-real`, { headers }),
+        axios.get(`${BASE_URL}/api/production-real`, { headers, params: range }),
         axios.get(`${BASE_URL}/api/production`, { headers }),
         axios.get(`${BASE_URL}/api/customer-orders`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE_URL}/api/master/machine-status`, { headers }).catch(() => ({ data: [] })),
@@ -4319,6 +4330,29 @@ export default function LiveProductionPortal() {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // refetch production rows when the date range changes (no full-page loader)
+  const firstRun = useRef(true);
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return; }
+    const t = setTimeout(async () => {
+      setRefreshing(true);
+      try {
+        const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
+        const params = {};
+        if (dateFrom) params.from = dateFrom;
+        if (dateTo) params.to = dateTo;
+        const res = await axios.get(`${BASE_URL}/api/production-real`, { headers, params });
+        setRealRows(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error("Error refreshing production rows:", err);
+      } finally {
+        setRefreshing(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [dateFrom, dateTo]);
 
   // Send the years found in the data up to the layout so the Year filter lists them
   useEffect(() => {
@@ -4472,9 +4506,22 @@ export default function LiveProductionPortal() {
   const hasActiveFilters =
     Boolean(search) || selectedCustomers.length > 0 || selectedJobs.length > 0 ||
     selectedMachines.length > 0 || selectedLocations.length > 0 || selectedOrderLocations.length > 0 ||
-    Boolean(dateFrom) || Boolean(dateTo);
+    (!weekOnly && (Boolean(dateFrom) || Boolean(dateTo)));
+
+  const toggleWeek = (on) => {
+    setWeekOnly(on);
+    if (on) {
+      const w = lastWeekRange();
+      setDateFrom(w.from);
+      setDateTo(w.to);
+    } else {
+      setDateFrom("");
+      setDateTo("");
+    }
+  };
 
   const resetFilters = () => {
+    setWeekOnly(false);
     setSearch("");
     setSelectedCustomers([]);
     setSelectedJobs([]);
@@ -4730,15 +4777,22 @@ export default function LiveProductionPortal() {
             />
           </div>
     
+          <div className="filter-field">
+            <span className="filter-label">&nbsp;</span>
+            <label className={`tab-check ${weekOnly ? "active" : "inactive"}`} style={{ height: 32, boxSizing: "border-box", border: "1.5px solid #cbd5e1" }}>
+              <input type="checkbox" checked={weekOnly} onChange={(e) => toggleWeek(e.target.checked)} />
+                         Week{weekOnly && dateFrom && dateTo ? ` (${dayLabel(dateFrom)} – ${dayLabel(dateTo)})` : ""}{refreshing ? " …" : ""}{refreshing ? " …" : ""}{refreshing ? " …" : ""}
+            </label>
+          </div>
           <div className="date-range-group">
             <div className="filter-field">
               <label className="filter-label" htmlFor="portal-date-from">From Date</label>
-              <input id="portal-date-from" name="portalDateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="select-3d" title="From date" />
+              <input id="portal-date-from" name="portalDateFrom" type="date" value={dateFrom} onChange={(e) => { setWeekOnly(false); setDateFrom(e.target.value); }} className="select-3d" title="From date" />
             </div>
             {/* <span className="date-sep" style={{ color: COLORS.slate, fontWeight: 700, fontSize: 12 }}>to</span> */}
             <div className="filter-field">
               <label className="filter-label" htmlFor="portal-date-to">To Date</label>
-              <input id="portal-date-to" name="portalDateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="select-3d" title="To date" />
+              <input id="portal-date-to" name="portalDateTo" type="date" value={dateTo} onChange={(e) => { setWeekOnly(false); setDateTo(e.target.value); }} className="select-3d" title="To date" />
             </div>
                   <div className="filter-field">
             <span className="filter-label">Sections</span>

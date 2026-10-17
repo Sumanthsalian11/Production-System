@@ -39,8 +39,8 @@ router.get("/", authMiddleware, async (req, res) => {
     const query = {};
     if (from || to) {
       query.productionDate = {};
-      if (from) query.productionDate.$gte = new Date(from);
-      if (to) query.productionDate.$lte = new Date(to);
+      if (from) query.productionDate.$gte = new Date(`${from}T00:00:00.000Z`);
+      if (to) query.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
     }
 
     // ⚡ populate ONLY the fields the UI reads (activityName / machineName;
