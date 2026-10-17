@@ -272,24 +272,31 @@ function ProductionRealDashboard() {
     return [v];
   };
 
+  const hasMaterials = Boolean(workOrderDetails?.materials?.length);
+
   const selectedMachineData = useMemo(() => {
-    if (!workOrderDetails || selectedMaterialIndex === "") return null;
-    return (
-      workOrderDetails.machines?.[selectedMaterialIndex] ??
-      workOrderDetails.machines?.[0] ??
-      null
-    );
-  }, [workOrderDetails, selectedMaterialIndex]);
+    if (!workOrderDetails) return null;
+    if (selectedMaterialIndex !== "") {
+      return (
+        workOrderDetails.machines?.[selectedMaterialIndex] ??
+        workOrderDetails.machines?.[0] ??
+        null
+      );
+    }
+    return !hasMaterials ? (workOrderDetails.machines?.[0] ?? null) : null;
+  }, [workOrderDetails, selectedMaterialIndex, hasMaterials]);
 
   const selectedPages = useMemo(() => {
-    if (!workOrderDetails || selectedMaterialIndex === "") return "";
+    if (!workOrderDetails) return "";
+    if (hasMaterials && selectedMaterialIndex === "") return "";
     const fromMachine = selectedMachineData?.pages;
     if (hasValue(fromMachine)) return fromMachine;
     return hasValue(workOrderDetails.pages) ? workOrderDetails.pages : "";
-  }, [workOrderDetails, selectedMaterialIndex, selectedMachineData]);
+  }, [workOrderDetails, selectedMaterialIndex, selectedMachineData, hasMaterials]);
 
   const selectedUps = useMemo(() => {
-    if (!workOrderDetails || selectedMaterialIndex === "") return "";
+    if (!workOrderDetails) return "";
+    if (hasMaterials && selectedMaterialIndex === "") return "";
 
     // new work orders: machines[i].UPS
     const fromMachine = selectedMachineData?.UPS ?? selectedMachineData?.ups;
@@ -300,7 +307,7 @@ function ProductionRealDashboard() {
     if (hasValue(fromRoot)) return fromRoot;
 
     return "-";
-  }, [workOrderDetails, selectedMaterialIndex, selectedMachineData]);
+  }, [workOrderDetails, selectedMaterialIndex, selectedMachineData, hasMaterials]);
 
   const isSheetFedSelected = () => {
     return activityMachinePairs.some((pair) => {
@@ -470,7 +477,9 @@ function ProductionRealDashboard() {
                 }
               : prev
           );
-          setSelectedMaterialIndex(idx >= 0 ? idx : 0);
+          setSelectedMaterialIndex(
+            woMaterials.length ? (idx >= 0 ? idx : 0) : ""
+          );
         })
         .catch((err) => console.error("Error loading planner data for edit:", err));
     }
@@ -1734,7 +1743,7 @@ const statusColumns = useMemo(() => {
 
     if (!isOffDay && !workOrderDetails) return showAlert("Fetch Work Order first", "warning");
 
-    if (!isOffDay && !selectedMaterial) {
+    if (!isOffDay && hasMaterials && !selectedMaterial) {
       showAlert("Select a Material Code", "warning");
       return;
     }
@@ -1941,7 +1950,30 @@ const statusColumns = useMemo(() => {
         customerName: isOffDay ? "" : workOrderDetails.customerName,
         jobDescription: isOffDay ? "" : workOrderDetails.jobDescription,
         jobSize: workOrderDetails?.jobSize || "",
-        materials: selectedMaterial ? [selectedMaterial] : [],
+        materials: isOffDay
+          ? []
+          : selectedMaterial
+            ? [
+                {
+                  ...selectedMaterial,
+                  materialCode: selectedMaterial.materialCode || "-",
+                  materialDescription: selectedMaterial.materialDescription || "-",
+                  materialGroupDescription: selectedMaterial.materialGroupDescription || "-",
+                  mill: selectedMaterial.mill || "-",
+                  gsm: selectedMaterial.gsm || "-",
+                  paperSize: selectedMaterial.paperSize || "-",
+                },
+              ]
+            : [
+                {
+                  materialCode: "-",
+                  materialDescription: "-",
+                  materialGroupDescription: "-",
+                  mill: "-",
+                  gsm: "-",
+                  paperSize: "-",
+                },
+              ],
         ups: isOffDay ? [] : toUpsArray(selectedUps),
         productionImpression: Number(form.productionImpression),
         wasteImpression: Number(form.wasteImpression),
@@ -2909,21 +2941,25 @@ const statusColumns = useMemo(() => {
                       </InfoTile>
 
                       <InfoTile label="Material Code:" col="col-12 col-md-4">
-                        <select
-                          className="form-select"
-                          value={selectedMaterialIndex}
-                          onChange={(e) => setSelectedMaterialIndex(e.target.value)}
-                        >
-                          <option value="">Select Material Code</option>
-                          {workOrderDetails.materials?.map((m, i) => (
-                            <option key={i} value={i}>
-                              {m.materialCode}
-                              {workOrderDetails.machines?.[i]?.component
-                                ? ` (${workOrderDetails.machines[i].component})`
-                                : ""}
-                            </option>
-                          ))}
-                        </select>
+                        {hasMaterials ? (
+                          <select
+                            className="form-select"
+                            value={selectedMaterialIndex}
+                            onChange={(e) => setSelectedMaterialIndex(e.target.value)}
+                          >
+                            <option value="">Select Material Code</option>
+                            {workOrderDetails.materials?.map((m, i) => (
+                              <option key={i} value={i}>
+                                {m.materialCode || "-"}
+                                {workOrderDetails.machines?.[i]?.component
+                                  ? ` (${workOrderDetails.machines[i].component})`
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          "-"
+                        )}
                       </InfoTile>
 
                       <InfoTile label="Pages:" col="col-6 col-md-2">
@@ -2931,18 +2967,22 @@ const statusColumns = useMemo(() => {
                       </InfoTile>
 
                       <InfoTile label="Material Description:" col="col-12 col-md-6">
-                        <select
-                          className="form-select"
-                          value={selectedMaterialIndex}
-                          onChange={(e) => setSelectedMaterialIndex(e.target.value)}
-                        >
-                          <option value="">Select Material Description</option>
-                          {workOrderDetails.materials?.map((m, i) => (
-                            <option key={i} value={i}>
-                              {m.materialDescription || "-"}
-                            </option>
-                          ))}
-                        </select>
+                        {hasMaterials ? (
+                          <select
+                            className="form-select"
+                            value={selectedMaterialIndex}
+                            onChange={(e) => setSelectedMaterialIndex(e.target.value)}
+                          >
+                            <option value="">Select Material Description</option>
+                            {workOrderDetails.materials?.map((m, i) => (
+                              <option key={i} value={i}>
+                                {m.materialDescription || "-"}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          "-"
+                        )}
                       </InfoTile>
 
                       <InfoTile label="Material Group Desc.:" col="col-12 col-md-4">
@@ -2970,7 +3010,8 @@ const statusColumns = useMemo(() => {
                       </InfoTile>
 
                       <InfoTile label="Planner Impression:" col="col-6 col-md-2">
-                        {selectedMaterialIndex !== "" && Number(selectedMachineData?.totalImp) > 0
+                        {(selectedMaterialIndex !== "" || !hasMaterials) &&
+                        Number(selectedMachineData?.totalImp) > 0
                           ? Number(selectedMachineData.totalImp).toLocaleString("en-IN")
                           : "-"}
                       </InfoTile>
@@ -3575,7 +3616,7 @@ const statusColumns = useMemo(() => {
                       </td>
 
 
-                      <td>{item.materials?.[0]?.materialCode}</td>
+                      <td>{item.materials?.[0]?.materialCode || "-"}</td>
                       <td
                         style={{
                           cursor: "pointer",
@@ -3590,7 +3631,7 @@ const statusColumns = useMemo(() => {
                         }
                       >
                         {expandedCell === `matdesc-${item._id}`
-                          ? item.materials?.[0]?.materialDescription
+                          ? item.materials?.[0]?.materialDescription || "-"
                           : truncateText(item.materials?.[0]?.materialDescription)}
                       </td>
                       <td
@@ -3607,12 +3648,12 @@ const statusColumns = useMemo(() => {
                         }
                       >
                         {expandedCell === `matgroup-${item._id}`
-                          ? item.materials?.[0]?.materialGroupDescription
+                          ? item.materials?.[0]?.materialGroupDescription || "-"
                           : truncateText(item.materials?.[0]?.materialGroupDescription)}
                       </td>
-                      <td>{item.materials?.[0]?.mill}</td>
-                      <td>{item.materials?.[0]?.gsm}</td>
-                      <td>{item.materials?.[0]?.paperSize}</td>
+                      <td>{item.materials?.[0]?.mill || "-"}</td>
+                      <td>{item.materials?.[0]?.gsm || "-"}</td>
+                      <td>{item.materials?.[0]?.paperSize || "-"}</td>
                       <td>{item.liveOrderQty ?? item.orderQty}</td>
                       <td>{item.productionImpression || "-"}</td>
                       <td>{item.wasteImpression || "-"}</td>
