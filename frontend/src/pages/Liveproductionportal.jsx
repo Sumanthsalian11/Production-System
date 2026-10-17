@@ -3177,7 +3177,7 @@ const chartData = useMemo(() => {
   );
 }
 
-function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
+function LedgerTab({ data, search, openWO, trackWO, customerOrders = [], realRows = [] }) {
   const openDrill = useDrill();
   const otFilter = useSeriesFilter();
   const orderTypeData = useMemo(() => {
@@ -3221,6 +3221,32 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
       .map((d, i) => ({ ...d, color: uniqueColor(i) }));
   }, [data.ledger]);
   const productTypeVisible = productTypeData.filter((d) => !ptFilter.hidden.has(d.name));
+
+  const materialWasteData = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(realRows) ? realRows : []).forEach((item) => {
+      if (statusKeyFor(item.machineStatus) !== "production") return;
+      const prod = toNum(item.productionQty);
+      if (prod <= 0) return;
+      const name = String(item.materials?.[0]?.materialGroupDescription || "").trim();
+      if (!name || name === "-") return;
+      if (!map.has(name)) map.set(name, { name, prod: 0, waste: 0, wos: new Set() });
+      const e = map.get(name);
+      e.prod += prod;
+      e.waste += toNum(item.wastageQty);
+      e.wos.add(String(item.workOrder ?? "").trim());
+    });
+    return Array.from(map.values())
+      .map((e) => ({
+        name: e.name,
+        wastePct: pct(e.waste, e.prod),
+        rows: data.ledger.filter((r) => e.wos.has(r.wo)),
+      }))
+      .sort((a, b) => b.wastePct - a.wastePct);
+  }, [realRows, data.ledger]);
+  const materialWasteColors = materialWasteData.map((d) =>
+    d.wastePct >= 5 ? COLORS.rose : d.wastePct >= 3 ? COLORS.amber : COLORS.green
+  );
   const [woQ, setWoQ] = useState("");
   const [custSel, setCustSel] = useState([]);
   const [jobSel, setJobSel] = useState([]);
@@ -3333,6 +3359,27 @@ function LedgerTab({ data, search, openWO, trackWO, customerOrders = [] }) {
             })}
           />
           <PieLegend items={productTypeData.map((d) => ({ name: d.name, color: d.color, dataKey: d.name }))} hidden={ptFilter.hidden} toggle={ptFilter.toggle} />
+        </Panel>
+
+        <Panel title="Wastage Rate % by Material Group" icon={TrendingDown} iconGrad={ACCENTS.rose.grad}
+          tag="Green <3% · Amber 3–5% · Red ≥5%"
+          sub="Waste % of production, grouped by material group">
+          <BarsChart
+            data={materialWasteData}
+            categoryKey="name"
+            series={[{ key: "wastePct", name: "Waste %", color: COLORS.rose }]}
+            categoryColors={materialWasteColors}
+            height={260}
+            unit="%"
+            rotateLabels={-20}
+            valueFormatter={(v) => v.toFixed(1)}
+            onDrill={(row) => openDrill({
+              kind: "ledgerAll",
+              title: `Material Group — ${row.name}`,
+              rows: row.rows,
+              sort: { key: "wastePct", dir: "desc" },
+            })}
+          />
         </Panel>
       </div>
       <Panel
@@ -4698,7 +4745,7 @@ export default function LiveProductionPortal() {
         {activeTab === "tracker" && <StageTrackerTab data={data} wo={trackerWO} setWo={setTrackerWO} openWO={openWO} />}
         {activeTab === "utilization" && <UtilizationTab data={data} realRows={deferredRealRows} />}
         {activeTab === "prodwaste" && <ProdWasteTab data={data} />}
-        {activeTab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} customerOrders={filteredCustomerOrders} />}
+        {activeTab === "ledger" && <LedgerTab data={data} search={search} openWO={openWO} trackWO={trackWO} customerOrders={filteredCustomerOrders} realRows={deferredRealRows} />}
         {activeTab === "jobperf" && <JobCompletionTab data={data} openWO={openWO} />}
         {activeTab === "customers" && <CustomersTab data={data} />}
         {activeTab === "perso" && <PersoTab data={data} />}
