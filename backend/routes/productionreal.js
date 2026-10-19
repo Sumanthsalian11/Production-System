@@ -7,9 +7,12 @@ const authMiddleware = require("../middleware/authMiddleware");
 const mongoose = require("mongoose");
 // ---- cache for the /report feed (cleared on every write) ----
 const REPORT_TTL_MS = 60 * 1000;
-const REPORT_MAX_KEYS = 8;
+const REPORT_MAX_KEYS = 24;
 const reportCache = new Map();
 const clearReportCache = () => reportCache.clear();
+
+// escapes user text before it is used inside a regex
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 
 router.post("/", authMiddleware, async (req, res) => {
@@ -382,6 +385,240 @@ router.get("/report", authMiddleware, async (req, res) => {
     res.type("application/json").send(body);
   } catch (error) {
     console.error("Error fetching production report:", error);
+    res.status(500).json({ message: "Error fetching data" });
+  }
+});
+
+// ⚡ SERVER-SIDE SUMMARY for the Production Report page (aggregated in MongoDB)
+router.get("/report-summary", authMiddleware, async (req, res) => {
+  try {
+    const { from, to, wo, customer, machine, location } = req.query;
+    const key = ["S", from, to, wo, customer, machine, location].map((v) => v || "").join("|");
+    const hit = reportCache.get(key);
+    if (hit && Date.now() - hit.t < REPORT_TTL_MS) {
+      return res.type("application/json").send(hit.body);
+    }
+    const put = (k, v) => {
+      if (reportCache.size >= REPORT_MAX_KEYS) reportCache.delete(reportCache.keys().next().value);
+      reportCache.set(k, v);
+    };
+
+    const MachineMaster = mongoose.model("MachineMaster");
+    const dateMatch = {};
+    if (from || to) {
+      dateMatch.productionDate = {};
+      if (from) dateMatch.productionDate.$gte = new Date(`${from}T00:00:00.000Z`);
+      if (to) dateMatch.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
+    }
+    const match = { ...dateMatch };
+    if (wo) {
+      match.$expr = {
+        $regexMatch: {
+          input: { $toString: "$workOrder" },
+          regex: escapeRegex(wo),
+        },
+      };
+    }
+    if (customer) match.customerName = customer;
+    if (location) match.userLocations = location;
+
+    // machine filter: ids are passed as ObjectId AND string (aggregation does not cast types)
+    let machineIds = null;
+    if (machine) {
+      const found = (
+        await MachineMaster.find({ machineName: new RegExp("^\\s*" + escapeRegex(String(machine).trim()) + "\\s*$", "i") })
+          .select("_id")
+          .lean()
+      ).map((m) => new mongoose.Types.ObjectId(String(m._id)));
+      machineIds = [...found, ...found.map(String)];
+      match["machiness.machineId"] = { $in: machineIds };
+    }
+    const prodMatch = { ...match, machineStatus: "PRODUCTION" };
+
+    // minutes between "HH:MM" strings (rolls over midnight, same as the UI did)
+    const part = (f, i) => ({
+      $convert: { input: { $arrayElemAt: [{ $split: [f, ":"] }, i] }, to: "int", onError: 0, onNull: 0 },
+    });
+    const toMin = (f) => ({ $add: [{ $multiply: [part(f, 0), 60] }, part(f, 1)] });
+    const minutes = {
+      $let: {
+        vars: { f: toMin("$productionFromTime"), t: toMin("$productionToTime") },
+        in: {
+          $cond: [
+            { $lte: ["$$t", "$$f"] },
+            { $subtract: [{ $add: ["$$t", 1440] }, "$$f"] },
+            { $subtract: ["$$t", "$$f"] },
+          ],
+        },
+      },
+    };
+    const agg = (p) => ProductionReal.aggregate(p).allowDiskUse(true);
+
+    // dropdown options (date range only, so they don't shrink when a filter is picked)
+    const okey = `O|${from || ""}|${to || ""}`;
+    const optsP = (async () => {
+      const c = reportCache.get(okey);
+      if (c && Date.now() - c.t < REPORT_TTL_MS) return c.v;
+      const [cu, lo] = await Promise.all([
+        ProductionReal.distinct("customerName", dateMatch),
+        ProductionReal.distinct("userLocations", dateMatch),
+      ]);
+      const v = { customers: cu.filter(Boolean), locations: lo.filter(Boolean) };
+      put(okey, { t: Date.now(), v });
+      return v;
+    })();
+
+    const [macDocs, kpiRaw, utilRaw, jobsRaw, actRaw, opts] = await Promise.all([
+      MachineMaster.find({}, "machineName").lean(),
+      // KPI totals
+      agg([
+        { $match: match },
+        {
+          $group: {
+            _id: "$workOrder",
+            oq: { $first: "$orderQty" },
+            p: { $sum: "$productionQty" },
+            w: { $sum: "$wastageQty" },
+            prod: { $max: { $cond: [{ $eq: ["$machineStatus", "PRODUCTION"] }, 1, 0] } },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalOrderQty: { $sum: "$oq" },
+            totalProduction: { $sum: "$p" },
+            totalWastage: { $sum: "$w" },
+            totalOrders: { $sum: "$prod" },
+          },
+        },
+      ]),
+      // machine utilization (machine x date x status)
+      agg([
+        { $match: match },
+        {
+          $project: {
+            _id: 0,
+            d: { $dateToString: { format: "%Y-%m-%d", date: "$productionDate" } },
+            s: "$machineStatus",
+            ft: "$productionFromTime",
+            m: minutes,
+            ids: "$machiness.machineId",
+          },
+        },
+        { $unwind: "$ids" },
+        ...(machineIds ? [{ $match: { ids: { $in: machineIds } } }] : []),
+        { $group: { _id: { m: "$ids", d: "$d", s: "$s" }, min: { $sum: "$m" }, ft: { $min: "$ft" } } },
+      ]),
+      // job level: latest PRODUCTION entry per work order
+      agg([
+        { $match: prodMatch },
+        {
+          $group: {
+            _id: "$workOrder",
+            c: { $first: "$customerName" },
+            oq: { $first: "$orderQty" },
+            pt: { $max: "$productType" },
+            latest: {
+              $max: {
+                t: "$createdAt",
+                p: "$productionQty",
+                w: "$wastageQty",
+                pt: "$productType",
+                lm: { $arrayElemAt: ["$machiness.machineId", -1] },
+              },
+            },
+          },
+        },
+      ]),
+      // job x activity x machine sums
+      agg([
+        { $match: prodMatch },
+        {
+          $project: {
+            _id: 0, wo: "$workOrder", p: "$productionQty", w: "$wastageQty", wp: "$wastePercent", pairs: "$machiness",
+          },
+        },
+        { $unwind: "$pairs" },
+        ...(machineIds ? [{ $match: { "pairs.machineId": { $in: machineIds } } }] : []),
+        {
+          $group: {
+            _id: { wo: "$wo", a: "$pairs.activityId", m: "$pairs.machineId" },
+            p: { $sum: "$p" }, w: { $sum: "$w" }, wp: { $sum: "$wp" },
+          },
+        },
+      ]),
+      optsP,
+    ]);
+
+    const macName = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
+    const nameOf = (id) => macName.get(String(id)) || "Unassigned";
+
+    // jobs
+    const jobs = new Map();
+    for (const r of jobsRaw) {
+      jobs.set(r._id, {
+        workOrder: r._id,
+        customer: r.c,
+        orderQty: r.oq,
+        productType: (r.latest && r.latest.pt) || r.pt,
+        latestProduction: Number(r.latest?.p) || 0,
+        latestWastage: Number(r.latest?.w) || 0,
+        byActivity: {},
+        machines: {},
+        lastMachine: r.latest?.lm ? nameOf(r.latest.lm) : null,
+      });
+    }
+    for (const r of actRaw) {
+      const e = jobs.get(r._id.wo);
+      if (!e) continue;
+      const m = nameOf(r._id.m);
+      const act = String(r._id.a || "");
+      if (act) {
+        const bm = e.byActivity[act] || (e.byActivity[act] = {});
+        const cur = bm[m] || (bm[m] = { production: 0, wastage: 0 });
+        cur.production += r.p;
+        cur.wastage += r.w;
+      }
+      const mm = e.machines[m] || (e.machines[m] = { production: 0, wastage: 0, wastePercent: 0 });
+      mm.production += r.p;
+      mm.wastage += r.w;
+      mm.wastePercent += r.wp;
+    }
+
+    // utilization rows + first-seen order of machines
+    const rowMap = new Map();
+    const first = new Map();
+    for (const r of utilRaw) {
+      const machineName = nameOf(r._id.m);
+      const date = r._id.d;
+      const k = machineName + "_" + date;
+      let row = rowMap.get(k);
+      if (!row) rowMap.set(k, (row = { machine: machineName, date }));
+      if (r._id.s) row[r._id.s] = (row[r._id.s] || 0) + r.min;
+      const ts = Date.parse(`${date}T${r.ft || "00:00"}:00Z`) || 0;
+      const prev = first.get(machineName);
+      if (prev === undefined || ts < prev) first.set(machineName, ts);
+    }
+
+    const k0 = kpiRaw[0] || {};
+    const body = JSON.stringify({
+      kpi: {
+        totalOrderQty: k0.totalOrderQty || 0,
+        totalOrders: k0.totalOrders || 0,
+        totalProduction: k0.totalProduction || 0,
+        totalWastage: k0.totalWastage || 0,
+      },
+      jobs: [...jobs.values()],
+      util: [...rowMap.values()],
+      machineOrder: [...first.entries()],
+      customers: opts.customers,
+      locations: opts.locations,
+    });
+
+    put(key, { t: Date.now(), body });
+    res.type("application/json").send(body);
+  } catch (error) {
+    console.error("Error fetching production summary:", error);
     res.status(500).json({ message: "Error fetching data" });
   }
 });

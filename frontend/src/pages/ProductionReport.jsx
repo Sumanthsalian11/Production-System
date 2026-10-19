@@ -43,7 +43,7 @@ const formatTime = (minutes) => {
   return `${h}h ${m}m`;
 };
 
-// Keep only what the page reads + precomputed values (done ONCE per record on load)
+// Keep only what the page reads + precomputed values (used for the stage-wise tree of one work order)
 const slimRecord = (item) => {
   const d = parseDateCached(item.productionDate);
   const names = (item.machiness || []).map((p) => p.machineId?.machineName);
@@ -113,7 +113,8 @@ const useDebounced = (value, delay = 300) => {
 };
 
 function ProductionReport() {
-  const [productionData, setProductionData] = useState([]);
+  const [summary, setSummary] = useState({ kpi: {}, jobs: [], util: [], machineOrder: [], customers: [], locations: [] });
+  const [woRows, setWoRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const token = localStorage.getItem("token");
@@ -146,9 +147,16 @@ function ProductionReport() {
     }, 200);
 
     try {
-      const res = await axios.get(`${BASE_URL}/api/production-real/report`, {
+      const res = await axios.get(`${BASE_URL}/api/production-real/report-summary`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { from: from || undefined, to: to || undefined },
+        params: {
+          from: from || undefined,
+          to: to || undefined,
+          wo: debouncedSearchWO || undefined,
+          customer: customerFilter || undefined,
+          machine: machineFilter || undefined,
+          location: locationFilter || undefined
+        },
         // real progress when the browser knows the total size
         onDownloadProgress: (e) => {
           if (e.total && id === reqId.current) {
@@ -159,22 +167,8 @@ function ProductionReport() {
       });
       if (id !== reqId.current) return;
 
-      const raw = res.data || [];
-      const slim = new Array(raw.length);
-      const locs = new Set();
-
-      for (let i = 0; i < raw.length; i++) {
-        const item = raw[i];
-        slim[i] = slimRecord(item);
-        const ul = item.userLocations;
-        if (ul) for (let k = 0; k < ul.length; k++) if (ul[k]) locs.add(ul[k]);
-      }
-
-      // sort ONCE (date desc, stable). Filtering keeps this order.
-      slim.sort((a, b) => b._dateMs - a._dateMs);
-
-      setProductionData(slim);
-      setLocationOptions([...locs]);
+      setSummary(res.data);
+      setLocationOptions(res.data.locations || []);
       setProgress(100);
       // let the bar show 100% for a moment before the overlay closes
       await new Promise((r) => setTimeout(r, 400));
@@ -189,7 +183,29 @@ function ProductionReport() {
   useEffect(() => {
     fetchProduction();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, debouncedSearchWO, customerFilter, machineFilter, locationFilter]);
+
+  // stage-wise tree: load only this work order's rows when opened
+  useEffect(() => {
+    if (woDetail === null) {
+      setWoRows([]);
+      return;
+    }
+    let live = true;
+    axios
+      .get(`${BASE_URL}/api/production-real`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { workOrderExact: woDetail, machineStatus: "PRODUCTION" }
+      })
+      .then((r) => {
+        if (live) setWoRows((r.data || []).map(slimRecord));
+      })
+      .catch((e) => console.error(e));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [woDetail]);
 
   useEffect(() => {
     fetchMachines();
@@ -251,7 +267,7 @@ function ProductionReport() {
     }
   };
 
-  // Item Stages master: product type -> activityId of its LAST stage
+  // Item Stages master: product type -> rank of each activity in its stage order
   const stageRankByType = useMemo(() => {
     const map = new Map();
     itemStages.forEach((rec) => {
@@ -269,165 +285,27 @@ function ProductionReport() {
     return map;
   }, [itemStages]);
 
-  const lastStageByType = useMemo(() => {
-    const map = new Map();
-    itemStages.forEach((rec) => {
-      const key = String(rec.itemName || "").trim().toUpperCase();
-      if (!key || !rec.stages?.length) return;
-      const last = [...rec.stages].sort((a, b) => a.order - b.order).pop();
-      const id = String(last.activityId?._id || last.activityId || "");
-      if (id) map.set(key, id);
-    });
-    return map;
-  }, [itemStages]);
-
-  // ================= FILTERED DATA (memoized) =================
-  const filteredData = useMemo(() => {
-    const woQ = debouncedSearchWO ? debouncedSearchWO.toLowerCase() : "";
-    const custQ = customerFilter ? customerFilter.trim() : null;
-    const machQ = machineFilter ? machineFilter.toLowerCase() : "";
-    const fromMs = fromDate ? new Date(fromDate).getTime() : null;
-    const toMs = toDate ? new Date(toDate).getTime() : null;
-
-    const out = [];
-    for (let i = 0; i < productionData.length; i++) {
-      const item = productionData[i];
-
-      if (woQ && !item._woLower.includes(woQ)) continue;
-      if (custQ !== null && item._cust !== custQ) continue;
-      if (machQ && !item._namesLower.includes(machQ)) continue;
-      if (locationFilter && !item.userLocations?.includes(locationFilter)) continue;
-      if (fromMs !== null && !(item._dateMs >= fromMs)) continue;
-      if (toMs !== null && !(item._dateMs <= toMs)) continue;
-
-      out.push(item);
-    }
-    return out;
-  }, [
-    productionData,
-    debouncedSearchWO,
-    customerFilter,
-    machineFilter,
-    locationFilter,
-    fromDate,
-    toDate
-  ]);
+  // ================= SERVER SUMMARY (filters are applied in MongoDB) =================
 
   // ================= USED MACHINES: earliest-seen timestamp per machine =================
-  const machineFirstSeen = useMemo(() => {
-    const map = new Map();
-    const tsCache = new Map();
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
-      const names = item._names;
-      if (names.length === 0) continue;
-
-      const ck = `${item.productionDate} ${item.productionFromTime || "00:00"}`;
-      let ts = tsCache.get(ck);
-      if (ts === undefined) {
-        ts = new Date(ck).getTime();
-        tsCache.set(ck, ts);
-      }
-
-      for (let k = 0; k < names.length; k++) {
-        const machine = names[k];
-        if (!machine) continue;
-        const existingTs = map.get(machine);
-        if (existingTs === undefined || ts < existingTs) map.set(machine, ts);
-      }
-    }
-    return map;
-  }, [filteredData]);
+  const machineFirstSeen = useMemo(() => new Map(summary.machineOrder || []), [summary]);
 
   useEffect(() => {
-    if (machineFirstSeen.size === 0) return;
-
-    setUsedMachines((prev) => {
-      const existing = new Set(prev);
-      const newMachines = [];
-
-      machineFirstSeen.forEach((ts, machine) => {
-        if (!existing.has(machine)) newMachines.push(machine);
-      });
-
-      if (newMachines.length === 0) return prev;
-
-      newMachines.sort(
+    setUsedMachines(
+      [...machineFirstSeen.keys()].sort(
         (a, b) => machineFirstSeen.get(a) - machineFirstSeen.get(b)
-      );
-
-      return [...prev, ...newMachines];
-    });
+      )
+    );
   }, [machineFirstSeen]);
 
-  const customers = useMemo(
-    () => [...new Set(productionData.map((p) => p.customerName))].filter(Boolean),
-    [productionData]
-  );
+  const customers = summary.customers || [];
 
-  // ================= COMBINED JOB-LEVEL AGGREGATION (single pass) =================
+  // ================= JOB-LEVEL AGGREGATION (sums come from the server) =================
   const jobAggregates = useMemo(() => {
     const map = {};
-
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
-      if (item.machineStatus !== "PRODUCTION") continue;
-
-      const wo = item.workOrder;
-      let entry = map[wo];
-
-      if (!entry) {
-        entry = map[wo] = {
-          workOrder: wo,
-          customer: item.customerName,
-          orderQty: item.orderQty,
-          productType: item.productType,
-          latestProduction: 0,
-          latestWastage: 0,
-          latestTime: -Infinity,
-          byActivity: {},
-          machines: {},
-          lastMachine: null
-        };
-      }
-
-      const currentTime = item._createdMs;
-      const prodQty = Number(item.productionQty) || 0;
-      const wasteQty = Number(item.wastageQty) || 0;
-
-      if (currentTime > entry.latestTime) {
-        entry.latestTime = currentTime;
-        entry.latestProduction = prodQty;
-        entry.latestWastage = wasteQty;
-        if (item.productType) entry.productType = item.productType;
-      }
-
-      // latest entry of each machine inside each activity
-      const pairs = item._pairs;
-      for (let k = 0; k < pairs.length; k++) {
-        const { act, machine } = pairs[k];
-        if (!act) continue;
-        const byMachine = entry.byActivity[act] || (entry.byActivity[act] = {});
-        const prevM = byMachine[machine];
-        byMachine[machine] = {
-          time: Math.max(prevM?.time || 0, currentTime),
-          production: (prevM?.production || 0) + prodQty,
-          wastage: (prevM?.wastage || 0) + wasteQty
-        };
-      }
-
-      const names = item._names;
-      for (let k = 0; k < names.length; k++) {
-        const machine = names[k];
-        if (!entry.machines[machine]) {
-          entry.machines[machine] = { production: 0, wastage: 0, wastePercent: 0 };
-        }
-        entry.machines[machine].production += Number(item.productionQty);
-        entry.machines[machine].wastage += Number(item.wastageQty);
-        entry.machines[machine].wastePercent += Number(item.wastePercent || 0);
-        entry.lastMachine = machine;
-      }
-    }
+    (summary.jobs || []).forEach((e) => {
+      map[e.workOrder] = e;
+    });
 
     // figure shown per work order: last-stage entry if matched, else latest entry
     Object.values(map).forEach((e) => {
@@ -460,7 +338,7 @@ function ProductionReport() {
     });
 
     return map;
-  }, [filteredData, lastStageByType, stageRankByType]);
+  }, [summary, stageRankByType]);
 
   const jobPerformance = useMemo(
     () =>
@@ -599,67 +477,17 @@ function ProductionReport() {
     return Object.values(acc).filter((m) => m.production > 0 || m.wastage > 0);
   }, [jobMachinePerformance, debouncedSearchWO, customerFilter, machineFilter, jobWastageMap]);
 
-  // ================= MACHINE UTILIZATION (memoized) =================
-  const machineUtilizationDatewise = useMemo(() => {
-    const acc = new Map();
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
-      const minutes = item._minutes;
-      const date = item._dateKey;
-      const status = item.machineStatus;
-      const names = item._names;
+  // ================= MACHINE UTILIZATION (from the server) =================
+  const machineUtilizationDatewise = summary.util || [];
 
-      for (let k = 0; k < names.length; k++) {
-        const machine = names[k];
-        const key = machine + "_" + date;
-        let row = acc.get(key);
-        if (!row) {
-          row = { machine, date };
-          for (let s = 0; s < machineStatuses.length; s++) {
-            row[machineStatuses[s].statusName] = 0;
-          }
-          acc.set(key, row);
-        }
-        if (status && row[status] !== undefined) row[status] += minutes;
-      }
-    }
-    return Array.from(acc.values());
-  }, [filteredData, machineStatuses]);
-
-  // ================= KPI TOTALS (single combined pass) =================
-  const kpiTotals = useMemo(() => {
-    let totalProduction = 0;
-    let totalWastage = 0;
-    const orderQtyByWO = new Map();
-    const productionWOs = new Set();
-
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
-
-      totalProduction += Number(item.productionQty || 0);
-      totalWastage += Number(item.wastageQty || 0);
-
-      if (!orderQtyByWO.has(item.workOrder)) {
-        orderQtyByWO.set(item.workOrder, item.orderQty);
-      }
-
-      if (item.machineStatus === "PRODUCTION") {
-        productionWOs.add(item.workOrder);
-      }
-    }
-
-    let totalOrderQty = 0;
-    orderQtyByWO.forEach((qty) => {
-      totalOrderQty += Number(qty);
-    });
-
-    return {
-      totalOrderQty,
-      totalOrders: productionWOs.size,
-      totalProduction,
-      totalWastage
-    };
-  }, [filteredData]);
+  // ================= KPI TOTALS (from the server) =================
+  const kpiTotals = {
+    totalOrderQty: 0,
+    totalOrders: 0,
+    totalProduction: 0,
+    totalWastage: 0,
+    ...summary.kpi
+  };
 
   const { totalOrderQty, totalOrders, totalProduction, totalWastage } = kpiTotals;
 
@@ -701,9 +529,7 @@ function ProductionReport() {
 
   const woTree = useMemo(() => {
     if (woDetail === null) return null;
-    const rows = filteredData.filter(
-      (r) => r.machineStatus === "PRODUCTION" && String(r.workOrder) === String(woDetail)
-    );
+    const rows = woRows;
     if (!rows.length) return null;
 
     const typeKey = String(rows.find((r) => r.productType)?.productType || "")
@@ -801,7 +627,7 @@ function ProductionReport() {
         };
       })
     };
-  }, [woDetail, filteredData, itemStages, jobAggregates, activities]);
+  }, [woDetail, woRows, itemStages, jobAggregates, activities]);
 
   useEffect(() => setWastageVisible(50), [jobWastage]);
 
