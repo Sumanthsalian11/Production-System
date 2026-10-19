@@ -252,6 +252,7 @@ function ProductionRealDashboard() {
   const [impWastePct, setImpWastePct] = useState(0);
   const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
+  const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
 
   const selectedMaterial =
     selectedMaterialIndex !== ""
@@ -425,6 +426,7 @@ function ProductionRealDashboard() {
   const handleEdit = (item) => {
     setShowEntryModal(true);
     setEditingId(item._id);
+    setFetchedWoNo(String(item.workOrder));
     skipQuantityRecalc.current = true;
 
     const editMachineId = item.machiness?.[0]?.machineId?._id || item.machiness?.[0]?.machineId;
@@ -537,6 +539,7 @@ function ProductionRealDashboard() {
   // closes the entry popup and clears the half-filled entry (WO number + date stay)
   const closeEntry = () => {
     setShowEntryModal(false);
+    setFetchedWoNo("");
     setIsOffDay(false);
     setWorkOrderDetails(null);
     setSelectedMaterialIndex("");
@@ -1774,6 +1777,7 @@ const statusColumns = useMemo(() => {
         ...res.data,
         orderQty: res.data.orderQty
       });
+      setFetchedWoNo(String(form.workOrderNo).trim());
       setShowEntryModal(true);
 
       // Auto-select when there's exactly one material; otherwise force a manual pick
@@ -1886,6 +1890,12 @@ const statusColumns = useMemo(() => {
     e.preventDefault();
 
     if (!isOffDay && !workOrderDetails) return showAlert("Fetch Work Order first", "warning");
+
+    // WO number was changed after fetching: the loaded details belong to the old WO, so don't save
+    if (!isOffDay && String(form.workOrderNo).trim() !== fetchedWoNo) {
+      showAlert("Work Order number changed. Click Fetch Work Order again before saving", "warning");
+      return;
+    }
 
     if (!isOffDay && hasMaterials && !selectedMaterial) {
       showAlert("Select a Material Code", "warning");
