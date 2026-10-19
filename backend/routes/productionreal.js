@@ -11,6 +11,18 @@ const REPORT_MAX_KEYS = 24;
 const reportCache = new Map();
 const clearReportCache = () => reportCache.clear();
 
+// only the fields the dashboard actually reads
+const SLIM_FIELDS = {
+  workOrder: 1, customerName: 1, jobDescription: 1, productType: 1, machineStatus: 1,
+  productionDate: 1, productionFromTime: 1, productionToTime: 1,
+  productionQty: 1, wastageQty: 1, productionImpression: 1, pages: 1,
+  orderQty: 1, remarks: 1, createdAt: 1, userLocations: 1,
+  "machiness.activityId": 1, "machiness.machineId": 1,
+  "materials.materialGroupDescription": 1,
+  productionUser: 1, enteredBy: 1, user: 1, createdBy: 1, userName: 1,
+  username: 1, addedBy: 1, updatedBy: 1, operator: 1, name: 1,
+};
+
 // escapes user text before it is used inside a regex
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -83,7 +95,7 @@ router.get("/", authMiddleware, async (req, res) => {
     // ⚡ limit (+ page) only when asked; no limit = old behaviour
     const limit = parseInt(q.limit, 10);
     const pageNo = Math.max(parseInt(q.page, 10) || 1, 1);
-    let cursor = ProductionReal.find(query).select("-__v");
+    let cursor = ProductionReal.find(query).select(q.slim ? SLIM_FIELDS : "-__v");
     if (limit > 0) {
       const size = Math.min(limit, 1000);
       const dateFiltered = Boolean(from || to || q.month);
@@ -173,6 +185,20 @@ router.get("/", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Error fetching Production Real:", error);
     res.status(500).json({ message: "Error fetching data" });
+  }
+});
+
+// earliest / latest production date (used to split "all data" into month windows)
+router.get("/date-bounds", authMiddleware, async (req, res) => {
+  try {
+    const [min, max] = await Promise.all([
+      ProductionReal.findOne({ productionDate: { $ne: null } }).sort({ productionDate: 1 }).select("productionDate").lean(),
+      ProductionReal.findOne({ productionDate: { $ne: null } }).sort({ productionDate: -1 }).select("productionDate").lean(),
+    ]);
+    res.json({ min: min?.productionDate || null, max: max?.productionDate || null });
+  } catch (error) {
+    console.error("Error fetching date bounds:", error);
+    res.status(500).json({ message: "Error fetching date bounds" });
   }
 });
 
@@ -454,6 +480,17 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
     };
     const agg = (p) => ProductionReal.aggregate(p).allowDiskUse(true);
 
+    // Exclude work orders with no production in the selected report scope from every report total.
+    const eligibleWORows = await agg([
+      { $match: match },
+      { $group: { _id: "$workOrder", production: { $sum: { $ifNull: ["$productionQty", 0] } } } },
+      { $match: { production: { $gt: 0 } } },
+      { $project: { _id: 1 } },
+    ]);
+    const eligibleWOs = eligibleWORows.map((r) => r._id);
+    const reportMatch = { $and: [match, { workOrder: { $in: eligibleWOs } }] };
+    const reportProdMatch = { $and: [prodMatch, { workOrder: { $in: eligibleWOs } }] };
+
     // dropdown options (date range only, so they don't shrink when a filter is picked)
     const okey = `O|${from || ""}|${to || ""}`;
     const optsP = (async () => {
@@ -472,7 +509,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       MachineMaster.find({}, "machineName").lean(),
       // KPI totals
       agg([
-        { $match: match },
+        { $match: reportMatch },
         {
           $group: {
             _id: "$workOrder",
@@ -494,7 +531,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       ]),
       // machine utilization (machine x date x status)
       agg([
-        { $match: match },
+        { $match: reportMatch },
         {
           $project: {
             _id: 0,
@@ -511,7 +548,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       ]),
       // job level: latest PRODUCTION entry per work order
       agg([
-        { $match: prodMatch },
+        { $match: reportProdMatch },
         {
           $group: {
             _id: "$workOrder",
@@ -532,7 +569,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       ]),
       // job x activity x machine sums
       agg([
-        { $match: prodMatch },
+        { $match: reportProdMatch },
         {
           $project: {
             _id: 0, wo: "$workOrder", p: "$productionQty", w: "$wastageQty", wp: "$wastePercent", pairs: "$machiness",
@@ -665,3 +702,5 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+
+

@@ -154,11 +154,6 @@ function buildDashboardData(realRows, reelRows, masterStatuses = [], itemStages 
   safeReal.forEach((r) => addStatus(r.machineStatus));
   const statusColumns = Array.from(statusLabelMap, ([key, label], i) => ({ key, label, color: statusColor(label, i) }));
 
-  // group the trend by day when the data spans ~2 months or less, else by month
-  const trendDates = safeReal.map((r) => dateOnly(r.productionDate)).filter(Boolean).sort();
-  const trendSpanDays = trendDates.length
-    ? (new Date(trendDates[trendDates.length - 1]) - new Date(trendDates[0])) / 86400000
-    : 0;
   const trendByDay = false; // always group the trend by month
 
   const woMap = new Map();
@@ -456,11 +451,17 @@ function buildDashboardData(realRows, reelRows, masterStatuses = [], itemStages 
     .map((m) => ({ Machine: m.machine, wastePct: pct(m.wasteQty, m.prodQty) }))
     .sort((a, b) => b.wastePct - a.wastePct);
 
-  const allDates = safeReal.map((r) => dateOnly(r.productionDate)).filter(Boolean).sort();
+  let minDate = "", maxDate = "";
+  for (let i = 0; i < safeReal.length; i++) {
+    const d = dateOnly(safeReal[i].productionDate);
+    if (!d) continue;
+    if (!minDate || d < minDate) minDate = d;
+    if (!maxDate || d > maxDate) maxDate = d;
+  }
 
   const dateRange = {
-    start: allDates.length ? allDates[0] : "-",
-    end: allDates.length ? allDates[allDates.length - 1] : "-",
+    start: minDate || "-",
+    end: maxDate || "-",
   };
 
   const overview = {
@@ -658,6 +659,33 @@ function buildDashboardData(realRows, reelRows, masterStatuses = [], itemStages 
     wasteByWO: reelWOs.filter((w) => w.netWeight > 0).slice(0, 12).map((w) => ({ WO: `WO ${w.WO}`, woNo: w.WO, wastePct: w.wastePct })),
     records: reelRecords,
   };
+
+  // Waste % of each work order = average waste % (same calculation as the WO details drawer):
+  // each stage's waste % (same stage on several machines merged) + the reel waste %,
+  // divided by the number of stages.
+  const reelByWO = new Map();
+  reelWOs.forEach((w) => {
+    const k = normWO(w.WO);
+    const a = reelByWO.get(k) || { weight: 0, waste: 0 };
+    a.weight += w.netWeight;
+    a.waste += w.waste;
+    reelByWO.set(k, a);
+  });
+  ledger.forEach((r) => {
+    const byStage = new Map();
+    (stageTrackerProd[r.wo] || []).forEach((e) => {
+      const g = byStage.get(e.stage) || { prod: 0, waste: 0 };
+      g.prod += e.prodQty;
+      g.waste += e.wasteQty;
+      byStage.set(e.stage, g);
+    });
+    if (byStage.size === 0) return; // no production stages: keep the old value
+    let sum = 0;
+    byStage.forEach((g) => { sum += pct(g.waste, g.prod); });
+    const reel = reelByWO.get(normWO(r.wo));
+    if (reel) sum += pct(reel.waste, reel.weight);
+    r.wastePct = Number((sum / byStage.size).toFixed(2));
+  });
 
   return { overview, ledger, stageTracker, stageTrackerProd, trend, machineUtilization, machineProdWaste, stages, customers, perso, reel, statusColumns };
 }
@@ -4385,6 +4413,115 @@ const TABS = [
   // { id: "perso", label: "Production Entry Activity", icon: FileStack },
 ];
 
+const addDays = (s, n) => {
+  const d = new Date(`${s}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+// splits a long range into ≤31-day windows; the union of rows is identical
+const buildWindows = (from, to, step = 31) => {
+  if (!from) return [{ from, to }];
+  if (from < "2000-01-01") from = "2000-01-01"; // guards a half-typed year like 0002
+  const end = to || dateOnly(new Date());
+  if (from > end) return [{ from, to }];
+  const out = [];
+  let cur = from;
+  while (cur <= end) {
+    const winEnd = addDays(cur, step - 1);
+    const last = winEnd >= end;
+    out.push({ from: cur, to: last ? to : winEnd }); // open-ended "to" stays open
+    if (last) break;
+    cur = addDays(winEnd, 1);
+  }
+  return out;
+};
+
+// Finished months never change, so they are cached for the whole session.
+const realRowsCache = new Map();
+let boundsMin = null;
+
+const monthWindows = (from, to) => {
+  if (from < "2000-01-01") from = "2000-01-01";
+  const end = to || dateOnly(new Date());
+  const out = [];
+  let y = Number(from.slice(0, 4));
+  let m = Number(from.slice(5, 7));
+  const ey = Number(end.slice(0, 4));
+  const em = Number(end.slice(5, 7));
+  while (y < ey || (y === ey && m <= em)) {
+    const mm = String(m).padStart(2, "0");
+    const lastDay = String(new Date(y, m, 0).getDate()).padStart(2, "0");
+    out.push({ from: `${y}-${mm}-01`, to: `${y}-${mm}-${lastDay}` });
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  if (!to && out.length) out[out.length - 1].to = undefined; // keep "to" open-ended
+  return out;
+};
+
+const fetchRealRows = async (from, to, headers, signal, onProgress) => {
+  onProgress?.(0);
+  // no From date (all data): start from the earliest production date (cached)
+  if (!from) {
+    if (boundsMin === null) {
+      try {
+        const b = await axios.get(`${BASE_URL}/api/production-real/date-bounds`, { headers, signal });
+        boundsMin = b.data?.min ? new Date(b.data.min).toISOString().slice(0, 10) : "";
+      } catch (err) {
+        if (axios.isCancel(err) || err?.code === "ERR_CANCELED") throw err;
+      }
+    }
+    from = boundsMin || from;
+  }
+
+  const wins = from ? monthWindows(from, to) : [{ from: undefined, to }];
+  const curMonthStart = `${dateOnly(new Date()).slice(0, 8)}01`;
+  const results = new Array(wins.length);
+  let next = 0;
+  let done = 0;
+
+  const worker = async () => {
+    while (next < wins.length) {
+      const i = next++;
+      const w = wins[i];
+      const key = `${w.from}|${w.to}`;
+      const cacheable = Boolean(w.from && w.to && w.to < curMonthStart);
+
+      if (cacheable && realRowsCache.has(key)) {
+        results[i] = realRowsCache.get(key);
+      } else {
+        const params = { slim: 1 };
+        if (w.from) params.from = w.from;
+        if (w.to) params.to = w.to;
+        const res = await axios.get(`${BASE_URL}/api/production-real`, { headers, params, signal });
+        results[i] = Array.isArray(res.data) ? res.data : [];
+        if (cacheable) realRowsCache.set(key, results[i]);
+      }
+      done += 1;
+      onProgress?.(Math.min(99, Math.round((done / wins.length) * 100)));
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(6, wins.length) }, worker));
+  onProgress?.(100);
+  return results.flat();
+};
+
+
+// Exclude every row belonging to a work order whose production total is zero.
+const excludeZeroProductionWorkOrders = (rows) => {
+  const totals = new Map();
+  rows.forEach((row) => {
+    const wo = String(row.workOrder ?? "").trim();
+    if (!wo) return;
+    totals.set(wo, (totals.get(wo) || 0) + toNum(row.productionQty));
+  });
+  return rows.filter((row) => {
+    const wo = String(row.workOrder ?? "").trim();
+    return wo && (totals.get(wo) || 0) > 0;
+  });
+};
 export default function LiveProductionPortal() {
   const outlet = useOutletContext();
   const selectedYear = outlet?.selectedYear || "all";
@@ -4421,17 +4558,14 @@ export default function LiveProductionPortal() {
     try {
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
-      const range = {};
-      if (dateFrom) range.from = dateFrom;
-      if (dateTo) range.to = dateTo;
-      const [realRes, reelRes, ordersRes, statusRes, stagesRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/production-real`, { headers, params: range }),
+      const [realList, reelRes, ordersRes, statusRes, stagesRes] = await Promise.all([
+        fetchRealRows(dateFrom, dateTo, headers),
         axios.get(`${BASE_URL}/api/production`, { headers }),
         axios.get(`${BASE_URL}/api/customer-orders`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE_URL}/api/master/machine-status`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE_URL}/api/master/item-stages`, { headers }).catch(() => ({ data: [] })),
       ]);
-      setRealRows(Array.isArray(realRes.data) ? realRes.data : []);
+      setRealRows(excludeZeroProductionWorkOrders(realList));
       setReelRows(Array.isArray(reelRes.data) ? reelRes.data : []);
       setCustomerOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setMasterStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
@@ -4455,24 +4589,26 @@ export default function LiveProductionPortal() {
   // refetch production rows when the date range changes (no full-page loader)
   const firstRun = useRef(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [progress, setProgress] = useState(0);
   useEffect(() => {
     if (firstRun.current) { firstRun.current = false; return; }
+    const ctrl = new AbortController();
+    setProgress(0);
+    setRefreshing(true); // show loader immediately, not after the debounce
     const t = setTimeout(async () => {
-      setRefreshing(true);
       try {
         const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
-        const params = {};
-        if (dateFrom) params.from = dateFrom;
-        if (dateTo) params.to = dateTo;
-        const res = await axios.get(`${BASE_URL}/api/production-real`, { headers, params });
-        setRealRows(Array.isArray(res.data) ? res.data : []);
+        const rows = await fetchRealRows(dateFrom, dateTo, headers, ctrl.signal, (p) => {
+          if (!ctrl.signal.aborted) setProgress(p);
+        });
+        if (!ctrl.signal.aborted) setRealRows(excludeZeroProductionWorkOrders(rows));
       } catch (err) {
-        console.error("Error refreshing production rows:", err);
+        if (!axios.isCancel(err) && err?.code !== "ERR_CANCELED") console.error("Error refreshing production rows:", err);
       } finally {
-        setRefreshing(false);
+        if (!ctrl.signal.aborted) setRefreshing(false);
       }
-    }, 400);
-    return () => clearTimeout(t);
+    }, 150);
+    return () => { clearTimeout(t); ctrl.abort(); };
   }, [dateFrom, dateTo]);
 
   // Send the years found in the data up to the layout so the Year filter lists them
@@ -4553,12 +4689,11 @@ export default function LiveProductionPortal() {
         if (!rowLocations.some((l) => selectedLocations.includes(l))) return false;
       }
 
-      if (fromDate || toDate) {
+      if (dateFrom || dateTo) {
         const dStr = dateOnly(row.productionDate);
-        const rowDate = dStr ? new Date(dStr) : null;
-        if (!rowDate) return false;
-        if (fromDate && rowDate < fromDate) return false;
-        if (toDate && rowDate > toDate) return false;
+        if (!dStr) return false;
+        if (dateFrom && dStr < dateFrom) return false;
+        if (dateTo && dStr > dateTo) return false;
       }
 
       if (q) {
@@ -4659,6 +4794,7 @@ export default function LiveProductionPortal() {
   // render with the full recompute synchronously.
   const deferredRealRows = useDeferredValue(filteredRealRows);
   const deferredReelRows = useDeferredValue(filteredReelRows);
+  const isUpdatingSummary = filteredRealRows !== deferredRealRows || filteredReelRows !== deferredReelRows;
   const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows, masterStatuses, itemStages), [deferredRealRows, deferredReelRows, masterStatuses, itemStages]);
 
   const openWO = (wo) => setDrawerWO(wo);
@@ -4721,6 +4857,36 @@ export default function LiveProductionPortal() {
     <div className="portal-universe">
       <GlobalStyles />
 
+      {(refreshing || isUpdatingSummary) && (
+        <div className="summary-loading-overlay" role="status" aria-live="polite">
+          <style>{`
+            .summary-loading-overlay{position:fixed;inset:0;z-index:12000;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.62);backdrop-filter:blur(2px)}
+            .summary-loading-box{width:min(90vw,340px);display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-radius:12px;background:#fff;border:1px solid rgba(20,111,156,.3);box-shadow:0 16px 36px rgba(14,86,122,.18)}
+            .summary-loading-text{font-size:13px;font-weight:700;color:#06324d}
+            .summary-loading-bar{height:9px;border-radius:999px;background:#d9f2fc;overflow:hidden}
+            .summary-loading-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+            .summary-loading-pct{font-size:15px;font-weight:900;color:#0369a1}
+            .summary-loading-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0877ad,#16a4dc);transition:width .25s ease}
+            .summary-loading-fill.indeterminate{width:38%;animation:summaryLoad 1.1s ease-in-out infinite alternate}
+            @keyframes summaryLoad{from{transform:translateX(-8%)}to{transform:translateX(175%)}}
+          `}</style>
+          <div className="summary-loading-box">
+            <div className="summary-loading-head">
+              <span className="summary-loading-text">
+                {refreshing ? "Loading production data…" : "Updating overall summary…"}
+              </span>
+              {refreshing && <span className="summary-loading-pct">{progress}%</span>}
+            </div>
+            <div className="summary-loading-bar">
+              <div
+                className={`summary-loading-fill ${refreshing ? "" : "indeterminate"}`}
+                style={refreshing ? { width: `${progress}%` } : undefined}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="portal-header-3d">
         <div className="header-top-row">
        
@@ -4782,16 +4948,10 @@ export default function LiveProductionPortal() {
             />
           </div>
     
-          <div className="filter-field">
-            <span className="filter-label">&nbsp;</span>
-            <label className={`tab-check ${weekOnly ? "active" : "inactive"}`} style={{ height: 32, boxSizing: "border-box", border: "1.5px solid #cbd5e1" }}>
-              <input type="checkbox" checked={weekOnly} onChange={(e) => toggleWeek(e.target.checked)} />
-                         Week{weekOnly && dateFrom && dateTo ? ` (${dayLabel(dateFrom)} – ${dayLabel(dateTo)})` : ""}{refreshing ? " …" : ""}{refreshing ? " …" : ""}{refreshing ? " …" : ""}
-            </label>
-          </div>
+
           <div className="date-range-group">
             <div className="filter-field">
-              <label className="filter-label" htmlFor="portal-date-from">From Date</label>
+              <label className="filter-label" htmlFor="portal-date-from">From Date{refreshing ? " …" : ""}</label>
               <input id="portal-date-from" name="portalDateFrom" type="date" value={dateFrom} onChange={(e) => { setWeekOnly(false); setDateFrom(e.target.value); }} className="select-3d" title="From date" />
             </div>
             {/* <span className="date-sep" style={{ color: COLORS.slate, fontWeight: 700, fontSize: 12 }}>to</span> */}
