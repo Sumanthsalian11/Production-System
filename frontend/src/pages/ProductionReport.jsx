@@ -118,7 +118,7 @@ function ProductionReport() {
   const [searchWO, setSearchWO] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
-  const [fromDate, setFromDate] = useState(monthStart);
+  const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [locationOptions, setLocationOptions] = useState([]);
