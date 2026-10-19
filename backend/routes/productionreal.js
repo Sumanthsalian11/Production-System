@@ -4,6 +4,8 @@ const ProductionReal = require("../models/ProductionReal");
 const User = require("../models/User"); 
 const WorkOrder = require("../models/WorkOrder"); // add this import at top
 const authMiddleware = require("../middleware/authMiddleware");
+const mongoose = require("mongoose");
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 
 router.post("/", authMiddleware, async (req, res) => {
@@ -34,7 +36,9 @@ router.post("/", authMiddleware, async (req, res) => {
 // GET ALL Production Real with populated references (date-bounded)
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { from, to } = req.query;
+    const q = req.query;
+    const from = q.from || q.dateFrom;
+    const to = q.to || q.dateTo;
 
     const query = {};
     if (from || to) {
@@ -43,14 +47,73 @@ router.get("/", authMiddleware, async (req, res) => {
       if (to) query.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
     }
 
+    // optional filters (used by the Production Entry page)
+    if (q.month && /^\d{4}-\d{2}$/.test(q.month)) {
+      const [y, m] = q.month.split("-").map(Number);
+      query.$and = [
+        { productionDate: { $gte: new Date(Date.UTC(y, m - 1, 1)), $lt: new Date(Date.UTC(y, m, 1)) } },
+      ];
+    }
+    if (q.workOrderExact) {
+      query.workOrder = Number(q.workOrderExact);
+    } else if (q.workOrder) {
+      (query.$and = query.$and || []).push({
+        $expr: { $regexMatch: { input: { $toString: "$workOrder" }, regex: escapeRegex(q.workOrder) } },
+      });
+    }
+    if (q.machineStatus) query.machineStatus = q.machineStatus;
+    if (q.shift) query.shift = q.shift;
+    if (q.productType) query.productType = q.productType;
+    if (q.customer) query.customerName = q.customer;
+    if (q.location) query.userLocations = q.location;
+    if (q.machine) {
+      const ids = await mongoose.model("MachineMaster").find({ machineName: q.machine }).distinct("_id");
+      query["machiness.machineId"] = { $in: ids };
+    }
+    if (q.machineId) query["machiness.machineId"] = q.machineId;
+
+    // ⚡ limit (+ page) only when asked; no limit = old behaviour
+    const limit = parseInt(q.limit, 10);
+    const pageNo = Math.max(parseInt(q.page, 10) || 1, 1);
+    let cursor = ProductionReal.find(query).select("-__v");
+    if (limit > 0) {
+      const size = Math.min(limit, 1000);
+      const dateFiltered = Boolean(from || to || q.month);
+      const sortSpec = dateFiltered ? { productionDate: -1, createdAt: -1 } : { createdAt: -1 };
+      cursor = cursor.sort(sortSpec).skip((pageNo - 1) * size).limit(size);
+    }
+
     // ⚡ populate ONLY the fields the UI reads (activityName / machineName;
     // _id always comes along) instead of whole master documents per row.
-    // ⚡ allowDiskUse-free plain find + lean = no Mongoose document hydration.
-    const data = await ProductionReal.find(query)
-      .select("-__v")
-      .populate("machiness.activityId", "activityName")
-      .populate("machiness.machineId", "machineName")
-      .lean(); // lean so we can freely attach extra fields
+    // guard: a request with no page limit that would load too many rows is refused instead of crashing the server
+    if (!(limit > 0)) {
+      const MAX_ROWS = 100000;
+      const matching = Object.keys(query).length
+        ? await ProductionReal.countDocuments(query)
+        : await ProductionReal.estimatedDocumentCount();
+      if (matching > MAX_ROWS) {
+        return res.status(413).json({ message: `Too many records (${matching.toLocaleString("en-IN")}). Narrow the date range.` });
+      }
+    }
+
+    const data = await cursor.lean(); // lean so we can freely attach extra fields
+
+    // activity / machine names from the (small) master tables instead of populate()
+    // same response shape, far less memory and time on big result sets
+    const [actDocs, macDocs] = await Promise.all([
+      mongoose.model("ActivityMaster").find({}, "activityName").lean(),
+      mongoose.model("MachineMaster").find({}, "machineName").lean(),
+    ]);
+    const actMap = new Map(actDocs.map((a) => [String(a._id), a]));
+    const macMap = new Map(macDocs.map((m) => [String(m._id), m]));
+    for (let i = 0; i < data.length; i++) {
+      const pairs = data[i].machiness;
+      if (!pairs) continue;
+      for (let j = 0; j < pairs.length; j++) {
+        pairs[j].activityId = actMap.get(String(pairs[j].activityId)) || pairs[j].activityId;
+        pairs[j].machineId = macMap.get(String(pairs[j].machineId)) || pairs[j].machineId;
+      }
+    }
 
     // ✅ Pull current WorkOrder orderQty for every distinct workOrder number
     const woSet = new Set();
@@ -90,10 +153,45 @@ router.get("/", authMiddleware, async (req, res) => {
       item.liveOrderQty = woMap[item.workOrder] ?? item.orderQty; // fallback to snapshot if WO deleted
     }
 
+    // total record count (only when the page asks for it)
+    if (q.withCount) {
+      const total = Object.keys(query).length
+        ? await ProductionReal.countDocuments(query)
+        : await ProductionReal.estimatedDocumentCount();
+      return res.json({ data, total });
+    }
+
     res.json(data);
   } catch (error) {
     console.error("Error fetching Production Real:", error);
     res.status(500).json({ message: "Error fetching data" });
+  }
+});
+
+// Distinct values for the Production Entry filter dropdowns
+router.get("/filter-options", authMiddleware, async (req, res) => {
+  try {
+    const [productTypes, customerNames, locations, machineIds] = await Promise.all([
+      ProductionReal.distinct("productType"),
+      ProductionReal.distinct("customerName"),
+      ProductionReal.distinct("userLocations"),
+      ProductionReal.distinct("machiness.machineId"),
+    ]);
+    const machineDocs = await mongoose
+      .model("MachineMaster")
+      .find({ _id: { $in: machineIds } })
+      .select("machineName")
+      .lean();
+
+    res.json({
+      productTypes: productTypes.filter(Boolean),
+      customerNames: customerNames.filter(Boolean),
+      locations: locations.filter(Boolean),
+      machineNames: [...new Set(machineDocs.map((m) => m.machineName).filter(Boolean))],
+    });
+  } catch (error) {
+    console.error("Error fetching filter options:", error);
+    res.status(500).json({ message: "Error fetching options" });
   }
 });
 

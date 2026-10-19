@@ -68,5 +68,7 @@ productionRealSchema.index({ workOrder: 1 });
 productionRealSchema.index({ createdAt: -1 });
 productionRealSchema.index({ workOrder: 1, productionDate: 1 });
 productionRealSchema.index({ "machiness.machineId": 1, productionDate: 1 });
+// ⚡ date-filtered list sorted newest first, one page at a time
+productionRealSchema.index({ productionDate: -1, createdAt: -1 });
 
 module.exports = mongoose.model("ProductionReal", productionRealSchema);

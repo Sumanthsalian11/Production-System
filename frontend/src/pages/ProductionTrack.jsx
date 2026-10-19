@@ -238,11 +238,13 @@ function ProductionRealDashboard() {
     const [allowedMachineIds, setAllowedMachineIds] = useState(null); // null = no restriction
   const [locationFilter, setLocationFilter] = useState("");
   const [locationOptions, setLocationOptions] = useState([]);
+  const [serverOptions, setServerOptions] = useState({ productTypes: [], customerNames: [], machineNames: [] });
   const [selectedMaterialIndex, setSelectedMaterialIndex] = useState("");
   const [recordsView, setRecordsView] = useState("details");
   const [pageLoading, setPageLoading] = useState(Boolean(token)); // first load of the records only
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(50);
+  const [serverTotal, setServerTotal] = useState(0);
   const tableWrapRef = useRef(null);
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
   const [impWastePct, setImpWastePct] = useState(0);
@@ -721,25 +723,8 @@ function ProductionRealDashboard() {
     });
   }, [productionList, deferredFilters, deferredLocationFilter]);
 
-  // ================= DROPDOWN OPTIONS (single pass, memoized) =================
-  const dropdownOptions = useMemo(() => {
-    const productTypes = new Set();
-    const customerNames = new Set();
-    const machineNames = new Set();
-
-    for (let i = 0; i < productionList.length; i++) {
-      const item = productionList[i];
-      if (item.productType) productTypes.add(item.productType);
-      if (item.customerName) customerNames.add(item.customerName);
-      item.machiness?.forEach(pair => machineNames.add(pair.machineId?.machineName));
-    }
-
-    return {
-      productTypes: [...productTypes],
-      customerNames: [...customerNames],
-      machineNames: [...machineNames]
-    };
-  }, [productionList]);
+  // ================= DROPDOWN OPTIONS (from server, not from the loaded rows) =================
+  const dropdownOptions = serverOptions;
 
     // ================= LAST USED PER ACTIVITY =================
   const lastUsedByActivity = useMemo(() => {
@@ -822,7 +807,7 @@ function ProductionRealDashboard() {
   }, [productionList]);
 
   // ================= EXPORT PDF: ACTIVITY > MACHINE LAST USED =================
-  const exportActivityLastUsedPdf = () => {
+  const exportActivityLastUsedPdf = async () => {
     if (!activities.length) {
       showAlert("No activities to export", "warning");
       return;
@@ -844,9 +829,7 @@ function ProductionRealDashboard() {
     );
 
     // use only the selected location's records (all records if none selected)
-    const sourceList = locationFilter
-      ? productionList.filter((item) => item.userLocations?.includes(locationFilter))
-      : productionList;
+    const sourceList = await fetchRecords(locationFilter ? { location: locationFilter } : {});
 
     if (!sourceList.length) {
       showAlert(`No production records found for ${locationFilter}`, "warning");
@@ -965,16 +948,14 @@ function ProductionRealDashboard() {
   };
 
   // ================= EXPORT EXCEL: ACTIVITY > MACHINE LAST USED =================
-  const exportActivityLastUsedExcel = () => {
+  const exportActivityLastUsedExcel = async () => {
     if (!activities.length) {
       showAlert("No activities to export", "warning");
       return;
     }
 
     // use only the selected location's records (all records if none selected)
-    const sourceList = locationFilter
-      ? productionList.filter((item) => item.userLocations?.includes(locationFilter))
-      : productionList;
+    const sourceList = await fetchRecords(locationFilter ? { location: locationFilter } : {});
 
     if (!sourceList.length) {
       showAlert(`No production records found for ${locationFilter}`, "warning");
@@ -1336,31 +1317,81 @@ const statusColumns = useMemo(() => {
       console.error("Error fetching activities:", err);
     }
   };
+  // first load = latest 50 only; any active filter = fetched from the server
+  const buildListParams = () => {
+    const f = filters;
+    const params = {};
+    if (f.workOrder) params.workOrder = f.workOrder;
+    if (f.dateFrom) params.dateFrom = f.dateFrom;
+    if (f.dateTo) params.dateTo = f.dateTo;
+    if (f.month) params.month = f.month;
+    if (f.shift) params.shift = f.shift;
+    if (f.machine) params.machine = f.machine;
+    if (f.machineStatus) params.machineStatus = f.machineStatus;
+    if (f.productType) params.productType = f.productType;
+    if (f.customer) params.customer = f.customer;
+    if (locationFilter) params.location = locationFilter;
+    const hasFilter = Object.keys(params).length > 0;
+    if (recordsView === "details") {
+      // Detailed Records: the server sends only the current page
+      params.limit = pageSize;
+      params.page = page;
+      params.withCount = 1;
+    } else if (!hasFilter) {
+      // Summary Report with no filter: latest 50 only
+      params.limit = 50;
+    }
+    return params;
+  };
+
+  // small helper: fetch records with any params (used by validations / exports)
+  const fetchRecords = async (params) => {
+    const res = await axios.get(`${BASE_URL}/api/production-real`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  };
+
+  const listReqId = useRef(0);
   const fetchProductionReal = async () => {
+    const myId = ++listReqId.current;
+    setPageLoading(true);
     try {
       const res = await axios.get(
         `${BASE_URL}/api/production-real`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` }, params: buildListParams() }
       );
+      if (myId !== listReqId.current) return; // a newer request replaced this one
+      const rows = Array.isArray(res.data) ? res.data : (res.data.data || []);
+      setServerTotal(Array.isArray(res.data) ? rows.length : (res.data.total || 0));
       // 🔥 Sort latest first (createdAt is an ISO string, so a plain string
       // compare gives the same order without building 2 Dates per comparison)
-      const sorted = res.data.sort((a, b) =>
+      const sorted = rows.sort((a, b) =>
         a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0
       );
 
       setProductionList(sorted);
-
-      // single pass, no intermediate flatMap array
-      const locSet = new Set();
-      for (let i = 0; i < res.data.length; i++) {
-        const locs = res.data[i].userLocations;
-        if (locs) for (let j = 0; j < locs.length; j++) if (locs[j]) locSet.add(locs[j]);
-      }
-      setLocationOptions([...locSet]);
     } catch (err) {
       console.error("Error fetching Production:", err);
     } finally {
-      setPageLoading(false);
+      if (myId === listReqId.current) setPageLoading(false);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/production-real/filter-options`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setServerOptions({
+        productTypes: res.data.productTypes || [],
+        customerNames: res.data.customerNames || [],
+        machineNames: res.data.machineNames || [],
+      });
+      setLocationOptions(res.data.locations || []);
+    } catch (err) {
+      console.error("Error fetching filter options:", err);
     }
   };
   // ================= FETCH MACHINES =================
@@ -1405,9 +1436,18 @@ const statusColumns = useMemo(() => {
     fetchMachineStatuses();
     fetchItemStages();
     fetchProductionReal();
+    fetchFilterOptions();
   }, [token]);
 
-  const exportToExcel = () => {
+  // when a filter changes -> fetch from the server (debounced); cleared filters -> back to latest 50
+  const firstFilterRun = useRef(true);
+  useEffect(() => {
+    if (firstFilterRun.current) { firstFilterRun.current = false; return; }
+    const t = setTimeout(() => fetchProductionReal(), 400);
+    return () => clearTimeout(t);
+  }, [filters, locationFilter, recordsView, page, pageSize]);
+
+  const exportToExcel = async () => {
 
     // Summary view -> download ONLY the Summary Report
     if (recordsView === "summary") {
@@ -1426,7 +1466,13 @@ const statusColumns = useMemo(() => {
       return;
     }
 
-    const excelData = filteredProductionList.map((item, index) => ({
+    // export ALL records matching the filters (not just the current page)
+    const { limit, page: _pg, withCount, ...exportParams } = buildListParams();
+    const exportRows = (await fetchRecords(exportParams)).sort((a, b) =>
+      a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0
+    );
+
+    const excelData = exportRows.map((item, index) => ({
 
       "SL NO": index + 1,
       "WO No": item.workOrder,
@@ -1811,6 +1857,8 @@ const statusColumns = useMemo(() => {
     // 🚫 Per-activity impression validation: total Production Impression entered for this
     // Work Order + Activity must not cross the Total Impression planned in Planner Dashboard.
     if (!isOffDay && form.machineStatus?.toLowerCase() === "production") {
+      // all saved records of this work order (not only the 50 on screen)
+      const woRecords = await fetchRecords({ workOrderExact: workOrderNumber });
       for (const pair of activityMachinePairs) {
         const pairActivityId = String(pair.activityId?._id || pair.activityId);
         const pairActivity = activities.find((a) => String(a._id) === pairActivityId);
@@ -1831,7 +1879,7 @@ const statusColumns = useMemo(() => {
         }
 
         // already-saved Production Impression for this WO + SAME activity
-        const existingImp = productionList.reduce((sum, item) => {
+        const existingImp = woRecords.reduce((sum, item) => {
           if (editingId && item._id === editingId) return sum;
           if (String(item.workOrder) !== String(workOrderNumber)) return sum;
           const sameActivity = item.machiness?.some(
@@ -1870,6 +1918,8 @@ const statusColumns = useMemo(() => {
 
     for (const pair of activityMachinePairs) {
 
+      const dayRecords = await fetchRecords({ machineId: pair.machineId, dateFrom: form.productionDate, dateTo: form.productionDate });
+
       // current entry start/end
       const currentStart = new Date(
         `${form.productionDate}T${form.productionFromTime}`
@@ -1891,7 +1941,7 @@ const statusColumns = useMemo(() => {
       let totalHours = currentHours;
 
       // same day same machine entries
-      const sameMachineEntries = productionList.filter((item) => {
+      const sameMachineEntries = dayRecords.filter((item) => {
 
         // skip current editing row
         if (editingId && item._id === editingId) {
@@ -2096,9 +2146,9 @@ const statusColumns = useMemo(() => {
   };
 
   // only the rows of the current page are drawn in the Detailed view
-  const totalPages = Math.max(1, Math.ceil(filteredProductionList.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(serverTotal / pageSize));
   const safePage = Math.min(page, totalPages);
-  const detailRows = filteredProductionList.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const detailRows = filteredProductionList; // the server already returned only this page
 
   const goToPage = (n) => {
     setPage(Math.min(Math.max(n, 1), totalPages));
@@ -3290,7 +3340,7 @@ const statusColumns = useMemo(() => {
         <div className="pd-section-head">
           <h5><FiFilter className="pd-ico" /> Filters</h5>
           <span className="pd-count">
-            {filteredProductionList.length.toLocaleString("en-IN")} / {productionList.length.toLocaleString("en-IN")} records
+            {serverTotal.toLocaleString("en-IN")} records
           </span>
         </div>
 
@@ -3533,7 +3583,7 @@ const statusColumns = useMemo(() => {
 
           <div className="card-header bg-primary text-white text-center" >
             <strong><FiList className="pd-ico" /> Production Records</strong>
-            <span className="pd-count ms-2">{filteredProductionList.length.toLocaleString("en-IN")} records</span>
+            <span className="pd-count ms-2">{serverTotal.toLocaleString("en-IN")} records</span>
           </div>
 
           <div className="table-responsive" ref={tableWrapRef} style={{ maxHeight: "62vh", overflowY: "auto" }}>
@@ -3804,7 +3854,7 @@ const statusColumns = useMemo(() => {
             page={safePage}
             totalPages={totalPages}
             pageSize={pageSize}
-            total={filteredProductionList.length}
+            total={serverTotal}
             onPage={goToPage}
             onPageSize={setPageSize}
           />
