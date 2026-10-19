@@ -1214,9 +1214,7 @@ const statusColumns = useMemo(() => {
             dayEntered: false,
             nightEntered: false,
             prodMins: 0,
-            idleMins: 0,
-            breakdownMins: 0,
-            maintMins: 0,
+            statusMins: {},
             dayRemarks: new Set(),
             nightRemarks: new Set()
           });
@@ -1234,7 +1232,10 @@ const statusColumns = useMemo(() => {
           reportRow.prodMins += durMins;
         } else {
           const k = normStatus(item.machineStatus);
-          if (k) reportRow.statusMins[k] = (reportRow.statusMins[k] || 0) + durMins;
+          if (k) {
+            reportRow.statusMins = reportRow.statusMins || {};
+            reportRow.statusMins[k] = (reportRow.statusMins[k] || 0) + durMins;
+          }
         }
 
         if (shift === "day") {
@@ -1271,7 +1272,7 @@ const statusColumns = useMemo(() => {
         grandTotal: row.dayQty + row.nightQty,
         totalMins:
           row.prodMins +
-          Object.values(row.statusMins).reduce((a, b) => a + b, 0)
+          Object.values(row.statusMins || {}).reduce((a, b) => a + b, 0)
       }))
     }));
   };

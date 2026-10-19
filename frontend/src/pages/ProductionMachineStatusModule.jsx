@@ -1245,7 +1245,10 @@ export default function ProductionMachineStatusModule() {
       if (isProd) row.prodMins += durMins;
       else {
         const k = normStatus(item.machineStatus);
-        if (k) row.statusMins[k] = (row.statusMins[k] || 0) + durMins;
+        if (k) {
+  row.statusMins = row.statusMins || {};
+  row.statusMins[k] = (row.statusMins[k] || 0) + durMins;
+}
       }
 
       if (shift === "day") {
@@ -1265,7 +1268,7 @@ export default function ProductionMachineStatusModule() {
         grandTotal: r.dayQty + r.nightQty,
         totalMins:
           r.prodMins +
-          Object.values(r.statusMins).reduce((a, b) => a + b, 0),
+          Object.values(r.statusMins || {}).reduce((a, b) => a + b, 0),
       }));
       const order = [...new Set(rows.map((r) => r.machineName))];
       rows.sort((a, b) => order.indexOf(a.machineName) - order.indexOf(b.machineName));
@@ -1329,7 +1332,7 @@ export default function ProductionMachineStatusModule() {
           ...sizes.map((s) => (row.nightBySize[s] !== undefined ? row.nightBySize[s] : "-")),
           (row.dayEntered || row.nightEntered) ? row.grandTotal : "-",
           formatHMS(row.prodMins),
-          ...statusColumns.map((s) => formatHMS(row.statusMins[s.key] || 0)),
+          ...statusColumns.map((s) => formatHMS((row.statusMins || {})[s.key] || 0)),
           formatHMS(row.totalMins),
         ]);
       });
@@ -2066,7 +2069,7 @@ export default function ProductionMachineStatusModule() {
                             <td className="pms-sum-time">{formatHMS(row.prodMins)}</td>
                             {statusColumns.map((s) => (
                               <td key={s.key} className="pms-sum-time">
-                                {formatHMS(row.statusMins[s.key] || 0)}
+                                {formatHMS((row.statusMins || {})[s.key] || 0)}
                               </td>
                             ))}
                             <td className="pms-sum-time" style={{ fontWeight: 800 }}>{formatHMS(row.totalMins)}</td>
