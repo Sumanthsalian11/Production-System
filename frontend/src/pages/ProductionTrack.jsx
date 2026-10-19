@@ -245,6 +245,8 @@ function ProductionRealDashboard() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [serverTotal, setServerTotal] = useState(0);
+  const [summaryRows, setSummaryRows] = useState([]);
+  const [summaryStatuses, setSummaryStatuses] = useState([]);
   const tableWrapRef = useRef(null);
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
   const [impWastePct, setImpWastePct] = useState(0);
@@ -1126,8 +1128,11 @@ const statusColumns = useMemo(() => {
     const k = normStatus(item.machineStatus);
     if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(item.machineStatus).trim());
   });
+  summaryStatuses.forEach(({ key, label }) => {
+    if (key && !isProductionStatus(key) && !seen.has(key)) seen.set(key, label);
+  });
   return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
-}, [machineStatuses, productionList]);
+}, [machineStatuses, productionList, summaryStatuses]);
 
   const buildProductionSummary = () => {
 
@@ -1167,7 +1172,47 @@ const statusColumns = useMemo(() => {
         });
     });
 
-    filteredProductionList.forEach((item) => {
+    // server-side summary rows (already grouped by activity / machine / shift / status)
+    summaryRows.forEach((s) => {
+      const activityName = s.activityName || "-";
+      const machineName = s.machineName || "-";
+      if (!groupMap.has(activityName)) groupMap.set(activityName, { activityName, rows: new Map() });
+      const group = groupMap.get(activityName);
+      const rowKey = `${activityName}__${machineName}`;
+      if (!group.rows.has(rowKey)) {
+        group.rows.set(rowKey, {
+          machineName,
+          dayQty: 0,
+          nightQty: 0,
+          dayEntered: false,
+          nightEntered: false,
+          prodMins: 0,
+          statusMins: {},
+          dayRemarks: new Set(),
+          nightRemarks: new Set()
+        });
+      }
+      const r = group.rows.get(rowKey);
+
+      if (isProductionStatus(s.status)) {
+        r.prodMins += s.mins;
+      } else if (s.status) {
+        r.statusMins[s.status] = (r.statusMins[s.status] || 0) + s.mins;
+      }
+
+      if (s.shift === "day") {
+        r.dayQty += s.imp;
+        r.dayEntered = true;
+        (s.remarks || []).forEach((x) => r.dayRemarks.add(x));
+      } else if (s.shift === "night") {
+        r.nightQty += s.imp;
+        r.nightEntered = true;
+        (s.remarks || []).forEach((x) => r.nightRemarks.add(x));
+      }
+    });
+
+    // (old per-record loop below is no longer fed any rows)
+    [].forEach((item) => {
       const pairs = item.machiness?.length
         ? item.machiness
         : [{ activityId: { activityName: "-" }, machineId: { machineName: "-" } }];
@@ -1261,7 +1306,7 @@ const statusColumns = useMemo(() => {
   // still only computed while the Summary view is on screen
   const productionSummaryReport = useMemo(
     () => (recordsView === "summary" ? buildProductionSummary() : []),
-    [recordsView, filteredProductionList, activities, machines, statusColumns]
+    [recordsView, summaryRows, activities, machines, statusColumns]
   );
 
   // ================= JWT =================
@@ -1354,7 +1399,26 @@ const statusColumns = useMemo(() => {
   };
 
   const listReqId = useRef(0);
+  const fetchSummary = async () => {
+    const myId = ++listReqId.current;
+    setPageLoading(true);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/production-real/summary`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: buildListParams(),
+      });
+      if (myId !== listReqId.current) return; // a newer request replaced this one
+      setSummaryRows(res.data.rows || []);
+      setSummaryStatuses(res.data.statuses || []);
+    } catch (err) {
+      console.error("Error fetching summary:", err);
+    } finally {
+      if (myId === listReqId.current) setPageLoading(false);
+    }
+  };
+
   const fetchProductionReal = async () => {
+    if (recordsView === "summary") return fetchSummary();
     const myId = ++listReqId.current;
     setPageLoading(true);
     try {
@@ -2148,7 +2212,7 @@ const statusColumns = useMemo(() => {
   // only the rows of the current page are drawn in the Detailed view
   const totalPages = Math.max(1, Math.ceil(serverTotal / pageSize));
   const safePage = Math.min(page, totalPages);
-  const detailRows = filteredProductionList; // the server already returned only this page
+  const detailRows = filteredProductionList.slice(0, pageSize); // never draw more than one page
 
   const goToPage = (n) => {
     setPage(Math.min(Math.max(n, 1), totalPages));
@@ -3468,14 +3532,22 @@ const statusColumns = useMemo(() => {
           <button
             type="button"
             className={`btn ${recordsView === "details" ? "btn-primary" : "btn-secondary"} ms-2`}
-            onClick={() => setRecordsView("details")}
+            onClick={() => {
+              if (recordsView === "details") return;
+              listReqId.current++;      // ignore any Summary response that is still on its way
+              setProductionList([]);    // drop the big Summary list from memory right away
+              setServerTotal(0);
+              setPage(1);
+              setPageLoading(true);     // the fetch effect turns this off when page 1 arrives
+              setRecordsView("details");
+            }}
           >
             <FiList className="pd-ico" /> Detailed Records
           </button>
         </div>
       </div>
 
-      {recordsView === "summary" && productionList.length > 0 && (
+      {recordsView === "summary" && (
         <div className="card mt-4 shadow-lg">
           <div className="card-header bg-primary text-white text-center">
             <strong><FiBarChart2 className="pd-ico" /> Production Summary Report</strong>

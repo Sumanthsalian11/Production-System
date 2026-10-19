@@ -200,6 +200,134 @@ router.get("/filter-options", authMiddleware, async (req, res) => {
   }
 });
 
+// ---- same filters as GET "/" (used by the summary) ----
+const buildProductionQuery = async (q) => {
+  const from = q.from || q.dateFrom;
+  const to = q.to || q.dateTo;
+  const query = {};
+  if (from || to) {
+    query.productionDate = {};
+    if (from) query.productionDate.$gte = new Date(`${from}T00:00:00.000Z`);
+    if (to) query.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
+  }
+  if (q.month && /^\d{4}-\d{2}$/.test(q.month)) {
+    const [y, m] = q.month.split("-").map(Number);
+    query.$and = [
+      { productionDate: { $gte: new Date(Date.UTC(y, m - 1, 1)), $lt: new Date(Date.UTC(y, m, 1)) } },
+    ];
+  }
+  if (q.workOrderExact) {
+    query.workOrder = Number(q.workOrderExact);
+  } else if (q.workOrder) {
+    (query.$and = query.$and || []).push({
+      $expr: { $regexMatch: { input: { $toString: "$workOrder" }, regex: escapeRegex(q.workOrder) } },
+    });
+  }
+  if (q.machineStatus) query.machineStatus = q.machineStatus;
+  if (q.shift) query.shift = q.shift;
+  if (q.productType) query.productType = q.productType;
+  if (q.customer) query.customerName = q.customer;
+  if (q.location) query.userLocations = q.location;
+  if (q.machine) {
+    const ids = await mongoose.model("MachineMaster").find({ machineName: q.machine }).distinct("_id");
+    query["machiness.machineId"] = { $in: ids };
+  }
+  if (q.machineId) query["machiness.machineId"] = q.machineId;
+  return query;
+};
+
+// Summary Report: grouped on the server, only the totals are sent to the browser
+router.get("/summary", authMiddleware, async (req, res) => {
+  try {
+    const q = req.query;
+    const query = await buildProductionQuery(q);
+    const limit = parseInt(q.limit, 10);
+
+    const pipeline = [{ $match: query }];
+    if (limit > 0) pipeline.push({ $sort: { createdAt: -1 } }, { $limit: Math.min(limit, 1000) });
+
+    pipeline.push(
+      {
+        $project: {
+          shift: { $toLower: { $ifNull: ["$shift", ""] } },
+          statusRaw: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } },
+          status: { $toLower: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } } },
+          imp: { $ifNull: ["$productionImpression", 0] },
+          remarks: { $trim: { input: { $ifNull: ["$remarks", ""] } } },
+          mins: {
+            $let: {
+              vars: {
+                f: { $split: [{ $ifNull: ["$productionFromTime", ""] }, ":"] },
+                t: { $split: [{ $ifNull: ["$productionToTime", ""] }, ":"] },
+              },
+              in: {
+                $cond: [
+                  { $or: [{ $lt: [{ $size: "$$f" }, 2] }, { $lt: [{ $size: "$$t" }, 2] }] },
+                  0,
+                  {
+                    $let: {
+                      vars: {
+                        d: {
+                          $subtract: [
+                            { $add: [{ $multiply: [{ $toInt: { $arrayElemAt: ["$$t", 0] } }, 60] }, { $toInt: { $arrayElemAt: ["$$t", 1] } }] },
+                            { $add: [{ $multiply: [{ $toInt: { $arrayElemAt: ["$$f", 0] } }, 60] }, { $toInt: { $arrayElemAt: ["$$f", 1] } }] },
+                          ],
+                        },
+                      },
+                      in: { $cond: [{ $lte: ["$$d", 0] }, { $add: ["$$d", 1440] }, "$$d"] },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          machiness: 1,
+        },
+      },
+      { $unwind: { path: "$machiness", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: { a: "$machiness.activityId", m: "$machiness.machineId", shift: "$shift", status: "$status" },
+          label: { $first: "$statusRaw" },
+          imp: { $sum: "$imp" },
+          mins: { $sum: "$mins" },
+          remarks: { $addToSet: "$remarks" },
+        },
+      }
+    );
+
+    const [rows, actDocs, macDocs] = await Promise.all([
+      ProductionReal.aggregate(pipeline).allowDiskUse(true),
+      mongoose.model("ActivityMaster").find({}, "activityName").lean(),
+      mongoose.model("MachineMaster").find({}, "machineName").lean(),
+    ]);
+    const actMap = new Map(actDocs.map((a) => [String(a._id), a.activityName]));
+    const macMap = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
+
+    const statuses = new Map();
+    const out = rows.map((r) => {
+      if (r._id.status && !statuses.has(r._id.status)) statuses.set(r._id.status, r.label || r._id.status);
+      return {
+        activityName: actMap.get(String(r._id.a)) || "-",
+        machineName: macMap.get(String(r._id.m)) || "-",
+        shift: r._id.shift,
+        status: r._id.status,
+        imp: r.imp,
+        mins: r.mins,
+        remarks: (r.remarks || []).filter(Boolean),
+      };
+    });
+
+    res.json({
+      rows: out,
+      statuses: [...statuses].map(([key, label]) => ({ key, label })),
+    });
+  } catch (error) {
+    console.error("Error building summary:", error);
+    res.status(500).json({ message: "Error building summary" });
+  }
+});
+
 // LIGHTWEIGHT feed for the Production Report page (only the fields it reads)
 // LIGHTWEIGHT feed for the Production Report page (same response shape as before)
 router.get("/report", authMiddleware, async (req, res) => {
