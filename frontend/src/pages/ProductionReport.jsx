@@ -114,13 +114,15 @@ const useDebounced = (value, delay = 300) => {
 
 function ProductionReport() {
   const [productionData, setProductionData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
   const token = localStorage.getItem("token");
   const [machines, setMachines] = useState([]);
   const [machineStatuses, setMachineStatuses] = useState([]);
   const [searchWO, setSearchWO] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
-  const [fromDate, setFromDate] = useState("");
+  const [fromDate, setFromDate] = useState(monthStart()); // first load = current month only
   const [toDate, setToDate] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [locationOptions, setLocationOptions] = useState([]);
@@ -135,10 +137,25 @@ function ProductionReport() {
 
   const fetchProduction = async (from = fromDate, to = toDate) => {
     const id = ++reqId.current; // ignore stale responses
+    setLoading(true);
+    setProgress(0);
+
+    // smooth progress (eases toward 90%) in case the server sends no total size
+    const timer = setInterval(() => {
+      setProgress((p) => (p < 90 ? p + (90 - p) * 0.06 : p));
+    }, 200);
+
     try {
       const res = await axios.get(`${BASE_URL}/api/production-real/report`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { from: from || undefined, to: to || undefined }
+        params: { from: from || undefined, to: to || undefined },
+        // real progress when the browser knows the total size
+        onDownloadProgress: (e) => {
+          if (e.total && id === reqId.current) {
+            const real = Math.min(90, (e.loaded / e.total) * 90);
+            setProgress((p) => Math.max(p, real));
+          }
+        }
       });
       if (id !== reqId.current) return;
 
@@ -158,8 +175,14 @@ function ProductionReport() {
 
       setProductionData(slim);
       setLocationOptions([...locs]);
+      setProgress(100);
+      // let the bar show 100% for a moment before the overlay closes
+      await new Promise((r) => setTimeout(r, 400));
     } catch (err) {
       console.log(err);
+    } finally {
+      clearInterval(timer);
+      if (id === reqId.current) setLoading(false);
     }
   };
 
@@ -179,7 +202,7 @@ function ProductionReport() {
     setSearchWO("");
     setCustomerFilter("");
     setMachineFilter("");
-    setFromDate("");
+    setFromDate(monthStart());
     setToDate("");
     setLocationFilter("");
   };
@@ -1963,6 +1986,29 @@ function ProductionReport() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="pr-loader-overlay">
+          <style>{`
+            .pr-loader-overlay{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.75);backdrop-filter:blur(2px)}
+            .pr-loader-box{width:min(90vw,380px);display:flex;flex-direction:column;gap:12px;padding:26px 30px;border-radius:12px;background:#fff;border:1px solid rgba(20,111,156,.35);box-shadow:0 16px 36px rgba(14,86,122,.25)}
+            .pr-loader-top{display:flex;justify-content:space-between;align-items:center}
+            .pr-loader-text{font-size:13px;font-weight:700;color:#06324d}
+            .pr-loader-pct{font-size:18px;font-weight:900;color:#0877ad;font-variant-numeric:tabular-nums}
+            .pr-bar{height:12px;border-radius:999px;background:#d9f2fc;overflow:hidden}
+            .pr-bar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0877ad,#16a4dc);transition:width .25s ease}
+          `}</style>
+          <div className="pr-loader-box">
+            <div className="pr-loader-top">
+              <span className="pr-loader-text">Loading production report…</span>
+              <span className="pr-loader-pct">{Math.round(progress)}%</span>
+            </div>
+            <div className="pr-bar">
+              <div className="pr-bar-fill" style={{ width: `${progress}%` }} />
+            </div>
           </div>
         </div>
       )}

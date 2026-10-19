@@ -5,7 +5,11 @@ const User = require("../models/User");
 const WorkOrder = require("../models/WorkOrder"); // add this import at top
 const authMiddleware = require("../middleware/authMiddleware");
 const mongoose = require("mongoose");
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// ---- cache for the /report feed (cleared on every write) ----
+const REPORT_TTL_MS = 60 * 1000;
+const REPORT_MAX_KEYS = 8;
+const reportCache = new Map();
+const clearReportCache = () => reportCache.clear();
 
 
 router.post("/", authMiddleware, async (req, res) => {
@@ -26,6 +30,7 @@ router.post("/", authMiddleware, async (req, res) => {
     });
 
     await newEntry.save();
+    clearReportCache();
     res.status(201).json({ message: "Production saved successfully" });
   } catch (error) {
     console.error("Error saving Production:", error);
@@ -196,9 +201,16 @@ router.get("/filter-options", authMiddleware, async (req, res) => {
 });
 
 // LIGHTWEIGHT feed for the Production Report page (only the fields it reads)
+// LIGHTWEIGHT feed for the Production Report page (same response shape as before)
 router.get("/report", authMiddleware, async (req, res) => {
   try {
     const { from, to } = req.query;
+    const key = `${from || ""}|${to || ""}`;
+
+    const hit = reportCache.get(key);
+    if (hit && Date.now() - hit.t < REPORT_TTL_MS) {
+      return res.type("application/json").send(hit.body);
+    }
 
     const query = {};
     if (from || to) {
@@ -207,14 +219,39 @@ router.get("/report", authMiddleware, async (req, res) => {
       if (to) query.productionDate.$lte = new Date(`${to}T23:59:59.999Z`);
     }
 
-    const data = await ProductionReal.find(query)
-      .select(
-        "workOrder customerName orderQty productionDate productionFromTime productionToTime productionQty wastageQty wastePercent machineStatus userLocations createdAt productType machiness.machineId machiness.activityId"
-      )
-      .populate("machiness.machineId", "machineName")
-      .lean();
+    const [data, macDocs] = await Promise.all([
+      ProductionReal.find(query)
+        .select({
+          _id: 0,
+          workOrder: 1, customerName: 1, orderQty: 1,
+          productionDate: 1, productionFromTime: 1, productionToTime: 1,
+          productionQty: 1, wastageQty: 1, wastePercent: 1,
+          machineStatus: 1, userLocations: 1, createdAt: 1, productType: 1,
+          "machiness.machineId": 1, "machiness.activityId": 1,
+        })
+        .lean(),
+      mongoose.model("MachineMaster").find({}, "machineName").lean(),
+    ]);
 
-    res.json(data);
+    const macMap = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
+
+    for (let i = 0; i < data.length; i++) {
+      const pairs = data[i].machiness;
+      if (!pairs) continue;
+      for (let j = 0; j < pairs.length; j++) {
+        const name = macMap.get(String(pairs[j].machineId));
+        pairs[j].machineId = name !== undefined ? { machineName: name } : pairs[j].machineId;
+      }
+    }
+
+    const body = JSON.stringify(data);
+
+    if (reportCache.size >= REPORT_MAX_KEYS) {
+      reportCache.delete(reportCache.keys().next().value);
+    }
+    reportCache.set(key, { t: Date.now(), body });
+
+    res.type("application/json").send(body);
   } catch (error) {
     console.error("Error fetching production report:", error);
     res.status(500).json({ message: "Error fetching data" });
@@ -238,6 +275,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
     );
 
     if (!updated) return res.status(404).json({ message: "Record not found" });
+    clearReportCache();
 
     res.json({ message: "Production updated successfully", updated });
   } catch (error) {
@@ -252,6 +290,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     const deleted = await ProductionReal.findByIdAndDelete(req.params.id);
 
     if (!deleted) return res.status(404).json({ message: "Record not found" });
+    clearReportCache();
 
     res.json({ message: "Production deleted successfully" });
   } catch (error) {
