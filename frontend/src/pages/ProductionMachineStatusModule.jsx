@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import * as XLSX from "xlsx";
@@ -704,9 +704,12 @@ export default function ProductionMachineStatusModule() {
 
   /* Extra time slots (idle / breakdown alongside a production entry) */
   const [extraSlots, setExtraSlots] = useState([]);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [summaryData, setSummaryData] = useState({ rows: [], statuses: [], total: 0 });
+  const [filterOpts, setFilterOpts] = useState({ locations: [], printers: [], machines: [] });
 
   const [filters, setFilters] = useState({
-    dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "", printer: "",
+    workOrder: "", dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", printer: "",
   });
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -790,16 +793,62 @@ export default function ProductionMachineStatusModule() {
     ]);
   };
 
+  const buildParams = () => {
+    const f = filters;
+    const p = {};
+    if (f.workOrder) p.workOrder = f.workOrder;
+    if (f.dateFrom) p.dateFrom = f.dateFrom;
+    if (f.dateTo) p.dateTo = f.dateTo;
+    if (f.month) p.month = f.month;
+    if (f.shift) p.shift = f.shift;
+    if (f.machine) p.machine = f.machine;
+    if (f.machineStatus) p.machineStatus = f.machineStatus;
+    if (f.printer) p.printer = f.printer;
+    if (locationFilter) p.location = locationFilter;
+    return p;
+  };
+
+  const listReq = useRef(0);
   const fetchRecords = async () => {
-    const res = await axios.get(`${BASE_URL}/api/production-machine-status`, authHeaders);
-    setRecords((res.data || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    const id = ++listReq.current;
+    const params = buildParams();
+    if (recordsView === "summary") {
+      const res = await axios.get(`${BASE_URL}/api/production-machine-status/summary`, { ...authHeaders, params });
+      if (id !== listReq.current) return;
+      setSummaryData(res.data || { rows: [], statuses: [], total: 0 });
+      setServerTotal(res.data?.total || 0);
+    } else {
+      const res = await axios.get(`${BASE_URL}/api/production-machine-status`, {
+        ...authHeaders,
+        params: { ...params, limit: pageSize, page, withCount: 1 },
+      });
+      if (id !== listReq.current) return;
+      setRecords(res.data?.data || []);
+      setServerTotal(res.data?.total || 0);
+    }
+  };
+
+  const fetchFilterOpts = async () => {
+    const res = await axios.get(`${BASE_URL}/api/production-machine-status/filter-options`, authHeaders);
+    setFilterOpts({
+      locations: res.data.locations || [],
+      printers: res.data.printers || [],
+      machines: res.data.machines || [],
+    });
   };
 
   useEffect(() => {
     if (!token) return;
     fetchAll().catch(console.error);
-    fetchRecords().catch(console.error);
+    fetchFilterOpts().catch(console.error);
   }, [token]);
+
+  // any filter / view / page change -> fetch from the server (debounced)
+  useEffect(() => {
+    if (!token) return;
+    const t = setTimeout(() => fetchRecords().catch(console.error), 300);
+    return () => clearTimeout(t);
+  }, [token, filters, locationFilter, recordsView, page, pageSize]);
 
   /* ── Derived lists ── */
   const filteredMachines = useMemo(() => {
@@ -950,7 +999,15 @@ export default function ProductionMachineStatusModule() {
       totalHours += getEntryHours(form.productionDate, slot.fromTime, slot.toTime);
     });
 
-    const sameMachineEntries = records.filter((item) => {
+    const dayRecords =
+      (
+        await axios.get(`${BASE_URL}/api/production-machine-status`, {
+          ...authHeaders,
+          params: { machineId: form.machineId, dateFrom: form.productionDate, dateTo: form.productionDate },
+        })
+      ).data || [];
+
+    const sameMachineEntries = dayRecords.filter((item) => {
       if (editingId && item._id === editingId) return false;
       const sameMachine =
         String(item.machineId?._id || item.machineId) === String(form.machineId);
@@ -1133,34 +1190,13 @@ export default function ProductionMachineStatusModule() {
     setLocationFilter("");
   };
 
-  const filteredRecords = useMemo(() => {
-    return records.filter((item) => {
-      const pd = item.productionDate ? new Date(item.productionDate) : null;
-      const itemMonth = pd
-        ? `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, "0")}`
-        : "";
-      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
-      const toDate   = filters.dateTo   ? new Date(filters.dateTo)   : null;
+  const filteredRecords = records; // the server already filtered and paged these
+  const locationOptions = filterOpts.locations;
+  const printerOptions  = filterOpts.printers;
 
-      if (filters.workOrder && !item.woNumber?.toLowerCase().includes(filters.workOrder.toLowerCase())) return false;
-      if (filters.shift && item.shift !== filters.shift) return false;
-      if (filters.machine && item.machineId?.machineName !== filters.machine) return false;
-      if (filters.machineStatus && item.machineStatus !== filters.machineStatus) return false;
-      if (filters.printer && item.printerName !== filters.printer) return false;
-      if (filters.month && itemMonth !== filters.month) return false;
-      if (fromDate && pd && pd < fromDate) return false;
-      if (toDate   && pd && pd > new Date(toDate.setHours(23, 59, 59, 999))) return false;
-      if (locationFilter && item.userLocations && !item.userLocations.includes(locationFilter)) return false;
-      return true;
-    });
-  }, [records, filters, locationFilter]);
-
-  const locationOptions = [...new Set(records.flatMap((r) => r.userLocations || []))];
-  const printerOptions  = [...new Set(records.map((r) => r.printerName).filter(Boolean))];
-
-  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(serverTotal / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pageRows = filteredRecords.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageRows = records;
   const goToPage = (n) => setPage(Math.min(Math.max(n, 1), totalPages));
 
   /* ── Production Summary Report ── */
@@ -1190,12 +1226,12 @@ export default function ProductionMachineStatusModule() {
       const k = normStatus(s.statusName);
       if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, s.statusName.trim());
     });
-    records.forEach((item) => {
-      const k = normStatus(item.machineStatus);
-      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(item.machineStatus).trim());
+    (summaryData.statuses || []).forEach((s) => {
+      const k = normStatus(s.key);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(s.label).trim());
     });
     return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
-  }, [machineStatuses, records]);
+  }, [machineStatuses, summaryData]);
 
   const buildSummary = () => {
     const groupMap = new Map();
@@ -1227,7 +1263,7 @@ export default function ProductionMachineStatusModule() {
         });
     });
 
-    filteredRecords.forEach((item) => {
+    summaryData.rows.forEach((item) => {
       const row = ensureRow(
         item.activityId?.activityName || item.activityName || "-",
         item.machineId?.machineName || item.machineName || "-",
@@ -1237,11 +1273,11 @@ export default function ProductionMachineStatusModule() {
       const statusKey = String(item.machineStatus || "").toLowerCase();
       const isProd = statusKey === "production" || statusKey === "working";
       const shift = String(item.shift || "").toLowerCase();
-      const remarks = item.remarks?.trim();
+      const remarkList = (item.remarks || []).map((x) => String(x).trim()).filter(Boolean);
       const sizeKey = item.paperSize?.trim() || "Not Set";
       const qty = isProd ? Number(item.totalPages) || 0 : 0;
 
-      const durMins = getDurationMins(item.fromTime, item.toTime);
+      const durMins = item.mins || 0;
       if (isProd) row.prodMins += durMins;
       else {
         const k = normStatus(item.machineStatus);
@@ -1253,10 +1289,10 @@ export default function ProductionMachineStatusModule() {
 
       if (shift === "day") {
         if (isProd) { row.dayQty += qty; row.dayEntered = true; row.dayBySize[sizeKey] = (row.dayBySize[sizeKey] || 0) + qty; }
-        if (remarks) row.dayRemarks.add(remarks);
+        remarkList.forEach((x) => row.dayRemarks.add(x));
       } else if (shift === "night") {
         if (isProd) { row.nightQty += qty; row.nightEntered = true; row.nightBySize[sizeKey] = (row.nightBySize[sizeKey] || 0) + qty; }
-        if (remarks) row.nightRemarks.add(remarks);
+        remarkList.forEach((x) => row.nightRemarks.add(x));
       }
     });
 
@@ -1278,7 +1314,7 @@ export default function ProductionMachineStatusModule() {
 
   const summaryRows = useMemo(
     () => (recordsView === "summary" ? buildSummary() : []),
-    [recordsView, filteredRecords, activities, machines, printers, persoActivity, statusColumns]
+    [recordsView, summaryData, activities, machines, printers, persoActivity, statusColumns]
   );
 
   const summarySizes = useMemo(
@@ -1379,10 +1415,14 @@ export default function ProductionMachineStatusModule() {
   };
 
   /* ── LAST USED: ACTIVITY > MACHINE > PRINTER ── */
-  const buildLastUsedGroups = () => {
-    const sourceList = locationFilter
-      ? records.filter((r) => r.userLocations?.includes(locationFilter))
-      : records;
+  const buildLastUsedGroups = async () => {
+    const sourceList =
+      (
+        await axios.get(`${BASE_URL}/api/production-machine-status/last-used`, {
+          ...authHeaders,
+          params: locationFilter ? { location: locationFilter } : {},
+        })
+      ).data || [];
 
     if (!sourceList.length) return null;
 
@@ -1461,8 +1501,8 @@ export default function ProductionMachineStatusModule() {
     info?.locations?.join(", ") || "-",
   ];
 
-  const exportLastUsedPdf = () => {
-    const groups = buildLastUsedGroups();
+  const exportLastUsedPdf = async () => {
+    const groups = await buildLastUsedGroups();
     if (!groups) {
       showAlert(`No production records found${locationFilter ? ` for ${locationFilter}` : ""}`, "warning");
       return;
@@ -1541,8 +1581,8 @@ export default function ProductionMachineStatusModule() {
     );
   };
 
-  const exportLastUsedExcel = () => {
-    const groups = buildLastUsedGroups();
+  const exportLastUsedExcel = async () => {
+    const groups = await buildLastUsedGroups();
     if (!groups) {
       showAlert(`No production records found${locationFilter ? ` for ${locationFilter}` : ""}`, "warning");
       return;
@@ -1632,7 +1672,7 @@ export default function ProductionMachineStatusModule() {
   };
 
   /* ── Excel export ── */
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (recordsView === "summary") {
       const sheet = buildSummarySheet();
       if (!sheet) { showAlert("No summary data to export", "warning"); return; }
@@ -1641,33 +1681,38 @@ export default function ProductionMachineStatusModule() {
       XLSX.writeFile(book, `Production_Summary_${new Date().toISOString().split("T")[0]}.xlsx`);
       return;
     }
-    if (!filteredRecords.length) { showAlert("No data available for export", "warning"); return; }
-    const excelData = filteredRecords.map((item, index) => ({
-      "Sl No": index + 1,
-      Date: fmtDate(item.productionDate),
-      "WO Number": item.woNumber || "",
-      Shift: item.shift || "",
-      "Printer": item.printerName || "",
-      Activity: item.activityId?.activityName || item.activityName || "",
-      Machine:  item.machineId?.machineName   || item.machineName  || "",
-      Status: item.machineStatus || "",
-      Customer: item.customerName || "",
-      Item: item.materialType || "",
-      "From Time": fmtTime(item.fromTime),
-      "To Time":   fmtTime(item.toTime),
-      "Total Time": getTotalTime(item.fromTime, item.toTime),
-      "Total Pages":    item.totalPages    || "",
-      "Wastage Sheets": item.wastageSheets || "",
-      "Waste %": item.wastePercentage || "",
-      Reason:    item.reason    || "",
-      "Paper Size":  item.paperSize   || "",
-      User:  item.enteredBy || "",
-      Remarks:   item.remarks   || "",
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
-    const workbook  = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Production Records");
-    XLSX.writeFile(workbook, `Production_Records_${new Date().toISOString().split("T")[0]}.xlsx`);
+
+    try {
+      Swal.fire({
+        title: "Preparing Excel...",
+        text: "Large exports can take a minute.",
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await axios.get(`${BASE_URL}/api/production-machine-status/export`, {
+        ...authHeaders,
+        params: buildParams(),
+        responseType: "blob",
+        timeout: 0,
+      });
+
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Production_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      Swal.close();
+      showAlert("Excel downloaded", "success");
+    } catch (err) {
+      console.error("Export error:", err);
+      Swal.close();
+      showAlert("Export failed", "error");
+    }
   };
 
   /* ════════════════════════════════ RENDER ════════════════════════════════ */
@@ -1948,8 +1993,7 @@ export default function ProductionMachineStatusModule() {
               <label className="form-label"><PIcon name="Machine" />Machine</label>
               <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select">
                 <option value="">All Machines</option>
-                {[...new Set(records.map((r) => r.machineId?.machineName || r.machineName))].filter(Boolean)
-                  .map((machine, i) => <option key={i} value={machine}>{machine}</option>)}
+                {filterOpts.machines.map((machine, i) => <option key={i} value={machine}>{machine}</option>)}
               </select>
             </div>
             <div className="col-md-2">
@@ -2009,7 +2053,7 @@ export default function ProductionMachineStatusModule() {
                 <div className="pms-card-title"><FiBarChart2 className="pms-ico" /> Perso Production Summary Report</div>
                 <div className="pms-card-note">{getReportDateLabel()}{locationFilter ? ` · ${locationFilter}` : ""}</div>
               </div>
-              <span className="pms-count">Total: {filteredRecords.length}</span>
+              <span className="pms-count">Total: {serverTotal}</span>
             </div>
 
             <div className="pms-table-wrap">
@@ -2092,7 +2136,7 @@ export default function ProductionMachineStatusModule() {
               <div className="pms-card-title" style={{ justifyContent: "center", textAlign: "center" }}><FiList className="pms-ico" /> Machine Status Records</div>
               <div className="pms-card-note">Latest entries first</div>
             </div>
-            <span className="pms-count">Total: {filteredRecords.length}</span>
+            <span className="pms-count">Total: {serverTotal}</span>
           </div>
 
           <div className="pms-table-wrap">
@@ -2159,7 +2203,7 @@ export default function ProductionMachineStatusModule() {
               page={safePage}
               totalPages={totalPages}
               pageSize={pageSize}
-              total={filteredRecords.length}
+              total={serverTotal}
               onPage={goToPage}
               onPageSize={setPageSize}
             />

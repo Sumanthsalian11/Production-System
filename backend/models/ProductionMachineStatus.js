@@ -93,6 +93,10 @@ printerName: { type: String, default: "" },
   }
 );
 
+ProductionMachineStatusSchema.index({ createdAt: -1, _id: -1 });
+ProductionMachineStatusSchema.index({ productionDate: -1, createdAt: -1 });
+ProductionMachineStatusSchema.index({ machineId: 1, productionDate: 1 });
+
 module.exports = mongoose.model(
   "ProductionMachineStatus",
   ProductionMachineStatusSchema
