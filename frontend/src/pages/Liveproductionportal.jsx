@@ -138,7 +138,7 @@ const lastWeekRange = () => {
   return { from: dateOnly(start), to: dateOnly(end) };
 };
 
-function buildDashboardData(realRows, reelRows, masterStatuses = []) {
+function buildDashboardData(realRows, reelRows, masterStatuses = [], itemStages = []) {
   const safeReal = Array.isArray(realRows) ? realRows : [];
   const safeReel = Array.isArray(reelRows) ? reelRows : [];
 
@@ -174,18 +174,63 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
   const isProductionEntry = (item) =>
     String(item.machineStatus || "").toUpperCase().replace(/[^A-Z]/g, "").startsWith("PRODUC");
 
-  // The most recently entered PRODUCTION record of each Work Order.
-  // Only this entry's production / waste quantity is counted for the work
-  // order (WO totals, KPI banner, completion %, customer totals) — the
-  // older entries of the same work order are not summed in.
-  const latestByWO = new Map();
+  // ---- Job Performance logic: final-stage production per work order ----
+  const stageRankByType = new Map();
+  (Array.isArray(itemStages) ? itemStages : []).forEach((rec) => {
+    const key = String(rec.itemName || "").trim().toUpperCase();
+    if (!key || !rec.stages?.length) return;
+    const rank = new Map();
+    [...rec.stages].sort((a, b) => a.order - b.order).forEach((s, idx) => {
+      const id = String(s.activityId?._id || s.activityId || "");
+      if (id) rank.set(id, idx);
+    });
+    stageRankByType.set(key, rank);
+  });
+
+  const woAgg = new Map();
   safeReal.forEach((item) => {
     const wo = String(item.workOrder ?? "").trim();
     if (!wo || !isProductionEntry(item)) return;
-    const created = new Date(item.createdAt || 0).getTime();
-    const existing = latestByWO.get(wo);
-    if (!existing || created >= new Date(existing.createdAt || 0).getTime()) {
-      latestByWO.set(wo, item);
+    let e = woAgg.get(wo);
+    if (!e) {
+      e = { productType: item.productType || "", latestTime: -Infinity, latestProd: 0, latestWaste: 0, byActivity: {} };
+      woAgg.set(wo, e);
+    }
+    const t = new Date(item.createdAt || 0).getTime();
+    const p = toNum(item.productionQty);
+    const w = toNum(item.wastageQty);
+    if (t >= e.latestTime) {
+      e.latestTime = t; e.latestProd = p; e.latestWaste = w;
+      if (item.productType) e.productType = item.productType;
+    }
+    (item.machiness || []).forEach((pair) => {
+      const act = String(pair.activityId?._id || pair.activityId || "");
+      if (!act) return;
+      const machine = pair.machineId?.machineName || "Unassigned";
+      const byM = e.byActivity[act] || (e.byActivity[act] = {});
+      const m = byM[machine] || (byM[machine] = { prod: 0, waste: 0 });
+      m.prod += p; m.waste += w;
+    });
+  });
+
+  // work order -> { prod, waste } from the LAST stage; else its latest entry
+  const finalByWO = new Map();
+  woAgg.forEach((e, wo) => {
+    const rank = stageRankByType.get(String(e.productType || "").trim().toUpperCase());
+    let lastAct = null;
+    if (rank) {
+      let best = -1;
+      Object.keys(e.byActivity).forEach((a) => {
+        const r = rank.get(a);
+        if (r !== undefined && r > best) { best = r; lastAct = a; }
+      });
+    }
+    if (lastAct) {
+      let prod = 0, waste = 0;
+      Object.values(e.byActivity[lastAct]).forEach((m) => { prod += m.prod; waste += m.waste; });
+      finalByWO.set(wo, { prod, waste });
+    } else {
+      finalByWO.set(wo, { prod: e.latestProd, waste: e.latestWaste });
     }
   });
 
@@ -210,10 +255,9 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
       leg.lastTs = entryTs;
       leg.lastCreated = createdTs;
     }
-    if (isProd && createdTs >= leg.qtyTs) {
-      leg.qtyTs = createdTs;
-      leg.prodQty = prodQty;
-      leg.wasteQty = wasteQty;
+    if (isProd) {
+      leg.prodQty += prodQty;
+      leg.wasteQty += wasteQty;
     }
     leg.status = status || leg.status;
     if (dStr) {
@@ -234,7 +278,7 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
     const orderQty = toNum(item.liveOrderQty ?? item.orderQty);
     const isProd = isProductionEntry(item);
     const createdTs = new Date(item.createdAt || 0).getTime();
-    const isLatestProd = latestByWO.get(wo) === item;
+
     // when this entry happened (production date + start time); falls back to saved time
     const entryTs = (() => {
       if (!dStr) return createdTs;
@@ -249,8 +293,8 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
         job: item.jobDescription || "-",
         type: item.productType || "-",
         orderQty,
-        totalProdQty: 0,
-        totalWasteQty: 0,
+        totalProdQty: (finalByWO.get(wo) || { prod: 0 }).prod,
+        totalWasteQty: (finalByWO.get(wo) || { waste: 0 }).waste,
         stages: new Set(),
         machines: new Set(),
         events: 0,
@@ -264,11 +308,7 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
     (Array.isArray(item.userLocations) ? item.userLocations : []).forEach((l) => { if (l) woEntry.userLocations.add(l); });
     const entryUser = userOf(item);
     if (entryUser) woEntry.users.add(entryUser);
-    // work-order production / waste = its latest production entry only
-    if (isLatestProd) {
-      woEntry.totalProdQty += prodQty;
-      woEntry.totalWasteQty += wasteQty;
-    }
+
     woEntry.events += 1;
     if (orderQty > 0) woEntry.orderQty = orderQty;
     if (dStr) {
@@ -281,14 +321,13 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
       custMap.set(custKey, { Customer: custKey, prodQty: 0, wasteQty: 0, woSet: new Set() });
     }
     const custEntry = custMap.get(custKey);
-    custEntry.woSet.add(wo);
-    // Only the latest production entry for this WO contributes to the
-    // customer's prodQty/wasteQty totals — earlier entries for the same WO
-    // are still tracked in woSet (so WO counts stay correct) but not summed in.
-    if (isLatestProd) {
-      custEntry.prodQty += prodQty;
-      custEntry.wasteQty += wasteQty;
+    // each work order's final-stage figure is added once per customer
+    if (!custEntry.woSet.has(wo)) {
+      const f = finalByWO.get(wo) || { prod: 0, waste: 0 };
+      custEntry.prodQty += f.prod;
+      custEntry.wasteQty += f.waste;
     }
+    custEntry.woSet.add(wo);
 
     if (dStr) {
       const mk = trendByDay ? dStr : monthKey(dStr);
@@ -336,10 +375,10 @@ function buildDashboardData(realRows, reelRows, masterStatuses = []) {
       stageMap.get(activityName).prodQty += prodQty * legShare;
 
       // Stage Tracker tab: every leg, whatever the status
-      touchLeg(stageTrackerRaw, wo, activityName, machineName, dStr, status, legHours, 1, isProd, createdTs, prodQty * legShare, wasteQty * legShare, entryTs);
+      touchLeg(stageTrackerRaw, wo, activityName, machineName, dStr, status, legHours, 1, isProd, createdTs, prodQty, wasteQty, entryTs);
       // Open details drawer: production legs only
       if (isProd) {
-        touchLeg(stageTrackerProdRaw, wo, activityName, machineName, dStr, status, legHours, 1, true, createdTs, prodQty * legShare, wasteQty * legShare, entryTs);
+        touchLeg(stageTrackerProdRaw, wo, activityName, machineName, dStr, status, legHours, 1, true, createdTs, prodQty, wasteQty, entryTs);
       }
     });
   });
@@ -2063,6 +2102,28 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
   const events = [...(data.stageTrackerProd[wo] || [])]
     .map((e, idx) => ({ ...e, idx }))
     .sort((a, b) => (b.lastTs - a.lastTs) || (b.lastCreated - a.lastCreated) || (b.idx - a.idx));
+  // one card per activity: machines merged, qty / hours / events summed
+  const routingEvents = (() => {
+    const m = new Map();
+    events.forEach((e) => {
+      if (!m.has(e.stage)) {
+        m.set(e.stage, { ...e, machineSet: new Set(), prodQty: 0, wasteQty: 0, hours: 0, events: 0 });
+      }
+      const g = m.get(e.stage);
+      g.machineSet.add(e.machine);
+      g.prodQty += e.prodQty;
+      g.wasteQty += e.wasteQty;
+      g.hours += e.hours;
+      g.events += e.events;
+      if (e.from && (!g.from || e.from < g.from)) g.from = e.from;
+      if (e.to && (!g.to || e.to > g.to)) g.to = e.to;
+    });
+    return Array.from(m.values()).map((g) => ({
+      ...g,
+      machine: Array.from(g.machineSet).join(", "),
+      hours: Number(g.hours.toFixed(1)),
+    }));
+  })();
   const reelRows = data.reel.records.filter((r) => r.wo === wo);
   const woSummaryRows = data.reel.wos.filter((w) => normWO(w.WO) === normWO(wo));
   const woSummaryTotal = woSummaryRows.reduce(
@@ -2070,6 +2131,42 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
     { weight: 0, waste: 0 }
   );
   const woPct = (waste, weight) => (weight > 0 ? ((waste / weight) * 100).toFixed(2) : "0.00");
+
+  // Waste % grid: same activity on different machines -> ONE row (qty summed, waste % recalculated)
+  const gridRows = (() => {
+    const m = new Map();
+    [...events]
+      .sort((a, b) => String(a.from || "").localeCompare(String(b.from || "")))
+      .forEach((e) => {
+        if (!m.has(e.stage)) m.set(e.stage, { stage: e.stage, machines: new Set(), prodQty: 0, wasteQty: 0 });
+        const g = m.get(e.stage);
+        g.machines.add(e.machine);
+        g.prodQty += e.prodQty;
+        g.wasteQty += e.wasteQty;
+      });
+    const rows = Array.from(m.values()).map((g) => ({
+      stage: g.stage,
+      machines: Array.from(g.machines).join(", "),
+      prodQty: g.prodQty,
+      wasteQty: g.wasteQty,
+      wastePct: pct(g.wasteQty, g.prodQty),
+    }));
+    return rows;
+  })();
+
+  // reel waste % from the Work Order Summary: added to the sum, NOT counted as a stage
+  const reelRow = woSummaryRows.length > 0
+    ? {
+        stage: "Reel (Work Order Summary)",
+        machines: "—",
+        prodQty: woSummaryTotal.weight,
+        wasteQty: woSummaryTotal.waste,
+        wastePct: pct(woSummaryTotal.waste, woSummaryTotal.weight),
+      }
+    : null;
+  const stageCount = gridRows.length;
+  const wasteSum = gridRows.reduce((s, r) => s + r.wastePct, 0) + (reelRow ? reelRow.wastePct : 0);
+  const avgWastePct = stageCount ? wasteSum / stageCount : 0;
 
   return (
     <div className="drawer-overlay no-print" onClick={onClose}>
@@ -2088,7 +2185,7 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
 
         <div className="drawer-body">
           {ledgerRow && (
-            <div className="mini-stat-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+            <div className="mini-stat-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
               <div className="mini-stat-box">
                 <p className="lbl">Order Qty</p>
                 <p className="val">{fmtFull(ledgerRow.orderQty)}</p>
@@ -2098,6 +2195,12 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
                 <p className="val">{fmtFull(ledgerRow.finalOutputQty)}</p>
               </div>
               <div className="mini-stat-box">
+                <p className="lbl">Avg Waste %</p>
+                <p className="val" style={{ color: wasteColor(avgWastePct, 3, 5) }}>
+                  {stageCount > 0 ? fmtPct(avgWastePct) : "—"}
+                </p>
+              </div>
+              <div className="mini-stat-box">
                 <p className="lbl">Completion</p>
                 <p className="val">{ledgerRow.completionPct}% <StatusPill status={ledgerRow.status} /></p>
               </div>
@@ -2105,10 +2208,10 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
           )}
 
           <h3 style={{ fontSize: 14, fontWeight: 800, margin: "4px 0 14px 0", display: "flex", alignItems: "center", gap: 8, color: COLORS.ink }}>
-            <Route size={15} color={COLORS.indigo} /> Stage Routing ({events.length} stage/machine legs)
+            <Route size={15} color={COLORS.indigo} /> Stage Routing ({routingEvents.length} stages)
           </h3>
           <div className="timeline-3d">
-            {events.map((e, i) => (
+            {routingEvents.map((e, i) => (
               <div key={i} className="timeline-item-3d">
                 <div className="timeline-dot-3d" style={{ color: statusDot(e.status), background: "#fff" }} />
                 <div className="timeline-card-3d">
@@ -2125,7 +2228,7 @@ function StageDrawer({ wo, data, onClose, onTrack }) {
                 </div>
               </div>
             ))}
-            {events.length === 0 && <p style={{ fontSize: 12, color: COLORS.slate }}>No stage-level events logged for this work order.</p>}
+            {routingEvents.length === 0 && <p style={{ fontSize: 12, color: COLORS.slate }}>No stage-level events logged for this work order.</p>}
           </div>
 
           {woSummaryRows.length > 0 && (
@@ -2711,7 +2814,7 @@ function buildDrill(spec, data, realRows, reelRows) {
 
   if (kind === "customer") {
     title = `Customer — ${value || "(no customer)"}`;
-    note = "Every entry is listed. The chart counts only the latest production entry of each work order.";
+    note = "Every entry is listed. The chart counts each work order's final-stage production.";
     picked = entries.filter((e) => e.customerKey === value).map((e) => ({ ...e, cHours: 0 }));
   } else if (kind === "machine") {
     const sk = spec.statusKey || null;
@@ -4307,6 +4410,7 @@ export default function LiveProductionPortal() {
   const [reelRows, setReelRows] = useState([]);
   const [customerOrders, setCustomerOrders] = useState([]);
   const [masterStatuses, setMasterStatuses] = useState([]);
+  const [itemStages, setItemStages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [lastSyncTime, setLastSyncTime] = useState(new Date());
@@ -4320,16 +4424,18 @@ export default function LiveProductionPortal() {
       const range = {};
       if (dateFrom) range.from = dateFrom;
       if (dateTo) range.to = dateTo;
-      const [realRes, reelRes, ordersRes, statusRes] = await Promise.all([
+      const [realRes, reelRes, ordersRes, statusRes, stagesRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/production-real`, { headers, params: range }),
         axios.get(`${BASE_URL}/api/production`, { headers }),
         axios.get(`${BASE_URL}/api/customer-orders`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE_URL}/api/master/machine-status`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/api/master/item-stages`, { headers }).catch(() => ({ data: [] })),
       ]);
       setRealRows(Array.isArray(realRes.data) ? realRes.data : []);
       setReelRows(Array.isArray(reelRes.data) ? reelRes.data : []);
       setCustomerOrders(Array.isArray(ordersRes.data) ? ordersRes.data : []);
       setMasterStatuses(Array.isArray(statusRes.data) ? statusRes.data : []);
+      setItemStages(Array.isArray(stagesRes.data) ? stagesRes.data : []);
       setLastSyncTime(new Date());
     } catch (err) {
       console.error("Error loading portal data:", err);
@@ -4553,7 +4659,7 @@ export default function LiveProductionPortal() {
   // render with the full recompute synchronously.
   const deferredRealRows = useDeferredValue(filteredRealRows);
   const deferredReelRows = useDeferredValue(filteredReelRows);
-  const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows, masterStatuses), [deferredRealRows, deferredReelRows, masterStatuses]);
+  const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows, masterStatuses, itemStages), [deferredRealRows, deferredReelRows, masterStatuses, itemStages]);
 
   const openWO = (wo) => setDrawerWO(wo);
   const trackWO = (wo) => {
@@ -4586,126 +4692,10 @@ export default function LiveProductionPortal() {
 
   if (loading) {
     return (
-      <div className="portal-universe" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <GlobalStyles />
-        <style>{`
-          .lpx-card {
-            display: flex; flex-direction: column; align-items: center; gap: 18px;
-            min-width: 320px; padding: 36px 44px; border-radius: 24px;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.18), inset 0 2px 0 #ffffff;
-            animation: lpxCardIn 0.6s cubic-bezier(0.22, 0.8, 0.3, 1) backwards;
-          }
-          @keyframes lpxCardIn {
-            from { opacity: 0; transform: translateY(20px) scale(0.96); }
-            to   { opacity: 1; transform: none; }
-          }
-          @keyframes lpxSpin { to { transform: rotate(360deg); } }
-
-          /* ---- orbit loader ---- */
-          .lpx-loader { position: relative; width: 120px; height: 120px; }
-          .lpx-ring { position: absolute; border-radius: 50%; border: 4px solid transparent; }
-          .lpx-ring-outer {
-            inset: 0;
-            border-top-color: #0284c7; border-right-color: #6366f1;
-            animation: lpxSpin 1.3s linear infinite;
-          }
-          .lpx-ring-inner {
-            inset: 16px;
-            border-bottom-color: #10b981; border-left-color: #f59e0b;
-            animation: lpxSpin 1.8s linear infinite reverse;
-          }
-          .lpx-orbit { position: absolute; inset: 0; animation: lpxSpin 3.2s linear infinite; }
-          .lpx-dot {
-            position: absolute; left: 50%; top: -5px; margin-left: -5px;
-            width: 10px; height: 10px; border-radius: 50%;
-            transform-origin: 5px 65px;
-          }
-          .lpx-dot-1 { background: #0284c7; box-shadow: 0 0 10px #0284c7; transform: rotate(0deg); }
-          .lpx-dot-2 { background: #10b981; box-shadow: 0 0 10px #10b981; transform: rotate(120deg); }
-          .lpx-dot-3 { background: #f59e0b; box-shadow: 0 0 10px #f59e0b; transform: rotate(240deg); }
-          .lpx-core {
-            position: absolute; inset: 30px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center; color: #ffffff;
-            background: linear-gradient(135deg, #0284c7, #6366f1);
-            box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4), inset 0 2px 2px rgba(255, 255, 255, 0.6);
-            animation: lpxPulse 1.6s ease-in-out infinite;
-          }
-          @keyframes lpxPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-
-          /* ---- title + cycling status messages (pure CSS) ---- */
-          .lpx-title { margin: 0; font-size: 17px; font-weight: 900; color: #0f172a; letter-spacing: -0.3px; }
-          .lpx-msgs { position: relative; height: 18px; width: 260px; text-align: center; }
-          .lpx-msgs span {
-            position: absolute; left: 0; right: 0;
-            font-size: 12.5px; font-weight: 700; color: #64748b;
-            opacity: 0; animation: lpxMsg 10s linear infinite;
-          }
-          .lpx-msgs span:nth-child(2) { animation-delay: 2.5s; }
-          .lpx-msgs span:nth-child(3) { animation-delay: 5s; }
-          .lpx-msgs span:nth-child(4) { animation-delay: 7.5s; }
-          @keyframes lpxMsg {
-            0%        { opacity: 0; transform: translateY(8px); }
-            4%, 22%   { opacity: 1; transform: translateY(0); }
-            26%, 100% { opacity: 0; transform: translateY(-8px); }
-          }
-
-          /* ---- dancing mini bar chart ---- */
-          .lpx-bars { display: flex; align-items: flex-end; gap: 6px; height: 38px; }
-          .lpx-bars span {
-            width: 9px; height: 100%; border-radius: 4px 4px 0 0;
-            background: linear-gradient(180deg, #38bdf8, #0284c7);
-            transform-origin: bottom;
-            animation: lpxBar 1.1s ease-in-out infinite;
-          }
-          @keyframes lpxBar { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
-
-          /* ---- sliding progress bar ---- */
-          .lpx-progress { width: 260px; height: 6px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
-          .lpx-progress span {
-            display: block; height: 100%; width: 40%; border-radius: 999px;
-            background: linear-gradient(90deg, #0284c7, #6366f1, #10b981);
-            animation: lpxSlide 1.4s ease-in-out infinite;
-          }
-          @keyframes lpxSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
-
-          @media (prefers-reduced-motion: reduce) {
-            .lpx-card, .lpx-card * { animation: none !important; }
-            .lpx-msgs span:first-child { opacity: 1 !important; }
-          }
-        `}</style>
-
-        <div className="lpx-card">
-          <div className="lpx-loader">
-            <div className="lpx-ring lpx-ring-outer" />
-            <div className="lpx-ring lpx-ring-inner" />
-            <div className="lpx-orbit">
-              <span className="lpx-dot lpx-dot-1" />
-              <span className="lpx-dot lpx-dot-2" />
-              <span className="lpx-dot lpx-dot-3" />
-            </div>
-            <div className="lpx-core"><Factory size={26} /></div>
-          </div>
-
-          <h2 className="lpx-title">Production Dashboard</h2>
-
-          <div className="lpx-msgs">
-            <span>Fetching production log…</span>
-            <span>Reading reel register…</span>
-            <span>Syncing customer orders…</span>
-            <span>Building charts…</span>
-          </div>
-
-          <div className="lpx-bars">
-            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-              <span key={i} style={{ animationDelay: `${i * 0.12}s` }} />
-            ))}
-          </div>
-
-          <div className="lpx-progress"><span /></div>
-        </div>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "#f8fafc" }}>
+        <style>{`@keyframes lpxSpin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ width: 40, height: 40, borderRadius: "50%", border: "4px solid #e2e8f0", borderTopColor: "#0284c7", animation: "lpxSpin 0.8s linear infinite" }} />
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#64748b" }}>Loading production data…</p>
       </div>
     );
   }
