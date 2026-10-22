@@ -304,17 +304,54 @@ const addTime = (slot, r, dur) => {
   slot.mins += toMins(dur);
 };
 
+const EMPTY = {
+  count: 0, minDate: null, maxDate: null, consolidated: [], paperSizeTotals: [], detail: [],
+  totals: { pages: 0, waste: 0, printMins: 0, allMins: 0, statusMins: {} },
+};
+const isoDay = (d) => d.toISOString().split("T")[0];
+const defaultFilters = () => {
+  const to = new Date(), from = new Date();
+  from.setDate(from.getDate() - 6); // default: last 7 days
+  return { dateFrom: isoDay(from), dateTo: isoDay(to), month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "" };
+};
+const toParams = (f) => ({
+  dateFrom: f.dateFrom || undefined, dateTo: f.dateTo || undefined, month: f.month || undefined,
+  shift: f.shift || undefined, machine: f.machine || undefined, machineStatus: f.machineStatus || undefined,
+  workOrder: f.woNumber || undefined, location: f.location || undefined, customer: f.customer || undefined,
+});
+
+// turns one server job-group into the same row shape the table already uses
+const shapeDetail = (g) => {
+  const print = { from: [], to: [], mins: 0 }, stat = {}, reasons = [], remarks = [];
+  g.items.forEach((it) => {
+    if (it.re) reasons.push(it.re);
+    if (it.rm) remarks.push(it.rm);
+    if (it.c === "__none") return;
+    const slot = it.c === "__p" ? print : (stat[it.c] ||= { from: [], to: [], mins: 0 });
+    slot.from.push(it.f || ""); slot.to.push(it.t || ""); slot.mins += it.m || 0;
+  });
+  return {
+    ...g,
+    printFrom: joinValues(print.from), printTo: joinValues(print.to),
+    printTotal: fromMins(print.mins), printMins: print.mins,
+    statusCells: Object.fromEntries(Object.entries(stat).map(([k, v]) => [k,
+      { from: joinValues(v.from), to: joinValues(v.to), mins: v.mins, total: fromMins(v.mins) }])),
+    reason: joinValues(reasons), remarks: joinValues(remarks),
+    dur: fromMins(print.mins + Object.values(stat).reduce((a, v) => a + v.mins, 0)),
+  };
+};
+
 export default function PersoReport() {
   const token = localStorage.getItem("token");
+  const API = `${BASE_URL}/api/production-machine-status`;
 
   const [loggedInUser, setLoggedInUser] = useState("");
-  const [records, setRecords] = useState([]);
+  const [data, setData] = useState(EMPTY);
+  const [options, setOptions] = useState({ customers: [], locations: [], machines: [], statuses: [] });
   const [machineStatuses, setMachineStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
-
-const [filters, setFilters] = useState({
-  dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "",
-});
+  const [filters, setFilters] = useState(defaultFilters);
+  const [applied, setApplied] = useState(filters); // debounced copy that triggers the fetch
 
   const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
@@ -323,26 +360,30 @@ const [filters, setFilters] = useState({
     try { const decoded = jwtDecode(token); setLoggedInUser(decoded.name || ""); } catch {}
   }, [token]);
 
+  // wait 350ms after the last change so typing a WO number doesn't fire a request per key
+  useEffect(() => {
+    const t = setTimeout(() => setApplied(filters), 350);
+    return () => clearTimeout(t);
+  }, [filters]);
+
+  // dropdown data: small, loaded once, doesn't block the report
   useEffect(() => {
     if (!token) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [recRes, statusRes] = await Promise.all([
-          axios.get(`${BASE_URL}/api/production-machine-status`, authHeaders),
-          axios.get(`${BASE_URL}/api/master/machine-status`, authHeaders),
-        ]);
-        setRecords((recRes.data || []).sort((a, b) => {
-          const bDate = new Date(b.createdAt || b.productionDate || 0);
-          const aDate = new Date(a.createdAt || a.productionDate || 0);
-          return bDate - aDate;
-        }));
-        setMachineStatuses(statusRes.data || []);
-      } catch (err) { console.error(err); }
-      setLoading(false);
-    };
-    load();
+    axios.get(`${API}/perso-options`, authHeaders).then((r) => setOptions(r.data)).catch(console.error);
+    axios.get(`${BASE_URL}/api/master/machine-status`, authHeaders)
+      .then((r) => setMachineStatuses(r.data || [])).catch(console.error);
   }, [token]);
+
+  // report: only totals + first 50 job rows come over the wire
+  useEffect(() => {
+    if (!token) return;
+    const ctrl = new AbortController();
+    setLoading(true);
+    axios.get(`${API}/perso-report`, { ...authHeaders, params: toParams(applied), signal: ctrl.signal })
+      .then((r) => { setData(r.data); setLoading(false); })
+      .catch((err) => { if (!axios.isCancel(err)) { console.error(err); setLoading(false); } });
+    return () => ctrl.abort();
+  }, [token, applied]);
 
   // dynamic columns = every status in the master (except Production) + any extra found in records
   const statusColumns = useMemo(() => {
@@ -351,74 +392,21 @@ const [filters, setFilters] = useState({
       const k = normStatus(s.statusName);
       if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, s.statusName.trim());
     });
-    records.forEach((r) => {
-      const k = normStatus(r.machineStatus);
-      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(r.machineStatus).trim());
+    options.statuses.forEach((st) => {
+      const k = normStatus(st);
+      if (k && !isProductionStatus(k) && !seen.has(k)) seen.set(k, String(st).trim());
     });
     return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
-  }, [machineStatuses, records]);
+  }, [machineStatuses, options.statuses]);
 
-  const filtered = useMemo(() => {
-    return records.filter((r) => {
-      const d = r.productionDate ? new Date(r.productionDate) : null;
-      const itemMonth = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}` : "";
-      if (filters.dateFrom && d && d < new Date(filters.dateFrom)) return false;
-      if (
-  filters.location &&
-  !(r.userLocations || []).includes(filters.location)
-) return false;
-      if (filters.dateTo && d && d > new Date(new Date(filters.dateTo).setHours(23, 59, 59))) return false;
-      if (filters.month && itemMonth !== filters.month) return false;
-      if (filters.shift && r.shift !== filters.shift) return false;
-      if (filters.machine && (r.machineId?.machineName || r.machineName) !== filters.machine) return false;
-      if (filters.machineStatus && r.machineStatus !== filters.machineStatus) return false;
-      if (filters.woNumber && !(r.woNumber || "").toLowerCase().includes(filters.woNumber.toLowerCase())) return false;
-      if (filters.customer && r.customerName !== filters.customer) return false;
-      return true;
-    });
-  }, [records, filters]);
+  const consolidated = data.consolidated;
+  const paperSizeTotals = data.paperSizeTotals;
 
-  /* CONSOLIDATED */
-const consolidated = useMemo(() => {
-  const map = {};
-  filtered.forEach((r) => {
-    const mName = r.machineId?.machineName || r.machineName || "Unknown";
-    const printer = r.printerName || "";
-    const key = `${mName}||${printer}`;
-    if (!map[key]) map[key] = { machineName: mName, printerName: printer, counts: {}, printingMins: 0, statusMins: {} };
-    const e = map[key];
-    const sz = (r.paperSize || "Unknown").toUpperCase();
-    const pages = Number(r.totalPages) || 0;
-    e.counts[sz] = (e.counts[sz] || 0) + pages;
-    const dur = toMins(elapsed(r.fromTime, r.toTime));
-    const status = r.machineStatus?.toLowerCase();
-    if (isProductionStatus(status)) e.printingMins += dur;
-    else if (status) {
-      const k = normStatus(status);
-      e.statusMins[k] = (e.statusMins[k] || 0) + dur;
-    }
-  });
-  return Object.values(map);
-}, [filtered]);
-
-const paperSizeColumns = useMemo(() => {
+  const paperSizeColumns = useMemo(() => {
     const sizes = new Set();
     consolidated.forEach((c) => Object.keys(c.counts).forEach((sz) => sizes.add(sz)));
     return [...sizes].sort();
   }, [consolidated]);
-
-  const paperSizeTotals = useMemo(() => {
-    const totals = {};
-    filtered.forEach((r) => {
-      const size = (r.paperSize || "").trim();
-      if (!size) return;
-      const key = size.toUpperCase();
-      totals[key] = (totals[key] || 0) + (Number(r.totalPages) || 0);
-    });
-    return Object.entries(totals)
-      .map(([paperSize, totalCount]) => ({ paperSize, totalCount }))
-      .sort((a, b) => a.paperSize.localeCompare(b.paperSize));
-  }, [filtered]);
 
   const conTotals = useMemo(() => ({
     counts: paperSizeColumns.reduce((acc, sz) => {
@@ -432,104 +420,23 @@ const paperSizeColumns = useMemo(() => {
     }, {}),
   }), [consolidated, paperSizeColumns, statusColumns]);
 
-  /* DETAIL ROWS — grouped by job so production/idle/breakdown show in one row */
-  const detailRows = useMemo(() => {
-    const map = {};
+  const detailRows = useMemo(() => data.detail.map(shapeDetail), [data.detail]);
+  const detTotals = data.totals;
 
-    filtered.forEach((r) => {
-      const key = [
-        rawDate(r.productionDate),
-        r.woNumber || "",
-        r.shift || "",
-        getId(r.activityId),
-        getId(r.machineId),
-        getMachineName(r),
-        r.printerName || "",
-        r.customerName || "",
-        r.materialType || "",
-        r.paperSize || "",
-        r.enteredBy || r.operator || "",
-      ].join("||");
+  const machineOptions = options.machines;
+  const customerOptions = options.customers;
+  const locationOptions = options.locations;
 
-      if (!map[key]) {
-        map[key] = {
-          ...r,
-          activityName: getActivityName(r),
-          machineName: getMachineName(r),
-          totalPages: 0,
-          wastageSheets: 0,
-          print: { from: [], to: [], mins: 0 },
-          stat: {},
-          reasons: [],
-          remarksList: [],
-        };
-      }
+  const dateRange = useMemo(() => ({
+    from: data.minDate ? fmtDate(data.minDate) : "—",
+    to: data.maxDate ? fmtDate(data.maxDate) : "—",
+  }), [data.minDate, data.maxDate]);
 
-      const row = map[key];
-      const dur = elapsed(r.fromTime, r.toTime);
-      const st = r.machineStatus?.toLowerCase();
-      const pages = Number(r.totalPages) || 0;
-      const waste = Number(r.wastageSheets) || 0;
-
-      if (pages > 0) row.totalPages += pages;
-      if (waste > 0) row.wastageSheets += waste;
-      if (r.reason) row.reasons.push(r.reason);
-      if (r.remarks) row.remarksList.push(r.remarks);
-
-      if (isProductionStatus(st)) addTime(row.print, r, dur);
-      else if (st) {
-        const k = normStatus(st);
-        if (!row.stat[k]) row.stat[k] = { from: [], to: [], mins: 0 };
-        addTime(row.stat[k], r, dur);
-      }
+const exportExcel = async () => {
+    const { data: full } = await axios.get(`${API}/perso-report`, {
+      ...authHeaders, params: { ...toParams(filters), all: "1" },
     });
-
-    return Object.values(map).map((r) => ({
-      ...r,
-      printFrom: joinValues(r.print.from),
-      printTo: joinValues(r.print.to),
-      printTotal: fromMins(r.print.mins),
-      statusCells: Object.fromEntries(
-        Object.entries(r.stat).map(([k, v]) => [
-          k,
-          { from: joinValues(v.from), to: joinValues(v.to), mins: v.mins, total: fromMins(v.mins) },
-        ])
-      ),
-      reason: joinValues(r.reasons),
-      remarks: joinValues(r.remarksList),
-      dur: fromMins(r.print.mins + Object.values(r.stat).reduce((a, v) => a + v.mins, 0)),
-      printMins: r.print.mins,
-    }));
-  }, [filtered]);
-
-  const detTotals = useMemo(() => ({
-    pages: detailRows.reduce((s, r) => s + (Number(r.totalPages) || 0), 0),
-    waste: detailRows.reduce((s, r) => s + (Number(r.wastageSheets) || 0), 0),
-    printMins: detailRows.reduce((s, r) => s + (r.printMins || 0), 0),
-    statusMins: statusColumns.reduce((acc, s) => {
-      acc[s.key] = detailRows.reduce((t, r) => t + (r.statusCells[s.key]?.mins || 0), 0);
-      return acc;
-    }, {}),
-    allMins:   detailRows.reduce((s, r) => s + toMins(r.dur), 0),
-  }), [detailRows, statusColumns]);
-
-  const machineOptions = useMemo(() =>
-    [...new Set(records.map((r) => r.machineId?.machineName || r.machineName).filter(Boolean))],
-  [records]);
-  const customerOptions = useMemo(() =>
-  [...new Set(records.map((r) => r.customerName).filter(Boolean))].sort(),
-[records]);
-const locationOptions = useMemo(() =>
-  [...new Set(records.flatMap((r) => r.userLocations || []).filter(Boolean))],
-[records]);
-  const dateRange = useMemo(() => {
-    if (!filtered.length) return { from: "—", to: "—" };
-    const dates = filtered.map((r) => new Date(r.productionDate)).filter((d) => !isNaN(d));
-    if (!dates.length) return { from: "—", to: "—" };
-    return { from: fmtDate(new Date(Math.min(...dates))), to: fmtDate(new Date(Math.max(...dates))) };
-  }, [filtered]);
-
-const exportExcel = () => {
+    const exportRows = full.detail.map(shapeDetail);
     const wb = XLSX.utils.book_new();
 
     // ── Sheet 1: Consolidated ──
@@ -587,7 +494,7 @@ const exportExcel = () => {
       ...statusColumns.flatMap(() => ["From", "To", "Total"]),
       "Reason", "Remarks", "GT", "Operator"
     ];
-    const detDataRows = detailRows.map((r, i) => [
+    const detDataRows = exportRows.map((r, i) => [
       i + 1,
       fmtDate(r.productionDate),
       r.woNumber || "",
@@ -655,7 +562,7 @@ const exportExcel = () => {
     const { name, value } = e.target;
     setFilters((p) => ({ ...p, [name]: value }));
   };
-const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", woNumber: "", location: "", customer: "" });
+const clearFilters = () => setFilters(defaultFilters());
 
   return (
     <div className="rpt-root">
@@ -739,7 +646,7 @@ const clearFilters = () => setFilters({ dateFrom: "", dateTo: "", month: "", shi
         <div className="rpt-meta-bar">
           <div className="rpt-meta-item">From Date: <span>{dateRange.from}</span></div>
           <div className="rpt-meta-item">To Date: <span>{dateRange.to}</span></div>
-          <div className="rpt-meta-item">Total Records: <span>{filtered.length}</span></div>
+          <div className="rpt-meta-item">Total Records: <span>{data.count}</span></div>
           <div className="rpt-meta-item">Machines: <span>{consolidated.length}</span></div>
         </div>
 

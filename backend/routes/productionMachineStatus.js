@@ -64,6 +64,7 @@ printerName: req.body.printerName || "",
     });
 
     const saved = await newRecord.save();
+    clearPersoCache();
 
     res.status(201).json(saved);
   } catch (err) {
@@ -237,6 +238,169 @@ router.get("/summary", async (req, res) => {
   }
 });
 
+// ==========================================
+// PERSO REPORT (grouped in MongoDB, only totals + first 50 job rows are sent)
+// ==========================================
+const PERSO_TTL = 60 * 1000, PERSO_MAX = 24, persoCache = new Map();
+const persoGet = (k) => { const h = persoCache.get(k); return h && Date.now() - h.t < PERSO_TTL ? h.v : null; };
+const persoPut = (k, v) => {
+  if (persoCache.size >= PERSO_MAX) persoCache.delete(persoCache.keys().next().value);
+  persoCache.set(k, { t: Date.now(), v });
+};
+const clearPersoCache = () => persoCache.clear();
+
+// slim every record down to what the report needs
+const persoPrep = (match) => [
+  { $match: match },
+  { $project: {
+      _id: 0,
+      d: { $dateToString: { format: "%Y-%m-%d", date: "$productionDate" } },
+      pd: "$productionDate",
+      ca: { $ifNull: ["$createdAt", "$productionDate"] },
+      wo: { $ifNull: ["$woNumber", ""] }, sh: { $ifNull: ["$shift", ""] },
+      a: "$activityId", m: "$machineId",
+      p: { $ifNull: ["$printerName", ""] }, c: { $ifNull: ["$customerName", ""] },
+      mt: { $ifNull: ["$materialType", ""] }, ps: { $ifNull: ["$paperSize", ""] },
+      psT: { $trim: { input: { $ifNull: ["$paperSize", ""] } } },
+      eb: { $ifNull: ["$enteredBy", ""] },
+      f: { $ifNull: ["$fromTime", ""] }, t: { $ifNull: ["$toTime", ""] },
+      re: { $ifNull: ["$reason", ""] }, rm: { $ifNull: ["$remarks", ""] },
+      pgRaw: rNum("$totalPages"), wsRaw: rNum("$wastageSheets"),
+      st: { $toLower: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } } },
+      mins: reportMins,
+  } },
+  { $addFields: {
+      pg: { $max: [0, "$pgRaw"] },
+      wt: { $max: [0, "$wsRaw"] },
+      cat: { $switch: {
+          branches: [
+            { case: { $in: ["$st", ["production", "working"]] }, then: "__p" },
+            { case: { $eq: ["$st", ""] }, then: "__none" },
+          ],
+          default: "$st",
+      } },
+  } },
+];
+
+// dropdown options (small, cached)
+router.get("/perso-options", async (req, res) => {
+  try {
+    const hit = persoGet("OPTS");
+    if (hit) return res.json(hit);
+    const [customers, locations, machineIds, statuses] = await Promise.all([
+      ProductionMachineStatus.distinct("customerName"),
+      ProductionMachineStatus.distinct("userLocations"),
+      ProductionMachineStatus.distinct("machineId"),
+      ProductionMachineStatus.distinct("machineStatus"),
+    ]);
+    const macMap = await loadMachineMap();
+    const out = {
+      customers: customers.filter(Boolean).sort(),
+      locations: locations.filter(Boolean),
+      machines: [...new Set(machineIds.map((id) => macMap.get(String(id))).filter(Boolean))],
+      statuses: statuses.filter(Boolean),
+    };
+    persoPut("OPTS", out);
+    res.json(out);
+  } catch (err) {
+    console.error("Perso options error:", err);
+    res.status(500).json({ message: "Error fetching options", error: err.message });
+  }
+});
+
+router.get("/perso-report", async (req, res) => {
+  try {
+    const q = req.query;
+    const all = q.all === "1"; // export: every detail row
+    const key = "R|" + ["dateFrom", "dateTo", "month", "workOrder", "customer", "shift", "machineStatus", "machine", "location"]
+      .map((k) => q[k] || "").join("|");
+    if (!all) { const hit = persoGet(key); if (hit) return res.json(hit); }
+
+    const match = await buildQuery(q);
+    const detailLimit = all ? 0 : 50;
+
+    const [facetRes, detailRaw, macMap] = await Promise.all([
+      ProductionMachineStatus.aggregate([
+        ...persoPrep(match),
+        { $facet: {
+            sizes: [{ $group: {
+              _id: { m: "$m", p: "$p", s: { $toUpper: { $cond: [{ $eq: ["$ps", ""] }, "Unknown", "$ps"] } } },
+              pg: { $sum: "$pgRaw" }, last: { $max: "$ca" },
+            } }],
+            times: [{ $group: { _id: { m: "$m", p: "$p", c: "$cat" }, mins: { $sum: "$mins" } } }],
+            paper: [{ $match: { psT: { $ne: "" } } }, { $group: { _id: { $toUpper: "$psT" }, n: { $sum: "$pgRaw" } } }],
+            cats: [{ $group: { _id: "$cat", mins: { $sum: "$mins" } } }],
+            sums: [{ $group: { _id: null, n: { $sum: 1 }, pages: { $sum: "$pg" }, waste: { $sum: "$wt" }, min: { $min: "$pd" }, max: { $max: "$pd" } } }],
+        } },
+      ]).allowDiskUse(true),
+
+      // one row per job (same grouping key the page used), newest first
+      ProductionMachineStatus.aggregate([
+        ...persoPrep(match),
+        { $sort: { ca: -1 } },
+        { $group: {
+            _id: { d: "$d", wo: "$wo", sh: "$sh", a: "$a", m: "$m", p: "$p", c: "$c", mt: "$mt", ps: "$ps", eb: "$eb" },
+            pd: { $first: "$pd" }, ca: { $first: "$ca" },
+            pages: { $sum: "$pg" }, waste: { $sum: "$wt" },
+            items: { $push: { c: "$cat", f: "$f", t: "$t", m: "$mins", re: "$re", rm: "$rm" } },
+        } },
+        { $sort: { ca: -1 } },
+        ...(detailLimit ? [{ $limit: detailLimit }] : []),
+      ]).allowDiskUse(true),
+
+      loadMachineMap(),
+    ]);
+
+    const nameOf = (id) => macMap.get(String(id)) || "Unknown";
+    const f = facetRes[0] || {};
+
+    // consolidated (machine x printer)
+    const cm = new Map();
+    for (const r of f.sizes || []) {
+      const name = nameOf(r._id.m), p = r._id.p || "", k = `${name}||${p}`;
+      let e = cm.get(k);
+      if (!e) cm.set(k, (e = { machineName: name, printerName: p, counts: {}, printingMins: 0, statusMins: {}, last: 0 }));
+      e.counts[r._id.s] = (e.counts[r._id.s] || 0) + r.pg;
+      e.last = Math.max(e.last, +r.last || 0);
+    }
+    for (const r of f.times || []) {
+      const e = cm.get(`${nameOf(r._id.m)}||${r._id.p || ""}`);
+      if (!e || r._id.c === "__none") continue;
+      if (r._id.c === "__p") e.printingMins += r.mins;
+      else e.statusMins[r._id.c] = (e.statusMins[r._id.c] || 0) + r.mins;
+    }
+    const consolidated = [...cm.values()].sort((a, b) => b.last - a.last).map(({ last, ...x }) => x);
+
+    const totals = { pages: 0, waste: 0, printMins: 0, allMins: 0, statusMins: {} };
+    for (const c of f.cats || []) {
+      if (c._id === "__none") continue;
+      totals.allMins += c.mins;
+      if (c._id === "__p") totals.printMins = c.mins; else totals.statusMins[c._id] = c.mins;
+    }
+    const s0 = (f.sums || [])[0] || {};
+    totals.pages = s0.pages || 0;
+    totals.waste = s0.waste || 0;
+
+    const out = {
+      count: s0.n || 0, minDate: s0.min || null, maxDate: s0.max || null,
+      consolidated,
+      paperSizeTotals: (f.paper || []).map((r) => ({ paperSize: r._id, totalCount: r.n }))
+        .sort((a, b) => a.paperSize.localeCompare(b.paperSize)),
+      totals,
+      detail: detailRaw.map((g) => ({
+        productionDate: g.pd, woNumber: g._id.wo, shift: g._id.sh, machineName: nameOf(g._id.m),
+        printerName: g._id.p, customerName: g._id.c, materialType: g._id.mt, paperSize: g._id.ps,
+        enteredBy: g._id.eb, totalPages: g.pages, wastageSheets: g.waste, items: g.items,
+      })),
+    };
+    if (!all) persoPut(key, out);
+    res.json(out);
+  } catch (err) {
+    console.error("Perso report error:", err);
+    res.status(500).json({ message: "Error fetching report", error: err.message });
+  }
+});
+
 // latest entry per activity + machine + printer (for the Last Used PDF / Excel)
 router.get("/last-used", async (req, res) => {
   try {
@@ -312,6 +476,7 @@ userLocations: req.body.userLocations || [],
       }
     );
 
+    clearPersoCache();
     res.json(updated);
   } catch (err) {
     console.error("Update error:", err);
@@ -330,6 +495,7 @@ userLocations: req.body.userLocations || [],
 router.delete("/:id", async (req, res) => {
   try {
     await ProductionMachineStatus.findByIdAndDelete(req.params.id);
+    clearPersoCache();
 
     res.json({
       message: "Deleted successfully",
