@@ -104,5 +104,6 @@ scheduleSchema.index({ machineId: 1, endTime: 1, startTime: 1 }); // next free s
 scheduleSchema.index({ workOrderId: 1, rowIndex: 1 });            // per-Work-Order lookups
 scheduleSchema.index({ isBlocked: 1, machineId: 1 });             // blocked-slot lookups
 scheduleSchema.index({ startTime: 1 });
+scheduleSchema.index({ machineId: 1, startTime: 1 });
 
 module.exports = mongoose.model("Schedule", scheduleSchema);

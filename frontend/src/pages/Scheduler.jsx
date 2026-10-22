@@ -621,12 +621,27 @@ const STYLES = `
   }
 `;
 
+// Adds the fast-lookup fields to a schedule (same fields as before)
+const enrichSchedule = (s) => ({
+  ...s,
+  _startTimeMs: s.startTime ? new Date(s.startTime).getTime() : 0,
+  _endTimeMs: s.endTime ? new Date(s.endTime).getTime() : 0,
+  _customerLower: String(s.workOrderId?.customer?.name || s.workOrderId?.customer || "").toLowerCase().trim(),
+  _woNumberLower: String(s.workOrderId?.efiWoNumber || "").toLowerCase().trim(),
+  _machineIdStr: String(s.machineId?._id || s.machineId || "")
+});
+
 const Scheduler = () => {
   const ganttRef = useRef(null);
   const [userLocations, setUserLocations] = useState([]);
   const [userRole, setUserRole] = useState("");
   const [workOrders, setWorkOrders] = useState([]);
   const [schedules, setSchedules] = useState([]);
+  const [scheduledRows, setScheduledRows] = useState([]); // tiny list: which WO rows already scheduled
+  const [metaOptions, setMetaOptions] = useState({ machines: [], customers: [] });
+  const filtersRef = useRef({});
+  const scheduleReqRef = useRef(0);
+  const filtersFirstRun = useRef(true);
   const [priorities, setPriorities] = useState([]);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -678,6 +693,16 @@ const Scheduler = () => {
   const [blockReason, setBlockReason] = useState("");
   const [autoScheduling, setAutoScheduling] = useState(false);
   const [dedupingSchedules, setDedupingSchedules] = useState(false);
+
+  // always-fresh copy of the filters (used by loadAllData, which is also
+  // called from the Gantt event handlers created once on mount)
+  filtersRef.current = {
+    fromDate,
+    toDate,
+    customerFilter,
+    machineFilter,
+    wo: debouncedWoSearch
+  };
 
   /* inject / remove scoped CSS */
   useEffect(() => {
@@ -1129,46 +1154,111 @@ const Scheduler = () => {
   ]);
 
   // =========================
-  // LOAD ALL DATA (PARALLEL PROMISE.ALL)
+  // LOAD ALL DATA (each part updates the page as soon as it arrives)
   // =========================
+  const buildScheduleParams = () => {
+    const f = filtersRef.current;
+    const wo = String(f.wo || "").trim();
+    const hasOtherFilters = !!(f.customerFilter || f.machineFilter || wo);
+    const params = {};
+
+    if (!f.fromDate && !f.toDate && !hasOtherFilters) {
+      const s = new Date();
+      s.setHours(0, 0, 0, 0);
+      const e = new Date();
+      e.setHours(23, 59, 59, 999);
+      params.from = s.toISOString();
+      params.to = e.toISOString();
+    } else {
+      if (f.fromDate) params.from = new Date(`${f.fromDate}T00:00:00`).toISOString();
+      if (f.toDate) params.to = new Date(`${f.toDate}T23:59:59.999`).toISOString();
+    }
+
+    if (f.machineFilter) params.machineId = f.machineFilter;
+    if (f.customerFilter) params.customer = f.customerFilter;
+    if (wo) params.wo = wo;
+
+    return params;
+  };
+
+  const loadSchedulesWindow = async () => {
+    const reqId = ++scheduleReqRef.current;
+    try {
+      const res = await axios.get(`${BASE_URL}/api/schedule`, { params: buildScheduleParams() });
+      if (reqId !== scheduleReqRef.current) return; // a newer request replaced this one
+      setSchedules((res.data || []).map(enrichSchedule));
+    } catch (err) {
+      console.log("Schedule fetch failed:", err);
+    }
+  };
+
   const loadAllData = async () => {
     try {
-      const [woRes, schRes, prRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/workorders`, {
+      const woPromise = axios
+        .get(`${BASE_URL}/api/workorders`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-        }).catch((err) => {
-          console.log("Work order fetch failed:", err);
-          return { data: [] };
-        }),
-        axios.get(`${BASE_URL}/api/schedule`).catch((err) => {
-          console.log("Schedule fetch failed:", err);
-          return { data: [] };
-        }),
-        axios.get(`${BASE_URL}/api/master/priorities`).catch((err) => {
-          console.log("Priorities fetch failed:", err);
-          return { data: [] };
         })
+        .then((woRes) => {
+          const plannedWO = (woRes.data || []).filter(
+            (w) => w.status === "PLANNED" && w.schedulerHidden !== true
+          );
+          setWorkOrders(plannedWO);
+        })
+        .catch((err) => console.log("Work order fetch failed:", err));
+
+      const prPromise = axios
+        .get(`${BASE_URL}/api/master/priorities`)
+        .then((prRes) => setPriorities(prRes.data || []))
+        .catch((err) => console.log("Priorities fetch failed:", err));
+
+      const pendingPromise = axios
+        .get(`${BASE_URL}/api/schedule`, { params: { pending: 1 } })
+        .then((r) => setScheduledRows(r.data || []))
+        .catch((err) => console.log("Scheduled rows fetch failed:", err));
+
+      const metaPromise = axios
+        .get(`${BASE_URL}/api/schedule`, { params: { meta: 1 } })
+        .then((r) =>
+          setMetaOptions({
+            machines: r.data?.machines || [],
+            customers: r.data?.customers || []
+          })
+        )
+        .catch((err) => console.log("Meta fetch failed:", err));
+
+      await Promise.all([
+        loadSchedulesWindow(),
+        woPromise,
+        prPromise,
+        pendingPromise,
+        metaPromise
       ]);
-
-      const plannedWO = (woRes.data || []).filter(
-        (w) => w.status === "PLANNED" && w.schedulerHidden !== true
-      );
-
-      const enrichedSchedules = (schRes.data || []).map((s) => ({
-        ...s,
-        _startTimeMs: s.startTime ? new Date(s.startTime).getTime() : 0,
-        _endTimeMs: s.endTime ? new Date(s.endTime).getTime() : 0,
-        _customerLower: String(s.workOrderId?.customer?.name || s.workOrderId?.customer || "").toLowerCase().trim(),
-        _woNumberLower: String(s.workOrderId?.efiWoNumber || "").toLowerCase().trim(),
-        _machineIdStr: String(s.machineId?._id || s.machineId || "")
-      }));
-
-      setWorkOrders(plannedWO);
-      setSchedules(enrichedSchedules);
-      setPriorities(prRes.data || []);
     } catch (err) {
       console.log("Load all data failed:", err);
     }
+  };
+
+  // re-fetch ONLY the schedule window when a filter changes
+  useEffect(() => {
+    if (filtersFirstRun.current) {
+      filtersFirstRun.current = false; // first load is done by loadAllData()
+      return;
+    }
+    loadSchedulesWindow();
+  }, [fromDate, toDate, customerFilter, machineFilter, debouncedWoSearch]);
+
+  // fetch only one machine's schedules for one day (used for "next free slot")
+  const fetchMachineDaySchedules = async (machineId, value) => {
+    const d = new Date(value);
+    if (!machineId || isNaN(d.getTime())) return [];
+    const from = new Date(d);
+    from.setHours(0, 0, 0, 0);
+    const to = new Date(d);
+    to.setHours(23, 59, 59, 999);
+    const res = await axios.get(`${BASE_URL}/api/schedule`, {
+      params: { machineId, from: from.toISOString(), to: to.toISOString() }
+    });
+    return res.data || [];
   };
 
   // =========================
@@ -1305,27 +1395,20 @@ const Scheduler = () => {
     }
   };
 
-  const handleScheduleDateChange = (value) => {
-    if (!selectedWO) {
-      setScheduleDate(value);
-      return;
-    }
+  const handleScheduleDateChange = async (value) => {
+    setScheduleDate(value);
+    if (!selectedWO) return;
 
     const machineId = selectedWO.machineId;
+    if (!machineId || !value || !calculatedTime || calculatedTime === "N/A") return;
 
-    if (!machineId || !value || !calculatedTime || calculatedTime === "N/A") {
-      setScheduleDate(value);
-      return;
+    try {
+      const dayList = await fetchMachineDaySchedules(machineId, value);
+      const nextStart = getNextAvailableStart(machineId, value, calculatedTime, dayList);
+      setScheduleDate(toDateTimeLocalValue(nextStart));
+    } catch (err) {
+      console.log(err);
     }
-
-    const nextStart = getNextAvailableStart(
-      machineId,
-      value,
-      calculatedTime,
-      schedules
-    );
-
-    setScheduleDate(toDateTimeLocalValue(nextStart));
   };
 
   // =========================
@@ -1337,23 +1420,12 @@ const Scheduler = () => {
   };
 
   const customerOptions = useMemo(() => {
-    const set = new Set();
-    schedules.forEach((s) => {
-      const cName = s.workOrderId?.customer?.name || s.workOrderId?.customer;
-      if (cName) set.add(cName);
-    });
-    return Array.from(set).sort();
-  }, [schedules]);
+    return [...metaOptions.customers].sort();
+  }, [metaOptions.customers]);
 
   const machineOptions = useMemo(() => {
-    const map = new Map();
-    schedules.forEach((s) => {
-      if (s.machineId?._id) {
-        map.set(String(s.machineId._id), s.machineId);
-      }
-    });
-    return Array.from(map.values());
-  }, [schedules]);
+    return metaOptions.machines;
+  }, [metaOptions.machines]);
 
   const filterSchedulesByDate = (data, searchOverride) => {
     let filtered = data;
@@ -1498,8 +1570,7 @@ const Scheduler = () => {
 
       const machineId = selectedWO.machineId;
 
-      const schRes = await axios.get(`${BASE_URL}/api/schedule`);
-      const latestSchedules = schRes.data || [];
+      const latestSchedules = await fetchMachineDaySchedules(machineId, scheduleDate);
       const nextStart = getNextAvailableStart(
         machineId,
         scheduleDate,
@@ -1773,8 +1844,17 @@ const Scheduler = () => {
   // =========================
   // DOWNLOAD EXCEL
   // =========================
-  const downloadExcel = () => {
-    const filtered = filterSchedulesByDate(schedules);
+  const downloadExcel = async () => {
+    let source = schedules;
+    try {
+      const res = await axios.get(`${BASE_URL}/api/schedule`, {
+        params: { ...buildScheduleParams(), full: 1 }
+      });
+      source = (res.data || []).map(enrichSchedule);
+    } catch (err) {
+      console.log("Full export fetch failed, using loaded data:", err);
+    }
+    const filtered = filterSchedulesByDate(source);
     let sumImp = 0;
     let sumMinutes = 0;
 
@@ -1921,8 +2001,8 @@ const Scheduler = () => {
     if (!filteredWorkOrders.length) return items;
 
     const schedulesByWoId = new Map();
-    for (let i = 0; i < schedules.length; i++) {
-      const s = schedules[i];
+    for (let i = 0; i < scheduledRows.length; i++) {
+      const s = scheduledRows[i];
       const sWoId = String(s.workOrderId?._id || s.workOrderId || "");
       if (!sWoId) continue;
       let list = schedulesByWoId.get(sWoId);
@@ -1982,7 +2062,7 @@ const Scheduler = () => {
     }
 
     return items;
-  }, [filteredWorkOrders, schedules]);
+  }, [filteredWorkOrders, scheduledRows]);
 
   const pendingFilteredItems = useMemo(() => {
     const query = debouncedPendingWoSearch.trim().toLowerCase();
@@ -2014,7 +2094,7 @@ const Scheduler = () => {
             <div className="sch-card-head navy">
               <span>📋</span> Pending Work Orders
               <span className="head-count">
-                {pendingItems.length} pending · {schedules.length} scheduled · {pendingFilteredItems.length} filtered
+                {pendingItems.length} pending · {scheduledRows.length} scheduled · {pendingFilteredItems.length} filtered
               </span>
             </div>
 

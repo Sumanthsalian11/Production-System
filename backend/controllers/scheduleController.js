@@ -979,44 +979,107 @@ exports.blockMachine = async (req, res) => {
 
 // 📊 GET SCHEDULES
 //
-// ⚡ PERF: .lean() skips building full Mongoose documents (large memory
-// and CPU saving on big result sets). The JSON sent to the frontend has
-// the same fields.
+// Modes (all optional, default behaviour = same as before):
+//   ?meta=1      -> { machines:[{_id,machineName}], customers:[...] }  (tiny, for dropdowns)
+//   ?pending=1   -> [{ workOrderId, rowIndex }]                         (tiny, for pending list)
+//   ?full=1      -> full populated documents (used by Excel download)
+//   (default)    -> LIGHT documents (only fields the Gantt / bar graph need)
 //
-// ⚡ PERF: optional `?from=...&to=...` (ISO dates) limits the result to
-// schedules whose startTime is in that range. When neither is sent (which
-// is what the current frontend does) the filter is empty and the result
-// is exactly what it was before.
-exports.getSchedules = async (req, res) => {
-  const filter = {};
-  const fromDate = req.query?.from ? new Date(req.query.from) : null;
-  const toDate = req.query?.to ? new Date(req.query.to) : null;
+// Filters (all modes except meta/pending):
+//   from, to (ISO), machineId, customer, wo (substring of WO number)
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  if (fromDate && !isNaN(fromDate.getTime())) {
-    filter.startTime = { ...(filter.startTime || {}), $gte: fromDate };
-  }
-  if (toDate && !isNaN(toDate.getTime())) {
-    filter.startTime = { ...(filter.startTime || {}), $lte: toDate };
-  }
+exports.getSchedules = async (req, res) => {
+  const q = req.query || {};
 
   try {
+    // ---------- META (dropdown options) ----------
+    if (q.meta) {
+      const [machineIds, customers] = await Promise.all([
+        Schedule.distinct("machineId"),
+        Schedule.distinct("customer")
+      ]);
+      const machines = await Machine.find({ _id: { $in: machineIds } })
+        .select("machineName")
+        .lean();
+      return res.json({
+        machines,
+        customers: customers.filter(Boolean)
+      });
+    }
+
+    // ---------- PENDING (which WO rows already have a schedule) ----------
+    if (q.pending) {
+      const rows = await Schedule.find({ workOrderId: { $ne: null } })
+        .select({ workOrderId: 1, rowIndex: 1, _id: 0 })
+        .lean();
+      return res.json(rows);
+    }
+
+    // ---------- FILTER ----------
+    const filter = {};
+    const fromDate = q.from ? new Date(q.from) : null;
+    const toDate = q.to ? new Date(q.to) : null;
+
+    if (fromDate && !isNaN(fromDate.getTime())) {
+      filter.startTime = { ...(filter.startTime || {}), $gte: fromDate };
+    }
+    if (toDate && !isNaN(toDate.getTime())) {
+      filter.startTime = { ...(filter.startTime || {}), $lte: toDate };
+    }
+    if (q.machineId && mongoose.isValidObjectId(q.machineId)) {
+      filter.machineId = q.machineId;
+    }
+    if (q.customer) {
+      filter.customer = new RegExp(`^\\s*${escapeRegex(String(q.customer).trim())}\\s*$`, "i");
+    }
+    if (q.wo && String(q.wo).trim()) {
+      filter.$expr = {
+        $regexMatch: {
+          input: { $toString: "$efiWoNumber" },
+          regex: escapeRegex(String(q.wo).trim()),
+          options: "i"
+        }
+      };
+    }
+
+    // ---------- FULL (Excel) ----------
+    if (q.full) {
+      const data = await Schedule.find(filter)
+        .populate("machineId", "machineName")
+        .populate("workOrderId", "efiWoNumber customer woDate")
+        .populate("activityId", "activityName")
+        .populate("machinesDetail.activityId", "activityName")
+        .populate("machinesDetail.machineId", "machineName")
+        .lean();
+      return res.json(data);
+    }
+
+    // ---------- LIGHT (Gantt / bar graph) ----------
     const data = await Schedule.find(filter)
+      .select(
+        "machineId workOrderId activityId machinesDetail.activityId startTime endTime priority isBlocked blockReason totalImp rowIndex customer"
+      )
       .populate("machineId", "machineName")
       .populate("workOrderId", "efiWoNumber customer woDate")
       .populate("activityId", "activityName")
       .populate("machinesDetail.activityId", "activityName")
-      .populate("machinesDetail.machineId", "machineName")
       .lean();
 
     res.json(data);
   } catch (e) {
     console.error("GET SCHEDULES ERROR:", e.message);
 
-    // Fallback: return schedules without the nested populates so the
-    // frontend still gets data instead of a hard 500 (e.g. if an old
-    // Schedule doc references an activityId that no longer resolves).
+    // Fallback (unchanged idea): no nested populates
     try {
-      const fallbackData = await Schedule.find(filter)
+      const fb = {};
+      const f = q.from ? new Date(q.from) : null;
+      const t = q.to ? new Date(q.to) : null;
+      if (f && !isNaN(f.getTime())) fb.startTime = { ...(fb.startTime || {}), $gte: f };
+      if (t && !isNaN(t.getTime())) fb.startTime = { ...(fb.startTime || {}), $lte: t };
+      if (q.machineId && mongoose.isValidObjectId(q.machineId)) fb.machineId = q.machineId;
+
+      const fallbackData = await Schedule.find(fb)
         .populate("machineId", "machineName")
         .populate("workOrderId", "efiWoNumber customer woDate")
         .lean();
