@@ -398,7 +398,26 @@ function PlannerDashboard() {
     return out.slice(0, MAX_EXPORT);
   };
 
-  const getLabelData = async () => (hasFilter() ? await fetchAllFiltered() : workOrders);
+  const PDF_MAX = 100;
+
+// PDFs: fetch only the latest 100 and tell the user if more match
+const fetchPdfData = async () => {
+  const res = await axios.get(`${BASE_URL}/api/workorders/paged`, {
+    params: { ...buildFilterParams(), page: 1, limit: PDF_MAX },
+    headers: authHeaders()
+  });
+  const items = res.data.items || [];
+  const total = res.data.total || 0;
+  if (total > PDF_MAX) {
+    showAlert(
+      "PDF limited to 100 work orders",
+      `Only the latest ${PDF_MAX} of ${total.toLocaleString("en-IN")} work orders are included in this PDF. Apply filters (dates, WO number, customer, etc.) to narrow down.`
+    );
+  }
+  return items;
+};
+
+const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrders.slice(0, PDF_MAX));
 
   // reset to page 1 when any filter changes
   useEffect(() => {
@@ -1862,7 +1881,7 @@ function PlannerDashboard() {
         return;
       }
 
-      const dataToDownload = await fetchAllFiltered();
+      const dataToDownload = await fetchPdfData();
 
       if (!dataToDownload.length) {
         showAlert("No data to download!");
