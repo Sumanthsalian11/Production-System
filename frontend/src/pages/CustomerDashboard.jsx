@@ -1259,6 +1259,17 @@ function CustomerDashboard() {
 
         .po-fbtn.clear:hover { background: var(--page); border-color: var(--teal-mid); color: var(--teal-mid); }
 
+        /* ---------- Hide number spinners ---------- */
+        .customer-dashboard-universe input[type="number"]::-webkit-outer-spin-button,
+        .customer-dashboard-universe input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        .customer-dashboard-universe input[type="number"] {
+          -moz-appearance: textfield;
+          appearance: textfield;
+        }
+
         /* ---------- Scrollbars ---------- */
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar { height: 8px; width: 8px; }
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar-thumb { background: #c5ccd5; border-radius: 8px; }
@@ -1983,7 +1994,7 @@ function CustomerDashboard() {
 
                 <form onSubmit={handleSubmit}>
                   {/* Order Category */}
-                  <div className="po-radio-row mb-2">
+                  <div className="po-radio-row mb-3">
                     <span className="po-section m-0">Order Category</span>
                     <div className="form-check m-0">
                       <input
@@ -2113,6 +2124,7 @@ function CustomerDashboard() {
                         className="po-input"
                         value={form.quantity}
                         onChange={handleChange}
+                        onWheel={(e) => e.currentTarget.blur()}
                         onKeyDown={(e) =>
                           e.key === "Enter" && locationRef.current?.focus()
                         }
