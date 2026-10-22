@@ -247,7 +247,7 @@ const persoPut = (k, v) => {
   if (persoCache.size >= PERSO_MAX) persoCache.delete(persoCache.keys().next().value);
   persoCache.set(k, { t: Date.now(), v });
 };
-const clearPersoCache = () => persoCache.clear();
+const clearPersoCache = () => { persoCache.clear(); rCache.clear(); }; // also drops the report-page cache
 
 // slim every record down to what the report needs
 const persoPrep = (match) => [
@@ -651,70 +651,113 @@ const reportMins = {
     },
   ],
 };
-const loadMachineMap = async () =>
-  new Map((await mongoose.model("MachineMaster").find({}, "machineName").lean())
-    .map((m) => [String(m._id), m.machineName]));
+
+// machine names (tiny collection) cached for 5 minutes
+let machineMapCache = { t: 0, v: null };
+const loadMachineMap = async () => {
+  if (machineMapCache.v && Date.now() - machineMapCache.t < 300000) return machineMapCache.v;
+  const v = new Map(
+    (await mongoose.model("MachineMaster").find({}, "machineName").lean()).map((m) => [String(m._id), m.machineName])
+  );
+  machineMapCache = { t: Date.now(), v };
+  return v;
+};
+
+// short result cache: same filters within 30s are answered instantly
+const R_TTL = 30000;
+const rCache = new Map();
+const rGet = (k) => {
+  const h = rCache.get(k);
+  return h && Date.now() - h.t < R_TTL ? h.v : null;
+};
+const rSet = (k, v) => {
+  if (rCache.size > 200) rCache.clear();
+  rCache.set(k, { t: Date.now(), v });
+};
+
+// runs the pipeline on the covering index ("report_cover") when no filter outside that index is used
+const runAgg = async (pipeline, q) => {
+  const hinted = !q.workOrder && !q.location && !q.shift;
+  try {
+    const a = ProductionMachineStatus.aggregate(pipeline).allowDiskUse(true);
+    return await (hinted ? a.hint("report_cover") : a);
+  } catch (e) {
+    // index not built yet -> run without the hint
+    if (hinted && /hint|index/i.test(String(e.message))) {
+      return ProductionMachineStatus.aggregate(pipeline).allowDiskUse(true);
+    }
+    throw e;
+  }
+};
 
 // KPI cards + Machine Production table + machine column list
 router.get("/report/summary", async (req, res) => {
   try {
+    const ck = req.originalUrl;
+    const hit = rGet(ck);
+    if (hit) return res.json(hit);
+
     const query = await buildQuery(req.query);
-    const prod = { $and: [query, { machineStatus: "PRODUCTION" }] };
     const isProd = { $eq: ["$machineStatus", "PRODUCTION"] };
 
-    const [tot, orders, mp, used, macMap] = await Promise.all([
-      ProductionMachineStatus.aggregate([
+    const [grp, orders, macMap] = await Promise.all([
+      // ONE pass over the data gives KPIs, machine table and machine order
+      runAgg([
         { $match: query },
         {
           $group: {
-            _id: null,
-            totalRecords: { $sum: 1 },
-            totalProduction: { $sum: { $cond: [isProd, rNum("$totalPages"), 0] } },
-            totalWastage: { $sum: { $cond: [isProd, rNum("$wastageSheets"), 0] } },
+            _id: { m: "$machineId", p: { $ifNull: ["$printerName", ""] }, pr: isProd },
+            n: { $sum: 1 },
+            pages: { $sum: rNum("$totalPages") },
+            waste: { $sum: rNum("$wastageSheets") },
+            last: { $max: "$createdAt" },
           },
         },
-      ]).allowDiskUse(true),
-      ProductionMachineStatus.aggregate([
-        { $match: { $and: [prod, { woNumber: { $nin: [null, ""] } }] } },
+      ], req.query),
+      runAgg([
+        { $match: { $and: [query, { machineStatus: "PRODUCTION" }, { woNumber: { $nin: [null, ""] } }] } },
         { $group: { _id: "$woNumber" } },
         { $count: "n" },
-      ]).allowDiskUse(true),
-      ProductionMachineStatus.aggregate([
-        { $match: prod },
-        {
-          $group: {
-            _id: { m: "$machineId", p: { $ifNull: ["$printerName", ""] } },
-            production: { $sum: rNum("$totalPages") },
-            wastage: { $sum: rNum("$wastageSheets") },
-          },
-        },
-      ]).allowDiskUse(true),
-      ProductionMachineStatus.aggregate([
-        { $match: query },
-        { $group: { _id: "$machineId", last: { $max: "$createdAt" } } },
-        { $sort: { last: -1 } },
-      ]).allowDiskUse(true),
+      ], req.query),
       loadMachineMap(),
     ]);
 
-    const t = tot[0] || {};
-    const machineProduction = mp
-      .map((r) => ({
-        machine: macMap.get(String(r._id.m)),
-        printer: r._id.p,
-        production: r.production,
-        wastage: r.wastage,
-      }))
-      .filter((r) => r.machine && (r.production > 0 || r.wastage > 0));
+    let totalRecords = 0, totalProduction = 0, totalWastage = 0;
+    const machineProduction = [];
+    const lastByMachine = new Map();
 
-    res.json({
-      totalRecords: t.totalRecords || 0,
-      totalProduction: t.totalProduction || 0,
-      totalWastage: t.totalWastage || 0,
-      totalOrders: orders[0]?.n || 0,
-      usedMachineNames: [...new Set(used.map((u) => macMap.get(String(u._id))).filter(Boolean))],
-      machineProduction,
+    grp.forEach((g) => {
+      totalRecords += g.n;
+      const mk = String(g._id.m);
+      const prev = lastByMachine.get(mk);
+      if (!prev || g.last > prev) lastByMachine.set(mk, g.last);
+      if (g._id.pr) {
+        totalProduction += g.pages;
+        totalWastage += g.waste;
+        const name = macMap.get(mk);
+        if (name && (g.pages > 0 || g.waste > 0)) {
+          machineProduction.push({ machine: name, printer: g._id.p, production: g.pages, wastage: g.waste });
+        }
+      }
     });
+
+    const usedMachineNames = [
+      ...new Set(
+        [...lastByMachine.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([id]) => macMap.get(id))
+          .filter(Boolean)
+      ),
+    ];
+
+    const payload = {
+      totalRecords, totalProduction, totalWastage,
+      totalOrders: orders[0]?.n || 0,
+      usedMachineNames,
+      machineProduction,
+    };
+    rSet(ck, payload);
+    res.json(payload);
   } catch (err) {
     console.error("Report summary error:", err);
     res.status(500).json({ message: "Error building report summary", error: err.message });
@@ -725,6 +768,10 @@ router.get("/report/summary", async (req, res) => {
 router.get("/report/jobs", async (req, res) => {
   try {
     const q = req.query;
+    const ck = req.originalUrl;
+    const hit = rGet(ck);
+    if (hit) return res.json(hit);
+
     const query = await buildQuery(q);
     const limit = Math.min(Math.max(parseInt(q.limit, 10) || 50, 1), 500);
     const page = Math.max(parseInt(q.page, 10) || 1, 1);
@@ -758,11 +805,12 @@ router.get("/report/jobs", async (req, res) => {
     ];
 
     const [agg, macMap] = await Promise.all([
-      ProductionMachineStatus.aggregate(
+      runAgg(
         all
           ? base
-          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }]
-      ).allowDiskUse(true),
+          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }],
+        q
+      ),
       loadMachineMap(),
     ]);
 
@@ -783,7 +831,9 @@ router.get("/report/jobs", async (req, res) => {
       };
     });
 
-    res.json({ rows, total });
+    const payload = { rows, total };
+    if (!all) rSet(ck, payload);
+    res.json(payload);
   } catch (err) {
     console.error("Report jobs error:", err);
     res.status(500).json({ message: "Error building job report", error: err.message });
@@ -794,13 +844,25 @@ router.get("/report/jobs", async (req, res) => {
 router.get("/report/utilization", async (req, res) => {
   try {
     const q = req.query;
+    const ck = req.originalUrl;
+    const hit = rGet(ck);
+    if (hit) return res.json(hit);
+
     const query = await buildQuery(q);
     const limit = Math.min(Math.max(parseInt(q.limit, 10) || 50, 1), 500);
     const page = Math.max(parseInt(q.page, 10) || 1, 1);
     const all = q.all === "1";
 
     const base = [
-      { $match: { $and: [query, { machineId: { $ne: null } }, { productionDate: { $ne: null } }] } },
+      {
+        $match: {
+          $and: [
+            query,
+            { machineId: { $ne: null } },
+            { productionDate: { $gte: new Date("2000-01-01T00:00:00Z"), $lt: new Date("2100-01-01T00:00:00Z") } },
+          ],
+        },
+      },
       {
         $group: {
           _id: {
@@ -822,11 +884,12 @@ router.get("/report/utilization", async (req, res) => {
     ];
 
     const [agg, macMap] = await Promise.all([
-      ProductionMachineStatus.aggregate(
+      runAgg(
         all
           ? base
-          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }]
-      ).allowDiskUse(true),
+          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }],
+        q
+      ),
       loadMachineMap(),
     ]);
 
@@ -839,7 +902,9 @@ router.get("/report/utilization", async (req, res) => {
       return { date: r._id.d, machine: macMap.get(String(r._id.m)) || "-", printer: r._id.p, status };
     });
 
-    res.json({ rows, total });
+    const payload = { rows, total };
+    if (!all) rSet(ck, payload);
+    res.json(payload);
   } catch (err) {
     console.error("Report utilization error:", err);
     res.status(500).json({ message: "Error building utilization report", error: err.message });

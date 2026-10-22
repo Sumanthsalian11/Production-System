@@ -103,6 +103,10 @@ ProductionMachineStatusSchema.index({ userLocations: 1 });
 ProductionMachineStatusSchema.index({ customerName: 1 });
 ProductionMachineStatusSchema.index({ machineStatus: 1 });
 ProductionMachineStatusSchema.index({ printerName: 1 });
+ProductionMachineStatusSchema.index(
+  { productionDate: -1, machineStatus: 1, machineId: 1, printerName: 1, woNumber: 1, totalPages: 1, wastageSheets: 1 },
+  { name: "report_cover" }
+);
 
 module.exports = mongoose.model(
   "ProductionMachineStatus",

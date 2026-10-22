@@ -894,10 +894,6 @@ export default function Productionreportt() {
               <label className="pr-label">&nbsp;</label>
               <button className="pr-export-btn" onClick={exportExcel}>⬇ Export Excel</button>
             </div>
-            <div className="pr-field">
-              <label className="pr-label">&nbsp;</label>
-              <button className="pr-export-btn" onClick={exportRecords}>⬇ Export Records</button>
-            </div>
           </div>
         </div>
 
