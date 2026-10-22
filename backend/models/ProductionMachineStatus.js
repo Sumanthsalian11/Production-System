@@ -75,6 +75,8 @@ reason: {
   default: "",
 },
 paperSize:   { type: String, default: "" },
+durMins:   { type: Number },   // precomputed minutes between fromTime and toTime
+statusKey: { type: String },   // machineStatus trimmed + lowercased
 printerName: { type: String, default: "" },
     enteredBy: {
       type: String,
@@ -98,10 +100,11 @@ ProductionMachineStatusSchema.index({ productionDate: -1, createdAt: -1 });
 ProductionMachineStatusSchema.index({ machineId: 1, productionDate: 1 });
 ProductionMachineStatusSchema.index({ productionDate: -1, machineStatus: 1 });
 ProductionMachineStatusSchema.index({ productionDate: -1, machineId: 1, printerName: 1 });
-ProductionMachineStatusSchema.index({ woNumber: 1 });
-ProductionMachineStatusSchema.index({ userLocations: 1 });
-ProductionMachineStatusSchema.index({ customerName: 1 });
-ProductionMachineStatusSchema.index({ machineStatus: 1 });
+ProductionMachineStatusSchema.index({ woNumber: 1, productionDate: -1 });
+ProductionMachineStatusSchema.index({ customerName: 1, productionDate: -1 });
+ProductionMachineStatusSchema.index({ machineStatus: 1, productionDate: -1 });
+ProductionMachineStatusSchema.index({ shift: 1, productionDate: -1 });
+ProductionMachineStatusSchema.index({ userLocations: 1, productionDate: -1 });
 ProductionMachineStatusSchema.index({ printerName: 1 });
 ProductionMachineStatusSchema.index(
   { productionDate: -1, machineStatus: 1, machineId: 1, printerName: 1, woNumber: 1, totalPages: 1, wastageSheets: 1 },

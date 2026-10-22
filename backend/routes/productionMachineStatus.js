@@ -63,6 +63,8 @@ printerName: req.body.printerName || "",
    userLocations: req.body.userLocations || [],
     });
 
+    newRecord.durMins = minsOf(newRecord.fromTime, newRecord.toTime);
+    newRecord.statusKey = String(newRecord.machineStatus || "").trim().toLowerCase();
     const saved = await newRecord.save();
     clearPersoCache();
 
@@ -241,67 +243,347 @@ router.get("/summary", async (req, res) => {
 // ==========================================
 // PERSO REPORT (grouped in MongoDB, only totals + first 50 job rows are sent)
 // ==========================================
-const PERSO_TTL = 60 * 1000, PERSO_MAX = 24, persoCache = new Map();
-const persoGet = (k) => { const h = persoCache.get(k); return h && Date.now() - h.t < PERSO_TTL ? h.v : null; };
-const persoPut = (k, v) => {
-  if (persoCache.size >= PERSO_MAX) persoCache.delete(persoCache.keys().next().value);
-  persoCache.set(k, { t: Date.now(), v });
+// ---------- cache: one-pass results, stale-while-revalidate for the heavy "no from-date" view ----------
+const PERSO_FRESH = 60 * 1000;             // dated queries: recompute after 60s
+const PERSO_HEAVY_STALE = 15 * 60 * 1000;  // all-data queries: answer instantly, refresh in background
+const PERSO_MAX = 40;
+const persoCache = new Map();
+const persoInflight = new Map();
+
+// no from-date and no month = scans everything
+const isHeavy = (q) => !q.month && !q.dateFrom;
+// "from cleared, to = today or later" is the same as all data, so it shares the pre-built cache entry
+const normQ = (q) => {
+  const n = { ...q };
+  const today = new Date().toISOString().slice(0, 10);
+  if (!n.dateFrom && !n.month && n.dateTo && n.dateTo >= today) delete n.dateTo;
+  return n;
 };
-const clearPersoCache = () => { persoCache.clear(); rCache.clear(); }; // also drops the report-page cache
+const persoKey = (q) =>
+  "R|" + ["dateFrom", "dateTo", "month", "workOrder", "customer", "shift", "machineStatus", "machine", "location"]
+    .map((k) => q[k] || "").join("|");
 
-// slim every record down to what the report needs
-const persoPrep = (match) => [
-  { $match: match },
-  { $project: {
-      _id: 0,
-      d: { $dateToString: { format: "%Y-%m-%d", date: "$productionDate" } },
-      pd: "$productionDate",
-      ca: { $ifNull: ["$createdAt", "$productionDate"] },
-      wo: { $ifNull: ["$woNumber", ""] }, sh: { $ifNull: ["$shift", ""] },
-      a: "$activityId", m: "$machineId",
-      p: { $ifNull: ["$printerName", ""] }, c: { $ifNull: ["$customerName", ""] },
-      mt: { $ifNull: ["$materialType", ""] }, ps: { $ifNull: ["$paperSize", ""] },
-      psT: { $trim: { input: { $ifNull: ["$paperSize", ""] } } },
-      eb: { $ifNull: ["$enteredBy", ""] },
-      f: { $ifNull: ["$fromTime", ""] }, t: { $ifNull: ["$toTime", ""] },
-      re: { $ifNull: ["$reason", ""] }, rm: { $ifNull: ["$remarks", ""] },
-      pgRaw: rNum("$totalPages"), wsRaw: rNum("$wastageSheets"),
-      st: { $toLower: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } } },
-      mins: reportMins,
-  } },
-  { $addFields: {
-      pg: { $max: [0, "$pgRaw"] },
-      wt: { $max: [0, "$wsRaw"] },
-      cat: { $switch: {
-          branches: [
-            { case: { $in: ["$st", ["production", "working"]] }, then: "__p" },
-            { case: { $eq: ["$st", ""] }, then: "__none" },
-          ],
-          default: "$st",
+const persoRefresh = (key, compute) => {
+  if (!persoInflight.has(key)) {
+    const p = compute()
+      .then((v) => {
+        if (persoCache.size >= PERSO_MAX) persoCache.delete(persoCache.keys().next().value);
+        persoCache.set(key, { t: Date.now(), v, dirty: false });
+        return v;
+      })
+      .finally(() => persoInflight.delete(key));
+    persoInflight.set(key, p);
+  }
+  return persoInflight.get(key);
+};
+const persoCached = async (key, heavy, compute) => {
+  const hit = persoCache.get(key);
+  const age = hit ? Date.now() - hit.t : Infinity;
+  if (hit && !hit.dirty && age < PERSO_FRESH) return hit.v;
+  if (hit && heavy && age < PERSO_HEAVY_STALE) {       // serve instantly, rebuild behind the scenes
+    persoRefresh(key, compute).catch(console.error);
+    return hit.v;
+  }
+  return persoRefresh(key, compute);
+};
+
+// writes mark entries stale (heavy ones are rebuilt in the background); also drops the /report/* cache
+let warmTimer = null;
+const clearPersoCache = () => {
+  persoCache.forEach((e) => { e.dirty = true; });
+  rCache.clear();
+  clearTimeout(warmTimer);
+  warmTimer = setTimeout(() => warmPerso(), 3000);
+  warmTimer.unref?.();
+};
+
+// ---------- helpers ----------
+const DAY = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+const hm = (s) => { const [h, m] = String(s || "").split(":"); return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0); };
+const minsOf = (f, t) => { if (!f || !t) return 0; let d = hm(t) - hm(f); if (d <= 0) d += 1440; return d; };
+const catOf = (s) => {
+  const st = String(s || "").trim().toLowerCase();
+  if (!st) return "__none";
+  return st === "production" || st === "working" ? "__p" : st;
+};
+const detailKey = (r) => [
+  DAY(r.productionDate), r.woNumber || "", r.shift || "", String(r.activityId || ""), String(r.machineId || ""),
+  r.printerName || "", r.customerName || "", r.materialType || "", r.paperSize || "", r.enteredBy || "",
+].join("||");
+const DETAIL_FIELDS = {
+  productionDate: 1, woNumber: 1, shift: 1, activityId: 1, machineId: 1, printerName: 1, customerName: 1,
+  materialType: 1, paperSize: 1, enteredBy: 1, fromTime: 1, toTime: 1, reason: 1, remarks: 1,
+  machineStatus: 1, totalPages: 1, wastageSheets: 1, createdAt: 1,
+};
+
+// folds records (newest first) into job rows; `only` limits it to a set of job keys
+const groupJobs = (docs, only) => {
+  const map = new Map();
+  for (const r of docs) {
+    const k = detailKey(r);
+    if (only && !only.has(k)) continue;
+    let g = map.get(k);
+    if (!g) {
+      g = {
+        productionDate: r.productionDate, woNumber: r.woNumber || "", shift: r.shift || "",
+        machineId: r.machineId, printerName: r.printerName || "", customerName: r.customerName || "",
+        materialType: r.materialType || "", paperSize: r.paperSize || "", enteredBy: r.enteredBy || "",
+        totalPages: 0, wastageSheets: 0, items: [],
+      };
+      map.set(k, g);
+    }
+    const pg = Number(r.totalPages) || 0, ws = Number(r.wastageSheets) || 0;
+    if (pg > 0) g.totalPages += pg;
+    if (ws > 0) g.wastageSheets += ws;
+    g.items.push({ c: catOf(r.machineStatus), f: r.fromTime || "", t: r.toTime || "", m: minsOf(r.fromTime, r.toTime), re: r.reason || "", rm: r.remarks || "" });
+  }
+  return [...map.values()];
+};
+
+// newest 50 jobs WITHOUT scanning everything: walk the createdAt index and stop at 50 distinct jobs
+const FULL_FETCH_MAX = 30000; // up to this many matches: one filtered query + in-memory sort
+
+const topJobs = async (match, all, count) => {
+  const sort = { createdAt: -1, _id: -1 };
+  if (all) {
+    const cur = ProductionMachineStatus.find(match).select(DETAIL_FIELDS).sort(sort).lean().cursor({ batchSize: 5000 });
+    const docs = [];
+    for await (const r of cur) docs.push(r);
+    return groupJobs(docs);
+  }
+
+  // few matches (typical for WO / customer / machine filters): one indexed query, sort in memory
+  if (count <= FULL_FETCH_MAX) {
+    const docs = await ProductionMachineStatus.find(match).select(DETAIL_FIELDS).sort(sort).lean();
+    return groupJobs(docs).slice(0, 50);
+  }
+
+  // many matches: walking the createdAt index finds 50 distinct jobs almost immediately
+  const keys = new Map();
+  const cur = ProductionMachineStatus.find(match).select(DETAIL_FIELDS).sort(sort).lean().cursor({ batchSize: 200 });
+  try {
+    for await (const r of cur) {
+      const k = detailKey(r);
+      if (!keys.has(k)) {
+        keys.set(k, { wo: r.woNumber || "", day: DAY(r.productionDate) });
+        if (keys.size >= 50) break;
+      }
+    }
+  } finally { await cur.close().catch(() => {}); }
+  if (!keys.size) return [];
+
+  const vals = [...keys.values()];
+  const wos = [...new Set(vals.map((x) => x.wo))];
+  const days = vals.map((x) => x.day).filter(Boolean).sort();
+  const noDate = vals.some((x) => !x.day);
+  const range = days.length
+    ? { productionDate: { $gte: new Date(`${days[0]}T00:00:00.000Z`), $lte: new Date(`${days[days.length - 1]}T23:59:59.999Z`) } }
+    : null;
+  const dateCond = range ? (noDate ? { $or: [range, { productionDate: null }] } : range) : { productionDate: null };
+  const docs = await ProductionMachineStatus.find({ $and: [match, { woNumber: { $in: wos } }, dateCond] })
+    .select(DETAIL_FIELDS).sort(sort).lean();
+  return groupJobs(docs, new Set(keys.keys()));
+};
+
+const topJobsOld = async (match, all) => {
+  const sort = { createdAt: -1, _id: -1 };
+  if (all) {
+    const cur = ProductionMachineStatus.find(match).select(DETAIL_FIELDS).sort(sort).lean().cursor({ batchSize: 5000 });
+    const docs = [];
+    for await (const r of cur) docs.push(r);
+    return groupJobs(docs);
+  }
+  const keys = new Map();
+  const cur = ProductionMachineStatus.find(match).select(DETAIL_FIELDS).sort(sort).lean().cursor({ batchSize: 200 });
+  try {
+    for await (const r of cur) {
+      const k = detailKey(r);
+      if (!keys.has(k)) {
+        keys.set(k, { wo: r.woNumber || "", day: DAY(r.productionDate) });
+        if (keys.size >= 50) break;
+      }
+    }
+  } finally { await cur.close().catch(() => {}); }
+  if (!keys.size) return [];
+
+  // fetch every record of those 50 jobs (narrowed by WO number + day range)
+  const vals = [...keys.values()];
+  const wos = [...new Set(vals.map((x) => x.wo))];
+  const days = vals.map((x) => x.day).filter(Boolean).sort();
+  const noDate = vals.some((x) => !x.day);
+  const range = days.length
+    ? { productionDate: { $gte: new Date(`${days[0]}T00:00:00.000Z`), $lte: new Date(`${days[days.length - 1]}T23:59:59.999Z`) } }
+    : null;
+  const dateCond = range ? (noDate ? { $or: [range, { productionDate: null }] } : range) : { productionDate: null };
+  const docs = await ProductionMachineStatus.find({ $and: [match, { woNumber: { $in: wos } }, dateCond] })
+    .select(DETAIL_FIELDS).sort(sort).lean();
+  return groupJobs(docs, new Set(keys.keys()));
+};
+
+// ONE pass, no $project stage; uses stored durMins / statusKey when present, falls back to computing them
+const summaryRows = (match) =>
+  ProductionMachineStatus.aggregate([
+    { $match: match },
+    { $group: {
+        _id: {
+          m: "$machineId",
+          p: { $ifNull: ["$printerName", ""] },
+          s: "$paperSize",
+          st: { $ifNull: ["$statusKey", { $toLower: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } } }] },
+        },
+        n: { $sum: 1 },
+        pgRaw: { $sum: "$totalPages" },
+        pg: { $sum: { $max: [0, "$totalPages"] } },
+        wt: { $sum: { $max: [0, "$wastageSheets"] } },
+        mins: { $sum: { $ifNull: ["$durMins", reportMins] } },
+        last: { $max: { $ifNull: ["$createdAt", "$productionDate"] } },
+        min: { $min: "$productionDate" },
+        max: { $max: "$productionDate" },
+    } },
+  ]).allowDiskUse(true);
+
+const buildPersoReport = async (q, all) => {
+  const base = await buildQuery(q);
+  // WO search: index-friendly prefix first; falls back to the original "contains" if nothing matches
+  const withWO = (contains) =>
+    !q.workOrder ? base : {
+      ...base,
+      woNumber: contains
+        ? { $regex: escapeRegex(q.workOrder), $options: "i" }
+        : { $regex: "^" + escapeRegex(q.workOrder) },
+    };
+
+  const macP = loadMachineMap();
+  let match = withWO(false);
+  let rows = await summaryRows(match);
+  if (!rows.length && q.workOrder) { match = withWO(true); rows = await summaryRows(match); }
+  const count = rows.reduce((s, r) => s + r.n, 0);
+  const [jobs, macMap] = await Promise.all([topJobs(match, all, count), macP]);
+
+  const nameOf = (id) => macMap.get(String(id)) || "Unknown";
+  const cm = new Map(), paper = new Map();
+  const totals = { pages: 0, waste: 0, printMins: 0, allMins: 0, statusMins: {} };
+  let minD = null, maxD = null;
+
+  for (const r of rows) {
+    const raw = r._id.s == null ? "" : String(r._id.s);
+    const psU = raw === "" ? "Unknown" : raw.toUpperCase();
+    const psT = raw.trim().toUpperCase();
+
+    const name = nameOf(r._id.m), p = r._id.p || "", k = `${name}||${p}`;
+    let e = cm.get(k);
+    if (!e) cm.set(k, (e = { machineName: name, printerName: p, counts: {}, printingMins: 0, statusMins: {}, last: 0 }));
+    e.counts[psU] = (e.counts[psU] || 0) + r.pgRaw;
+    e.last = Math.max(e.last, +r.last || 0);
+
+    const c = catOf(r._id.st);
+    if (c !== "__none") {
+      if (c === "__p") { e.printingMins += r.mins; totals.printMins += r.mins; }
+      else {
+        e.statusMins[c] = (e.statusMins[c] || 0) + r.mins;
+        totals.statusMins[c] = (totals.statusMins[c] || 0) + r.mins;
+      }
+      totals.allMins += r.mins;
+    }
+    if (psT) paper.set(psT, (paper.get(psT) || 0) + r.pgRaw);
+    totals.pages += r.pg; totals.waste += r.wt;
+    if (r.min && (!minD || r.min < minD)) minD = r.min;
+    if (r.max && (!maxD || r.max > maxD)) maxD = r.max;
+  }
+
+  return {
+    count, minDate: minD, maxDate: maxD,
+    consolidated: [...cm.values()].sort((a, b) => b.last - a.last).map(({ last, ...x }) => x),
+    paperSizeTotals: [...paper].map(([paperSize, totalCount]) => ({ paperSize, totalCount }))
+      .sort((a, b) => a.paperSize.localeCompare(b.paperSize)),
+    totals,
+    detail: jobs.map((g) => ({ ...g, machineName: nameOf(g.machineId), machineId: undefined })),
+  };
+};
+
+const buildPersoReportOld = async (q, all) => {
+  const match = await buildQuery(q);
+
+  const [rows, jobs, macMap] = await Promise.all([
+    // ONE pass; the output is only a few hundred small groups
+    ProductionMachineStatus.aggregate([
+      { $match: match },
+      { $project: {
+          _id: 0, m: "$machineId", p: { $ifNull: ["$printerName", ""] },
+          psU: { $toUpper: { $cond: [{ $eq: [{ $ifNull: ["$paperSize", ""] }, ""] }, "Unknown", { $ifNull: ["$paperSize", ""] }] } },
+          psT: { $toUpper: { $trim: { input: { $ifNull: ["$paperSize", ""] } } } },
+          st: { $toLower: { $trim: { input: { $ifNull: ["$machineStatus", ""] } } } },
+          pgRaw: rNum("$totalPages"), wsRaw: rNum("$wastageSheets"), mins: reportMins,
+          pd: "$productionDate", ca: { $ifNull: ["$createdAt", "$productionDate"] },
       } },
-  } },
-];
+      { $group: {
+          _id: { m: "$m", p: "$p", s: "$psU", t: "$psT", st: "$st" },
+          n: { $sum: 1 }, pgRaw: { $sum: "$pgRaw" },
+          pg: { $sum: { $max: [0, "$pgRaw"] } }, wt: { $sum: { $max: [0, "$wsRaw"] } },
+          mins: { $sum: "$mins" }, last: { $max: "$ca" }, min: { $min: "$pd" }, max: { $max: "$pd" },
+      } },
+    ]).allowDiskUse(true),
+    topJobs(match, all),
+    loadMachineMap(),
+  ]);
 
-// dropdown options (small, cached)
+  const nameOf = (id) => macMap.get(String(id)) || "Unknown";
+  const cm = new Map(), paper = new Map();
+  const totals = { pages: 0, waste: 0, printMins: 0, allMins: 0, statusMins: {} };
+  let count = 0, minD = null, maxD = null;
+
+  for (const r of rows) {
+    const name = nameOf(r._id.m), p = r._id.p || "", k = `${name}||${p}`;
+    let e = cm.get(k);
+    if (!e) cm.set(k, (e = { machineName: name, printerName: p, counts: {}, printingMins: 0, statusMins: {}, last: 0 }));
+    e.counts[r._id.s] = (e.counts[r._id.s] || 0) + r.pgRaw;
+    e.last = Math.max(e.last, +r.last || 0);
+
+    const c = catOf(r._id.st);
+    if (c !== "__none") {
+      if (c === "__p") { e.printingMins += r.mins; totals.printMins += r.mins; }
+      else {
+        e.statusMins[c] = (e.statusMins[c] || 0) + r.mins;
+        totals.statusMins[c] = (totals.statusMins[c] || 0) + r.mins;
+      }
+      totals.allMins += r.mins;
+    }
+    if (r._id.t) paper.set(r._id.t, (paper.get(r._id.t) || 0) + r.pgRaw);
+    totals.pages += r.pg; totals.waste += r.wt; count += r.n;
+    if (r.min && (!minD || r.min < minD)) minD = r.min;
+    if (r.max && (!maxD || r.max > maxD)) maxD = r.max;
+  }
+
+  return {
+    count, minDate: minD, maxDate: maxD,
+    consolidated: [...cm.values()].sort((a, b) => b.last - a.last).map(({ last, ...x }) => x),
+    paperSizeTotals: [...paper].map(([paperSize, totalCount]) => ({ paperSize, totalCount }))
+      .sort((a, b) => a.paperSize.localeCompare(b.paperSize)),
+    totals,
+    detail: jobs.map((g) => ({ ...g, machineName: nameOf(g.machineId), machineId: undefined })),
+  };
+};
+
+// dropdown options
+const buildPersoOptions = async () => {
+  const [customers, locations, machineIds, statuses] = await Promise.all([
+    ProductionMachineStatus.distinct("customerName"),
+    ProductionMachineStatus.distinct("userLocations"),
+    ProductionMachineStatus.distinct("machineId"),
+    ProductionMachineStatus.distinct("machineStatus"),
+  ]);
+  const macMap = await loadMachineMap();
+  return {
+    customers: customers.filter(Boolean).sort(),
+    locations: locations.filter(Boolean),
+    machines: [...new Set(machineIds.map((id) => macMap.get(String(id))).filter(Boolean))],
+    statuses: statuses.filter(Boolean),
+  };
+};
+
 router.get("/perso-options", async (req, res) => {
   try {
-    const hit = persoGet("OPTS");
-    if (hit) return res.json(hit);
-    const [customers, locations, machineIds, statuses] = await Promise.all([
-      ProductionMachineStatus.distinct("customerName"),
-      ProductionMachineStatus.distinct("userLocations"),
-      ProductionMachineStatus.distinct("machineId"),
-      ProductionMachineStatus.distinct("machineStatus"),
-    ]);
-    const macMap = await loadMachineMap();
-    const out = {
-      customers: customers.filter(Boolean).sort(),
-      locations: locations.filter(Boolean),
-      machines: [...new Set(machineIds.map((id) => macMap.get(String(id))).filter(Boolean))],
-      statuses: statuses.filter(Boolean),
-    };
-    persoPut("OPTS", out);
-    res.json(out);
+    res.json(await persoCached("OPTS", true, buildPersoOptions));
   } catch (err) {
     console.error("Perso options error:", err);
     res.status(500).json({ message: "Error fetching options", error: err.message });
@@ -310,97 +592,22 @@ router.get("/perso-options", async (req, res) => {
 
 router.get("/perso-report", async (req, res) => {
   try {
-    const q = req.query;
-    const all = q.all === "1"; // export: every detail row
-    const key = "R|" + ["dateFrom", "dateTo", "month", "workOrder", "customer", "shift", "machineStatus", "machine", "location"]
-      .map((k) => q[k] || "").join("|");
-    if (!all) { const hit = persoGet(key); if (hit) return res.json(hit); }
-
-    const match = await buildQuery(q);
-    const detailLimit = all ? 0 : 50;
-
-    const [facetRes, detailRaw, macMap] = await Promise.all([
-      ProductionMachineStatus.aggregate([
-        ...persoPrep(match),
-        { $facet: {
-            sizes: [{ $group: {
-              _id: { m: "$m", p: "$p", s: { $toUpper: { $cond: [{ $eq: ["$ps", ""] }, "Unknown", "$ps"] } } },
-              pg: { $sum: "$pgRaw" }, last: { $max: "$ca" },
-            } }],
-            times: [{ $group: { _id: { m: "$m", p: "$p", c: "$cat" }, mins: { $sum: "$mins" } } }],
-            paper: [{ $match: { psT: { $ne: "" } } }, { $group: { _id: { $toUpper: "$psT" }, n: { $sum: "$pgRaw" } } }],
-            cats: [{ $group: { _id: "$cat", mins: { $sum: "$mins" } } }],
-            sums: [{ $group: { _id: null, n: { $sum: 1 }, pages: { $sum: "$pg" }, waste: { $sum: "$wt" }, min: { $min: "$pd" }, max: { $max: "$pd" } } }],
-        } },
-      ]).allowDiskUse(true),
-
-      // one row per job (same grouping key the page used), newest first
-      ProductionMachineStatus.aggregate([
-        ...persoPrep(match),
-        { $sort: { ca: -1 } },
-        { $group: {
-            _id: { d: "$d", wo: "$wo", sh: "$sh", a: "$a", m: "$m", p: "$p", c: "$c", mt: "$mt", ps: "$ps", eb: "$eb" },
-            pd: { $first: "$pd" }, ca: { $first: "$ca" },
-            pages: { $sum: "$pg" }, waste: { $sum: "$wt" },
-            items: { $push: { c: "$cat", f: "$f", t: "$t", m: "$mins", re: "$re", rm: "$rm" } },
-        } },
-        { $sort: { ca: -1 } },
-        ...(detailLimit ? [{ $limit: detailLimit }] : []),
-      ]).allowDiskUse(true),
-
-      loadMachineMap(),
-    ]);
-
-    const nameOf = (id) => macMap.get(String(id)) || "Unknown";
-    const f = facetRes[0] || {};
-
-    // consolidated (machine x printer)
-    const cm = new Map();
-    for (const r of f.sizes || []) {
-      const name = nameOf(r._id.m), p = r._id.p || "", k = `${name}||${p}`;
-      let e = cm.get(k);
-      if (!e) cm.set(k, (e = { machineName: name, printerName: p, counts: {}, printingMins: 0, statusMins: {}, last: 0 }));
-      e.counts[r._id.s] = (e.counts[r._id.s] || 0) + r.pg;
-      e.last = Math.max(e.last, +r.last || 0);
-    }
-    for (const r of f.times || []) {
-      const e = cm.get(`${nameOf(r._id.m)}||${r._id.p || ""}`);
-      if (!e || r._id.c === "__none") continue;
-      if (r._id.c === "__p") e.printingMins += r.mins;
-      else e.statusMins[r._id.c] = (e.statusMins[r._id.c] || 0) + r.mins;
-    }
-    const consolidated = [...cm.values()].sort((a, b) => b.last - a.last).map(({ last, ...x }) => x);
-
-    const totals = { pages: 0, waste: 0, printMins: 0, allMins: 0, statusMins: {} };
-    for (const c of f.cats || []) {
-      if (c._id === "__none") continue;
-      totals.allMins += c.mins;
-      if (c._id === "__p") totals.printMins = c.mins; else totals.statusMins[c._id] = c.mins;
-    }
-    const s0 = (f.sums || [])[0] || {};
-    totals.pages = s0.pages || 0;
-    totals.waste = s0.waste || 0;
-
-    const out = {
-      count: s0.n || 0, minDate: s0.min || null, maxDate: s0.max || null,
-      consolidated,
-      paperSizeTotals: (f.paper || []).map((r) => ({ paperSize: r._id, totalCount: r.n }))
-        .sort((a, b) => a.paperSize.localeCompare(b.paperSize)),
-      totals,
-      detail: detailRaw.map((g) => ({
-        productionDate: g.pd, woNumber: g._id.wo, shift: g._id.sh, machineName: nameOf(g._id.m),
-        printerName: g._id.p, customerName: g._id.c, materialType: g._id.mt, paperSize: g._id.ps,
-        enteredBy: g._id.eb, totalPages: g.pages, wastageSheets: g.waste, items: g.items,
-      })),
-    };
-    if (!all) persoPut(key, out);
-    res.json(out);
+    const q = normQ(req.query);
+    if (req.query.all === "1") return res.json(await buildPersoReport(q, true)); // export: never cached
+    res.json(await persoCached(persoKey(q), isHeavy(q), () => buildPersoReport(q, false)));
   } catch (err) {
     console.error("Perso report error:", err);
     res.status(500).json({ message: "Error fetching report", error: err.message });
   }
 });
 
+// pre-build the "all data" view + options so clearing the From date is instant
+const warmPerso = () => {
+  persoRefresh(persoKey({}), () => buildPersoReport({}, false)).catch(console.error);
+  persoRefresh("OPTS", buildPersoOptions).catch(console.error);
+};
+setTimeout(warmPerso, 5000).unref?.();
+setInterval(warmPerso, 10 * 60 * 1000).unref?.();
 // latest entry per activity + machine + printer (for the Last Used PDF / Excel)
 router.get("/last-used", async (req, res) => {
   try {
@@ -477,6 +684,12 @@ userLocations: req.body.userLocations || [],
     );
 
     clearPersoCache();
+    if (updated) {
+      await ProductionMachineStatus.updateOne(
+        { _id: updated._id },
+        { $set: { durMins: minsOf(updated.fromTime, updated.toTime), statusKey: String(updated.machineStatus || "").trim().toLowerCase() } }
+      );
+    }
     res.json(updated);
   } catch (err) {
     console.error("Update error:", err);
