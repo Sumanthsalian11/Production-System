@@ -247,6 +247,7 @@ router.get("/summary", async (req, res) => {
 const PERSO_FRESH = 60 * 1000;             // dated queries: recompute after 60s
 const PERSO_HEAVY_STALE = 15 * 60 * 1000;  // all-data queries: answer instantly, refresh in background
 const PERSO_MAX = 40;
+const PERSO_DATED_STALE = 5 * 60 * 1000;   // dated queries: show the last result instantly, refresh behind it
 const persoCache = new Map();
 const persoInflight = new Map();
 
@@ -280,7 +281,7 @@ const persoCached = async (key, heavy, compute) => {
   const hit = persoCache.get(key);
   const age = hit ? Date.now() - hit.t : Infinity;
   if (hit && !hit.dirty && age < PERSO_FRESH) return hit.v;
-  if (hit && heavy && age < PERSO_HEAVY_STALE) {       // serve instantly, rebuild behind the scenes
+  if (hit && age < (heavy ? PERSO_HEAVY_STALE : PERSO_DATED_STALE)) {   // serve instantly, rebuild behind the scenes
     persoRefresh(key, compute).catch(console.error);
     return hit.v;
   }
@@ -604,6 +605,11 @@ router.get("/perso-report", async (req, res) => {
 // pre-build the "all data" view + options so clearing the From date is instant
 const warmPerso = () => {
   persoRefresh(persoKey({}), () => buildPersoReport({}, false)).catch(console.error);
+  const d = (x) => x.toISOString().slice(0, 10);
+  const to = new Date(), from = new Date();
+  from.setDate(from.getDate() - 6);
+  const weekQ = { dateFrom: d(from), dateTo: d(to) };          // same default the page opens with
+  persoRefresh(persoKey(weekQ), () => buildPersoReport(weekQ, false)).catch(console.error);
   persoRefresh("OPTS", buildPersoOptions).catch(console.error);
 };
 setTimeout(warmPerso, 5000).unref?.();

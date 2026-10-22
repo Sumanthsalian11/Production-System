@@ -104,6 +104,11 @@ ProductionMachineStatusSchema.index({ woNumber: 1, productionDate: -1 });
 ProductionMachineStatusSchema.index({ customerName: 1, productionDate: -1 });
 ProductionMachineStatusSchema.index({ machineStatus: 1, productionDate: -1 });
 ProductionMachineStatusSchema.index({ shift: 1, productionDate: -1 });
+// lets the summary aggregation read only the index, not the full documents
+ProductionMachineStatusSchema.index({
+  productionDate: -1, machineId: 1, printerName: 1, paperSize: 1, statusKey: 1, machineStatus: 1,
+  totalPages: 1, wastageSheets: 1, durMins: 1, fromTime: 1, toTime: 1, createdAt: 1,
+});
 ProductionMachineStatusSchema.index({ userLocations: 1, productionDate: -1 });
 ProductionMachineStatusSchema.index({ printerName: 1 });
 ProductionMachineStatusSchema.index(
