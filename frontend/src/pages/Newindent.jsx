@@ -197,6 +197,7 @@ function NewIndent() {
     if (!form.productCode) newErrors.productCode = "Required";
     if (!form.quantity) newErrors.quantity = "Required";
     if (!form.location) newErrors.location = "Required";
+if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -312,7 +313,9 @@ function NewIndent() {
       location: ind.location?._id || "",
       unitRate: item.unitRate || "",
       remark: item.remark || "",
-      deliveryDate: ind.deliveryDate ? ind.deliveryDate.substring(0, 10) : "",
+      deliveryDate: (item.deliveryDate || ind.deliveryDate)
+  ? String(item.deliveryDate || ind.deliveryDate).substring(0, 10)
+  : "",
 
       // ===== NEW FIELDS =====
       lamination: item.lamination || "",
@@ -1393,7 +1396,7 @@ function NewIndent() {
               <span className="gl-pill">{editingId ? "Editing indent" : "New indent"}</span>
             </div>
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} onWheel={(e) => { if (e.target.type === "number") e.target.blur(); }}>
 
               {/* SECTION 1: PRODUCT INFO */}
               <div className="gl-inner first">
@@ -1548,7 +1551,18 @@ function NewIndent() {
                       />
                   </PoField>
 
-                  <PoField className="col-6 col-md-3" icon="bi-calendar-event" label="Delivery Date" alwaysFloat>
+                  <PoField
+  className="col-6 col-md-3"
+  icon="bi-calendar-event"
+  label="Delivery Date"
+  required
+  alwaysFloat
+  after={
+    <>
+      {errors.deliveryDate && <small className="indent-error-text">{errors.deliveryDate}</small>}
+    </>
+  }
+>
                     <input
                       type="date"
                       name="deliveryDate"
