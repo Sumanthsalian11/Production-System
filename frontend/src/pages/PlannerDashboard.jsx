@@ -5392,10 +5392,12 @@ function PlannerDashboard() {
                   <small>
                     {totalRows === 0
                       ? "No records"
-                      : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalRows)} of ${totalRows.toLocaleString("en-IN")}`}
+                      : totalRows > PAGE_SIZE
+                      ? `Showing first ${PAGE_SIZE} of ${totalRows.toLocaleString("en-IN")} records — use the filters above to find other work orders`
+                      : `Showing ${totalRows} of ${totalRows}`}
                     {tableLoading && "  ·  loading…"}
                   </small>
-                  <div className="d-flex gap-2 align-items-center">
+                  <div style={{ display: "none" }}>
                     <button className="clear-btn" disabled={page <= 1} onClick={() => setPage(1)}>« First</button>
                     <button className="clear-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
                     <small>Page {page} / {Math.max(1, Math.ceil(totalRows / PAGE_SIZE))}</small>

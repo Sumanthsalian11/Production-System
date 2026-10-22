@@ -49,6 +49,17 @@ const buildFilter = (q) => {
   return and.length === 1 ? and[0] : { $and: and };
 };
 
+const countCache = new Map();
+const cachedCount = async (filter) => {
+  const key = JSON.stringify(filter);
+  const hit = countCache.get(key);
+  if (hit && Date.now() - hit.t < 60000) return hit.v;
+  const v = await WorkOrder.countDocuments(filter);
+  if (countCache.size > 200) countCache.clear();
+  countCache.set(key, { v, t: Date.now() });
+  return v;
+};
+
 const populateOpts = [
   { path: "machines.machineId", select: "machineName" },
   { path: "machines.activityId", select: "activityName" },
@@ -60,7 +71,9 @@ const populateOpts = [
 // =============================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const workOrders = await WorkOrder.find()
+    const workOrders = await WorkOrder.find({ status: req.query.status || "PLANNED" })
+      .sort({ createdAt: -1 })
+      .limit(Math.min(parseInt(req.query.limit, 10) || 200, 1000))
       .populate("customer")
       .populate({ path: "machines.machineId", select: "machineName" })
       .populate({ path: "machines.activityId", select: "activityName" })
@@ -83,12 +96,12 @@ router.get("/paged", authMiddleware, async (req, res) => {
 
     const [items, total] = await Promise.all([
       WorkOrder.find(filter)
-        .sort({ createdAt: -1, _id: -1 })
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .populate(populateOpts)
         .lean(),
-      WorkOrder.countDocuments(filter)
+      cachedCount(filter)
     ]);
 
     res.json({ items, total, page, limit });
@@ -101,6 +114,29 @@ router.get("/paged", authMiddleware, async (req, res) => {
 // =============================================
 // META: planned count + filter dropdown options
 // =============================================
+let metaCache = { t: 0, v: null };
+router.get("/meta", authMiddleware, async (req, res) => {
+  try {
+    if (metaCache.v && Date.now() - metaCache.t < 60000) return res.json(metaCache.v);
+    const [planned, customers, locations] = await Promise.all([
+      WorkOrder.countDocuments({ status: "PLANNED" }),
+      WorkOrder.distinct("customer", { status: "PLANNED" }),
+      WorkOrder.distinct("userLocations", { status: "PLANNED" })
+    ]);
+    metaCache = {
+      t: Date.now(),
+      v: {
+        planned,
+        customers: customers.filter(Boolean).sort(),
+        locations: locations.filter(Boolean).sort()
+      }
+    };
+    return res.json(metaCache.v);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
 router.get("/meta", authMiddleware, async (req, res) => {
   try {
     const [planned, customers, locations] = await Promise.all([
