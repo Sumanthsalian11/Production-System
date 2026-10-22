@@ -720,7 +720,7 @@ export default function Productionreportt() {
 
   const clearFilters = () => {
     setSearchWO(""); setCustomerFilter(""); setMachineFilter("");
-    setStatusFilter(""); setShiftFilter(""); setFromDate(""); setToDate("");
+    setStatusFilter(""); setShiftFilter(""); setFromDate(weekAgoStr()); setToDate("");
     setLocationFilter(""); setPrinterFilter("");
   };
 
