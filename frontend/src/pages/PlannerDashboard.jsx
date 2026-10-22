@@ -157,7 +157,7 @@ function PlannerDashboard() {
 
   // ===== Server-side paging =====
   const PAGE_SIZE = 50;
-  const MAX_EXPORT = 5000;
+  const MAX_EXPORT = 20000;
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [plannedCount, setPlannedCount] = useState(0);
@@ -190,8 +190,12 @@ function PlannerDashboard() {
   const [filterWoNo, setFilterWoNo] = useState("");
   const [filterProductCode, setFilterProductCode] = useState("");
   const [filterMachine, setFilterMachine] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toLocaleDateString("en-CA");
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toLocaleDateString("en-CA"));
 
   const showAlert = (title, text, icon = "warning") => {
     Swal.fire({
@@ -376,7 +380,7 @@ function PlannerDashboard() {
     let total = 0;
     do {
       const res = await axios.get(`${BASE_URL}/api/workorders/paged`, {
-        params: { ...buildFilterParams(), page: p, limit: 500 },
+        params: { ...buildFilterParams(), page: p, limit: 1000 },
         headers: authHeaders()
       });
       const items = res.data.items || [];
@@ -421,6 +425,7 @@ function PlannerDashboard() {
 
     const fetchData = async () => {
       setLoading(true);
+      setPageLoading(false);
       try {
         const [orderRes, printingRes] = await Promise.all([
           axios.get(`${BASE_URL}/api/customer-orders`, {
@@ -448,7 +453,7 @@ function PlannerDashboard() {
     fetchActivities();
     fetchPriorities();
     fetchLocationsMaster();
-  }, [statusFilter]);
+  }, []);
 
   const fetchMachines = async () => {
     try {
@@ -4991,7 +4996,7 @@ function PlannerDashboard() {
               </div>
             )}
             {/* ========================================================================= */}
-            {(statusFilter === "PLANNED" || statusFilter === "") && plannedCount > 0 && (
+            {(statusFilter === "PLANNED" || statusFilter === "") && (
               <div className="card-glass-3d p-3 mt-4">
                 <div className="text-center mb-3">
                   <h4 className="fw-bold m-0" style={{ color: "#064c73" }}>
@@ -5108,8 +5113,8 @@ function PlannerDashboard() {
                         setFilterProductCode("");
                         setFilterMachine("");
                         setFilterUserLocation("");
-                        setDateFrom("");
-                        setDateTo("");
+                        setDateFrom(new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA"));
+                        setDateTo(new Date().toLocaleDateString("en-CA"));
                       }}
                     >
                       <Icons.Reset /> Clear Filters

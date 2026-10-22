@@ -115,9 +115,30 @@ router.get("/paged", authMiddleware, async (req, res) => {
 // META: planned count + filter dropdown options
 // =============================================
 let metaCache = { t: 0, v: null };
+const warmMeta = async () => {
+  try {
+    const [planned, customers, locations] = await Promise.all([
+      WorkOrder.countDocuments({ status: "PLANNED" }),
+      WorkOrder.distinct("customer", { status: "PLANNED" }),
+      WorkOrder.distinct("userLocations", { status: "PLANNED" })
+    ]);
+    metaCache = {
+      t: Date.now(),
+      v: {
+        planned,
+        customers: customers.filter(Boolean).sort(),
+        locations: locations.filter(Boolean).sort()
+      }
+    };
+  } catch (e) {
+    console.error("META WARM ERROR:", e.message);
+  }
+};
+setTimeout(warmMeta, 3000);
+setInterval(warmMeta, 2 * 60 * 1000);
 router.get("/meta", authMiddleware, async (req, res) => {
   try {
-    if (metaCache.v && Date.now() - metaCache.t < 60000) return res.json(metaCache.v);
+    if (metaCache.v && Date.now() - metaCache.t < 300000) return res.json(metaCache.v);
     const [planned, customers, locations] = await Promise.all([
       WorkOrder.countDocuments({ status: "PLANNED" }),
       WorkOrder.distinct("customer", { status: "PLANNED" }),
