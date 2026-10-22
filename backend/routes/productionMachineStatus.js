@@ -22,6 +22,7 @@ const buildQuery = async (q) => {
     ];
   }
   if (q.workOrder) query.woNumber = { $regex: escapeRegex(q.workOrder), $options: "i" };
+  if (q.customer) query.customerName = q.customer;
   if (q.shift) query.shift = q.shift;
   if (q.machineStatus) query.machineStatus = q.machineStatus;
   if (q.printer) query.printerName = q.printer;
@@ -119,7 +120,8 @@ router.get("/", async (req, res) => {
 // dropdown options for the filter bar
 router.get("/filter-options", async (req, res) => {
   try {
-    const [locations, printers, machineIds] = await Promise.all([
+    const [customers, locations, printers, machineIds] = await Promise.all([
+      ProductionMachineStatus.distinct("customerName"),
       ProductionMachineStatus.distinct("userLocations"),
       ProductionMachineStatus.distinct("printerName"),
       ProductionMachineStatus.distinct("machineId"),
@@ -130,6 +132,7 @@ router.get("/filter-options", async (req, res) => {
       .select("machineName")
       .lean();
     res.json({
+      customers: customers.filter(Boolean),
       locations: locations.filter(Boolean),
       printers: printers.filter(Boolean),
       machines: [...new Set(macDocs.map((m) => m.machineName).filter(Boolean))],
@@ -450,6 +453,230 @@ router.get("/export", async (req, res) => {
     } else {
       res.destroy(err);
     }
+  }
+});
+
+// ==========================================
+// REPORT PAGE  (grouped + paginated in MongoDB)
+// ==========================================
+const rNum = (f) => ({ $convert: { input: f, to: "double", onError: 0, onNull: 0 } });
+const rPart = (f, i) => ({
+  $convert: {
+    input: { $arrayElemAt: [{ $split: [{ $ifNull: [f, ""] }, ":"] }, i] },
+    to: "int", onError: 0, onNull: 0,
+  },
+});
+const rToMin = (f) => ({ $add: [{ $multiply: [rPart(f, 0), 60] }, rPart(f, 1)] });
+const reportMins = {
+  $cond: [
+    { $or: [{ $eq: [{ $ifNull: ["$fromTime", ""] }, ""] }, { $eq: [{ $ifNull: ["$toTime", ""] }, ""] }] },
+    0,
+    {
+      $let: {
+        vars: { f: rToMin("$fromTime"), t: rToMin("$toTime") },
+        in: {
+          $cond: [
+            { $lte: ["$$t", "$$f"] },
+            { $subtract: [{ $add: ["$$t", 1440] }, "$$f"] },
+            { $subtract: ["$$t", "$$f"] },
+          ],
+        },
+      },
+    },
+  ],
+};
+const loadMachineMap = async () =>
+  new Map((await mongoose.model("MachineMaster").find({}, "machineName").lean())
+    .map((m) => [String(m._id), m.machineName]));
+
+// KPI cards + Machine Production table + machine column list
+router.get("/report/summary", async (req, res) => {
+  try {
+    const query = await buildQuery(req.query);
+    const prod = { $and: [query, { machineStatus: "PRODUCTION" }] };
+    const isProd = { $eq: ["$machineStatus", "PRODUCTION"] };
+
+    const [tot, orders, mp, used, macMap] = await Promise.all([
+      ProductionMachineStatus.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalRecords: { $sum: 1 },
+            totalProduction: { $sum: { $cond: [isProd, rNum("$totalPages"), 0] } },
+            totalWastage: { $sum: { $cond: [isProd, rNum("$wastageSheets"), 0] } },
+          },
+        },
+      ]).allowDiskUse(true),
+      ProductionMachineStatus.aggregate([
+        { $match: { $and: [prod, { woNumber: { $nin: [null, ""] } }] } },
+        { $group: { _id: "$woNumber" } },
+        { $count: "n" },
+      ]).allowDiskUse(true),
+      ProductionMachineStatus.aggregate([
+        { $match: prod },
+        {
+          $group: {
+            _id: { m: "$machineId", p: { $ifNull: ["$printerName", ""] } },
+            production: { $sum: rNum("$totalPages") },
+            wastage: { $sum: rNum("$wastageSheets") },
+          },
+        },
+      ]).allowDiskUse(true),
+      ProductionMachineStatus.aggregate([
+        { $match: query },
+        { $group: { _id: "$machineId", last: { $max: "$createdAt" } } },
+        { $sort: { last: -1 } },
+      ]).allowDiskUse(true),
+      loadMachineMap(),
+    ]);
+
+    const t = tot[0] || {};
+    const machineProduction = mp
+      .map((r) => ({
+        machine: macMap.get(String(r._id.m)),
+        printer: r._id.p,
+        production: r.production,
+        wastage: r.wastage,
+      }))
+      .filter((r) => r.machine && (r.production > 0 || r.wastage > 0));
+
+    res.json({
+      totalRecords: t.totalRecords || 0,
+      totalProduction: t.totalProduction || 0,
+      totalWastage: t.totalWastage || 0,
+      totalOrders: orders[0]?.n || 0,
+      usedMachineNames: [...new Set(used.map((u) => macMap.get(String(u._id))).filter(Boolean))],
+      machineProduction,
+    });
+  } catch (err) {
+    console.error("Report summary error:", err);
+    res.status(500).json({ message: "Error building report summary", error: err.message });
+  }
+});
+
+// Jobwise Machine Production / Jobwise Wastage / Work Order Production (one row per WO, paginated)
+router.get("/report/jobs", async (req, res) => {
+  try {
+    const q = req.query;
+    const query = await buildQuery(q);
+    const limit = Math.min(Math.max(parseInt(q.limit, 10) || 50, 1), 500);
+    const page = Math.max(parseInt(q.page, 10) || 1, 1);
+    const all = q.all === "1";
+
+    const base = [
+      {
+        $match: {
+          $and: [query, { machineStatus: "PRODUCTION" }, { woNumber: { $nin: [null, ""] } }, { machineId: { $ne: null } }],
+        },
+      },
+      {
+        $group: {
+          _id: { w: "$woNumber", m: "$machineId" },
+          customer: { $first: "$customerName" },
+          p: { $sum: rNum("$totalPages") },
+          ws: { $sum: rNum("$wastageSheets") },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.w",
+          customer: { $first: "$customer" },
+          ms: { $push: { m: "$_id.m", p: "$p", w: "$ws" } },
+          production: { $sum: "$p" },
+          wastageTotal: { $sum: "$ws" },
+        },
+      },
+      { $addFields: { n: rNum("$_id") } },
+      { $sort: { n: -1, _id: -1 } },
+    ];
+
+    const [agg, macMap] = await Promise.all([
+      ProductionMachineStatus.aggregate(
+        all
+          ? base
+          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }]
+      ).allowDiskUse(true),
+      loadMachineMap(),
+    ]);
+
+    const rawRows = all ? agg : agg[0]?.rows || [];
+    const total = all ? agg.length : agg[0]?.total?.[0]?.n || 0;
+
+    const rows = rawRows.map((r) => {
+      const machines = {}, wastage = {};
+      r.ms.forEach((x) => {
+        const nm = macMap.get(String(x.m));
+        if (!nm) return;
+        machines[nm] = (machines[nm] || 0) + x.p;
+        wastage[nm] = (wastage[nm] || 0) + x.w;
+      });
+      return {
+        workOrder: r._id, customer: r.customer,
+        machines, wastage, production: r.production, wastageTotal: r.wastageTotal,
+      };
+    });
+
+    res.json({ rows, total });
+  } catch (err) {
+    console.error("Report jobs error:", err);
+    res.status(500).json({ message: "Error building job report", error: err.message });
+  }
+});
+
+// Machine Utilization (date-wise, paginated)
+router.get("/report/utilization", async (req, res) => {
+  try {
+    const q = req.query;
+    const query = await buildQuery(q);
+    const limit = Math.min(Math.max(parseInt(q.limit, 10) || 50, 1), 500);
+    const page = Math.max(parseInt(q.page, 10) || 1, 1);
+    const all = q.all === "1";
+
+    const base = [
+      { $match: { $and: [query, { machineId: { $ne: null } }, { productionDate: { $ne: null } }] } },
+      {
+        $group: {
+          _id: {
+            m: "$machineId",
+            p: { $ifNull: ["$printerName", ""] },
+            d: { $dateToString: { format: "%Y-%m-%d", date: "$productionDate" } },
+            s: "$machineStatus",
+          },
+          mins: { $sum: reportMins },
+        },
+      },
+      {
+        $group: {
+          _id: { m: "$_id.m", p: "$_id.p", d: "$_id.d" },
+          st: { $push: { k: "$_id.s", v: "$mins" } },
+        },
+      },
+      { $sort: { "_id.d": -1, "_id.m": 1, "_id.p": 1 } },
+    ];
+
+    const [agg, macMap] = await Promise.all([
+      ProductionMachineStatus.aggregate(
+        all
+          ? base
+          : [...base, { $facet: { rows: [{ $skip: (page - 1) * limit }, { $limit: limit }], total: [{ $count: "n" }] } }]
+      ).allowDiskUse(true),
+      loadMachineMap(),
+    ]);
+
+    const rawRows = all ? agg : agg[0]?.rows || [];
+    const total = all ? agg.length : agg[0]?.total?.[0]?.n || 0;
+
+    const rows = rawRows.map((r) => {
+      const status = {};
+      r.st.forEach((x) => { if (x.k) status[x.k] = (status[x.k] || 0) + x.v; });
+      return { date: r._id.d, machine: macMap.get(String(r._id.m)) || "-", printer: r._id.p, status };
+    });
+
+    res.json({ rows, total });
+  } catch (err) {
+    console.error("Report utilization error:", err);
+    res.status(500).json({ message: "Error building utilization report", error: err.message });
   }
 });
 

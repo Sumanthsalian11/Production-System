@@ -3,6 +3,8 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
 
+const API = `${BASE_URL}/api/production-machine-status`;
+
 /* ─────────────── embedded icons (same set as the Reel Register page) ─────────────── */
 const Icons = {
   Factory: () => (
@@ -337,6 +339,23 @@ const CSS = `
   .util-good { color: #059669 !important; font-weight: 800; }
   .util-bad  { color: #dc2626 !important; font-weight: 800; }
 
+  /* ── pagination bar ── */
+  .pr-pager {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 8px 14px; background: #ffffff;
+    border-top: 1px solid rgba(20, 111, 156, 0.25);
+    font-size: 12.5px; font-weight: 700; color: #06324d;
+  }
+  .pr-pager-btns { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .pr-pg {
+    min-height: 30px; min-width: 34px; padding: 0 10px;
+    border: 1px solid rgba(14, 94, 135, 0.5); border-radius: 6px;
+    background: #ffffff; color: #0a4f8c; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  }
+  .pr-pg:hover:not(:disabled) { background: #d9f2fc; }
+  .pr-pg:disabled { opacity: 0.4; cursor: not-allowed; }
+  .pr-pager select.pr-pg { padding: 0 6px; }
+
   /* ── PAGE ANIMATIONS ── */
   @keyframes prtFadeUp {
     from { opacity: 0; transform: translateY(18px); }
@@ -461,18 +480,17 @@ const fmtTime = (t) => {
   return `${hr}:${m} ${ap}`;
 };
 
-const getMinutes = (from, to) => {
-  if (!from || !to) return 0;
-  const [fh, fm] = from.split(":").map(Number);
-  const [th, tm] = to.split(":").map(Number);
-  let a = fh * 60 + fm, b = th * 60 + tm;
-  if (b <= a) b += 24 * 60;
-  return b - a;
-};
-
 const fmtMinutes = (min) => {
   const h = Math.floor(min / 60), m = min % 60;
   return `${h}h ${m}m`;
+};
+
+/* default "From Date" = last 7 days (today included) */
+const weekAgoStr = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
 /* table ids used throughout */
@@ -557,70 +575,148 @@ function TableVisibilityDropdown({ visible, setVisible }) {
   );
 }
 
+/* ── pagination bar ── */
+const PAGE_SIZES = [50, 100, 200, 500];
+function Pager({ page, total, size, onPage, onSize }) {
+  const pages = Math.max(1, Math.ceil(total / size));
+  const start = total === 0 ? 0 : (page - 1) * size + 1;
+  const end = Math.min(page * size, total);
+  return (
+    <div className="pr-pager">
+      <span>Showing {start.toLocaleString("en-IN")}–{end.toLocaleString("en-IN")} of {total.toLocaleString("en-IN")}</span>
+      <div className="pr-pager-btns">
+        <button className="pr-pg" disabled={page <= 1} onClick={() => onPage(1)}>«</button>
+        <button className="pr-pg" disabled={page <= 1} onClick={() => onPage(page - 1)}>‹ Prev</button>
+        <span>Page {page.toLocaleString("en-IN")} / {pages.toLocaleString("en-IN")}</span>
+        <button className="pr-pg" disabled={page >= pages} onClick={() => onPage(page + 1)}>Next ›</button>
+        <button className="pr-pg" disabled={page >= pages} onClick={() => onPage(pages)}>»</button>
+        <select className="pr-pg" value={size} onChange={(e) => onSize(Number(e.target.value))}>
+          {PAGE_SIZES.map((n) => <option key={n} value={n}>{n} / page</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+/* ── debounced, cancellable server fetch ── */
+function useRemote(path, params, enabled, authHeaders) {
+  const [state, setState] = useState({ data: null, loading: enabled });
+  const key = JSON.stringify(params);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    const ctrl = new AbortController();
+    setState((s) => ({ ...s, loading: true }));
+    const t = setTimeout(() => {
+      axios
+        .get(`${API}${path}`, { ...authHeaders, params, signal: ctrl.signal })
+        .then((r) => setState({ data: r.data, loading: false }))
+        .catch((e) => {
+          if (axios.isCancel(e) || e?.code === "ERR_CANCELED") return;
+          console.error(e);
+          setState((s) => ({ ...s, loading: false }));
+        });
+    }, 350);
+    return () => { clearTimeout(t); ctrl.abort(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path, key, enabled, authHeaders]);
+  return state;
+}
+
 /* ═══════════════════════════ MAIN COMPONENT ═══════════════════════════ */
 export default function Productionreportt() {
   const token = localStorage.getItem("token");
   const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
-  const [records, setRecords]                 = useState([]);
   const [machines, setMachines]               = useState([]);
   const [machineStatuses, setMachineStatuses] = useState([]);
-  const [loading, setLoading] = useState(Boolean(token));
+  const [filterOpts, setFilterOpts]           = useState({ locations: [], printers: [], customers: [] });
+  const [exporting, setExporting]             = useState(false);
   const [expanded, setExpanded]               = useState(null);
 
-  /* all tables visible by default */
+  /* only the first table is open by default */
   const [visibleTables, setVisibleTables] = useState(["jobMachine"]);
-
   const show = (id) => visibleTables.includes(id);
 
-  /* ── filters ── */
+  /* ── filters (From Date defaults to the last 7 days) ── */
   const [searchWO, setSearchWO]             = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [machineFilter, setMachineFilter]   = useState("");
   const [statusFilter, setStatusFilter]     = useState("");
   const [shiftFilter, setShiftFilter]       = useState("");
-  const [fromDate, setFromDate]             = useState("");
+  const [fromDate, setFromDate]             = useState(weekAgoStr);
   const [toDate, setToDate]                 = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [printerFilter, setPrinterFilter]   = useState("");
 
-  /* ── fetch ── */
+  const [pageSize, setPageSize] = useState(50);
+
+  /* masters + dropdown options (small, one time) */
   useEffect(() => {
     if (!token) return;
-    axios.get(`${BASE_URL}/api/production-machine-status`, authHeaders)
-      .then(r => setRecords((r.data || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))))
-      .catch(console.error)
-      .finally(() => setLoading(false));
     axios.get(`${BASE_URL}/api/master/machines`, authHeaders)
       .then(r => setMachines(r.data || [])).catch(console.error);
     axios.get(`${BASE_URL}/api/master/machine-status`, authHeaders)
       .then(r => setMachineStatuses(r.data || [])).catch(console.error);
-  }, [token]);
+    axios.get(`${API}/filter-options`, authHeaders)
+      .then(r => setFilterOpts({
+        locations: r.data.locations || [],
+        printers: r.data.printers || [],
+        customers: (r.data.customers || []).slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
+      })).catch(console.error);
+  }, [token, authHeaders]);
 
-  const customers = useMemo(() =>
-    [...new Set(records.map(r => r.customerName).filter(Boolean))], [records]);
+  /* filters -> query params understood by the server */
+  const filterParams = useMemo(() => {
+    const p = {};
+    if (searchWO) p.workOrder = searchWO;
+    if (customerFilter) p.customer = customerFilter;
+    if (machineFilter) p.machine = machineFilter;
+    if (statusFilter) p.machineStatus = statusFilter;
+    if (shiftFilter) p.shift = shiftFilter;
+    if (fromDate) p.dateFrom = fromDate;
+    if (toDate) p.dateTo = toDate;
+    if (locationFilter) p.location = locationFilter;
+    if (printerFilter) p.printer = printerFilter;
+    return p;
+  }, [searchWO, customerFilter, machineFilter, statusFilter, shiftFilter, fromDate, toDate, locationFilter, printerFilter]);
 
-  const locationOptions = useMemo(() =>
-    [...new Set(records.flatMap(r => r.userLocations || []).filter(Boolean))], [records]);
+  /* page numbers reset to 1 automatically whenever filters / page size change */
+  const filterKey = JSON.stringify(filterParams) + "|" + pageSize;
+  const [pg, setPg] = useState({ key: "", jobs: 1, util: 1, rec: 1 });
+  const cur = pg.key === filterKey ? pg : { key: filterKey, jobs: 1, util: 1, rec: 1 };
+  const setPage = (name, n) => setPg({ ...cur, [name]: n });
 
-  const printerOptions = useMemo(() =>
-    [...new Set(records.map(r => r.printerName).filter(Boolean))], [records]);
+  const needJobs = show("jobMachine") || show("jobWaste") || show("woProduction");
+  const needUtil = show("machineUtil");
+  const needRec  = show("allRecords");
 
-  const filteredRecords = useMemo(() => {
-    return records.filter(item => {
-      const d = item.productionDate ? new Date(item.productionDate) : null;
-      if (searchWO && !String(item.woNumber || "").toLowerCase().includes(searchWO.toLowerCase())) return false;
-      if (customerFilter && item.customerName?.trim() !== customerFilter.trim()) return false;
-      if (machineFilter && (item.machineId?.machineName || item.machineName) !== machineFilter) return false;
-      if (statusFilter && item.machineStatus !== statusFilter) return false;
-      if (shiftFilter && item.shift !== shiftFilter) return false;
-      if (fromDate && d && d < new Date(fromDate)) return false;
-      if (toDate && d && d > new Date(new Date(toDate).setHours(23, 59, 59, 999))) return false;
-      if (locationFilter && !(item.userLocations || []).includes(locationFilter)) return false;
-      if (printerFilter && item.printerName !== printerFilter) return false;
-      return true;
-    });
-  }, [records, searchWO, customerFilter, machineFilter, statusFilter, shiftFilter, fromDate, toDate, locationFilter, printerFilter]);
+  const summaryR = useRemote("/report/summary", filterParams, Boolean(token), authHeaders);
+  const jobsR    = useRemote("/report/jobs", { ...filterParams, page: cur.jobs, limit: pageSize }, Boolean(token) && needJobs, authHeaders);
+  const utilR    = useRemote("/report/utilization", { ...filterParams, page: cur.util, limit: pageSize }, Boolean(token) && needUtil, authHeaders);
+  const recR     = useRemote("", { ...filterParams, page: cur.rec, limit: pageSize, withCount: 1 }, Boolean(token) && needRec, authHeaders);
+
+  const loading =
+    Boolean(token) &&
+    (summaryR.loading || (needJobs && jobsR.loading) || (needUtil && utilR.loading) || (needRec && recR.loading));
+
+  const S = summaryR.data || {};
+  const totalOrders     = S.totalOrders || 0;
+  const totalProduction = S.totalProduction || 0;
+  const totalWastage    = S.totalWastage || 0;
+  const avgWaste        = totalProduction ? ((totalWastage / totalProduction) * 100).toFixed(2) : "0.00";
+  const totalRecords    = S.totalRecords || 0;
+  const usedMachineNames = S.usedMachineNames || [];
+  const machineProduction = S.machineProduction || [];
+
+  const jobMachinePerf = jobsR.data?.rows || [];
+  const jobsTotal      = jobsR.data?.total || 0;
+  const woProduction   = jobMachinePerf.map(j => ({
+    workOrder: j.workOrder, customer: j.customer, production: j.production, wastage: j.wastageTotal,
+  }));
+  const machineUtilization = utilR.data?.rows || [];
+  const utilTotal          = utilR.data?.total || 0;
+  const records            = recR.data?.data || [];
+  const recTotal           = recR.data?.total || 0;
 
   const clearFilters = () => {
     setSearchWO(""); setCustomerFilter(""); setMachineFilter("");
@@ -628,148 +724,92 @@ export default function Productionreportt() {
     setLocationFilter(""); setPrinterFilter("");
   };
 
-  /* ══════════════ ANALYTICS ══════════════ */
-  const prodRecords = useMemo(() =>
-    filteredRecords.filter(r => r.machineStatus === "PRODUCTION"), [filteredRecords]);
-
-  const totalOrders     = useMemo(() => new Set(prodRecords.map(r => r.woNumber).filter(Boolean)).size, [prodRecords]);
-  const totalProduction = useMemo(() => prodRecords.reduce((s, r) => s + Number(r.totalPages || 0), 0), [prodRecords]);
-  const totalWastage    = useMemo(() => prodRecords.reduce((s, r) => s + Number(r.wastageSheets || 0), 0), [prodRecords]);
-  const avgWaste        = useMemo(() => totalProduction ? ((totalWastage / totalProduction) * 100).toFixed(2) : "0.00", [totalProduction, totalWastage]);
-
-  const usedMachineNames = useMemo(() => {
-    const seen = new Set(), list = [];
-    filteredRecords.forEach(item => {
-      const m = item.machineId?.machineName || item.machineName;
-      if (m && !seen.has(m)) { seen.add(m); list.push(m); }
-    });
-    return list;
-  }, [filteredRecords]);
-
-  const jobMachinePerf = useMemo(() => {
-    const map = {};
-    prodRecords.forEach(item => {
-      const wo = item.woNumber;
-      const machine = item.machineId?.machineName || item.machineName;
-      if (!wo || !machine) return;
-      if (!map[wo]) map[wo] = { workOrder: wo, customer: item.customerName, machines: {}, wastage: {} };
-      map[wo].machines[machine] = (map[wo].machines[machine] || 0) + Number(item.totalPages || 0);
-      map[wo].wastage[machine]  = (map[wo].wastage[machine] || 0) + Number(item.wastageSheets || 0);
-    });
-    return Object.values(map).sort((a, b) => b.workOrder - a.workOrder);
-  }, [prodRecords]);
-
-  const woProduction = useMemo(() => {
-    const map = {};
-    jobMachinePerf.forEach(job => {
-      const key = job.workOrder;
-      if (!map[key]) map[key] = { workOrder: key, customer: job.customer, production: 0, wastage: 0 };
-      usedMachineNames.forEach(m => {
-        map[key].production += job.machines[m] || 0;
-        map[key].wastage    += job.wastage[m]  || 0;
-      });
-    });
-    return Object.values(map).sort((a, b) => b.workOrder - a.workOrder);
-  }, [jobMachinePerf, usedMachineNames]);
-
-  const machineProduction = useMemo(() => {
-    const map = {};
-    prodRecords.forEach(item => {
-      const m = item.machineId?.machineName || item.machineName;
-      if (!m) return;
-      const p = item.printerName || "";
-      const key = m + "||" + p;
-      if (!map[key]) map[key] = { machine: m, printer: p, production: 0, wastage: 0 };
-      map[key].production += Number(item.totalPages    || 0);
-      map[key].wastage    += Number(item.wastageSheets || 0);
-    });
-    return Object.values(map).filter(m => m.production > 0 || m.wastage > 0);
-  }, [prodRecords]);
-
-  const machineUtilization = useMemo(() => {
-    const map = {};
-    filteredRecords.forEach(item => {
-      const machine = item.machineId?.machineName || item.machineName;
-      const printer = item.printerName || "";
-      const date = item.productionDate ? new Date(item.productionDate).toISOString().split("T")[0] : null;
-      if (!machine || !date) return;
-      const key = machine + "_" + printer + "_" + date;
-      if (!map[key]) {
-        map[key] = { machine, printer, date };
-        machineStatuses.forEach(s => { map[key][s.statusName] = 0; });
-      }
-      const mins = getMinutes(item.fromTime, item.toTime);
-      const status = item.machineStatus;
-      if (status && map[key][status] !== undefined) map[key][status] += mins;
-    });
-    return Object.values(map).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [filteredRecords, machineStatuses]);
-
   /* ══════════════════════════ EXPORT ══════════════════════════ */
-  const exportExcel = () => {
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
-      "Total Orders": totalOrders,
-      "Total Production (Pages)": totalProduction,
-      "Total Wastage (Sheets)": totalWastage,
-      "Average Waste %": avgWaste
-    }]), "KPI");
-    const jmpData = jobMachinePerf.map(j => {
-      const row = { "WO No": j.workOrder, "Customer": j.customer };
-      usedMachineNames.forEach(m => { if ((j.machines[m] || 0) > 0) row[m + " Production"] = j.machines[m]; });
-      return row;
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jmpData), "Job Machine Production");
-    const jwData = jobMachinePerf.map(j => {
-      const row = { "WO No": j.workOrder, "Customer": j.customer };
-      usedMachineNames.forEach(m => { if ((j.wastage[m] || 0) > 0) row[m + " Wastage"] = j.wastage[m]; });
-      return row;
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jwData), "Job Wastage");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      woProduction.map(m => ({
-        "Work Order": m.workOrder, "Customer": m.customer,
-        "Production": m.production, "Wastage": m.wastage,
-        "Wastage %": m.production ? ((m.wastage / m.production) * 100).toFixed(2) : "0.00"
-      }))
-    ), "WO Production");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      machineProduction.map(m => ({
-        Machine: m.machine, Printer: m.printer || "", Production: m.production, Wastage: m.wastage,
-        "Wastage %": m.production ? ((m.wastage / m.production) * 100).toFixed(2) : "0.00"
-      }))
-    ), "Machine Production");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      machineUtilization.map(m => {
-        const row = { Date: m.date, Machine: m.machine, Printer: m.printer || "" };
-        machineStatuses.forEach(s => { row[s.statusName] = fmtMinutes(m[s.statusName] || 0); });
-        row["Utilization %"] = (((m["PRODUCTION"] || 0) / 60 / 24) * 100).toFixed(2);
+  const exportExcel = async () => {
+    try {
+      setExporting(true);
+      const [jr, ur] = await Promise.all([
+        axios.get(`${API}/report/jobs`, { ...authHeaders, params: { ...filterParams, all: 1 }, timeout: 0 }),
+        axios.get(`${API}/report/utilization`, { ...authHeaders, params: { ...filterParams, all: 1 }, timeout: 0 }),
+      ]);
+      const jobs = jr.data?.rows || [];
+      const utilRows = ur.data?.rows || [];
+      const woProd = jobs.map(j => ({ workOrder: j.workOrder, customer: j.customer, production: j.production, wastage: j.wastageTotal }));
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+        "Total Orders": totalOrders,
+        "Total Production (Pages)": totalProduction,
+        "Total Wastage (Sheets)": totalWastage,
+        "Average Waste %": avgWaste
+      }]), "KPI");
+      const jmpData = jobs.map(j => {
+        const row = { "WO No": j.workOrder, "Customer": j.customer };
+        usedMachineNames.forEach(m => { if ((j.machines[m] || 0) > 0) row[m + " Production"] = j.machines[m]; });
         return row;
-      })
-    ), "Machine Utilization");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-      filteredRecords.map((item, i) => ({
-        "#": i + 1, Date: fmtDate(item.productionDate),
-        "WO Number": item.woNumber || "", Shift: item.shift || "",
-        Activity: item.activityId?.activityName || item.activityName || "",
-        Machine: item.machineId?.machineName || item.machineName || "",
-        Status: item.machineStatus || "", Customer: item.customerName || "",
-        Item: item.materialType || "",
-        "From Time": fmtTime(item.fromTime), "To Time": fmtTime(item.toTime),
-        "Total Pages": item.totalPages || "", "Wastage Sheets": item.wastageSheets || "",
-        "Waste %": item.wastePercentage || "", Reason: item.reason || "",
-        Operator: item.enteredBy || "", Remarks: item.remarks || ""
-      }))
-    ), "All Records");
-    XLSX.writeFile(wb, "Production_Report.xlsx");
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jmpData), "Job Machine Production");
+      const jwData = jobs.map(j => {
+        const row = { "WO No": j.workOrder, "Customer": j.customer };
+        usedMachineNames.forEach(m => { if ((j.wastage[m] || 0) > 0) row[m + " Wastage"] = j.wastage[m]; });
+        return row;
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(jwData), "Job Wastage");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        woProd.map(m => ({
+          "Work Order": m.workOrder, "Customer": m.customer,
+          "Production": m.production, "Wastage": m.wastage,
+          "Wastage %": m.production ? ((m.wastage / m.production) * 100).toFixed(2) : "0.00"
+        }))
+      ), "WO Production");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        machineProduction.map(m => ({
+          Machine: m.machine, Printer: m.printer || "", Production: m.production, Wastage: m.wastage,
+          "Wastage %": m.production ? ((m.wastage / m.production) * 100).toFixed(2) : "0.00"
+        }))
+      ), "Machine Production");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        utilRows.map(m => {
+          const row = { Date: m.date, Machine: m.machine, Printer: m.printer || "" };
+          machineStatuses.forEach(s => { row[s.statusName] = fmtMinutes(m.status?.[s.statusName] || 0); });
+          row["Utilization %"] = (((m.status?.["PRODUCTION"] || 0) / 60 / 24) * 100).toFixed(2);
+          return row;
+        })
+      ), "Machine Utilization");
+      XLSX.writeFile(wb, "Production_Report.xlsx");
+    } catch (err) {
+      console.error("Export error:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* All Records -> streamed by the server (handles lakhs of rows) */
+  const exportRecords = async () => {
+    try {
+      setExporting(true);
+      const res = await axios.get(`${API}/export`, {
+        ...authHeaders, params: filterParams, responseType: "blob", timeout: 0,
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Production_Records_${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export error:", err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   /* ─────────────────────── RENDER ─────────────────────── */
   return (
     <div className="pr-root">
       <style>{CSS}</style>
-
-
 
       <div className="pr-body">
 
@@ -782,7 +822,7 @@ export default function Productionreportt() {
               style={{ marginLeft: "auto", textTransform: "none", letterSpacing: 0 }}
             >
               <span className="pr-pulse-dot"></span>
-              <span>{filteredRecords.length} records</span>
+              <span>{totalRecords.toLocaleString("en-IN")} records</span>
             </span>
           </div>
           <div className="pr-filter-grid">
@@ -795,7 +835,7 @@ export default function Productionreportt() {
               <label className="pr-label">Customer</label>
               <select className="pr-select" value={customerFilter} onChange={e => setCustomerFilter(e.target.value)}>
                 <option value="">All Customers</option>
-                {customers.map((c, i) => <option key={i}>{c}</option>)}
+                {filterOpts.customers.map((c, i) => <option key={i}>{c}</option>)}
               </select>
             </div>
             <div className="pr-field">
@@ -832,14 +872,14 @@ export default function Productionreportt() {
               <label className="pr-label">User Location</label>
               <select className="pr-select" value={locationFilter} onChange={e => setLocationFilter(e.target.value)}>
                 <option value="">All Locations</option>
-                {locationOptions.map((l, i) => <option key={i} value={l}>{l}</option>)}
+                {filterOpts.locations.map((l, i) => <option key={i} value={l}>{l}</option>)}
               </select>
             </div>
             <div className="pr-field">
               <label className="pr-label">Printer</label>
               <select className="pr-select" value={printerFilter} onChange={e => setPrinterFilter(e.target.value)}>
                 <option value="">All Printers</option>
-                {printerOptions.map((p, i) => <option key={i} value={p}>{p}</option>)}
+                {filterOpts.printers.map((p, i) => <option key={i} value={p}>{p}</option>)}
               </select>
             </div>
             <div className="pr-field">
@@ -854,6 +894,10 @@ export default function Productionreportt() {
               <label className="pr-label">&nbsp;</label>
               <button className="pr-export-btn" onClick={exportExcel}>⬇ Export Excel</button>
             </div>
+            <div className="pr-field">
+              <label className="pr-label">&nbsp;</label>
+              <button className="pr-export-btn" onClick={exportRecords}>⬇ Export Records</button>
+            </div>
           </div>
         </div>
 
@@ -862,7 +906,7 @@ export default function Productionreportt() {
         <div className="pr-kpi-grid">
           <div className="pr-kpi">
             <div className="pr-kpi-label">Total Orders</div>
-            <div className="pr-kpi-value info">{totalOrders}</div>
+            <div className="pr-kpi-value info">{totalOrders.toLocaleString("en-IN")}</div>
           </div>
           <div className="pr-kpi">
             <div className="pr-kpi-label">Total Production</div>
@@ -878,7 +922,7 @@ export default function Productionreportt() {
           </div>
           <div className="pr-kpi">
             <div className="pr-kpi-label">Total Records</div>
-            <div className="pr-kpi-value">{filteredRecords.length}</div>
+            <div className="pr-kpi-value">{totalRecords.toLocaleString("en-IN")}</div>
           </div>
         </div>
 
@@ -913,8 +957,8 @@ export default function Productionreportt() {
                       </thead>
                       <tbody>
                         {jobMachinePerf.map((j, i) => (
-                          <tr key={i}>
-                            <td>{i + 1}</td>
+                          <tr key={j.workOrder + "-" + i}>
+                            <td>{(cur.jobs - 1) * pageSize + i + 1}</td>
                             <td><b>{j.workOrder}</b></td>
                             <td><TruncCell text={j.customer} id={"jmp" + i} expanded={expanded} setExpanded={setExpanded} /></td>
                             {usedMachineNames.map(m => (
@@ -926,6 +970,10 @@ export default function Productionreportt() {
                     </table>
                   )}
               </div>
+              {jobsTotal > 0 && (
+                <Pager page={cur.jobs} total={jobsTotal} size={pageSize}
+                  onPage={(n) => setPage("jobs", n)} onSize={setPageSize} />
+              )}
             </div>
           </>
         )}
@@ -961,8 +1009,8 @@ export default function Productionreportt() {
                       </thead>
                       <tbody>
                         {jobMachinePerf.map((j, i) => (
-                          <tr key={i}>
-                            <td>{i + 1}</td>
+                          <tr key={j.workOrder + "-" + i}>
+                            <td>{(cur.jobs - 1) * pageSize + i + 1}</td>
                             <td><b>{j.workOrder}</b></td>
                             <td><TruncCell text={j.customer} id={"jw" + i} expanded={expanded} setExpanded={setExpanded} /></td>
                             {usedMachineNames.map(m => (
@@ -974,6 +1022,10 @@ export default function Productionreportt() {
                     </table>
                   )}
               </div>
+              {jobsTotal > 0 && (
+                <Pager page={cur.jobs} total={jobsTotal} size={pageSize}
+                  onPage={(n) => setPage("jobs", n)} onSize={setPageSize} />
+              )}
             </div>
           </>
         )}
@@ -998,8 +1050,8 @@ export default function Productionreportt() {
                         {woProduction.map((m, i) => {
                           const pct = m.production ? ((m.wastage / m.production) * 100).toFixed(2) : "0.00";
                           return (
-                            <tr key={i}>
-                              <td>{i + 1}</td>
+                            <tr key={m.workOrder + "-" + i}>
+                              <td>{(cur.jobs - 1) * pageSize + i + 1}</td>
                               <td><b>{m.workOrder}</b></td>
                               <td><TruncCell text={m.customer} id={"wo" + i} expanded={expanded} setExpanded={setExpanded} /></td>
                               <td>{m.production.toLocaleString("en-IN")}</td>
@@ -1012,6 +1064,10 @@ export default function Productionreportt() {
                     </table>
                   )}
               </div>
+              {jobsTotal > 0 && (
+                <Pager page={cur.jobs} total={jobsTotal} size={pageSize}
+                  onPage={(n) => setPage("jobs", n)} onSize={setPageSize} />
+              )}
             </div>
           </>
         )}
@@ -1070,16 +1126,16 @@ export default function Productionreportt() {
                       </thead>
                       <tbody>
                         {machineUtilization.map((m, i) => {
-                          const prodMins = m["PRODUCTION"] || 0;
+                          const prodMins = m.status?.["PRODUCTION"] || 0;
                           const util = ((prodMins / 60 / 24) * 100).toFixed(2);
                           return (
                             <tr key={i}>
-                              <td>{i + 1}</td>
+                              <td>{(cur.util - 1) * pageSize + i + 1}</td>
                               <td>{m.date}</td>
                               <td><b>{m.machine}</b></td>
                               <td>{m.printer || <span style={{color:"#94a3b8"}}>—</span>}</td>
                               {machineStatuses.map(s => (
-                                <td key={s._id}>{fmtMinutes(m[s.statusName] || 0)}</td>
+                                <td key={s._id}>{fmtMinutes(m.status?.[s.statusName] || 0)}</td>
                               ))}
                               <td className={Number(util) > 50 ? "util-good" : "util-bad"}>{util}%</td>
                             </tr>
@@ -1089,6 +1145,10 @@ export default function Productionreportt() {
                     </table>
                   )}
               </div>
+              {utilTotal > 0 && (
+                <Pager page={cur.util} total={utilTotal} size={pageSize}
+                  onPage={(n) => setPage("util", n)} onSize={setPageSize} />
+              )}
             </div>
           </>
         )}
@@ -1096,10 +1156,10 @@ export default function Productionreportt() {
         {/* ══ All Records ══ */}
         {show("allRecords") && (
           <>
-            <SectionHead icon={Icons.Search} color="purple" title={`All Records (${filteredRecords.length})`} />
+            <SectionHead icon={Icons.Search} color="purple" title={`All Records (${recTotal.toLocaleString("en-IN")})`} />
             <div className="pr-table-card">
               <div className="pr-table-wrap">
-                {filteredRecords.length === 0
+                {records.length === 0
                   ? <div className="pr-empty">No records match your filters</div>
                   : (
                     <table className="pr-table">
@@ -1114,9 +1174,9 @@ export default function Productionreportt() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRecords.map((item, i) => (
+                        {records.map((item, i) => (
                           <tr key={item._id || i}>
-                            <td>{i + 1}</td>
+                            <td>{(cur.rec - 1) * pageSize + i + 1}</td>
                             <td>{fmtDate(item.productionDate)}</td>
                             <td><b>{item.woNumber || "—"}</b></td>
                             <td>
@@ -1144,17 +1204,21 @@ export default function Productionreportt() {
                     </table>
                   )}
               </div>
+              {recTotal > 0 && (
+                <Pager page={cur.rec} total={recTotal} size={pageSize}
+                  onPage={(n) => setPage("rec", n)} onSize={setPageSize} />
+              )}
             </div>
           </>
         )}
 
       </div>
 
-      {loading && (
+      {(loading || exporting) && (
         <div className="pr-loader-overlay">
           <div className="pr-loader-box">
             <div className="pr-spinner" />
-            <span className="pr-loader-text">Loading production report…</span>
+            <span className="pr-loader-text">{exporting ? "Preparing export…" : "Loading production report…"}</span>
           </div>
         </div>
       )}
