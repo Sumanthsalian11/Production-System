@@ -154,6 +154,17 @@ function PlannerDashboard() {
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
   const [workOrders, setWorkOrders] = useState([]);
+
+  // ===== Server-side paging =====
+  const PAGE_SIZE = 50;
+  const MAX_EXPORT = 5000;
+  const [page, setPage] = useState(1);
+  const [totalRows, setTotalRows] = useState(0);
+  const [plannedCount, setPlannedCount] = useState(0);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [filterOptions, setFilterOptions] = useState({ customers: [], locations: [] });
+  const reqId = useRef(0);
+
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [machines, setMachines] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -287,17 +298,114 @@ function PlannerDashboard() {
     }
   }, [selectedOrder]);
 
-  const fetchWorkOrders = async () => {
+  // ============================================================================
+  // SERVER-SIDE WORK ORDER LOADING (paged + filtered)
+  // ============================================================================
+  const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+
+  const buildFilterParams = () => ({
+    status: "PLANNED",
+    customer: filterCustomer,
+    woNo: filterWoNo.trim(),
+    productCode: filterProductCode.trim(),
+    machine: filterMachine,
+    location: filterUserLocation,
+    from: dateFrom,
+    to: dateTo
+  });
+
+  const hasFilter = () =>
+    !!(filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation || filterCustomer);
+
+  const fetchWorkOrders = async (targetPage = page) => {
+    const id = ++reqId.current;
+    setTableLoading(true);
     try {
-      const res = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      const res = await axios.get(`${BASE_URL}/api/workorders/paged`, {
+        params: { ...buildFilterParams(), page: targetPage, limit: PAGE_SIZE },
+        headers: authHeaders()
       });
-      const filtered = (res.data || []).filter(wo => wo.status === "PLANNED");
-      setWorkOrders(filtered);
+      if (id !== reqId.current) return;
+      const items = res.data.items || [];
+      const total = res.data.total || 0;
+      if (!items.length && targetPage > 1 && total > 0) {
+        setPage(Math.max(1, Math.ceil(total / PAGE_SIZE)));
+        return;
+      }
+      setWorkOrders(items);
+      setTotalRows(total);
     } catch (err) {
       console.error("Error fetching work orders:", err);
+    } finally {
+      if (id === reqId.current) setTableLoading(false);
     }
   };
+
+  const fetchMeta = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/workorders/meta`, { headers: authHeaders() });
+      setPlannedCount(res.data.planned || 0);
+      setFilterOptions({
+        customers: res.data.customers || [],
+        locations: res.data.locations || []
+      });
+    } catch (err) {
+      console.error("Error fetching meta:", err);
+    }
+  };
+
+  // remove customer orders that already have a work order (server-side check)
+  const filterOutConverted = async (list) => {
+    const ids = list.map(o => String(o._id));
+    if (!ids.length) return list;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 1000) chunks.push(ids.slice(i, i + 1000));
+    const results = await Promise.all(
+      chunks.map(c =>
+        axios.post(`${BASE_URL}/api/workorders/existing-order-ids`, { ids: c }, { headers: authHeaders() })
+      )
+    );
+    const done = new Set(results.flatMap(r => (r.data || []).map(String)));
+    return list.filter(o => !done.has(String(o._id)));
+  };
+
+  // fetch all filtered rows in chunks (capped) for Excel / PDF / labels
+  const fetchAllFiltered = async () => {
+    const out = [];
+    let p = 1;
+    let total = 0;
+    do {
+      const res = await axios.get(`${BASE_URL}/api/workorders/paged`, {
+        params: { ...buildFilterParams(), page: p, limit: 500 },
+        headers: authHeaders()
+      });
+      const items = res.data.items || [];
+      total = res.data.total || 0;
+      out.push(...items);
+      if (!items.length) break;
+      p++;
+    } while (out.length < total && out.length < MAX_EXPORT);
+    if (total > MAX_EXPORT) {
+      showAlert(
+        "Export limited",
+        `Only the latest ${MAX_EXPORT} of ${total} records are exported. Apply filters to narrow down.`
+      );
+    }
+    return out.slice(0, MAX_EXPORT);
+  };
+
+  const getLabelData = async () => (hasFilter() ? await fetchAllFiltered() : workOrders);
+
+  // reset to page 1 when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [filterCustomer, filterWoNo, filterProductCode, filterMachine, filterUserLocation, dateFrom, dateTo]);
+
+  // reload table when page / filters change (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => fetchWorkOrders(page), 350);
+    return () => clearTimeout(t);
+  }, [page, filterCustomer, filterWoNo, filterProductCode, filterMachine, filterUserLocation, dateFrom, dateTo]);
 
   // Fetch data
   useEffect(() => {
@@ -314,37 +422,17 @@ function PlannerDashboard() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [orderRes, printingRes, workRes] = await Promise.all([
+        const [orderRes, printingRes] = await Promise.all([
           axios.get(`${BASE_URL}/api/customer-orders`, {
-            params: {
-              status: "ORDER_RECEIVED",
-              orderType: "Inhouse"
-            },
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+            params: { status: "ORDER_RECEIVED", orderType: "Inhouse" },
+            headers: authHeaders()
           }),
-          axios.get(`${BASE_URL}/api/printing-instructions`),
-          axios.get(`${BASE_URL}/api/workorders`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-          })
+          axios.get(`${BASE_URL}/api/printing-instructions`)
         ]);
 
-        const filteredPrinting = printingRes.data.filter(
-          p => p.status === "ORDER_RECEIVED"
-        );
-
-        const workOrdersData = workRes.data || [];
-
-        const convertedOrderIds = workOrdersData
-          .map(w => String(w.customerOrderId))
-          .filter(Boolean);
-
-        const filteredOrders = (orderRes.data || []).filter(
-          o => !convertedOrderIds.includes(String(o._id))
-        );
-
-        setOrders(filteredOrders);
+        const filteredPrinting = printingRes.data.filter(p => p.status === "ORDER_RECEIVED");
+        setOrders(await filterOutConverted(orderRes.data || []));
         setPrintingOrders(filteredPrinting || []);
-        setWorkOrders(workOrdersData.filter(wo => wo.status === "PLANNED"));
       } catch (err) {
         console.error("FETCH ERROR:", err);
         setOrders([]);
@@ -354,6 +442,7 @@ function PlannerDashboard() {
     };
 
     fetchData();
+    fetchMeta();
     fetchMachines();
     fetchMaterials();
     fetchActivities();
@@ -371,26 +460,18 @@ function PlannerDashboard() {
   };
 
   const handleFetchWoForLabel = async () => {
-    if (!outerLabelWoInput.trim()) {
+    const no = outerLabelWoInput.trim();
+    if (!no) {
       showAlert("Enter a WO Number first");
       return;
     }
 
     setOuterLabelLoading(true);
     try {
-      const res = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      const res = await axios.get(`${BASE_URL}/api/workorders/efi/${encodeURIComponent(no)}`, {
+        headers: authHeaders()
       });
-
-      const found = (res.data || []).find(
-        wo => String(wo.efiWoNumber) === outerLabelWoInput.trim()
-      );
-
-      if (!found) {
-        showAlert("Work Order Not Found", `No Work Order found with number ${outerLabelWoInput}`, "error");
-        setOuterLabelWo(null);
-        return;
-      }
+      const found = res.data;
 
       setOuterLabelWo(found);
       setOuterLabelForm({
@@ -399,8 +480,13 @@ function PlannerDashboard() {
         unitType: ""
       });
     } catch (err) {
-      console.error("Error fetching WO for label:", err);
-      showAlert("Error fetching Work Order", "", "error");
+      if (err.response?.status === 404) {
+        showAlert("Work Order Not Found", `No Work Order found with number ${no}`, "error");
+        setOuterLabelWo(null);
+      } else {
+        console.error("Error fetching WO for label:", err);
+        showAlert("Error fetching Work Order", "", "error");
+      }
     } finally {
       setOuterLabelLoading(false);
     }
@@ -469,38 +555,18 @@ function PlannerDashboard() {
         downloadOuterLabel([updatedWo]);
       }
 
-      const [
-        ,,,,,,
-        orderRes,
-        workRes2,
-        printingRes
-      ] = await Promise.all([
-        fetchWorkOrders(),
-        fetchMachines(),
-        fetchMaterials(),
-        fetchActivities(),
-        fetchPriorities(),
-        fetchLocationsMaster(),
+      const [orderRes, printingRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/customer-orders`, {
           params: { status: "ORDER_RECEIVED", orderType: "Inhouse" },
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+          headers: authHeaders()
         }),
-        axios.get(`${BASE_URL}/api/workorders`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-        }),
-        axios.get(`${BASE_URL}/api/printing-instructions`)
+        axios.get(`${BASE_URL}/api/printing-instructions`),
+        fetchWorkOrders(),
+        fetchMeta()
       ]);
 
-      const convertedOrderIds = (workRes2.data || [])
-        .map(w => String(w.customerOrderId))
-        .filter(Boolean);
-      const filteredOrders = (orderRes.data || []).filter(
-        o => !convertedOrderIds.includes(String(o._id))
-      );
-      setOrders(filteredOrders);
-
-      const filteredPrinting = printingRes.data.filter(p => p.status === "ORDER_RECEIVED");
-      setPrintingOrders(filteredPrinting || []);
+      setOrders(await filterOutConverted(orderRes.data || []));
+      setPrintingOrders(printingRes.data.filter(p => p.status === "ORDER_RECEIVED") || []);
 
       setOuterLabelWoInput("");
       setOuterLabelWo(null);
@@ -592,11 +658,7 @@ function PlannerDashboard() {
 
       showAlert("Deleted Successfully ✅", "", "success");
 
-      const workRes = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-
-      setWorkOrders(workRes.data || []);
+      await Promise.all([fetchWorkOrders(), fetchMeta()]);
     } catch (err) {
       console.error(err);
       showAlert("Error deleting Work Order", "", "error");
@@ -1451,38 +1513,15 @@ function PlannerDashboard() {
       setSelectedOrder(null);
 
       const orderRes = await axios.get(`${BASE_URL}/api/customer-orders`, {
-        params: {
-          status: "ORDER_RECEIVED",
-          orderType: "Inhouse"
-        },
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+        params: { status: "ORDER_RECEIVED", orderType: "Inhouse" },
+        headers: authHeaders()
       });
+      setOrders(await filterOutConverted(orderRes.data || []));
 
-      const workRes2 = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-
-      const convertedOrderIds = (workRes2.data || [])
-        .map(w => String(w.customerOrderId))
-        .filter(Boolean);
-
-      const filteredOrders = (orderRes.data || []).filter(
-        o => !convertedOrderIds.includes(String(o._id))
-      );
-
-      setOrders(filteredOrders);
       const printingRes = await axios.get(`${BASE_URL}/api/printing-instructions`);
+      setPrintingOrders(printingRes.data.filter(p => p.status === "ORDER_RECEIVED") || []);
 
-      const filteredPrinting = printingRes.data.filter(
-        p => p.status === "ORDER_RECEIVED"
-      );
-
-      setPrintingOrders(filteredPrinting || []);
-
-      const workRes = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-      });
-      setWorkOrders(workRes.data || []);
+      await Promise.all([fetchWorkOrders(), fetchMeta()]);
     } catch (err) {
       console.error("Error creating Work Order:", err.response?.data || err);
       showAlert("Error", "Error creating Work Order", "error");
@@ -1504,50 +1543,11 @@ function PlannerDashboard() {
     )
   ], [printingOrders]);
 
-  const customerOptions = useMemo(() => [
-    ...new Set(
-      workOrders
-        .map(wo => wo.customer?.name || wo.customer)
-        .filter(Boolean)
-    )
-  ], [workOrders]);
+  const customerOptions = filterOptions.customers;
+  const displayedWorkOrders = workOrders;
 
-  const filteredWorkOrders = useMemo(() => {
-    return workOrders
-      .filter(wo => {
-        const customerName = wo.customer?.name || wo.customer || "";
-        const matchCustomer = filterCustomer === "" || customerName === filterCustomer;
-        const matchWo = filterWoNo === "" || String(wo.efiWoNumber).includes(filterWoNo);
-        const matchProductCode =
-          filterProductCode === "" ||
-          String(wo.productCode || "").toLowerCase().includes(filterProductCode.toLowerCase());
-
-        const matchMachine =
-          filterMachine === "" ||
-          wo.machines?.some(
-            m => String(m.machineId?._id || m.machineId) === String(filterMachine)
-          );
-
-        const matchLocation =
-          filterUserLocation === "" ||
-          wo.userLocations?.includes(filterUserLocation);
-
-        const woDateString = new Date(wo.createdAt).toISOString().split("T")[0];
-        const matchFrom = dateFrom === "" || woDateString >= dateFrom;
-        const matchTo = dateTo === "" || woDateString <= dateTo;
-
-        return matchCustomer && matchWo && matchProductCode && matchMachine && matchLocation && matchFrom && matchTo;
-      })
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }, [workOrders, filterCustomer, filterWoNo, filterProductCode, filterMachine, filterUserLocation, dateFrom, dateTo]);
-
-  const displayedWorkOrders = useMemo(() => {
-    return filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterCustomer
-      ? filteredWorkOrders
-      : filteredWorkOrders.slice(0, 50);
-  }, [filteredWorkOrders, filterWoNo, filterProductCode, filterMachine, dateFrom, dateTo, filterCustomer]);
-
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
+    const filteredWorkOrders = await fetchAllFiltered();
     if (!filteredWorkOrders.length) return showAlert("No data to download!");
 
     const data = filteredWorkOrders.map(wo => ({
@@ -1645,11 +1645,8 @@ function PlannerDashboard() {
     return canvas.toDataURL("image/png");
   };
 
-  const downloadOuterLabel = (explicitData) => {
-    const isFilterApplied = filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation || filterCustomer;
-    const dataToDownload = Array.isArray(explicitData)
-      ? explicitData
-      : (isFilterApplied ? filteredWorkOrders : displayedWorkOrders);
+  const downloadOuterLabel = async (explicitData) => {
+    const dataToDownload = Array.isArray(explicitData) ? explicitData : await getLabelData();
 
     if (!dataToDownload.length) return showAlert("No data to download!");
 
@@ -1855,22 +1852,12 @@ function PlannerDashboard() {
 
   const downloadFormattedPDF = async () => {
     try {
-      const isFilterApplied = filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation;
-      let dataToDownload = [];
-
       if (!activities.length || !machines.length) {
         showAlert("Please wait, activities or machines are still loading...");
         return;
       }
 
-      if (isFilterApplied) {
-        dataToDownload = filteredWorkOrders;
-      } else {
-        const res = await axios.get(`${BASE_URL}/api/workorders`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-        dataToDownload = res.data || [];
-      }
+      const dataToDownload = await fetchAllFiltered();
 
       if (!dataToDownload.length) {
         showAlert("No data to download!");
@@ -2124,9 +2111,8 @@ function PlannerDashboard() {
     }
   };
 
-  const downloadDocketLabel = () => {
-    const isFilterApplied = filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation || filterCustomer;
-    const dataToDownload = isFilterApplied ? filteredWorkOrders : displayedWorkOrders;
+  const downloadDocketLabel = async () => {
+    const dataToDownload = await getLabelData();
 
     if (!dataToDownload.length) return showAlert("No data to download!");
 
@@ -2267,9 +2253,8 @@ function PlannerDashboard() {
     doc.save(`MPI_DocketLabel_${String(firstWo?.efiWoNumber || "ALL")}.pdf`);
   };
 
-  const downloadBindingSigningSheet = () => {
-    const isFilterApplied = filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation || filterCustomer;
-    const dataToDownload = isFilterApplied ? filteredWorkOrders : displayedWorkOrders;
+  const downloadBindingSigningSheet = async () => {
+    const dataToDownload = await getLabelData();
 
     if (!dataToDownload.length) return showAlert("No data to download!");
 
@@ -2406,8 +2391,6 @@ function PlannerDashboard() {
     printingOrders
       .filter(o => !hiddenOrders.includes(o._id))
       .filter(o => o.userLocations?.some(loc => userLocations.includes(loc))).length;
-
-  const plannedCount = workOrders.length;
 
   const handleTabChange = (tab) => {
     if (tab === "OUTER_LABEL") {
@@ -5008,7 +4991,7 @@ function PlannerDashboard() {
               </div>
             )}
             {/* ========================================================================= */}
-            {(statusFilter === "PLANNED" || statusFilter === "") && workOrders.length > 0 && (
+            {(statusFilter === "PLANNED" || statusFilter === "") && plannedCount > 0 && (
               <div className="card-glass-3d p-3 mt-4">
                 <div className="text-center mb-3">
                   <h4 className="fw-bold m-0" style={{ color: "#064c73" }}>
@@ -5093,7 +5076,7 @@ function PlannerDashboard() {
                         onChange={(e) => setFilterUserLocation(e.target.value)}
                       >
                         <option value="">User Locations</option>
-                        {[...new Set(workOrders.flatMap(wo => wo.userLocations || []))].map(loc => (
+                        {filterOptions.locations.map(loc => (
                           <option key={loc} value={loc}>{loc}</option>
                         ))}
                       </select>
@@ -5402,6 +5385,31 @@ function PlannerDashboard() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2">
+                  <small>
+                    {totalRows === 0
+                      ? "No records"
+                      : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, totalRows)} of ${totalRows.toLocaleString("en-IN")}`}
+                    {tableLoading && "  ·  loading…"}
+                  </small>
+                  <div className="d-flex gap-2 align-items-center">
+                    <button className="clear-btn" disabled={page <= 1} onClick={() => setPage(1)}>« First</button>
+                    <button className="clear-btn" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
+                    <small>Page {page} / {Math.max(1, Math.ceil(totalRows / PAGE_SIZE))}</small>
+                    <button
+                      className="clear-btn"
+                      disabled={page >= Math.ceil(totalRows / PAGE_SIZE)}
+                      onClick={() => setPage(p => p + 1)}
+                    >Next ›</button>
+                    <button
+                      className="clear-btn"
+                      disabled={page >= Math.ceil(totalRows / PAGE_SIZE)}
+                      onClick={() => setPage(Math.max(1, Math.ceil(totalRows / PAGE_SIZE)))}
+                    >Last »</button>
+                  </div>
                 </div>
               </div>
             )}

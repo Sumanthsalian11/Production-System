@@ -4,34 +4,134 @@ const WorkOrder = require("../models/WorkOrder");
 const CustomerOrder = require("../models/CustomerOrder");
 const authMiddleware = require("../middleware/authMiddleware");
 
-// NEW — auto-schedules every Activity/Machine row of a just-created Work
-// Order onto the Gantt (see controllers/scheduleController.js). Only used
-// right after a Work Order is saved below; nothing else in this file
-// changes.
 const { autoScheduleWorkOrder } = require("../controllers/scheduleController");
 
+// ---------- helpers ----------
+// prefix match on a numeric field using index-friendly ranges
+// "123" -> 123, 1230-1239, 12300-12399 ...
+const prefixRanges = (field, raw) => {
+  const s = String(raw).trim();
+  if (!/^\d{1,7}$/.test(s)) return null; // null => matches nothing
+  const n = Number(s);
+  const ranges = [];
+  for (let extra = 0; extra <= 8; extra++) {
+    const m = 10 ** extra;
+    ranges.push({ [field]: { $gte: n * m, $lt: (n + 1) * m } });
+  }
+  return { $or: ranges };
+};
+
+const buildFilter = (q) => {
+  const and = [];
+  and.push({ status: q.status || "PLANNED" });
+
+  if (q.customer) and.push({ customer: q.customer });
+  if (q.location) and.push({ userLocations: q.location });
+
+  if (q.machine && /^[a-f\d]{24}$/i.test(q.machine)) {
+    and.push({ "machines.machineId": q.machine });
+  }
+
+  if (q.woNo) {
+    and.push(prefixRanges("efiWoNumber", q.woNo) || { _id: { $exists: false } });
+  }
+  if (q.productCode) {
+    and.push(prefixRanges("productCode", q.productCode) || { _id: { $exists: false } });
+  }
+
+  if (q.from || q.to) {
+    const r = {};
+    if (q.from) r.$gte = new Date(`${q.from}T00:00:00.000Z`);
+    if (q.to) r.$lte = new Date(`${q.to}T23:59:59.999Z`);
+    and.push({ createdAt: r });
+  }
+
+  return and.length === 1 ? and[0] : { $and: and };
+};
+
+const populateOpts = [
+  { path: "machines.machineId", select: "machineName" },
+  { path: "machines.activityId", select: "activityName" },
+  { path: "activity2", select: "activityName" }
+];
+
 // =============================================
-// GET ALL WORK ORDERS
+// GET ALL WORK ORDERS (legacy — other pages still use this)
 // =============================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
-  const workOrders = await WorkOrder.find()
-  .populate("customer")
-  .populate({
-    path: "machines.machineId",
-    select: "machineName"
-    
-  })
-  .populate({
-    path: "machines.activityId",
-    select: "activityName"
-  })
-  .populate({
-    path: "activity2",
-    select: "activityName"
-  });
+    const workOrders = await WorkOrder.find()
+      .populate("customer")
+      .populate({ path: "machines.machineId", select: "machineName" })
+      .populate({ path: "machines.activityId", select: "activityName" })
+      .populate({ path: "activity2", select: "activityName" })
+      .lean();
     res.json(workOrders);
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// PAGED + FILTERED LIST (used by Planner page)
+// =============================================
+router.get("/paged", authMiddleware, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 1000);
+    const filter = buildFilter(req.query);
+
+    const [items, total] = await Promise.all([
+      WorkOrder.find(filter)
+        .sort({ createdAt: -1, _id: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate(populateOpts)
+        .lean(),
+      WorkOrder.countDocuments(filter)
+    ]);
+
+    res.json({ items, total, page, limit });
+  } catch (err) {
+    console.error("PAGED LIST ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// META: planned count + filter dropdown options
+// =============================================
+router.get("/meta", authMiddleware, async (req, res) => {
+  try {
+    const [planned, customers, locations] = await Promise.all([
+      WorkOrder.countDocuments({ status: "PLANNED" }),
+      WorkOrder.distinct("customer", { status: "PLANNED" }),
+      WorkOrder.distinct("userLocations", { status: "PLANNED" })
+    ]);
+    res.json({
+      planned,
+      customers: customers.filter(Boolean).sort(),
+      locations: locations.filter(Boolean).sort()
+    });
+  } catch (err) {
+    console.error("META ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// WHICH CUSTOMER ORDERS ALREADY HAVE A WORK ORDER
+// =============================================
+router.post("/existing-order-ids", authMiddleware, async (req, res) => {
+  try {
+    const ids = (req.body.ids || []).filter((i) => /^[a-f\d]{24}$/i.test(String(i)));
+    if (!ids.length) return res.json([]);
+    const found = await WorkOrder.distinct("customerOrderId", {
+      customerOrderId: { $in: ids }
+    });
+    res.json(found.map(String));
+  } catch (err) {
+    console.error("EXISTING IDS ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -41,151 +141,124 @@ router.get("/", authMiddleware, async (req, res) => {
 // =============================================
 router.post("/create", authMiddleware, async (req, res) => {
   try {
-  const {
-  customerOrderId,
-    printingId, // ✅ ADD
-  workorder2,
-productCode,
-  priority,
-  inches,        // ⭐ ADD
-  slitNumber,    // ⭐ ADD
-  customer,
-  purchaseOrderNo,
-  poDate,
-   dispatchLocation,   // ⭐ ADD
-  boxQty,              // ⭐ ADD
-  productName,
-  location,
-  qtyInLvs,
-  machines,   // ⭐ isBooklet / pages / component now travel per-row inside this array
-  activity2,   // ⭐ ADD — additional activities (checkbox multi-select)
-  materials,   // ✅ ADD THIS
-  colorFront,
-  colorBack,
-  orderQty,
-  wasteQty,
-  totalQty,
-  jobSize,
-  UPS,
-  impFront,
-   productType,  
-  impBack,
-  totalImp,
-  inkDetails,
-  remarks,
-  itemPdfPath,
-} = req.body;
-// 🔹 Get Expected Delivery Date from Customer Order
-let expectedDate = null;
+    const {
+      customerOrderId,
+      printingId,
+      workorder2,
+      productCode,
+      priority,
+      inches,
+      slitNumber,
+      customer,
+      purchaseOrderNo,
+      poDate,
+      dispatchLocation,
+      boxQty,
+      productName,
+      location,
+      qtyInLvs,
+      machines,
+      activity2,
+      materials,
+      colorFront,
+      colorBack,
+      orderQty,
+      wasteQty,
+      totalQty,
+      jobSize,
+      UPS,
+      impFront,
+      productType,
+      impBack,
+      totalImp,
+      inkDetails,
+      remarks,
+      itemPdfPath
+    } = req.body;
 
-if (customerOrderId) {
-  const customerOrder = await CustomerOrder.findById(customerOrderId);
-
-  if (customerOrder) {
-    expectedDate = customerOrder.expectedDeliveryDate;
-  }
-}
-
-
-    // 🛑 Block duplicate work orders for the same order
+    let expectedDate = null;
     if (customerOrderId) {
-      const already = await WorkOrder.findOne({ customerOrderId });
+      const customerOrder = await CustomerOrder.findById(customerOrderId);
+      if (customerOrder) expectedDate = customerOrder.expectedDeliveryDate;
+    }
+
+    if (customerOrderId) {
+      const already = await WorkOrder.findOne({ customerOrderId }).select("_id").lean();
       if (already) {
         return res.status(409).json({ message: "Work Order already exists for this order" });
       }
     }
     if (printingId) {
-      const already = await WorkOrder.findOne({ printingId });
+      const already = await WorkOrder.findOne({ printingId }).select("_id").lean();
       if (already) {
         return res.status(409).json({ message: "Work Order already exists for this printing order" });
       }
     }
 
-    // 🔢 Auto increment SL No
-    const lastWorkOrder = await WorkOrder.findOne().sort({ slNo: -1 });
+    const lastWorkOrder = await WorkOrder.findOne().sort({ slNo: -1 }).select("slNo").lean();
     const nextSlNo = lastWorkOrder ? lastWorkOrder.slNo + 1 : 1;
 
-    // 🔢 Auto increment EFI WO Number
-    const lastEfi = await WorkOrder.findOne().sort({ efiWoNumber: -1 });
+    const lastEfi = await WorkOrder.findOne().sort({ efiWoNumber: -1 }).select("efiWoNumber").lean();
     const nextEfiNumber = lastEfi ? lastEfi.efiWoNumber + 1 : 1000;
 
-    // 🧮 Auto calculate total IMP  
     const totalImpression =
-      totalImp !== undefined
-        ? totalImp
-        : (Number(impFront) || 0) + (Number(impBack) || 0);
+      totalImp !== undefined ? totalImp : (Number(impFront) || 0) + (Number(impBack) || 0);
 
-    // 🔥 AUTO GET LOGGED-IN USER NAME
-   const plannerName = req.user.name;
-const plannerLocations = req.user.locations || [];
+    const plannerName = req.user.name;
+    const plannerLocations = req.user.locations || [];
 
- const newWorkOrder = new WorkOrder({
-  slNo: nextSlNo,
-  efiWoNumber: nextEfiNumber,
-  customerOrderId, // ⭐ THE ACTUAL FIX — this was destructured and used for the expectedDate lookup but never saved
-  printingId, // ✅ ADD HERE
-    workorder2,
-    productCode,
-  priority,
-  customer,
-   productType,  
-   inches,        // ⭐ ADD
-   slitNumber,    // ⭐ ADD  
-  purchaseOrderNo,
-  poDate,
-  productName,
-  location,
-  qtyInLvs,
-   dispatchLocation,   // ⭐ ADD
-  boxQty,              // ⭐ ADD
-  machines,
-  activity2,   // ⭐ ADD
-  materials,   // ✅ THIS FIXES EVERYTHING
-  colorFront,
-  colorBack,
-  orderQty,
-  wasteQty,
-  totalQty,
-  jobSize,
-  UPS,
-  impFront,
-  impBack,
-  totalImp: totalImpression,
-  inkDetails,
-  remarks,
-  itemPdfPath: itemPdfPath || "",
-  planningUser: plannerName,
-  userLocations: plannerLocations,
-  status: "PLANNED",
-  expectedDeliveryDate: expectedDate
-});
+    const newWorkOrder = new WorkOrder({
+      slNo: nextSlNo,
+      efiWoNumber: nextEfiNumber,
+      customerOrderId,
+      printingId,
+      workorder2,
+      productCode,
+      priority,
+      customer,
+      productType,
+      inches,
+      slitNumber,
+      purchaseOrderNo,
+      poDate,
+      productName,
+      location,
+      qtyInLvs,
+      dispatchLocation,
+      boxQty,
+      machines,
+      activity2,
+      materials,
+      colorFront,
+      colorBack,
+      orderQty,
+      wasteQty,
+      totalQty,
+      jobSize,
+      UPS,
+      impFront,
+      impBack,
+      totalImp: totalImpression,
+      inkDetails,
+      remarks,
+      itemPdfPath: itemPdfPath || "",
+      planningUser: plannerName,
+      userLocations: plannerLocations,
+      status: "PLANNED",
+      expectedDeliveryDate: expectedDate
+    });
 
     await newWorkOrder.save();
- 
-    // 🔄 Update Customer Order Status
-  // 🔄 Update Customer Order Status
-if (customerOrderId) {
-  await CustomerOrder.findByIdAndUpdate(customerOrderId, {
-    status: "PLANNED",
-  });
-}
 
-// 🔄 ✅ ADD THIS BLOCK
-if (printingId) {
-  const PrintingInstruction = require("../models/Print");
+    if (customerOrderId) {
+      await CustomerOrder.findByIdAndUpdate(customerOrderId, { status: "PLANNED" });
+    }
 
-  await PrintingInstruction.findByIdAndUpdate(printingId, {
-    status: "PLANNED"
-  });
-}
+    if (printingId) {
+      const PrintingInstruction = require("../models/Print");
+      await PrintingInstruction.findByIdAndUpdate(printingId, { status: "PLANNED" });
+    }
 
-    // NEW — immediately auto-schedule every Activity/Machine row of this
-    // Work Order onto the Gantt, starting from the next free slot on
-    // each row's machine ("right now" or later if that machine is busy).
-    // Wrapped so that if scheduling has a problem (e.g. a machine with
-    // no capacity set), Work Order creation still succeeds — that row
-    // just falls back to being scheduled manually from the Scheduler's
-    // "Pending Work Orders" list, exactly as before this feature existed.
     let autoScheduleResult = null;
     try {
       autoScheduleResult = await autoScheduleWorkOrder(newWorkOrder._id);
@@ -203,51 +276,35 @@ if (printingId) {
   }
 });
 
-
 // =============================================
 // UPDATE WORK ORDER
 // =============================================
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
     const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
 
-    if (!workOrder) {
-      return res.status(404).json({ message: "Work Order not found" });
-    }
-
-    // 🔐 Only allow creator to edit
     if (workOrder.planningUser !== req.user.name) {
       return res.status(403).json({ message: "Not authorized to edit this work order" });
     }
 
     Object.assign(workOrder, req.body);
-
     await workOrder.save();
-
     res.json(workOrder);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
 // =============================================
-// UPDATE OUTER LABEL INFO (no ownership/JWT role restriction)
+// UPDATE OUTER LABEL INFO
 // =============================================
 router.patch("/:id/outer-label", authMiddleware, async (req, res) => {
   try {
     const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
 
-    if (!workOrder) {
-      return res.status(404).json({ message: "Work Order not found" });
-    }
-
-    // ✅ No planningUser / role check here — any authenticated user
-    // can update outer label details for any work order.
-    const {
-      boxQty,
-      dispatchLocation,
-      boxQtyEntered,
-      boxUnitType,
-    } = req.body;
+    const { boxQty, dispatchLocation, boxQtyEntered, boxUnitType } = req.body;
 
     if (boxQty !== undefined) workOrder.boxQty = boxQty;
     if (dispatchLocation !== undefined) workOrder.dispatchLocation = dispatchLocation;
@@ -255,7 +312,6 @@ router.patch("/:id/outer-label", authMiddleware, async (req, res) => {
     if (boxUnitType !== undefined) workOrder.boxUnitType = boxUnitType;
 
     await workOrder.save();
-
     res.json(workOrder);
   } catch (err) {
     console.error("OUTER LABEL UPDATE ERROR:", err);
@@ -273,11 +329,7 @@ router.patch("/:id/send-to-prepress", authMiddleware, async (req, res) => {
       { sentToPrepress: true },
       { new: true }
     );
-
-    if (!workOrder) {
-      return res.status(404).json({ message: "Work Order not found" });
-    }
-
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
     res.json(workOrder);
   } catch (err) {
     console.error("SEND TO PREPRESS ERROR:", err);
@@ -291,20 +343,14 @@ router.patch("/:id/send-to-prepress", authMiddleware, async (req, res) => {
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const workOrder = await WorkOrder.findById(req.params.id);
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
 
-    if (!workOrder) {
-      return res.status(404).json({ message: "Work Order not found" });
-    }
-
-    // 🔐 Only creator can delete
     if (workOrder.planningUser !== req.user.name) {
       return res.status(403).json({ message: "Not authorized to delete this work order" });
     }
 
     await WorkOrder.findByIdAndDelete(req.params.id);
-
     res.json({ message: "Work Order deleted successfully" });
-
   } catch (err) {
     console.error("DELETE ERROR:", err);
     res.status(500).json({ message: err.message });
@@ -312,7 +358,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 // =============================================
-// ADMIN: EDIT ORDER QTY (only for work orders in admin's own location)
+// ADMIN: EDIT ORDER QTY
 // =============================================
 router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
   try {
@@ -321,11 +367,8 @@ router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
     }
 
     const workOrder = await WorkOrder.findById(req.params.id);
-    if (!workOrder) {
-      return res.status(404).json({ message: "Work Order not found" });
-    }
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
 
-    // location check: admin must share a location with the work order
     const myLocs = req.user.locations || [];
     const woLocs = workOrder.userLocations || [];
     if (!woLocs.some((l) => myLocs.includes(l))) {
@@ -368,66 +411,43 @@ router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
 router.get("/efi/:efi", authMiddleware, async (req, res) => {
   try {
     const efiNumber = Number(req.params.efi);
-
-    const wo = await WorkOrder.findOne({ efiWoNumber: efiNumber })
-      .populate({
-        path: "machines.activityId",
-        select: "activityName"
-      })
-      .populate({
-        path: "machines.machineId",
-        select: "machineName"
-      });
-
-    if (!wo) {
+    if (!Number.isFinite(efiNumber)) {
       return res.status(404).json({ message: "Work Order not found" });
     }
 
+    const wo = await WorkOrder.findOne({ efiWoNumber: efiNumber })
+      .populate({ path: "machines.activityId", select: "activityName" })
+      .populate({ path: "machines.machineId", select: "machineName" })
+      .lean();
+
+    if (!wo) return res.status(404).json({ message: "Work Order not found" });
     res.json(wo);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
-router.patch(
-  "/:id/scheduler-hide",
-  authMiddleware,
-  async (req, res) => {
-    try {
-      if (req.user.role !== "ADMIN") {
-        return res.status(403).json({
-          message: "Admin access required"
-        });
-      }
 
-      const workOrder =
-        await WorkOrder.findByIdAndUpdate(
-          req.params.id,
-          {
-            schedulerHidden: true
-          },
-          {
-            new: true
-          }
-        );
-
-      if (!workOrder) {
-        return res.status(404).json({
-          message: "Work Order not found"
-        });
-      }
-
-      res.json({
-        message: "Removed from scheduler",
-        workOrder
-      });
-
-    } catch (err) {
-      console.error(err);
-
-      res.status(500).json({
-        message: "Failed to remove Work Order"
-      });
+router.patch("/:id/scheduler-hide", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
     }
+
+    const workOrder = await WorkOrder.findByIdAndUpdate(
+      req.params.id,
+      { schedulerHidden: true },
+      { new: true }
+    );
+
+    if (!workOrder) {
+      return res.status(404).json({ message: "Work Order not found" });
+    }
+
+    res.json({ message: "Removed from scheduler", workOrder });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to remove Work Order" });
   }
-);
+});
+
 module.exports = router;
