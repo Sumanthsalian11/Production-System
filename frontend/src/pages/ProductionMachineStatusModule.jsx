@@ -187,7 +187,7 @@ const CSS = `
     border-bottom: 1px solid var(--line);
   }
   .pms-header-inner {
-    max-width: 1580px; margin: 0 auto;
+    max-width: 100%; margin: 0 auto;
     display: flex; justify-content: flex-end; align-items: center;
     gap: 18px; flex-wrap: wrap;
     position: relative; min-height: 44px;
