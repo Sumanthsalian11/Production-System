@@ -4182,7 +4182,7 @@ function BookingTab({ filters }) {
       try {
         const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
         const [sch, wo] = await Promise.all([
-          axios.get(`${BASE_URL}/api/schedule`).catch(() => ({ data: [] })),
+          axios.get(`${BASE_URL}/api/schedule`, { params: { booking: 1 } }).catch(() => ({ data: [] })),
           axios.get(`${BASE_URL}/api/workorders`, { headers }).catch(() => ({ data: [] })),
         ]);
         setSchedules(Array.isArray(sch.data) ? sch.data : []);

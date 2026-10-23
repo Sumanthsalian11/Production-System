@@ -1043,6 +1043,22 @@ exports.getSchedules = async (req, res) => {
       };
     }
 
+        // ---------- BOOKING (Live Production "Scheduled Orders" tab) ----------
+    if (q.booking) {
+      const data = await Schedule.find(filter)
+        .select(
+          "machineId workOrderId activityId machinesDetail startTime endTime priority isBlocked blockReason totalImp rowIndex customer " +
+          "slNo productName productType location userLocations planningUser orderQty wasteQty jobSize " +
+          "colorFront colorBack inches slitNumber impFront impBack remarks materials"
+        )
+        .populate("machineId", "machineName")
+        .populate("workOrderId", "efiWoNumber customer woDate orderQty")
+        .populate("activityId", "activityName")
+        .populate("machinesDetail.activityId", "activityName")
+        .populate("machinesDetail.machineId", "machineName")
+        .lean();
+      return res.json(data);
+    }
     // ---------- FULL (Excel) ----------
     if (q.full) {
       const data = await Schedule.find(filter)
