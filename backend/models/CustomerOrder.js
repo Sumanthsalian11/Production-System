@@ -84,6 +84,11 @@ const customerOrderSchema = new mongoose.Schema(
         trim: true
       }
     ],
+    indentNo: {
+      type: String,
+      default: ""
+    },
+
     source: {
       type: String,
       enum: ["newIndent", "purchaseOrder"],

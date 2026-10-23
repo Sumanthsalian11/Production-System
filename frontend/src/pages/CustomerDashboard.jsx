@@ -95,7 +95,11 @@ function CustomerDashboard() {
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        setLoginLocation(decoded.location || "");
+        setLoginLocation(
+          (Array.isArray(decoded.locations) && decoded.locations[0]) ||
+            decoded.location ||
+            ""
+        );
         setLoggedInUser(decoded.name || decoded.username || "");
       } catch (e) {
         console.error("Token decoding error:", e);
@@ -407,7 +411,57 @@ function CustomerDashboard() {
     setErrors({});
   };
 
+  // CHANGE THIS LINE to match the field your indent process route sets on the order
+  const isIndentOrder = (order) =>
+    Boolean(order.indentNo) || order.source === "newIndent";
+
+  const handleEditIndentOrder = (order) => {
+    setViewMode("orderRequests");
+    setShowEntryForm(false);
+    setEditingId(order._id);
+    setSelectedIndent({
+      indentNo: order.indentNo || order.ticketNo || "-",
+      location: order.location,
+      items: [
+        {
+          productCode: order.productCode,
+          materialType: order.materialType,
+          description: order.description,
+          customerName: order.customerName,
+          quantity: order.quantity,
+          deliveryDate: order.expectedDeliveryDate,
+          itemPdfPath: order.itemPdfPath,
+          unitRate: order.unitRate,
+          customerPoNo: order.customerPoNo,
+          customerPoDate: order.customerPoDate
+        }
+      ]
+    });
+    setIndentForm({
+      orderType: order.orderType || "",
+      remarks: order.remarks || "",
+      remarks2: order.remarks2 || "",
+      purchaseOrderNo: order.purchaseOrderNo || "",
+      poDate: order.poDate?.slice(0, 10) || "",
+      planningLocation:
+        locations.find(
+          (l) =>
+            l.locationName?.toLowerCase() ===
+            (order.userLocations?.[0] || loginLocation || "").toLowerCase()
+        )?.locationName || "",
+      expectedDeliveryDate: order.expectedDeliveryDate?.slice(0, 10) || ""
+    });
+    setErrors({});
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const handleEdit = (order) => {
+    if (isIndentOrder(order)) {
+      handleEditIndentOrder(order);
+      return;
+    }
+    setViewMode("purchaseOrder");
+    setSelectedIndent(null);
     setEditingId(order._id);
     setShowEntryForm(true);
     if (!order.purchaseOrderNo) {
@@ -478,6 +532,8 @@ function CustomerDashboard() {
   // NEW INDENT REQUEST HANDLERS
   // ============================
   const handleSelectIndent = (indent) => {
+    setShowEntryForm(false);
+    setEditingId(null);
     setSelectedIndent(indent);
     setIndentForm({
       orderType: "",
@@ -506,7 +562,11 @@ function CustomerDashboard() {
         newErrors.expectedDeliveryDate = "Required";
     }
 
-    if (indentForm.orderType === "Inhouse" && !indentForm.planningLocation) {
+    if (
+      indentForm.orderType === "Inhouse" &&
+      !indentForm.planningLocation &&
+      !editingId
+    ) {
       newErrors.planningLocation = "Required";
     }
 
@@ -524,6 +584,50 @@ function CustomerDashboard() {
     setIsSubmitting(true);
 
     try {
+      if (editingId) {
+        const o = orders.find((x) => x._id === editingId) || {};
+        const fd = new FormData();
+        fd.append("productCode", o.productCode || "");
+        fd.append("materialType", o.materialType || "");
+        fd.append("description", o.description || "");
+        fd.append("customerName", o.customerName || "");
+        fd.append("colorFront", o.colorFront || "");
+        fd.append("colorBack", o.colorBack || "");
+        fd.append("wasteQty", o.wasteQty || "");
+        fd.append("jobSize", o.jobSize || "");
+        fd.append("inkDetails", o.inkDetails || "");
+        fd.append("quantity", o.quantity || "");
+        fd.append("location", o.location?._id || o.location || "");
+        fd.append("orderType", indentForm.orderType);
+        fd.append("remarks", indentForm.remarks || "");
+        fd.append("remarks2", indentForm.remarks2 || "");
+        fd.append("itemPdfPath", o.itemPdfPath || "");
+        fd.append("user", loggedInUser);
+
+        if (indentForm.purchaseOrderNo)
+          fd.append("purchaseOrderNo", indentForm.purchaseOrderNo);
+        if (indentForm.poDate) fd.append("poDate", indentForm.poDate);
+        if (indentForm.expectedDeliveryDate)
+          fd.append("expectedDeliveryDate", indentForm.expectedDeliveryDate);
+
+        await axios.put(`${BASE_URL}/api/customer-orders/${editingId}`, fd, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        Swal.fire({
+          icon: "success",
+          title: "Success",
+          text: "Order Updated Successfully",
+          width: "350px",
+          confirmButtonColor: "#3085d6"
+        });
+        setSelectedIndent(null);
+        setEditingId(null);
+        setViewMode("purchaseOrder");
+        fetchOrders();
+        return;
+      }
+
       const res = await axios.put(
         `${BASE_URL}/api/newindent/process/${selectedIndent._id}`,
         indentForm,
@@ -1572,6 +1676,7 @@ function CustomerDashboard() {
             } else {
               setViewMode("purchaseOrder");
               setShowEntryForm(true);
+              setEditingId(null);
             }
             setSelectedIndent(null);
           }}
@@ -1584,9 +1689,13 @@ function CustomerDashboard() {
             viewMode === "orderRequests" ? "warning-active" : ""
           }`}
           onClick={() => {
-            setViewMode("orderRequests");
+            if (viewMode !== "orderRequests") {
+              setViewMode("orderRequests");
+              setShowEntryForm(false);
+              setEditingId(null);
+              setSelectedIndent(null);
+            }
             fetchIndentRequests();
-            setSelectedIndent(null);
           }}
         >
           Order Requests
@@ -1853,6 +1962,7 @@ function CustomerDashboard() {
                         className="po-input"
                         value={indentForm.orderType}
                         onChange={handleIndentFormChange}
+                        disabled={editingId !== null}
                       >
                         <option value="">Select Order Type</option>
                         <option value="Inhouse">Inhouse</option>
@@ -1974,6 +2084,8 @@ function CustomerDashboard() {
                     >
                       {isSubmitting
                         ? "Processing..."
+                        : editingId
+                        ? "Update Order"
                         : indentForm.orderType === "Inhouse"
                         ? "Process & Send to Planner"
                         : "Save Order"}
@@ -1981,7 +2093,13 @@ function CustomerDashboard() {
                     <button
                       type="button"
                       className="btn btn-secondary px-4"
-                      onClick={() => setSelectedIndent(null)}
+                      onClick={() => {
+                        setSelectedIndent(null);
+                        if (editingId) {
+                          setEditingId(null);
+                          setViewMode("purchaseOrder");
+                        }
+                      }}
                     >
                       Cancel
                     </button>

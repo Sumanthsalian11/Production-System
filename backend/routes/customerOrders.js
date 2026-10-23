@@ -228,6 +228,7 @@ router.put("/:id", authMiddleware, upload.single("attachment"), async (req, res)
         remarks,
         remarks2,
         itemPdfPath: itemPdfPath !== undefined ? itemPdfPath : undefined,
+
         user,
         userLocations: userData?.locations || [],
         ...(attachment && { attachment })
