@@ -53,6 +53,7 @@ function CustomerDashboard() {
   const [indentRequests, setIndentRequests] = useState([]);
   const [selectedIndent, setSelectedIndent] = useState(null);
   const [indentForm, setIndentForm] = useState({
+    planningLocation: "",
     orderType: "",
     remarks: "",
     purchaseOrderNo: "",
@@ -483,6 +484,7 @@ function CustomerDashboard() {
       remarks: "",
       purchaseOrderNo: "",
       poDate: "",
+      planningLocation: "",
       expectedDeliveryDate: indent.items[0]?.deliveryDate?.slice(0, 10) || ""
     });
     setErrors({});
@@ -502,6 +504,10 @@ function CustomerDashboard() {
     if (indentForm.orderType) {
       if (!indentForm.expectedDeliveryDate)
         newErrors.expectedDeliveryDate = "Required";
+    }
+
+    if (indentForm.orderType === "Inhouse" && !indentForm.planningLocation) {
+      newErrors.planningLocation = "Required";
     }
 
     setErrors(newErrors);
@@ -1915,6 +1921,32 @@ function CustomerDashboard() {
                           </select>
                         </PoField>
                       )}
+
+                    {indentForm.orderType === "Inhouse" && (
+                      <PoField
+                        className="col-12"
+                        icon="bi-geo-alt"
+                        label="Planning Location"
+                        required
+                        alwaysFloat
+                        caret
+                        error={errors.planningLocation}
+                      >
+                        <select
+                          name="planningLocation"
+                          className="po-input"
+                          value={indentForm.planningLocation}
+                          onChange={handleIndentFormChange}
+                        >
+                          <option value="">Select Planning Location</option>
+                          {locations.map((loc) => (
+                            <option key={loc._id} value={loc.locationName}>
+                              {loc.locationName}
+                            </option>
+                          ))}
+                        </select>
+                      </PoField>
+                    )}
 
                     <PoField
                       className="col-12"

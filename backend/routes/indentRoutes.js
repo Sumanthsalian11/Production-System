@@ -198,7 +198,7 @@ router.get("/requests", authMiddleware, async (req, res) => {
 router.put("/process/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const { orderType, remarks, purchaseOrderNo, poDate, expectedDeliveryDate } = req.body;
+    const { orderType, remarks, purchaseOrderNo, poDate, expectedDeliveryDate, planningLocation } = req.body;
     
     const userId = req.user.id;
     const userData = await User.findById(userId);
@@ -239,7 +239,10 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         remarks: remarks || "",
         remarks2: item.remark || "",
         user: userData?.name || "System",
-        userLocations: userData?.locations || [],
+        userLocations:
+          orderType === "Inhouse" && planningLocation
+            ? [planningLocation]
+            : userData?.locations || [],
         status: "ORDER_RECEIVED",
         source: "purchaseOrder",
         // Link back to indent
