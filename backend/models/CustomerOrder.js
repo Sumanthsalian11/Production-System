@@ -111,7 +111,12 @@ const customerOrderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Partial index: only enforce uniqueness when purchaseOrderNo exists and is not null
+customerOrderSchema.index({ createdAt: -1 });
+customerOrderSchema.index({ orderType: 1, createdAt: -1 }); // ticket number generation
+customerOrderSchema.index({ productCode: 1, createdAt: -1 });
+customerOrderSchema.index({ customerName: 1, createdAt: -1 });
+customerOrderSchema.index({ poDate: 1, createdAt: -1 });
+customerOrderSchema.index({ location: 1 }); 
 customerOrderSchema.index(
   { purchaseOrderNo: 1 },
   {

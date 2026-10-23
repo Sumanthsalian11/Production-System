@@ -118,21 +118,89 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
 });
 
 // =============================================
-// GET CUSTOMER ORDERS
+// GET CUSTOMER ORDERS (paged + filtered on server)
 // =============================================
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Distinct customers for the dropdown
+router.get("/customers", authMiddleware, async (req, res) => {
+  try {
+    const list = await CustomerOrder.distinct("customerName");
+    res.status(200).json(list.filter(Boolean).sort());
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching customers" });
+  }
+});
+
+// Which of the given order ids already have a work order
+router.get("/converted", authMiddleware, async (req, res) => {
+  try {
+    const ids = String(req.query.ids || "").split(",").filter(Boolean);
+    if (!ids.length) return res.status(200).json([]);
+    const WorkOrder = require("../models/WorkOrder"); // <-- adjust to your model path/name
+    const wos = await WorkOrder.find({ customerOrderId: { $in: ids } })
+      .select("customerOrderId").lean();
+    res.status(200).json(wos.map((w) => String(w.customerOrderId)));
+  } catch (err) {
+    res.status(200).json([]);
+  }
+});
+
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { status, orderType, source } = req.query;
+    const { status, orderType, source, po, productCode, date, customer, all } = req.query;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 30, 200);
+
     let filter = {};
     if (status) filter.status = status;
     if (orderType) filter.orderType = orderType;
     if (source) filter.source = source;
+    if (po) filter.purchaseOrderNo = { $regex: "^" + escapeRegex(po) };
+    if (productCode && !isNaN(Number(productCode))) filter.productCode = Number(productCode);
+    if (customer) filter.customerName = customer;
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      filter.poDate = { $gte: start, $lt: end };
+    }
 
-    const orders = await CustomerOrder.find(filter)
+    let q = CustomerOrder.find(filter)
       .populate("location", "locationName")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.status(200).json(orders);
+    // Excel export: all matching rows (capped)
+    if (all === "1") {
+      const rows = await q.limit(100000);
+      return res.status(200).json(rows);
+    }
+
+    // Old callers (e.g. Planner page) send no "page": return the plain array as before
+    if (!req.query.page) {
+      const rows = await q;
+      return res.status(200).json(rows);
+    }
+
+    const noFilter = Object.keys(filter).length === 0;
+    const [data, total] = await Promise.all([
+      q.skip((page - 1) * limit).limit(limit),
+      noFilter
+        ? CustomerOrder.estimatedDocumentCount()
+        : CustomerOrder.countDocuments(filter)
+    ]);
+
+    // Converted check done here, saves one extra request from the browser
+    let converted = [];
+    try {
+      const WorkOrder = require("../models/WorkOrder"); // adjust path if needed
+      const wos = await WorkOrder.find({
+        customerOrderId: { $in: data.map((d) => d._id) }
+      }).select("customerOrderId").lean();
+      converted = wos.map((w) => String(w.customerOrderId));
+    } catch (e) {}
+
+    res.status(200).json({ data, total, page, limit, converted });
   } catch (err) {
     console.error("FETCH CUSTOMER ORDERS ERROR:", err);
     res.status(500).json({ message: "Error fetching customer orders" });

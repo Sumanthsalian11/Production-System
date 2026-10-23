@@ -74,6 +74,9 @@ function CustomerDashboard() {
   const [expandedCell, setExpandedCell] = useState(null);
   const [customerFilter, setCustomerFilter] = useState("");
   const [filteredOrders, setFilteredOrders] = useState([]);
+const [page, setPage] = useState(1);
+const [total, setTotal] = useState(0);
+const PAGE_SIZE = 30;
   const [loginLocation, setLoginLocation] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [productCodeSearch, setProductCodeSearch] = useState("");
@@ -137,7 +140,6 @@ function CustomerDashboard() {
 
   useEffect(() => {
     fetchLocations();
-    fetchOrders();
     fetchIndentRequests();
     fetchSuppliers();
   }, []);
@@ -162,30 +164,52 @@ function CustomerDashboard() {
     }
   };
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (p = page) => {
     try {
       const res = await axios.get(`${BASE_URL}/api/customer-orders`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          page: p,
+          limit: PAGE_SIZE,
+          po: poSearch,
+          productCode: productCodeSearch,
+          date: dateFilter,
+          customer: customerFilter
+        }
       });
-      setOrders(res.data || []);
+      const rows = res.data?.data || [];
+      setOrders(rows);
+      setFilteredOrders(rows);
+      setTotal(res.data?.total || 0);
+      setConvertedOrderIds((res.data?.converted || []).map(String));
     } catch {
       setOrders([]);
+      setFilteredOrders([]);
+      setTotal(0);
     }
-    fetchConvertedOrders();
   };
 
-  const fetchConvertedOrders = async () => {
+  const fetchConvertedOrders = async (ids = []) => {
+    if (!ids.length) return setConvertedOrderIds([]);
     try {
-      const res = await axios.get(`${BASE_URL}/api/workorders`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await axios.get(`${BASE_URL}/api/customer-orders/converted`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { ids: ids.join(",") }
       });
-      const ids = (res.data || [])
-        .map((wo) => wo.customerOrderId?._id || wo.customerOrderId)
-        .filter(Boolean)
-        .map((id) => String(id));
-      setConvertedOrderIds(ids);
+      setConvertedOrderIds((res.data || []).map(String));
     } catch {
       setConvertedOrderIds([]);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/customer-orders/customers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCustomers(res.data || []);
+    } catch {
+      setCustomers([]);
     }
   };
 
@@ -201,36 +225,24 @@ function CustomerDashboard() {
   };
 
   useEffect(() => {
-    const uniqueCustomers = [
-      ...new Set(orders.map((o) => o.customerName))
-    ].filter(Boolean);
-    setCustomers(uniqueCustomers);
-  }, [orders]);
+    fetchCustomers();
+  }, []);
 
+  const filterKey = `${poSearch}|${productCodeSearch}|${dateFilter}|${customerFilter}`;
+  const prevKey = useRef(filterKey);
   useEffect(() => {
-    let filtered = [...orders];
-    if (poSearch) {
-      filtered = filtered.filter((order) =>
-        order.purchaseOrderNo?.toString().includes(poSearch)
-      );
+    let p = page;
+    if (prevKey.current !== filterKey) {
+      prevKey.current = filterKey;
+      if (page !== 1) {
+        setPage(1);
+        return;
+      }
+      p = 1;
     }
-    if (productCodeSearch) {
-      filtered = filtered.filter((order) =>
-        order.productCode?.toString().includes(productCodeSearch)
-      );
-    }
-    if (dateFilter) {
-      filtered = filtered.filter(
-        (order) => order.poDate?.slice(0, 10) === dateFilter
-      );
-    }
-    if (customerFilter) {
-      filtered = filtered.filter((order) =>
-        order.customerName?.toLowerCase().includes(customerFilter.toLowerCase())
-      );
-    }
-    setFilteredOrders(filtered);
-  }, [poSearch, productCodeSearch, dateFilter, customerFilter, orders]);
+    const t = setTimeout(() => fetchOrders(p), 400);
+    return () => clearTimeout(t);
+  }, [page, filterKey]);
 
   const onlyAlphaNumeric = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
 
@@ -1633,7 +1645,11 @@ function CustomerDashboard() {
         .customer-dashboard-universe tbody tr:nth-child(8)  { animation-delay: 0.90s; }
         .customer-dashboard-universe tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
 
-        /* respect users who disable motion */
+        .customer-dashboard-universe tbody tr,
+        .customer-dashboard-universe .card,
+        .customer-dashboard-universe .po-filter {
+          animation: none !important;
+        }
         @media (prefers-reduced-motion: reduce) {
           .customer-dashboard-universe,
           .customer-dashboard-universe * {
@@ -2482,7 +2498,7 @@ function CustomerDashboard() {
                 <span>Filters</span>
               </div>
               <span className="po-filter-count">
-                {filteredOrders.length} / {orders.length} orders
+                {total} orders
               </span>
             </div>
 
@@ -2849,6 +2865,25 @@ function CustomerDashboard() {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="d-flex justify-content-center align-items-center gap-3 p-2">
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Prev
+              </button>
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+              </span>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={page >= Math.ceil(total / PAGE_SIZE)}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </button>
             </div>
           </div>
         </>
