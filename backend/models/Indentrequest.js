@@ -45,6 +45,12 @@ const IndentItemSchema = new mongoose.Schema({
     filePath: { type: String, default: "" }
   },
   itemPdfPath: { type: String, default: "" },
+
+  // ===== PAPER DETAILS =====
+  millName:   { type: String, default: "" },
+  paperGroup: { type: String, default: "" },
+  paperSize:  { type: String, default: "" },
+  gsm:        { type: String, default: "" },
 });
 
 const IndentRequestSchema = new mongoose.Schema(

@@ -75,7 +75,11 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       customerPoNo,
       customerPoDate,
       typeOfBilling,
-      itemPdfPath
+      itemPdfPath,
+      millName,
+      paperGroup,
+      paperSize,
+      gsm
     } = req.body;
 
     if (!productCode || !quantity || !location) {
@@ -85,6 +89,7 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
     // Generate Indent Number (e.g., IND_001)
     const lastIndent = await IndentRequest.findOne().sort({ createdAt: -1 });
     let lastNumber = 0;
+
     if (lastIndent && lastIndent.indentNo) {
       const parts = lastIndent.indentNo.split("_");
       lastNumber = Number(parts[1]) || 0;
@@ -136,6 +141,10 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       customerPoDate: customerPoDate || null,
       typeOfBilling: typeOfBilling || "",
       itemPdfPath: itemPdfPath || "",
+      millName: millName || "",
+      paperGroup: paperGroup || "",
+      paperSize: paperSize || "",
+      gsm: gsm || "",
       customerCopy,
       artwork
     };
@@ -258,7 +267,11 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         customerPoNo: item.customerPoNo || "",
         customerPoDate: item.customerPoDate || null,
         typeOfBilling: item.typeOfBilling || "",
-        itemPdfPath: item.itemPdfPath || ""
+        itemPdfPath: item.itemPdfPath || "",
+        millName: item.millName || "",
+        paperGroup: item.paperGroup || "",
+        paperSize: item.paperSize || "",
+        gsm: item.gsm || ""
       };
 
       // Add PO fields for Inhouse/Stationary
@@ -370,7 +383,11 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
       customerPoNo,
       customerPoDate,
       typeOfBilling,
-      itemPdfPath
+      itemPdfPath,
+      millName,
+      paperGroup,
+      paperSize,
+      gsm
     } = req.body;
 
     const indent = await IndentRequest.findById(req.params.id);
@@ -429,6 +446,10 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
         customerPoDate,
         typeOfBilling,
         itemPdfPath: itemPdfPath || existingItem.itemPdfPath || "",
+        millName,
+        paperGroup,
+        paperSize,
+        gsm,
         customerCopy,
         artwork
       }

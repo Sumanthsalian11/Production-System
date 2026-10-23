@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { jwtDecode } from "jwt-decode";
 import Swal from "sweetalert2";
 import axios from "axios";
@@ -23,9 +23,19 @@ function PoField({ icon, label, required, filled, alwaysFloat, caret, area, clas
   );
 }
 const has = (v) => v !== "" && v !== null && v !== undefined;
+const norm = (v) => String(v ?? "").trim();
+
+// form key -> field name in the Materials master
+const PAPER_FIELDS = {
+  millName: "mill",
+  paperGroup: "group",
+  paperSize: "paperSize",
+  gsm: "gsm",
+};
 
 function NewIndent() {
   const [locations, setLocations] = useState([]);
+  const [materials, setMaterials] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState("");
   const [errors, setErrors] = useState({});
   const [indents, setIndents] = useState([]);
@@ -69,7 +79,11 @@ function NewIndent() {
     customerPoNo: "",
     customerPoDate: "",
     typeOfBilling: "",
-    itemPdfPath: ""
+    itemPdfPath: "",
+    millName: "",
+    paperGroup: "",
+    paperSize: "",
+    gsm: ""
   });
 
   // ===== UPLOADED FILES =====
@@ -92,6 +106,7 @@ function NewIndent() {
     }
     fetchLocations();
     fetchIndents();
+    fetchMaterials();
   }, []);
 
   const fetchIndents = async () => {
@@ -192,6 +207,56 @@ function NewIndent() {
     setForm(prev => ({ ...prev, [name]: newValue }));
   };
 
+  const fetchMaterials = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/materials`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMaterials(res.data);
+    } catch {
+      setMaterials([]);
+    }
+  };
+
+  // each dropdown shows only values that match the OTHER selected dropdowns
+  const paperOptions = useMemo(() => {
+    const out = {};
+    Object.keys(PAPER_FIELDS).forEach((fk) => {
+      const set = new Set();
+      materials.forEach((m) => {
+        const match = Object.entries(PAPER_FIELDS).every(
+          ([k, mk]) => k === fk || !form[k] || norm(m[mk]) === form[k]
+        );
+        const val = norm(m[PAPER_FIELDS[fk]]);
+        if (match && val) set.add(val);
+      });
+      if (form[fk]) set.add(form[fk]); // keep saved value visible when editing
+      out[fk] = [...set].sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+      );
+    });
+    return out;
+  }, [materials, form.millName, form.paperGroup, form.paperSize, form.gsm]);
+
+  const handlePaperChange = (e) => {
+    const { name, value } = e.target;
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+      if (!value) return next;
+
+      // clear any other selection that no longer fits with the new choice
+      let pool = materials.filter((m) => norm(m[PAPER_FIELDS[name]]) === value);
+      Object.keys(PAPER_FIELDS).forEach((k) => {
+        if (k === name || !next[k]) return;
+        const mk = PAPER_FIELDS[k];
+        const narrowed = pool.filter((m) => norm(m[mk]) === next[k]);
+        if (narrowed.length) pool = narrowed;
+        else next[k] = "";
+      });
+      return next;
+    });
+  };
+
   const validateForm = () => {
     let newErrors = {};
     if (!form.productCode) newErrors.productCode = "Required";
@@ -286,7 +351,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       costingConfirmation: "",
       customerPoNo: "",
       customerPoDate: "",
-      typeOfBilling: ""
+      typeOfBilling: "",
+      millName: "",
+      paperGroup: "",
+      paperSize: "",
+      gsm: ""
     });
     setCustomerCopyFile(null);
     setArtworkFile(null);
@@ -328,7 +397,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       customerPoNo: item.customerPoNo || "",
       customerPoDate: item.customerPoDate ? item.customerPoDate.substring(0, 10) : "",
       typeOfBilling: item.typeOfBilling || "",
-      itemPdfPath: item.itemPdfPath || ""
+      itemPdfPath: item.itemPdfPath || "",
+      millName: item.millName || "",
+      paperGroup: item.paperGroup || "",
+      paperSize: item.paperSize || "",
+      gsm: item.gsm || ""
     });
 
     setCustomerCopyFile(null);
@@ -453,6 +526,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       // ===== NEW FIELDS =====
       Lamination: ind.items?.[0]?.lamination,
       Finish: ind.items?.[0]?.finish,
+      "Mill Name": ind.items?.[0]?.millName,
+      Group: ind.items?.[0]?.paperGroup,
+      Size: ind.items?.[0]?.paperSize,
+      GSM: ind.items?.[0]?.gsm,
       "Job No": ind.items?.[0]?.jobNo,
       "SO No": ind.items?.[0]?.soNo,
       "SO Date": ind.items?.[0]?.soDate
@@ -1324,7 +1401,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .indent-app-container .indent-split form > .gl-inner:nth-child(2) { animation-delay: 0.40s; }
         .indent-app-container .indent-split form > .gl-inner:nth-child(3) { animation-delay: 0.48s; }
         .indent-app-container .indent-split form > .gl-inner:nth-child(4) { animation-delay: 0.56s; }
-        .indent-app-container .indent-split form > .text-center { animation-delay: 0.64s; }
+        .indent-app-container .indent-split form > .gl-inner:nth-child(5) { animation-delay: 0.64s; }
+        .indent-app-container .indent-split form > .text-center { animation-delay: 0.72s; }
 
         /* filter card + table card */
         .indent-app-container .bar-card {
@@ -1571,6 +1649,48 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
  title={form.deliveryDate}
                       onChange={handleChange}
                       />
+                  </PoField>
+                </div>
+              </div>
+
+              {/* PAPER DETAILS */}
+              <div className="gl-inner">
+                <div className="gl-group">
+                  <i className="bi bi-file-earmark-richtext"></i>
+                  <span>Paper Details</span>
+                </div>
+
+                <div className="row g-2">
+                  <PoField className="col-6 col-md-3" icon="bi-building" label="Mill Name" alwaysFloat caret>
+                    <select name="millName" className="po-input" value={form.millName}
+                            title={form.millName} onChange={handlePaperChange}>
+                      <option value="">Select Mill</option>
+                      {paperOptions.millName.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </PoField>
+
+                  <PoField className="col-6 col-md-3" icon="bi-collection" label="Group" alwaysFloat caret>
+                    <select name="paperGroup" className="po-input" value={form.paperGroup}
+                            title={form.paperGroup} onChange={handlePaperChange}>
+                      <option value="">Select Group</option>
+                      {paperOptions.paperGroup.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </PoField>
+
+                  <PoField className="col-6 col-md-3" icon="bi-aspect-ratio" label="Size" alwaysFloat caret>
+                    <select name="paperSize" className="po-input" value={form.paperSize}
+                            title={form.paperSize} onChange={handlePaperChange}>
+                      <option value="">Select Size</option>
+                      {paperOptions.paperSize.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  </PoField>
+
+                  <PoField className="col-6 col-md-3" icon="bi-speedometer2" label="GSM" alwaysFloat caret>
+                    <select name="gsm" className="po-input" value={form.gsm}
+                            title={form.gsm} onChange={handlePaperChange}>
+                      <option value="">Select GSM</option>
+                      {paperOptions.gsm.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
                   </PoField>
                 </div>
               </div>
@@ -1923,6 +2043,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th> Requested Location</th>
                   <th>Lamination</th>
                   <th>Finish</th>
+                  <th>Mill Name</th>
+                  <th>Group</th>
+                  <th>Size</th>
+                  <th>GSM</th>
                   <th>Job No</th>
                   <th>SO No</th>
                   <th>SO Date</th>
@@ -1944,7 +2068,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <tbody>
                 {filteredIndents.length === 0 ? (
                   <tr>
-                    <td colSpan={25} className="text-center text-muted py-4">
+                    <td colSpan={31} className="text-center text-muted py-4">
                       <div className="d-flex flex-column align-items-center gap-2">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10"></circle>
@@ -2011,6 +2135,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </td>
                       <td>{ind.items[0]?.lamination || "-"}</td>
                       <td>{ind.items[0]?.finish || "-"}</td>
+                      <td>{ind.items[0]?.millName || "-"}</td>
+                      <td>{ind.items[0]?.paperGroup || "-"}</td>
+                      <td>{ind.items[0]?.paperSize || "-"}</td>
+                      <td>{ind.items[0]?.gsm || "-"}</td>
                       <td>{ind.items[0]?.jobNo || "-"}</td>
                       <td>{ind.items[0]?.soNo || "-"}</td>
                       <td>
