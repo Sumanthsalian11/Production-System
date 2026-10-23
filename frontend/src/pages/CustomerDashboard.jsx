@@ -1971,6 +1971,32 @@ function CustomerDashboard() {
                       </select>
                     </PoField>
 
+                    {indentForm.orderType === "Inhouse" && (
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-geo-alt"
+                        label="Planning Location"
+                        required
+                        alwaysFloat
+                        caret
+                        error={errors.planningLocation}
+                      >
+                        <select
+                          name="planningLocation"
+                          className="po-input"
+                          value={indentForm.planningLocation}
+                          onChange={handleIndentFormChange}
+                        >
+                          <option value="">Select Planning Location</option>
+                          {locations.map((loc) => (
+                            <option key={loc._id} value={loc.locationName}>
+                              {loc.locationName}
+                            </option>
+                          ))}
+                        </select>
+                      </PoField>
+                    )}
+
                     {indentForm.orderType && (
                       <PoField
                         className="col-md-4"
@@ -2031,32 +2057,6 @@ function CustomerDashboard() {
                           </select>
                         </PoField>
                       )}
-
-                    {indentForm.orderType === "Inhouse" && (
-                      <PoField
-                        className="col-12"
-                        icon="bi-geo-alt"
-                        label="Planning Location"
-                        required
-                        alwaysFloat
-                        caret
-                        error={errors.planningLocation}
-                      >
-                        <select
-                          name="planningLocation"
-                          className="po-input"
-                          value={indentForm.planningLocation}
-                          onChange={handleIndentFormChange}
-                        >
-                          <option value="">Select Planning Location</option>
-                          {locations.map((loc) => (
-                            <option key={loc._id} value={loc.locationName}>
-                              {loc.locationName}
-                            </option>
-                          ))}
-                        </select>
-                      </PoField>
-                    )}
 
                     <PoField
                       className="col-12"
