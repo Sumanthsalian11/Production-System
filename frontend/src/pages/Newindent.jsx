@@ -526,7 +526,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       // ===== NEW FIELDS =====
       Lamination: ind.items?.[0]?.lamination,
       Finish: ind.items?.[0]?.finish,
-      "Mill Name": ind.items?.[0]?.millName,
       Group: ind.items?.[0]?.paperGroup,
       Size: ind.items?.[0]?.paperSize,
       GSM: ind.items?.[0]?.gsm,
@@ -1661,13 +1660,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
 
                 <div className="row g-2">
-                  <PoField className="col-6 col-md-3" icon="bi-building" label="Mill Name" alwaysFloat caret>
+                  {/* <PoField className="col-6 col-md-3" icon="bi-building" label="Mill Name" alwaysFloat caret>
                     <select name="millName" className="po-input" value={form.millName}
                             title={form.millName} onChange={handlePaperChange}>
                       <option value="">Select Mill</option>
                       {paperOptions.millName.map((v) => <option key={v} value={v}>{v}</option>)}
                     </select>
-                  </PoField>
+                  </PoField> */}
 
                   <PoField className="col-6 col-md-3" icon="bi-collection" label="Group" alwaysFloat caret>
                     <select name="paperGroup" className="po-input" value={form.paperGroup}
@@ -2043,7 +2042,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th> Requested Location</th>
                   <th>Lamination</th>
                   <th>Finish</th>
-                  <th>Mill Name</th>
                   <th>Group</th>
                   <th>Size</th>
                   <th>GSM</th>
@@ -2135,7 +2133,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </td>
                       <td>{ind.items[0]?.lamination || "-"}</td>
                       <td>{ind.items[0]?.finish || "-"}</td>
-                      <td>{ind.items[0]?.millName || "-"}</td>
                       <td>{ind.items[0]?.paperGroup || "-"}</td>
                       <td>{ind.items[0]?.paperSize || "-"}</td>
                       <td>{ind.items[0]?.gsm || "-"}</td>
