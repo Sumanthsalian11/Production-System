@@ -629,7 +629,7 @@ function Productiondashboard() {
           color: #000000;
           background: var(--page);
         }
-        .pd-shell { max-width: 1250px; margin: 0 auto; }
+        .pd-shell { max-width: 100%; margin: 0 auto; }
 
         /* ---------- Header strip ---------- */
         .dash-hero-header {
