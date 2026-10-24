@@ -19,6 +19,7 @@ const joinUnique = (arr) => [...new Set((arr || []).filter(Boolean))].join(", ")
 const normStatus = (s) => String(s || "").trim().toLowerCase();
 const isProdStatus = (k) => k === "production" || k === "working";
 const fmtHMS = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:00`;
+const sumMins = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const formatTime = (minutes) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 const fmtD = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "-");
 const DETAIL_PAGE_SIZE = 50;
@@ -79,10 +80,10 @@ const buildDailySheet = (rows, statusCols) => {
 
   const list = [...days.values()].sort((a, b) => (a.dateKey < b.dateKey ? -1 : 1));
   const n = statusCols.length;
-  const last = 5 + n;
+  const last = 6 + n;
 
   const aoa = [
-    ["Date", "Production", "", "", "Total PRODUCTION TIME", ...statusCols.map((s) => `Total ${s.label.toUpperCase()} TIME`), "Remarks"],
+    ["Date", "Production", "", "", "Total PRODUCTION TIME", ...statusCols.map((s) => `Total ${s.label.toUpperCase()} TIME`), "Remarks", "Grand Total"],
     ["", "Day", "Night", "Total", "", ...statusCols.map(() => ""), ""]
   ];
   list.forEach((d) => {
@@ -93,7 +94,8 @@ const buildDailySheet = (rows, statusCols) => {
       d.day + d.night,
       fmtHMS(d.prodMins),
       ...statusCols.map((s) => fmtHMS(d.status[s.key] || 0)),
-      joinUnique(d.remarks)
+      joinUnique(d.remarks),
+      fmtHMS(d.prodMins + sumMins(d.status))
     ]);
   });
   aoa.push([
@@ -103,7 +105,8 @@ const buildDailySheet = (rows, statusCols) => {
     totals.day + totals.night,
     fmtHMS(totals.prodMins),
     ...statusCols.map((s) => fmtHMS(totals.status[s.key] || 0)),
-    ""
+    "",
+    fmtHMS(totals.prodMins + sumMins(totals.status))
   ]);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -115,7 +118,7 @@ const buildDailySheet = (rows, statusCols) => {
   ws["!cols"] = [
     { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 },
     ...statusCols.map(() => ({ wch: 22 })),
-    { wch: 45 }
+    { wch: 45 }, { wch: 16 }
   ];
   styleSheet(ws, 2, [aoa.length - 1]);
   return ws;
@@ -626,6 +629,7 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                     <th key={s.key} rowSpan={2}>Total {s.label.toUpperCase()} TIME</th>
                   ))}
                   <th rowSpan={2}>Remarks</th>
+                  <th rowSpan={2}>Grand Total</th>
                 </tr>
                 <tr>
                   <th className="dt-group">Day</th>
@@ -646,6 +650,7 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                       <td key={s.key} className="mono">{fmtHMS(d.status[s.key] || 0)}</td>
                     ))}
                     <td className="left" style={{ whiteSpace: "normal", fontSize: 12 }}>{d.remarks}</td>
+                    <td className="mono">{fmtHMS(d.prodMins + sumMins(d.status))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -661,6 +666,7 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                     <td key={s.key}>{fmtHMS(report.totals.status[s.key] || 0)}</td>
                   ))}
                   <td></td>
+                  <td>{fmtHMS(report.totals.prodMins + sumMins(report.totals.status))}</td>
                 </tr>
               </tfoot>
             </table>
