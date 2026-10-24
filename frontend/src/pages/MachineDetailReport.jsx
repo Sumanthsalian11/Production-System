@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState, Fragment } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import BASE_URL from "../config/api";
+import * as XLSX from "xlsx";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const getTimeDiff = (from, to) => {
   if (!from || !to) return 0;
@@ -19,6 +22,175 @@ const fmtHMS = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:
 const formatTime = (minutes) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 const fmtD = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "-");
 const DETAIL_PAGE_SIZE = 50;
+
+// ---------- Excel helpers ----------
+const dmy = (key) => key.split("-").reverse().join("-");
+
+const buildDailySheet = (rows, statusCols) => {
+  const days = new Map();
+  const totals = { day: 0, night: 0, prodMins: 0, status: {} };
+
+  rows.forEach((r) => {
+    const dateKey = String(r.productionDate || "").split("T")[0];
+    let d = days.get(dateKey);
+    if (!d) {
+      d = { dateKey, day: 0, night: 0, prodMins: 0, status: {}, remarks: [] };
+      days.set(dateKey, d);
+    }
+    const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+    const k = normStatus(r.machineStatus);
+    if (isProdStatus(k)) {
+      const imp = Number(r.productionImpression) || 0;
+      if (String(r.shift || "").toLowerCase() === "night") {
+        d.night += imp;
+        totals.night += imp;
+      } else {
+        d.day += imp;
+        totals.day += imp;
+      }
+      d.prodMins += mins;
+      totals.prodMins += mins;
+    } else if (k) {
+      d.status[k] = (d.status[k] || 0) + mins;
+      totals.status[k] = (totals.status[k] || 0) + mins;
+    }
+    if (r.remarks && String(r.remarks).trim()) d.remarks.push(String(r.remarks).trim());
+  });
+
+  const list = [...days.values()].sort((a, b) => (a.dateKey < b.dateKey ? -1 : 1));
+  const n = statusCols.length;
+  const last = 5 + n;
+
+  const aoa = [
+    ["Date", "Production", "", "", "Total PRODUCTION TIME", ...statusCols.map((s) => `Total ${s.label.toUpperCase()} TIME`), "Remarks"],
+    ["", "Day", "Night", "Total", "", ...statusCols.map(() => ""), ""]
+  ];
+  list.forEach((d) => {
+    aoa.push([
+      dmy(d.dateKey),
+      d.day || "",
+      d.night || "",
+      d.day + d.night,
+      fmtHMS(d.prodMins),
+      ...statusCols.map((s) => fmtHMS(d.status[s.key] || 0)),
+      joinUnique(d.remarks)
+    ]);
+  });
+  aoa.push([
+    "Grand Total",
+    totals.day,
+    totals.night,
+    totals.day + totals.night,
+    fmtHMS(totals.prodMins),
+    ...statusCols.map((s) => fmtHMS(totals.status[s.key] || 0)),
+    ""
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+    { s: { r: 0, c: 1 }, e: { r: 0, c: 3 } },
+    ...Array.from({ length: last - 3 }, (_, i) => ({ s: { r: 0, c: 4 + i }, e: { r: 1, c: 4 + i } }))
+  ];
+  ws["!cols"] = [
+    { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 },
+    ...statusCols.map(() => ({ wch: 22 })),
+    { wch: 45 }
+  ];
+  return ws;
+};
+
+const groupDetail = (rows) => {
+  const map = new Map();
+  rows.forEach((r) => {
+    const activity = joinUnique((r.machiness || []).map((p) => p.activityId?.activityName));
+    const mach = joinUnique((r.machiness || []).map((p) => p.machineId?.machineName));
+    const dateKey = String(r.productionDate || "").split("T")[0];
+    const key = [dateKey, r.workOrder, r.shift || "", activity, mach, (r.customerName || "").trim(), r.productType || ""].join("||");
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        productionDate: r.productionDate, workOrder: r.workOrder, activity, machine: mach,
+        customerName: r.customerName, productType: r.productType,
+        shifts: [], remarks: [], productionQty: 0, wastageQty: 0, totalMins: 0, status: {}
+      };
+      map.set(key, g);
+    }
+    const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+    g.productionQty += Number(r.productionQty) || 0;
+    g.wastageQty += Number(r.wastageQty) || 0;
+    g.totalMins += mins;
+    g.shifts.push(r.shift);
+    g.remarks.push(r.remarks);
+    const k = normStatus(r.machineStatus);
+    const s = g.status[k] || (g.status[k] = { from: [], to: [], mins: 0 });
+    if (r.productionFromTime) s.from.push(r.productionFromTime);
+    if (r.productionToTime) s.to.push(r.productionToTime);
+    s.mins += mins;
+  });
+  return [...map.values()];
+};
+
+const buildDetailSheet = (rows, statusCols) => {
+  const groups = groupDetail(rows);
+  const n = statusCols.length;
+  const remarksCol = 10 + n * 3;
+  const totalCol = remarksCol + 1;
+
+  const fixed = ["#", "Date", "WO No.", "Shift", "Activity", "Machine", "Customer", "Product Type", "Production Qty", "Wastage"];
+  const aoa = [
+    [...fixed, ...statusCols.flatMap((s) => [s.label.toUpperCase(), "", ""]), "Remarks", "Grand Total"],
+    [...fixed.map(() => ""), ...statusCols.flatMap(() => ["FROM", "TO", "TOTAL"]), "", ""]
+  ];
+
+  let qty = 0, waste = 0, all = 0;
+  const stTot = {};
+  groups.forEach((g, i) => {
+    qty += g.productionQty;
+    waste += g.wastageQty;
+    all += g.totalMins;
+    aoa.push([
+      i + 1,
+      fmtD(g.productionDate),
+      g.workOrder || "",
+      joinUnique(g.shifts),
+      g.activity,
+      g.machine,
+      g.customerName || "",
+      g.productType || "",
+      g.productionQty,
+      g.wastageQty,
+      ...statusCols.flatMap((s) => {
+        const c = g.status[s.key];
+        if (c) stTot[s.key] = (stTot[s.key] || 0) + c.mins;
+        return [c?.from.join(", ") || "", c?.to.join(", ") || "", c?.mins ? formatTime(c.mins) : ""];
+      }),
+      joinUnique(g.remarks),
+      formatTime(g.totalMins)
+    ]);
+  });
+  aoa.push([
+    "", "", "", "", "", "", "", "TOTAL", qty, waste,
+    ...statusCols.flatMap((s) => ["", "", formatTime(stTot[s.key] || 0)]),
+    "",
+    formatTime(all)
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!merges"] = [
+    ...Array.from({ length: 10 }, (_, c) => ({ s: { r: 0, c }, e: { r: 1, c } })),
+    ...statusCols.map((_, i) => ({ s: { r: 0, c: 10 + i * 3 }, e: { r: 0, c: 12 + i * 3 } })),
+    { s: { r: 0, c: remarksCol }, e: { r: 1, c: remarksCol } },
+    { s: { r: 0, c: totalCol }, e: { r: 1, c: totalCol } }
+  ];
+  ws["!cols"] = [
+    { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 16 },
+    { wch: 14 }, { wch: 10 },
+    ...statusCols.flatMap(() => [{ wch: 14 }, { wch: 14 }, { wch: 12 }]),
+    { wch: 35 }, { wch: 14 }
+  ];
+  return ws;
+};
 
 function MachineDetailReport({ initial, machines, machineStatuses, customers, locations, onBack }) {
   const token = localStorage.getItem("token");
@@ -228,6 +400,67 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
     return { list, totals };
   }, [rows]);
 
+  const [exporting, setExporting] = useState(false);
+
+  // one Excel per machine (Sheet 1 = Daily Report, Sheet 2 = Detail Records); several machines -> zip
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const res = await axios.get(`${BASE_URL}/api/production-real`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          from: fromDate || undefined,
+          to: toDate || undefined,
+          workOrder: debouncedWo || undefined,
+          customer: customer || undefined,
+          machine: machine || undefined,
+          location: location || undefined
+        }
+      });
+      const all = Array.isArray(res.data) ? res.data : res.data.data || [];
+      if (!all.length) {
+        window.alert("No records for selected filters");
+        return;
+      }
+
+      const names = machine
+        ? [machine]
+        : [
+            ...new Set(
+              all.flatMap((r) => (r.machiness || []).map((p) => p.machineId?.machineName).filter(Boolean))
+            )
+          ].sort();
+
+      const label = `${fromDate || "start"}_to_${toDate || "end"}`;
+      const safe = (s) => String(s).replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+      const files = names.map((name) => {
+        const mRows = all.filter((r) => (r.machiness || []).some((p) => p.machineId?.machineName === name));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, buildDailySheet(mRows, statusCols), "Machine Daily Report");
+        XLSX.utils.book_append_sheet(wb, buildDetailSheet(mRows, detailStatusColumns), "Detail Records");
+        return {
+          name: `${safe(name)}_${label}.xlsx`,
+          buf: XLSX.write(wb, { bookType: "xlsx", type: "array" })
+        };
+      });
+
+      if (machine) {
+        saveAs(new Blob([files[0].buf], { type: "application/octet-stream" }), files[0].name);
+      } else {
+        const zip = new JSZip();
+        files.forEach((f) => zip.file(f.name, f.buf));
+        const blob = await zip.generateAsync({ type: "blob" });
+        saveAs(blob, `Machine_Reports_${label}.zip`);
+      }
+    } catch (e) {
+      console.error("Export failed:", e);
+      window.alert("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="container md-page" style={{ maxWidth: "100%", fontSize: 14, background: "#fff", padding: 18, minHeight: "100vh" }}>
       <style>{`
@@ -249,7 +482,12 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
       <div className="card shadow-lg p-3 mb-4">
         <div className="d-flex justify-content-between align-items-center mb-2">
           <h5 className="m-0" style={{ color: "#06324d", fontWeight: 800 }}>Machine Detail</h5>
-          <button className="btn btn-primary px-4" onClick={onBack}>← Back to Production Report</button>
+          <div className="d-flex gap-2">
+            <button className="btn btn-primary px-4" onClick={exportExcel} disabled={exporting}>
+              {exporting ? "Preparing…" : machine ? "Export Excel" : "Export All Machines (ZIP)"}
+            </button>
+            <button className="btn btn-primary px-4" onClick={onBack}>← Back to Production Report</button>
+          </div>
         </div>
 
         <div className="row g-2">
