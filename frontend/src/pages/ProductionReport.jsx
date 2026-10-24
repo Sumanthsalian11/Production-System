@@ -209,6 +209,89 @@ function ProductionReport() {
 
   const detailTotalPages = Math.max(1, Math.ceil(detailTotal / DETAIL_PAGE_SIZE));
 
+  // ---------- Machine Daily Report (only when a machine is selected) ----------
+  const [machineDaily, setMachineDaily] = useState([]);
+  const [machineDailyLoading, setMachineDailyLoading] = useState(false);
+  const isProdStatus = (k) => k === "production" || k === "working";
+  const fmtHMS = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:00`;
+
+  useEffect(() => {
+    if (!machineFilter) {
+      setMachineDaily([]);
+      return;
+    }
+    let live = true;
+    setMachineDailyLoading(true);
+    axios
+      .get(`${BASE_URL}/api/production-real`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          from: fromDate || undefined,
+          to: toDate || undefined,
+          workOrder: debouncedSearchWO || undefined,
+          customer: customerFilter || undefined,
+          machine: machineFilter,
+          location: locationFilter || undefined
+        }
+      })
+      .then((r) => {
+        if (live) setMachineDaily(Array.isArray(r.data) ? r.data : r.data.data || []);
+      })
+      .catch((e) => console.error("Error fetching machine daily report:", e))
+      .finally(() => live && setMachineDailyLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [machineFilter, fromDate, toDate, debouncedSearchWO, customerFilter, locationFilter]);
+
+  // every status in the master except Production gets its own "Total ... TIME" column
+  const dailyStatusColumns = useMemo(
+    () => detailStatusColumns.filter((c) => !isProdStatus(c.key)),
+    [detailStatusColumns]
+  );
+
+  const machineDailyReport = useMemo(() => {
+    const days = new Map();
+    const totals = { day: 0, night: 0, prodMins: 0, status: {} };
+
+    machineDaily.forEach((r) => {
+      const dateKey = String(r.productionDate || "").split("T")[0];
+      let d = days.get(dateKey);
+      if (!d) {
+        d = { dateKey, day: 0, night: 0, prodMins: 0, status: {}, remarks: [] };
+        days.set(dateKey, d);
+      }
+
+      const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+      const k = normStatus(r.machineStatus);
+
+      if (isProdStatus(k)) {
+        const imp = Number(r.productionImpression) || 0;
+        if (String(r.shift || "").toLowerCase() === "night") {
+          d.night += imp;
+          totals.night += imp;
+        } else {
+          d.day += imp;
+          totals.day += imp;
+        }
+        d.prodMins += mins;
+        totals.prodMins += mins;
+      } else if (k) {
+        d.status[k] = (d.status[k] || 0) + mins;
+        totals.status[k] = (totals.status[k] || 0) + mins;
+      }
+
+      if (r.remarks && String(r.remarks).trim()) d.remarks.push(String(r.remarks).trim());
+    });
+
+    const rows = [...days.values()]
+      .sort((a, b) => (a.dateKey < b.dateKey ? -1 : 1))
+      .map((d) => ({ ...d, remarks: joinUnique(d.remarks) }));
+
+    return { rows, totals };
+  }, [machineDaily]);
+
   // merge rows with the same Date + WO + Shift + Activity + Machine + Customer + Product Type
   const groupedRows = useMemo(() => {
     const map = new Map();
@@ -1961,6 +2044,71 @@ function ProductionReport() {
           </div>
         </div>
       </div>
+
+      {machineFilter && (
+        <div className="card shadow-lg mb-4">
+          <div className="card-header text-center">
+            <strong>Machine Daily Report - {machineFilter}</strong>
+          </div>
+
+          <div className="table-responsive" style={{ maxHeight: "480px", overflow: "auto" }}>
+            {machineDailyLoading ? (
+              <div className="p-4 text-center fw-bold">Loading…</div>
+            ) : machineDailyReport.rows.length === 0 ? (
+              <div className="p-4 text-center fw-bold">No records for selected filters</div>
+            ) : (
+              <table className="table table-bordered table-hover mb-0 align-middle dt-table" style={{ whiteSpace: "nowrap" }}>
+                <thead className="sticky-top">
+                  <tr>
+                    <th rowSpan={2}>Date</th>
+                    <th colSpan={3} className="dt-group">Production</th>
+                    <th rowSpan={2}>Total PRODUCTION TIME</th>
+                    {dailyStatusColumns.map((s) => (
+                      <th key={s.key} rowSpan={2}>Total {s.label.toUpperCase()} TIME</th>
+                    ))}
+                    <th rowSpan={2}>Remarks</th>
+                  </tr>
+                  <tr>
+                    <th className="dt-group">Day</th>
+                    <th className="dt-group">Night</th>
+                    <th className="dt-group">Total</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {machineDailyReport.rows.map((d) => (
+                    <tr key={d.dateKey}>
+                      <td className="mono">{d.dateKey.split("-").reverse().join("-")}</td>
+                      <td className="mono">{d.day ? d.day.toLocaleString("en-IN") : ""}</td>
+                      <td className="mono">{d.night ? d.night.toLocaleString("en-IN") : ""}</td>
+                      <td className="mono">{(d.day + d.night).toLocaleString("en-IN")}</td>
+                      <td className="mono">{fmtHMS(d.prodMins)}</td>
+                      {dailyStatusColumns.map((s) => (
+                        <td key={s.key} className="mono">{fmtHMS(d.status[s.key] || 0)}</td>
+                      ))}
+                      <td className="left" style={{ whiteSpace: "normal", fontSize: 12 }}>{d.remarks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+
+                <tfoot>
+                  <tr>
+                    <td>Grand Total</td>
+                    <td>{machineDailyReport.totals.day.toLocaleString("en-IN")}</td>
+                    <td>{machineDailyReport.totals.night.toLocaleString("en-IN")}</td>
+                    <td>{(machineDailyReport.totals.day + machineDailyReport.totals.night).toLocaleString("en-IN")}</td>
+                    <td>{fmtHMS(machineDailyReport.totals.prodMins)}</td>
+                    {dailyStatusColumns.map((s) => (
+                      <td key={s.key}>{fmtHMS(machineDailyReport.totals.status[s.key] || 0)}</td>
+                    ))}
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
 
       {woDetail !== null && (
         <div className="wt-backdrop" onClick={() => setWoDetail(null)}>
