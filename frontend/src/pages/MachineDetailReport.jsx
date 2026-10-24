@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, Fragment } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import BASE_URL from "../config/api";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
@@ -25,6 +25,26 @@ const DETAIL_PAGE_SIZE = 50;
 
 // ---------- Excel helpers ----------
 const dmy = (key) => key.split("-").reverse().join("-");
+
+// light green header rows + grand total row, borders on every cell
+const styleSheet = (ws, headerRows, totalRows) => {
+  const side = { style: "thin", color: { rgb: "000000" } };
+  const border = { top: side, bottom: side, left: side, right: side };
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+      const hl = r < headerRows || totalRows.includes(r);
+      ws[addr].s = {
+        border,
+        alignment: { vertical: "center", horizontal: "center", wrapText: true },
+        font: { bold: hl },
+        ...(hl ? { fill: { patternType: "solid", fgColor: { rgb: "A9E5A0" }, bgColor: { indexed: 64 } } } : {})
+      };
+    }
+  }
+};
 
 const buildDailySheet = (rows, statusCols) => {
   const days = new Map();
@@ -97,6 +117,7 @@ const buildDailySheet = (rows, statusCols) => {
     ...statusCols.map(() => ({ wch: 22 })),
     { wch: 45 }
   ];
+  styleSheet(ws, 2, [aoa.length - 1]);
   return ws;
 };
 
@@ -112,11 +133,13 @@ const groupDetail = (rows) => {
       g = {
         productionDate: r.productionDate, workOrder: r.workOrder, activity, machine: mach,
         customerName: r.customerName, productType: r.productType,
-        shifts: [], remarks: [], productionQty: 0, wastageQty: 0, totalMins: 0, status: {}
+        shifts: [], remarks: [], productionImpression: 0, wasteImpression: 0, productionQty: 0, wastageQty: 0, totalMins: 0, status: {}
       };
       map.set(key, g);
     }
     const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+    g.productionImpression += Number(r.productionImpression) || 0;
+    g.wasteImpression += Number(r.wasteImpression) || 0;
     g.productionQty += Number(r.productionQty) || 0;
     g.wastageQty += Number(r.wastageQty) || 0;
     g.totalMins += mins;
@@ -131,23 +154,59 @@ const groupDetail = (rows) => {
   return [...map.values()];
 };
 
-const buildDetailSheet = (rows, statusCols) => {
-  const groups = groupDetail(rows);
+// every saved entry as its own row (no summing)
+const rawDetail = (rows) =>
+  [...rows]
+    .sort((a, b) => {
+      const da = String(a.productionDate || "");
+      const db = String(b.productionDate || "");
+      return da === db ? String(a.createdAt || "").localeCompare(String(b.createdAt || "")) : da.localeCompare(db);
+    })
+    .map((r) => {
+      const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+      return {
+        productionDate: r.productionDate,
+        workOrder: r.workOrder,
+        activity: joinUnique((r.machiness || []).map((p) => p.activityId?.activityName)),
+        machine: joinUnique((r.machiness || []).map((p) => p.machineId?.machineName)),
+        customerName: r.customerName,
+        productType: r.productType,
+        shifts: [r.shift],
+        remarks: [r.remarks],
+        productionImpression: Number(r.productionImpression) || 0,
+        wasteImpression: Number(r.wasteImpression) || 0,
+        productionQty: Number(r.productionQty) || 0,
+        wastageQty: Number(r.wastageQty) || 0,
+        totalMins: mins,
+        status: {
+          [normStatus(r.machineStatus)]: {
+            from: r.productionFromTime ? [r.productionFromTime] : [],
+            to: r.productionToTime ? [r.productionToTime] : [],
+            mins
+          }
+        }
+      };
+    });
+
+const buildDetailSheet = (rows, statusCols, separate = false) => {
+  const groups = separate ? rawDetail(rows) : groupDetail(rows);
   const n = statusCols.length;
-  const remarksCol = 10 + n * 3;
+  const remarksCol = 12 + n * 3;
   const totalCol = remarksCol + 1;
 
-  const fixed = ["#", "Date", "WO No.", "Shift", "Activity", "Machine", "Customer", "Product Type", "Production Qty", "Wastage"];
+  const fixed = ["#", "Date", "WO No.", "Shift", "Activity", "Machine", "Customer", "Product Type", "Production Impression", "Waste Impression", "Production Qty", "Wastage"];
   const aoa = [
     [...fixed, ...statusCols.flatMap((s) => [s.label.toUpperCase(), "", ""]), "Remarks", "Grand Total"],
     [...fixed.map(() => ""), ...statusCols.flatMap(() => ["FROM", "TO", "TOTAL"]), "", ""]
   ];
 
-  let qty = 0, waste = 0, all = 0;
+  let qty = 0, waste = 0, imp = 0, wimp = 0, all = 0;
   const stTot = {};
   groups.forEach((g, i) => {
     qty += g.productionQty;
     waste += g.wastageQty;
+    imp += g.productionImpression;
+    wimp += g.wasteImpression;
     all += g.totalMins;
     aoa.push([
       i + 1,
@@ -158,6 +217,8 @@ const buildDetailSheet = (rows, statusCols) => {
       g.machine,
       g.customerName || "",
       g.productType || "",
+      g.productionImpression,
+      g.wasteImpression,
       g.productionQty,
       g.wastageQty,
       ...statusCols.flatMap((s) => {
@@ -170,7 +231,7 @@ const buildDetailSheet = (rows, statusCols) => {
     ]);
   });
   aoa.push([
-    "", "", "", "", "", "", "", "TOTAL", qty, waste,
+    "", "", "", "", "", "", "", "TOTAL", imp, wimp, qty, waste,
     ...statusCols.flatMap((s) => ["", "", formatTime(stTot[s.key] || 0)]),
     "",
     formatTime(all)
@@ -178,18 +239,20 @@ const buildDetailSheet = (rows, statusCols) => {
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws["!merges"] = [
-    ...Array.from({ length: 10 }, (_, c) => ({ s: { r: 0, c }, e: { r: 1, c } })),
-    ...statusCols.map((_, i) => ({ s: { r: 0, c: 10 + i * 3 }, e: { r: 0, c: 12 + i * 3 } })),
+    ...Array.from({ length: 12 }, (_, c) => ({ s: { r: 0, c }, e: { r: 1, c } })),
+    ...statusCols.map((_, i) => ({ s: { r: 0, c: 12 + i * 3 }, e: { r: 0, c: 14 + i * 3 } })),
     { s: { r: 0, c: remarksCol }, e: { r: 1, c: remarksCol } },
     { s: { r: 0, c: totalCol }, e: { r: 1, c: totalCol } }
   ];
   ws["!cols"] = [
     { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 16 },
-    { wch: 14 }, { wch: 10 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 10 },
     ...statusCols.flatMap(() => [{ wch: 14 }, { wch: 14 }, { wch: 12 }]),
     { wch: 35 }, { wch: 14 }
   ];
+  styleSheet(ws, 2, [aoa.length - 1]);
   return ws;
+
 };
 
 function MachineDetailReport({ initial, machines, machineStatuses, customers, locations, onBack }) {
@@ -302,11 +365,13 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
   }, [machineStatuses]);
 
   const detailTotals = useMemo(() => {
-    const t = { qty: 0, waste: 0, all: 0, status: {} };
+    const t = { qty: 0, waste: 0, imp: 0, wimp: 0, all: 0, status: {} };
     detailRows.forEach((r) => {
       const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
       t.qty += Number(r.productionQty) || 0;
       t.waste += Number(r.wastageQty) || 0;
+      t.imp += Number(r.productionImpression) || 0;
+      t.wimp += Number(r.wasteImpression) || 0;
       t.all += mins;
       const k = normStatus(r.machineStatus);
       t.status[k] = (t.status[k] || 0) + mins;
@@ -335,6 +400,8 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
           productType: r.productType,
           shifts: [],
           remarks: [],
+          productionImpression: 0,
+          wasteImpression: 0,
           productionQty: 0,
           wastageQty: 0,
           totalMins: 0,
@@ -344,6 +411,8 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
       }
 
       const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+      g.productionImpression += Number(r.productionImpression) || 0;
+      g.wasteImpression += Number(r.wasteImpression) || 0;
       g.productionQty += Number(r.productionQty) || 0;
       g.wastageQty += Number(r.wastageQty) || 0;
       g.totalMins += mins;
@@ -437,8 +506,9 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
       const files = names.map((name) => {
         const mRows = all.filter((r) => (r.machiness || []).some((p) => p.machineId?.machineName === name));
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, buildDailySheet(mRows, statusCols), "Machine Daily Report");
+        XLSX.utils.book_append_sheet(wb, buildDailySheet(mRows, statusCols), "Machine Report");
         XLSX.utils.book_append_sheet(wb, buildDetailSheet(mRows, detailStatusColumns), "Detail Records");
+        XLSX.utils.book_append_sheet(wb, buildDetailSheet(mRows, detailStatusColumns, true), "Detail Records - Entries");
         return {
           name: `${safe(name)}_${label}.xlsx`,
           buf: XLSX.write(wb, { bookType: "xlsx", type: "array" })
@@ -535,7 +605,7 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
 
       <div className="card shadow-lg mb-4">
         <div className="card-header text-center">
-          <strong>Machine Daily Report{machine ? ` - ${machine}` : ""}</strong>
+          <strong>Machine Report{machine ? ` - ${machine}` : ""}</strong>
         </div>
 
         <div className="table-responsive" style={{ maxHeight: "75vh", overflow: "auto" }}>
@@ -621,6 +691,8 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                   <th rowSpan={2} style={{ textAlign: "left" }}>Machine</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>Customer</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>Product Type</th>
+                  <th rowSpan={2}>Production Impression</th>
+                  <th rowSpan={2}>Waste Impression</th>
                   <th rowSpan={2}>Production Qty</th>
                   <th rowSpan={2}>Wastage</th>
                   {detailStatusColumns.map((s) => (
@@ -653,6 +725,8 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                       <td className="left">{g.machine || dash}</td>
                       <td className="left">{g.customerName || dash}</td>
                       <td className="left">{g.productType || dash}</td>
+                      <td className="mono">{g.productionImpression.toLocaleString("en-IN")}</td>
+                      <td className="mono">{g.wasteImpression.toLocaleString("en-IN")}</td>
                       <td className="mono">{g.productionQty.toLocaleString("en-IN")}</td>
                       <td className="mono">{g.wastageQty.toLocaleString("en-IN")}</td>
 
@@ -679,6 +753,8 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
               <tfoot>
                 <tr>
                   <td colSpan={8} style={{ textAlign: "right" }}>PAGE TOTAL</td>
+                  <td>{detailTotals.imp.toLocaleString("en-IN")}</td>
+                  <td>{detailTotals.wimp.toLocaleString("en-IN")}</td>
                   <td>{detailTotals.qty.toLocaleString("en-IN")}</td>
                   <td>{detailTotals.waste.toLocaleString("en-IN")}</td>
                   {detailStatusColumns.map((s) => (
