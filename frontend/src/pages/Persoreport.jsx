@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, Fragment } from "react";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import BASE_URL from "../config/api";
 
 const CSS = `
@@ -91,9 +92,11 @@ const CSS = `
   }
   .rpt-btn:hover { filter: brightness(1.05); }
   .rpt-btn:active { transform: translateY(2px); box-shadow: 0 2px 6px rgba(10, 78, 115, 0.2); }
+  .rpt-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .rpt-btn-clear  { background: linear-gradient(135deg, #e05252, #ff7b7b); }
   .rpt-btn-export { background: linear-gradient(135deg, #0877ad, #16a4dc); }
   .rpt-btn-print  { background: linear-gradient(135deg, #0877ad, #16a4dc); }
+  .rpt-btn-zip    { background: linear-gradient(135deg, #0b8a5f, #22c08a); }
 
   /* ---------- Meta bar ---------- */
   .rpt-meta-bar {
@@ -341,6 +344,127 @@ const shapeDetail = (g) => {
   };
 };
 
+// ---- per-printer ZIP export helpers ----
+const NO_PRINTER = "No Printer";
+const printerKey = (v) => (v && String(v).trim()) || NO_PRINTER;
+const safeFile = (s) => String(s).replace(/[\\/:*?"<>|]/g, "_").trim() || "Printer";
+
+const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
+  const wb = XLSX.utils.book_new();
+
+  // ── CONSOLIDATED (date-wise: one row per Date + Machine + Printer) ──
+  const sizes = [...new Set(detRows.map((r) => r.paperSize).filter(Boolean))].sort();
+  const dayMap = new Map();
+  detRows.forEach((r) => {
+    const dk = rawDate(r.productionDate);
+    if (!dk) return;
+    const key = `${dk}||${r.machineName || ""}||${r.printerName || ""}`;
+    if (!dayMap.has(key)) {
+      dayMap.set(key, { date: dk, machineName: r.machineName || "", printerName: r.printerName || "",
+        counts: {}, printMins: 0, statusMins: {} });
+    }
+    const row = dayMap.get(key);
+    if (r.paperSize) row.counts[r.paperSize] = (row.counts[r.paperSize] || 0) + (Number(r.totalPages) || 0);
+    row.printMins += r.printMins || 0;
+    Object.entries(r.statusCells || {}).forEach(([k, v]) => {
+      row.statusMins[k] = (row.statusMins[k] || 0) + (v.mins || 0);
+    });
+  });
+  const dayRows = [...dayMap.values()].sort((x, y) =>
+    x.date.localeCompare(y.date) || x.machineName.localeCompare(y.machineName));
+
+  const conGroup = [
+    "", "", "", "",
+    ...sizes.map((_, i) => (i === 0 ? "PRODUCTION COUNT" : "")),
+    "PRINTING TIME", ...statusColumns.map((s) => s.label.toUpperCase()), "TOTAL TIMINGS",
+  ];
+  const conSub = [
+    "#", "Date", "Machine Name", "Printer Name", ...sizes,
+    "Printing Time", ...statusColumns.map((s) => s.label), "Total Time",
+  ];
+  const conData = dayRows.map((r, i) => [
+    i + 1, fmtDate(r.date), r.machineName, r.printerName,
+    ...sizes.map((sz) => r.counts[sz] || 0),
+    fromMins(r.printMins),
+    ...statusColumns.map((s) => fromMins(r.statusMins[s.key] || 0)),
+    fromMins(r.printMins + sumVals(r.statusMins)),
+  ]);
+  const cT = {
+    counts: sizes.map((sz) => dayRows.reduce((a, r) => a + (r.counts[sz] || 0), 0)),
+    print: dayRows.reduce((a, r) => a + r.printMins, 0),
+    status: statusColumns.map((s) => dayRows.reduce((a, r) => a + (r.statusMins[s.key] || 0), 0)),
+  };
+  const conTotal = [
+    "TOTAL", "", "", "", ...cT.counts,
+    fromMins(cT.print), ...cT.status.map(fromMins),
+    fromMins(cT.print + cT.status.reduce((a, b) => a + b, 0)),
+  ];
+  const conSheet = XLSX.utils.aoa_to_sheet([conGroup, conSub, ...conData, conTotal]);
+  if (sizes.length > 1) conSheet["!merges"] = [{ s: { r: 0, c: 4 }, e: { r: 0, c: 4 + sizes.length - 1 } }];
+  conSheet["!cols"] = [
+    { wch: 4 }, { wch: 12 }, { wch: 22 }, { wch: 20 },
+    ...sizes.map(() => ({ wch: 12 })),
+    { wch: 14 }, ...statusColumns.map(() => ({ wch: 16 })), { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, conSheet, "CONSOLIDATED");
+
+  // ── DETAIL ──
+  const detGroup = [
+    "", "", "", "", "", "", "", "", "", "", "",
+    "PRINTING TIME", "", "",
+    ...statusColumns.flatMap((s) => [s.label.toUpperCase(), "", ""]),
+    "", "", "", "",
+  ];
+  const detSub = [
+    "#", "Date", "WO No.", "Shift", "Machine", "Printer", "Customer",
+    "Item", "Page Size", "Total Pages", "Wastage",
+    "From", "To", "Total",
+    ...statusColumns.flatMap(() => ["From", "To", "Total"]),
+    "Reason", "Remarks", "GT", "Operator",
+  ];
+  const detData = detRows.map((r, i) => [
+    i + 1, fmtDate(r.productionDate), r.woNumber || "", r.shift || "",
+    r.machineName || "", r.printerName || "", r.customerName || "",
+    r.materialType || "", r.paperSize || "",
+    Number(r.totalPages) || 0, Number(r.wastageSheets) || 0,
+    r.printFrom || "", r.printTo || "", r.printMins ? r.printTotal : "",
+    ...statusColumns.flatMap((s) => {
+      const c = r.statusCells[s.key];
+      return [c?.from || "", c?.to || "", c?.mins ? c.total : ""];
+    }),
+    r.reason || "", r.remarks || "", r.dur, r.enteredBy || r.operator || "",
+  ]);
+  const dT = {
+    pages: detRows.reduce((a, r) => a + (Number(r.totalPages) || 0), 0),
+    waste: detRows.reduce((a, r) => a + (Number(r.wastageSheets) || 0), 0),
+    print: detRows.reduce((a, r) => a + (r.printMins || 0), 0),
+    status: statusColumns.map((s) =>
+      detRows.reduce((a, r) => a + (r.statusCells[s.key]?.mins || 0), 0)),
+  };
+  const detTotal = [
+    "TOTAL", "", "", "", "", "", "", "", "",
+    dT.pages, dT.waste, "", "", fromMins(dT.print),
+    ...dT.status.flatMap((m) => ["", "", fromMins(m)]),
+    "", "",
+    fromMins(dT.print + dT.status.reduce((a, b) => a + b, 0)), "",
+  ];
+  const detSheet = XLSX.utils.aoa_to_sheet([detGroup, detSub, ...detData, detTotal]);
+  detSheet["!merges"] = [
+    { s: { r: 0, c: 11 }, e: { r: 0, c: 13 } },
+    ...statusColumns.map((_, i) => ({ s: { r: 0, c: 14 + i * 3 }, e: { r: 0, c: 16 + i * 3 } })),
+  ];
+  detSheet["!cols"] = [
+    { wch: 4 }, { wch: 12 }, { wch: 8 }, { wch: 20 }, { wch: 18 },
+    { wch: 18 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 11 },
+    { wch: 9 }, { wch: 8 }, { wch: 8 }, { wch: 10 },
+    ...statusColumns.flatMap(() => [{ wch: 8 }, { wch: 8 }, { wch: 10 }]),
+    { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 14 },
+  ];
+  XLSX.utils.book_append_sheet(wb, detSheet, "DETAIL");
+
+  return wb;
+};
+
 export default function PersoReport() {
   const token = localStorage.getItem("token");
   const API = `${BASE_URL}/api/production-machine-status`;
@@ -350,6 +474,7 @@ export default function PersoReport() {
   const [options, setOptions] = useState({ customers: [], locations: [], machines: [], statuses: [] });
   const [machineStatuses, setMachineStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [zipping, setZipping] = useState(false);
   const [filters, setFilters] = useState(defaultFilters);
   const [applied, setApplied] = useState(filters); // debounced copy that triggers the fetch
 
@@ -432,7 +557,8 @@ export default function PersoReport() {
     to: data.maxDate ? fmtDate(data.maxDate) : "—",
   }), [data.minDate, data.maxDate]);
 
-const exportExcel = async () => {
+  // ── EXPORT 1: single Excel file (Consolidated + Detail + Paper Size) ──
+  const exportExcel = async () => {
     const { data: full } = await axios.get(`${API}/perso-report`, {
       ...authHeaders, params: { ...toParams(filters), all: "1" },
     });
@@ -558,11 +684,63 @@ const exportExcel = async () => {
     XLSX.writeFile(wb, `Perso_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  // ── EXPORT 2: ZIP with one Excel per printer (CONSOLIDATED + DETAIL sheets) ──
+  const exportPrinterZip = async () => {
+    try {
+      setZipping(true);
+      const { data: full } = await axios.get(`${API}/perso-report`, {
+        ...authHeaders, params: { ...toParams(filters), all: "1" },
+      });
+      const allDetail = (full.detail || []).map(shapeDetail);
+      const allConsolidated = full.consolidated || consolidated;
+
+      // group by printer name
+      const printers = new Map();
+      const slot = (name) => {
+        const k = printerKey(name);
+        if (!printers.has(k)) printers.set(k, { conRows: [], detRows: [] });
+        return printers.get(k);
+      };
+      allConsolidated.forEach((c) => slot(c.printerName).conRows.push(c));
+      allDetail.forEach((r) => slot(r.printerName).detRows.push(r));
+
+      if (printers.size === 0) { alert("No data to export for selected filters"); return; }
+
+      const zip = new JSZip();
+      const used = new Set();
+      for (const [name, group] of printers) {
+        const wb = buildPrinterWorkbook({ ...group, statusColumns });
+        const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+        let file = safeFile(name), n = 1;
+        while (used.has(file.toLowerCase())) file = `${safeFile(name)}_${++n}`;
+        used.add(file.toLowerCase());
+
+        zip.file(`${file}.xlsx`, buf);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Perso_Report_${new Date().toISOString().split("T")[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed. Please try again.");
+    } finally {
+      setZipping(false);
+    }
+  };
+
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((p) => ({ ...p, [name]: value }));
   };
-const clearFilters = () => setFilters(defaultFilters());
+  const clearFilters = () => setFilters(defaultFilters());
 
   return (
     <div className="rpt-root">
@@ -590,12 +768,12 @@ const clearFilters = () => setFilters(defaultFilters());
               <input className="rpt-filter-input" type="text" name="woNumber" placeholder="Search WO" value={filters.woNumber} onChange={handleFilterChange} />
             </div>
             <div className="rpt-filter-field">
-  <label className="rpt-filter-label">Customer</label>
-  <select className="rpt-filter-select" name="customer" value={filters.customer} onChange={handleFilterChange}>
-    <option value="">All Customers</option>
-    {customerOptions.map((c, i) => <option key={i} value={c}>{c}</option>)}
-  </select>
-</div>
+              <label className="rpt-filter-label">Customer</label>
+              <select className="rpt-filter-select" name="customer" value={filters.customer} onChange={handleFilterChange}>
+                <option value="">All Customers</option>
+                {customerOptions.map((c, i) => <option key={i} value={c}>{c}</option>)}
+              </select>
+            </div>
             <div className="rpt-filter-field">
               <label className="rpt-filter-label">Shift</label>
               <select className="rpt-filter-select" name="shift" value={filters.shift} onChange={handleFilterChange}>
@@ -619,24 +797,27 @@ const clearFilters = () => setFilters(defaultFilters());
               </select>
             </div>
             <div className="rpt-filter-field">
-  <label className="rpt-filter-label">Location</label>
-  <select
-    className="rpt-filter-select"
-    name="location"
-    value={filters.location}
-    onChange={handleFilterChange}
-  >
-    <option value="">All Locations</option>
-    {locationOptions.map((loc, i) => (
-      <option key={i} value={loc}>
-        {loc}
-      </option>
-    ))}
-  </select>
-</div>
+              <label className="rpt-filter-label">Location</label>
+              <select
+                className="rpt-filter-select"
+                name="location"
+                value={filters.location}
+                onChange={handleFilterChange}
+              >
+                <option value="">All Locations</option>
+                {locationOptions.map((loc, i) => (
+                  <option key={i} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
               <button className="rpt-btn rpt-btn-clear" onClick={clearFilters}>Clear</button>
               <button className="rpt-btn rpt-btn-export" onClick={exportExcel}>Export Excel</button>
+              <button className="rpt-btn rpt-btn-zip" onClick={exportPrinterZip} disabled={zipping}>
+                {zipping ? "Preparing ZIP…" : "Export by Printer (ZIP)"}
+              </button>
               {/* <button className="rpt-btn rpt-btn-print" onClick={() => window.print()}>Print</button> */}
             </div>
           </div>
@@ -658,7 +839,7 @@ const clearFilters = () => setFilters(defaultFilters());
           : (
             <table className="rpt-table">
               <thead>
-          <tr>
+                <tr>
                   <th rowSpan={2}>#</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>MACHINE NAME</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>PRINTER NAME</th>
@@ -676,12 +857,12 @@ const clearFilters = () => setFilters(defaultFilters());
                 </tr>
               </thead>
               <tbody>
-                {consolidated.slice(0,30).map((c, i) => (
+                {consolidated.slice(0, 30).map((c, i) => (
                   <tr key={i}>
                     <td>{i + 1}</td>
                     <td className="left rpt-con-machine">{c.machineName}</td>
                     <td className="left rpt-con-machine">{c.printerName || <span className="rpt-muted">—</span>}</td>
-                  {paperSizeColumns.map((sz) => (
+                    {paperSizeColumns.map((sz) => (
                       <td key={sz} className="rpt-con-num">{(c.counts[sz] || 0).toLocaleString()}</td>
                     ))}
                     <td className="rpt-con-time">{fromMins(c.printingMins)}</td>
@@ -695,7 +876,7 @@ const clearFilters = () => setFilters(defaultFilters());
               <tfoot>
                 <tr>
                   <td colSpan={3} style={{ textAlign: "right" }}>TOTAL</td>
-                {paperSizeColumns.map((sz) => (
+                  {paperSizeColumns.map((sz) => (
                     <td key={sz}>{(conTotals.counts[sz] || 0).toLocaleString()}</td>
                   ))}
                   <td>{fromMins(conTotals.printingMins)}</td>
@@ -745,12 +926,11 @@ const clearFilters = () => setFilters(defaultFilters());
                 <tr>
                   <th rowSpan={2}>#</th>
                   <th rowSpan={2}>Date</th>
-                   <th rowSpan={2}>WO No.</th>
+                  <th rowSpan={2}>WO No.</th>
                   <th rowSpan={2}>Shift</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>Machine</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>Printer</th>
                   <th rowSpan={2} style={{ textAlign: "left" }}>Customer</th>
-                 
                   <th rowSpan={2} style={{ textAlign: "left" }}>Item</th>
                   <th rowSpan={2}>Page Size</th>
                   <th rowSpan={2}>Total Pages</th>
@@ -786,7 +966,6 @@ const clearFilters = () => setFilters(defaultFilters());
                     <td className="left">{r.machineName || <span className="rpt-muted">—</span>}</td>
                     <td className="left">{r.printerName || <span className="rpt-muted">—</span>}</td>
                     <td className="left">{r.customerName || <span className="rpt-muted">—</span>}</td>
-                    
                     <td className="left">{r.materialType || <span className="rpt-muted">—</span>}</td>
                     <td>{r.paperSize || <span className="rpt-muted">—</span>}</td>
                     <td className="mono">{r.totalPages || 0}</td>
@@ -806,7 +985,7 @@ const clearFilters = () => setFilters(defaultFilters());
                       );
                     })}
                     <td className="left" style={{ maxWidth: 160, whiteSpace: "normal", fontSize: 11 }}>
-                      {r.reason|| <span className="rpt-muted">—</span>}
+                      {r.reason || <span className="rpt-muted">—</span>}
                     </td>
                     <td className="left" style={{ maxWidth: 160, whiteSpace: "normal", fontSize: 11 }}>
                       {r.remarks || <span className="rpt-muted">—</span>}
