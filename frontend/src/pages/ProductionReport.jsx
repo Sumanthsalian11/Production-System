@@ -209,6 +209,51 @@ function ProductionReport() {
 
   const detailTotalPages = Math.max(1, Math.ceil(detailTotal / DETAIL_PAGE_SIZE));
 
+  // merge rows with the same Date + WO + Shift + Activity + Machine + Customer + Product Type
+  const groupedRows = useMemo(() => {
+    const map = new Map();
+    detailRows.forEach((r) => {
+      const activity = joinUnique((r.machiness || []).map((p) => p.activityId?.activityName));
+      const machine = joinUnique((r.machiness || []).map((p) => p.machineId?.machineName));
+      const dateKey = String(r.productionDate || "").split("T")[0];
+      const key = [dateKey, r.workOrder, r.shift || "", activity, machine, (r.customerName || "").trim(), r.productType || ""].join("||");
+
+      let g = map.get(key);
+      if (!g) {
+        g = {
+          key,
+          productionDate: r.productionDate,
+          workOrder: r.workOrder,
+          activity,
+          machine,
+          customerName: r.customerName,
+          productType: r.productType,
+          shifts: [],
+          remarks: [],
+          productionQty: 0,
+          wastageQty: 0,
+          totalMins: 0,
+          status: {}
+        };
+        map.set(key, g);
+      }
+
+      const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+      g.productionQty += Number(r.productionQty) || 0;
+      g.wastageQty += Number(r.wastageQty) || 0;
+      g.totalMins += mins;
+      g.shifts.push(r.shift);
+      g.remarks.push(r.remarks);
+
+      const k = normStatus(r.machineStatus);
+      const s = g.status[k] || (g.status[k] = { from: [], to: [], mins: 0 });
+      if (r.productionFromTime) s.from.push(r.productionFromTime);
+      if (r.productionToTime) s.to.push(r.productionToTime);
+      s.mins += mins;
+    });
+    return [...map.values()];
+  }, [detailRows]);
+
   const fetchProduction = async (from = fromDate, to = toDate) => {
     const id = ++reqId.current; // ignore stale responses
     setLoading(true);
@@ -1844,46 +1889,42 @@ function ProductionReport() {
               </thead>
 
               <tbody>
-                {detailRows.map((r, i) => {
-                  const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
-                  const rowStatus = normStatus(r.machineStatus);
-                  const activity = joinUnique((r.machiness || []).map((p) => p.activityId?.activityName));
-                  const machine = joinUnique((r.machiness || []).map((p) => p.machineId?.machineName));
+                {groupedRows.map((g, i) => {
                   const dash = <span className="dt-muted">—</span>;
 
                   return (
-                    <tr key={r._id}>
-                      <td>{(detailPage - 1) * DETAIL_PAGE_SIZE + i + 1}</td>
-                      <td className="mono">{fmtD(r.productionDate)}</td>
-                      <td className="mono">{r.workOrder || dash}</td>
-                      <td>{r.shift || dash}</td>
-                      <td className="left">{activity || dash}</td>
-                      <td className="left">{machine || dash}</td>
-                      <td className="left">{r.customerName || dash}</td>
-                      <td className="left">{r.productType || dash}</td>
-                      <td className="mono">{(Number(r.productionQty) || 0).toLocaleString("en-IN")}</td>
-                      <td className="mono">{(Number(r.wastageQty) || 0).toLocaleString("en-IN")}</td>
+                    <tr key={g.key}>
+                      <td>{i + 1}</td>
+                      <td className="mono">{fmtD(g.productionDate)}</td>
+                      <td className="mono">{g.workOrder || dash}</td>
+                      <td>{joinUnique(g.shifts) || dash}</td>
+                      <td className="left">{g.activity || dash}</td>
+                      <td className="left">{g.machine || dash}</td>
+                      <td className="left">{g.customerName || dash}</td>
+                      <td className="left">{g.productType || dash}</td>
+                      <td className="mono">{g.productionQty.toLocaleString("en-IN")}</td>
+                      <td className="mono">{g.wastageQty.toLocaleString("en-IN")}</td>
 
                       {detailStatusColumns.map((s) => {
-                        const hit = rowStatus === s.key;
+                        const c = g.status[s.key];
                         return (
                           <Fragment key={s.key}>
-                            <td className="mono">{hit ? r.productionFromTime || dash : dash}</td>
-                            <td className="mono">{hit ? r.productionToTime || dash : dash}</td>
-                            <td className="mono">{hit && mins ? formatTime(mins) : dash}</td>
+                            <td className="mono">{c?.from.length ? c.from.join(", ") : dash}</td>
+                            <td className="mono">{c?.to.length ? c.to.join(", ") : dash}</td>
+                            <td className="mono">{c?.mins ? formatTime(c.mins) : dash}</td>
                           </Fragment>
                         );
                       })}
 
-                    
                       <td className="left" style={{ maxWidth: 160, whiteSpace: "normal", fontSize: 11 }}>
-                        {r.remarks || dash}
+                        {joinUnique(g.remarks) || dash}
                       </td>
-                      <td className="mono">{formatTime(mins)}</td>
+                      <td className="mono">{formatTime(g.totalMins)}</td>
                     </tr>
                   );
                 })}
               </tbody>
+
 
               <tfoot>
                 <tr>
