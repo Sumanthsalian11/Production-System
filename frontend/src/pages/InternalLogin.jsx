@@ -588,7 +588,7 @@ function InternalLogin() {
 
           <div className="release-badge-bar">
             <span className="release-pill">
-              <FaTag /> V1.1.5
+              <FaTag /> V1.1.6
             </span>
             <p className="ann-copyright">© 2026 Manipal Payment and Identity Solutions</p>
           </div>

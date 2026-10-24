@@ -1332,11 +1332,6 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     if (!selectedOrder) return;
     if (submitLock.current) return;
 
-    if (!selectedOrder.productType || selectedOrder.productType.trim() === "") {
-      showAlert("Product Type is required");
-      return;
-    }
-
     const requiredFields = [
       { key: "priority", label: "Priority" },
       { key: "colorFront", label: "Color Front" },
