@@ -142,9 +142,9 @@ function NewIndent() {
         materialType: res.data.materialType || "",
         description: res.data.description || "",
         customerName: res.data.customerName || "",
-        colorFront: res.data.colorFront || "",
-        colorBack: res.data.colorBack || "",
-        wasteQty: res.data.wasteQty || "",
+        colorFront: res.data.colorFront ?? "",
+        colorBack: res.data.colorBack ?? "",
+        wasteQty: res.data.wasteQty ?? "",
         jobSize: res.data.jobSize || "",
         inkDetails: res.data.inkDetails || "",
         itemPdfPath: res.data.pdfPath || ""
