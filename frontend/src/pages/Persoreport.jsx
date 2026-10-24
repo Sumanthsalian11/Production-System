@@ -361,9 +361,11 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     const key = `${dk}||${r.machineName || ""}||${r.printerName || ""}`;
     if (!dayMap.has(key)) {
       dayMap.set(key, { date: dk, machineName: r.machineName || "", printerName: r.printerName || "",
-        counts: {}, printMins: 0, statusMins: {} });
+        counts: {}, printMins: 0, statusMins: {}, reasons: [], remarks: [] });
     }
     const row = dayMap.get(key);
+    row.reasons.push(r.reason || "");
+    row.remarks.push(r.remarks || "");
     if (r.paperSize) row.counts[r.paperSize] = (row.counts[r.paperSize] || 0) + (Number(r.totalPages) || 0);
     row.printMins += r.printMins || 0;
     Object.entries(r.statusCells || {}).forEach(([k, v]) => {
@@ -377,10 +379,12 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     "", "", "", "",
     ...sizes.map((_, i) => (i === 0 ? "PRODUCTION COUNT" : "")),
     "PRINTING TIME", ...statusColumns.map((s) => s.label.toUpperCase()), "TOTAL TIMINGS",
+    "", "",
   ];
   const conSub = [
     "#", "Date", "Machine Name", "Printer Name", ...sizes,
     "Printing Time", ...statusColumns.map((s) => s.label), "Total Time",
+    "Reason", "Remarks",
   ];
   const conData = dayRows.map((r, i) => [
     i + 1, fmtDate(r.date), r.machineName, r.printerName,
@@ -388,6 +392,7 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     fromMins(r.printMins),
     ...statusColumns.map((s) => fromMins(r.statusMins[s.key] || 0)),
     fromMins(r.printMins + sumVals(r.statusMins)),
+    joinValues(r.reasons), joinValues(r.remarks),
   ]);
   const cT = {
     counts: sizes.map((sz) => dayRows.reduce((a, r) => a + (r.counts[sz] || 0), 0)),
@@ -398,6 +403,7 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     "TOTAL", "", "", "", ...cT.counts,
     fromMins(cT.print), ...cT.status.map(fromMins),
     fromMins(cT.print + cT.status.reduce((a, b) => a + b, 0)),
+    "", "",
   ];
   const conSheet = XLSX.utils.aoa_to_sheet([conGroup, conSub, ...conData, conTotal]);
   if (sizes.length > 1) conSheet["!merges"] = [{ s: { r: 0, c: 4 }, e: { r: 0, c: 4 + sizes.length - 1 } }];
@@ -405,6 +411,7 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     { wch: 4 }, { wch: 12 }, { wch: 22 }, { wch: 20 },
     ...sizes.map(() => ({ wch: 12 })),
     { wch: 14 }, ...statusColumns.map(() => ({ wch: 16 })), { wch: 14 },
+    { wch: 28 }, { wch: 28 },
   ];
   XLSX.utils.book_append_sheet(wb, conSheet, "CONSOLIDATED");
 
@@ -422,18 +429,51 @@ const buildPrinterWorkbook = ({ conRows, detRows, statusColumns }) => {
     ...statusColumns.flatMap(() => ["From", "To", "Total"]),
     "Reason", "Remarks", "GT", "Operator",
   ];
-  const detData = detRows.map((r, i) => [
-    i + 1, fmtDate(r.productionDate), r.woNumber || "", r.shift || "",
-    r.machineName || "", r.printerName || "", r.customerName || "",
-    r.materialType || "", r.paperSize || "",
-    Number(r.totalPages) || 0, Number(r.wastageSheets) || 0,
-    r.printFrom || "", r.printTo || "", r.printMins ? r.printTotal : "",
-    ...statusColumns.flatMap((s) => {
-      const c = r.statusCells[s.key];
-      return [c?.from || "", c?.to || "", c?.mins ? c.total : ""];
-    }),
-    r.reason || "", r.remarks || "", r.dur, r.enteredBy || r.operator || "",
-  ]);
+  const detData = detRows.flatMap((r, i) => {
+    const night = normStatus(r.shift) === "night";
+    const tkey = (t) => {
+      const [h, m] = String(t || "0:0").split(":").map(Number);
+      const v = (h || 0) * 60 + (m || 0);
+      return night && v < 12 * 60 ? v + 1440 : v; // after-midnight sorts last on Night shift
+    };
+    const items = (r.items || []).slice().sort((a, b) => tkey(a.f) - tkey(b.f));
+
+    const head = [
+      i + 1, fmtDate(r.productionDate), r.woNumber || "", r.shift || "",
+      r.machineName || "", r.printerName || "", r.customerName || "",
+      r.materialType || "", r.paperSize || "",
+    ];
+
+    // no entries from server: keep the original single row
+    if (!items.length) {
+      return [[
+        ...head, Number(r.totalPages) || 0, Number(r.wastageSheets) || 0,
+        r.printFrom || "", r.printTo || "", r.printMins ? r.printTotal : "",
+        ...statusColumns.flatMap((s) => {
+          const c = r.statusCells[s.key];
+          return [c?.from || "", c?.to || "", c?.mins ? c.total : ""];
+        }),
+        r.reason || "", r.remarks || "", r.dur, r.enteredBy || r.operator || "",
+      ]];
+    }
+
+    return items.map((it, idx) => {
+      const first = idx === 0;
+      const timed = it.c !== "__none";
+      const mins = timed ? it.m || 0 : 0;
+      const cell = [it.f || "", it.t || "", mins ? fromMins(mins) : ""];
+      const blank = ["", "", ""];
+      return [
+        ...head,
+        first ? Number(r.totalPages) || 0 : "",
+        first ? Number(r.wastageSheets) || 0 : "",
+        ...(it.c === "__p" ? cell : blank),
+        ...statusColumns.flatMap((s) => (timed && it.c === s.key ? cell : blank)),
+        it.re || "", it.rm || "", mins ? fromMins(mins) : "",
+        r.enteredBy || r.operator || "",
+      ];
+    });
+  });
   const dT = {
     pages: detRows.reduce((a, r) => a + (Number(r.totalPages) || 0), 0),
     waste: detRows.reduce((a, r) => a + (Number(r.wastageSheets) || 0), 0),
