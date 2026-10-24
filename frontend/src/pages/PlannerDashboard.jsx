@@ -824,7 +824,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
           : [materialsArr[i] || {}];
         const mat = mats[0] || {};
         const extras = mats.slice(1).map(m => ({
-          materialCode: m.materialCode || "",
+          materialCode: m.materialCode != null ? String(m.materialCode) : "",
           materialDescription: m.materialDescription || "",
           materialGroupDescription: m.materialGroupDescription || "",
           mill: m.mill || "",
@@ -842,7 +842,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
           isPerfecting: pair.isPerfecting || false,
           pages: pair.pages || "",
           component: pair.component || "",
-          materialCode: mat.materialCode || "",
+          materialCode: mat.materialCode != null ? String(mat.materialCode) : "",
           materialDescription: mat.materialDescription || "",
           materialGroupDescription: mat.materialGroupDescription || "",
           mill: mat.mill || "",
@@ -1401,7 +1401,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       }
 
       if (!skipMaterialCheck) {
-        if (!row.materialCode || row.materialCode.trim() === "") {
+        if (!String(row.materialCode ?? "").trim()) {
           showAlert("Material Code is required");
           return;
         }
@@ -1410,7 +1410,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
           return;
         }
         for (const em of (row.extraMaterials || [])) {
-          if (!em.materialCode || em.materialCode.trim() === "") {
+          if (!String(em.materialCode ?? "").trim()) {
             showAlert("Material Code is required for every added Paper material");
             return;
           }
@@ -1448,9 +1448,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
         activity2: activity2,
         materials: confirmedRows.flatMap((row, rowIndex) =>
           [row, ...(row.extraMaterials || [])]
-            .filter(m => m.materialCode && m.materialCode.trim() !== "")
+            .filter(m => String(m.materialCode ?? "").trim() !== "")
             .map(m => ({
-              materialCode: m.materialCode,
+              materialCode: String(m.materialCode).trim(),
               materialDescription: m.materialDescription,
               materialGroupDescription: m.materialGroupDescription,
               mill: m.mill,
