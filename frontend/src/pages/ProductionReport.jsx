@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, Fragment } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import * as XLSX from "xlsx";
@@ -36,6 +36,8 @@ const getTimeDiff = (from, to) => {
   minutesCache.set(ck, v);
   return v;
 };
+
+const joinUnique = (arr) => [...new Set((arr || []).filter(Boolean))].join(", ");
 
 const formatTime = (minutes) => {
   const h = Math.floor(minutes / 60);
@@ -135,6 +137,77 @@ function ProductionReport() {
   const [activities, setActivities] = useState([]);
   const reqId = useRef(0);
   const debouncedSearchWO = useDebounced(searchWO, 300);
+
+  // ---------- Detail Records (from ProductionReal) ----------
+  const DETAIL_PAGE_SIZE = 50;
+  const [detailRows, setDetailRows] = useState([]);
+  const [detailTotal, setDetailTotal] = useState(0);
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // back to page 1 whenever a filter changes
+  useEffect(() => {
+    setDetailPage(1);
+  }, [fromDate, toDate, debouncedSearchWO, customerFilter, machineFilter, locationFilter]);
+
+  useEffect(() => {
+    let live = true;
+    setDetailLoading(true);
+    axios
+      .get(`${BASE_URL}/api/production-real`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          from: fromDate || undefined,
+          to: toDate || undefined,
+          workOrder: debouncedSearchWO || undefined,
+          customer: customerFilter || undefined,
+          machine: machineFilter || undefined,
+          location: locationFilter || undefined,
+          limit: DETAIL_PAGE_SIZE,
+          page: detailPage,
+          withCount: 1
+        }
+      })
+      .then((r) => {
+        if (!live) return;
+        const rows = Array.isArray(r.data) ? r.data : r.data.data || [];
+        setDetailRows(rows);
+        setDetailTotal(Array.isArray(r.data) ? rows.length : r.data.total || 0);
+      })
+      .catch((e) => console.error("Error fetching detail records:", e))
+      .finally(() => live && setDetailLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, debouncedSearchWO, customerFilter, machineFilter, locationFilter, detailPage]);
+
+  const normStatus = (s) => String(s || "").trim().toLowerCase();
+
+  // one From/To/Total group per status in the Machine Status master
+  const detailStatusColumns = useMemo(() => {
+    const seen = new Map();
+    machineStatuses.forEach((s) => {
+      const k = normStatus(s.statusName);
+      if (k && !seen.has(k)) seen.set(k, String(s.statusName).trim());
+    });
+    return [...seen].map(([key, label]) => ({ key, label }));
+  }, [machineStatuses]);
+
+  const detailTotals = useMemo(() => {
+    const t = { qty: 0, waste: 0, all: 0, status: {} };
+    detailRows.forEach((r) => {
+      const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+      t.qty += Number(r.productionQty) || 0;
+      t.waste += Number(r.wastageQty) || 0;
+      t.all += mins;
+      const k = normStatus(r.machineStatus);
+      t.status[k] = (t.status[k] || 0) + mins;
+    });
+    return t;
+  }, [detailRows]);
+
+  const detailTotalPages = Math.max(1, Math.ceil(detailTotal / DETAIL_PAGE_SIZE));
 
   const fetchProduction = async (from = fromDate, to = toDate) => {
     const id = ++reqId.current; // ignore stale responses
@@ -1046,6 +1119,14 @@ function ProductionReport() {
         .production-report-universe tbody tr:nth-child(10) { animation-delay: 0.66s; }
         .production-report-universe tbody tr:nth-child(n+11) { animation-delay: 0.70s; }
 
+        .production-report-universe .dt-table td.left { text-align: left; }
+        .production-report-universe .dt-table td.mono { font-variant-numeric: tabular-nums; }
+        .production-report-universe .dt-table th.dt-group { background: #a9dcf3 !important; }
+        .production-report-universe .dt-table tfoot td {
+          background: #bfe6f8 !important; color: #06324d; font-weight: 800;
+        }
+        .production-report-universe .dt-muted { color: #94a3b8; }
+
         /* Respect users who prefer no motion */
         @media (prefers-reduced-motion: reduce) {
           .production-report-universe > div,
@@ -1717,6 +1798,129 @@ function ProductionReport() {
           </table>
         </div>
       </div>
+      {/* ======================================================================
+          TABLE 8: DETAIL RECORDS (from Production Entry)
+          ====================================================================== */}
+      <div className="card shadow-lg mb-4">
+        <div className="card-header text-center">
+          <strong>Detail Records</strong>
+          <span className="ms-2 small">({detailTotal.toLocaleString("en-IN")} records)</span>
+        </div>
+
+        <div className="table-responsive" style={{ maxHeight: "480px", overflow: "auto" }}>
+          {detailLoading ? (
+            <div className="p-4 text-center fw-bold">Loading…</div>
+          ) : detailRows.length === 0 ? (
+            <div className="p-4 text-center fw-bold">No records for selected filters</div>
+          ) : (
+            <table className="table table-bordered table-hover mb-0 align-middle dt-table" style={{ whiteSpace: "nowrap" }}>
+              <thead className="sticky-top">
+                <tr>
+                  <th rowSpan={2}>#</th>
+                  <th rowSpan={2}>Date</th>
+                  <th rowSpan={2}>WO No.</th>
+                  <th rowSpan={2}>Shift</th>
+                  <th rowSpan={2} style={{ textAlign: "left" }}>Activity</th>
+                  <th rowSpan={2} style={{ textAlign: "left" }}>Machine</th>
+                  <th rowSpan={2} style={{ textAlign: "left" }}>Customer</th>
+                  <th rowSpan={2} style={{ textAlign: "left" }}>Product Type</th>
+                  <th rowSpan={2}>Production Qty</th>
+                  <th rowSpan={2}>Wastage</th>
+                  {detailStatusColumns.map((s) => (
+                    <th key={s.key} colSpan={3} className="dt-group">{s.label.toUpperCase()}</th>
+                  ))}
+                  <th rowSpan={2}>Remarks</th>
+                  <th rowSpan={2}>Grand Total</th>
+                </tr>
+                <tr>
+                  {detailStatusColumns.map((s) => (
+                    <Fragment key={s.key}>
+                      <th className="dt-group">FROM</th>
+                      <th className="dt-group">TO</th>
+                      <th className="dt-group">TOTAL</th>
+                    </Fragment>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {detailRows.map((r, i) => {
+                  const mins = getTimeDiff(r.productionFromTime, r.productionToTime);
+                  const rowStatus = normStatus(r.machineStatus);
+                  const activity = joinUnique((r.machiness || []).map((p) => p.activityId?.activityName));
+                  const machine = joinUnique((r.machiness || []).map((p) => p.machineId?.machineName));
+                  const dash = <span className="dt-muted">—</span>;
+
+                  return (
+                    <tr key={r._id}>
+                      <td>{(detailPage - 1) * DETAIL_PAGE_SIZE + i + 1}</td>
+                      <td className="mono">{fmtD(r.productionDate)}</td>
+                      <td className="mono">{r.workOrder || dash}</td>
+                      <td>{r.shift || dash}</td>
+                      <td className="left">{activity || dash}</td>
+                      <td className="left">{machine || dash}</td>
+                      <td className="left">{r.customerName || dash}</td>
+                      <td className="left">{r.productType || dash}</td>
+                      <td className="mono">{(Number(r.productionQty) || 0).toLocaleString("en-IN")}</td>
+                      <td className="mono">{(Number(r.wastageQty) || 0).toLocaleString("en-IN")}</td>
+
+                      {detailStatusColumns.map((s) => {
+                        const hit = rowStatus === s.key;
+                        return (
+                          <Fragment key={s.key}>
+                            <td className="mono">{hit ? r.productionFromTime || dash : dash}</td>
+                            <td className="mono">{hit ? r.productionToTime || dash : dash}</td>
+                            <td className="mono">{hit && mins ? formatTime(mins) : dash}</td>
+                          </Fragment>
+                        );
+                      })}
+
+                    
+                      <td className="left" style={{ maxWidth: 160, whiteSpace: "normal", fontSize: 11 }}>
+                        {r.remarks || dash}
+                      </td>
+                      <td className="mono">{formatTime(mins)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+
+              <tfoot>
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "right" }}>PAGE TOTAL</td>
+                  <td>{detailTotals.qty.toLocaleString("en-IN")}</td>
+                  <td>{detailTotals.waste.toLocaleString("en-IN")}</td>
+                  {detailStatusColumns.map((s) => (
+                    <Fragment key={s.key}>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>{formatTime(detailTotals.status[s.key] || 0)}</td>
+                    </Fragment>
+                  ))}
+                  <td>—</td>
+               
+                  <td>{formatTime(detailTotals.all)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+
+        <div className="d-flex justify-content-between align-items-center p-2">
+          <small>
+            Page {detailPage} of {detailTotalPages}
+          </small>
+          <div className="d-flex gap-2">
+            <button className="btn btn-sm btn-primary" disabled={detailPage <= 1} onClick={() => setDetailPage((p) => p - 1)}>
+              Prev
+            </button>
+            <button className="btn btn-sm btn-primary" disabled={detailPage >= detailTotalPages} onClick={() => setDetailPage((p) => p + 1)}>
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
       {woDetail !== null && (
         <div className="wt-backdrop" onClick={() => setWoDetail(null)}>
           <style>{`
