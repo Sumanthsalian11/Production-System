@@ -3,6 +3,7 @@ import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
+import MachineDetailReport from "./MachineDetailReport";
 
 // ---------- caches: dates/times repeat heavily, so parse each distinct string once ----------
 const dateCache = new Map();
@@ -135,6 +136,7 @@ function ProductionReport() {
   const [itemStages, setItemStages] = useState([]);
   const [woDetail, setWoDetail] = useState(null);
   const [activities, setActivities] = useState([]);
+  const [showMachineDetail, setShowMachineDetail] = useState(false);
   const reqId = useRef(0);
   const debouncedSearchWO = useDebounced(searchWO, 300);
 
@@ -981,6 +983,26 @@ function ProductionReport() {
     XLSX.writeFile(wb, "Production_Report.xlsx");
   };
 
+  if (showMachineDetail) {
+    return (
+      <MachineDetailReport
+        initial={{
+          machine: machineFilter,
+          fromDate,
+          toDate,
+          wo: searchWO,
+          customer: customerFilter,
+          location: locationFilter
+        }}
+        machines={machines}
+        machineStatuses={machineStatuses}
+        customers={customers}
+        locations={locationOptions}
+        onBack={() => setShowMachineDetail(false)}
+      />
+    );
+  }
+
   return (
     <div
       className="container production-report-universe"
@@ -1376,6 +1398,9 @@ function ProductionReport() {
   <div className="col-md-2 d-flex align-items-end mt-2">
           <button className="btn btn-primary px-4" onClick={exportExcel}>
             Export Excel
+          </button>
+          <button className="btn btn-primary ms-2 text-nowrap" onClick={() => setShowMachineDetail(true)}>
+            Machine Detail
           </button>
         </div>
         </div>
