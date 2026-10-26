@@ -555,6 +555,23 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
     XLSX.writeFile(wb, "Indent_Report.xlsx");
   };
+  // ---- Double-click protection for Save Indent ----
+  const isSavingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSafeSubmit = async (e) => {
+    e.preventDefault();
+    if (isSavingRef.current) return; // ignore the 2nd click instantly
+    isSavingRef.current = true;
+    setIsSaving(true);
+    try {
+      await handleSubmit(e);
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -1473,7 +1490,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <span className="gl-pill">{editingId ? "Editing indent" : "New indent"}</span>
             </div>
 
-            <form onSubmit={handleSubmit} onWheel={(e) => { if (e.target.type === "number") e.target.blur(); }}>
+            <form onSubmit={handleSafeSubmit} onWheel={(e) => { if (e.target.type === "number") e.target.blur(); }}>
 
               {/* SECTION 1: PRODUCT INFO */}
               <div className="gl-inner first">
@@ -1892,7 +1909,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               </div>
 
               <div className="text-center mt-3">
-                <button type="submit" className="btn btn-submit-indent">
+                <button type="submit" className="btn btn-submit-indent" disabled={isSaving}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { jwtDecode } from "jwt-decode";
 import Swal from "sweetalert2";
 import * as XLSX from "xlsx";
@@ -1531,6 +1531,20 @@ const expandTd = (order, key, value) => {
   );
 };
 
+  // ---- Double-click protection for Save ----
+  const isSavingRef = useRef(false);
+
+  const handleSafeSubmit = async (e) => {
+    e.preventDefault();
+    if (isSavingRef.current) return; // ignore 2nd click instantly
+    isSavingRef.current = true;
+    try {
+      await handleSubmit(e);
+    } finally {
+      isSavingRef.current = false;
+    }
+  };
+
   return (
 <div className="pi-root">
   {/* ===================================================================== */}
@@ -2098,7 +2112,7 @@ const expandTd = (order, key, value) => {
 
   {/* PAGE TITLE */}
 
-  <form onSubmit={handleSubmit}>
+  <form onSubmit={handleSafeSubmit}>
 
     {/* MASTER / PERSO TOGGLE */}
     <div className="d-flex justify-content-center mb-3">

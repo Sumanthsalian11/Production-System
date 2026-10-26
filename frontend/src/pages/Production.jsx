@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
@@ -589,6 +589,22 @@ function Productiondashboard() {
     } catch (err) {
       console.error("SAVE ERROR:", err.response?.data || err.message);
       showAlert(err.response?.data?.message || "Error saving", "error");
+    }
+  };
+
+  // ---- Double-click protection for Save ----
+  const isSavingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (isSavingRef.current) return; // ignore 2nd click instantly
+    isSavingRef.current = true;
+    setIsSaving(true);
+    try {
+      await save();
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -1698,7 +1714,8 @@ function Productiondashboard() {
                       className={`push-btn-3d push-btn-hero-save ${
                         editingReelId ? "push-btn-edit-mode" : ""
                       }`}
-                      onClick={save}
+                      onClick={handleSave}
+                      disabled={isSaving}
                     >
                       {editingReelId ? <Icons.Edit /> : <Icons.Save />}
                       <span>{editingReelId ? "Update Reel Record" : "Save Reel Record"}</span>

@@ -513,7 +513,9 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
       if (!dateKey) return;
       const imp = Number(r.productionImpression) || 0;
       const isNight = String(r.shift || "").toLowerCase() === "night";
-      const names = [...new Set((r.machiness || []).map((p) => p.machineId?.machineName).filter(Boolean))];
+      const names = [...new Set((r.machiness || []).map((p) => p.machineId?.machineName).filter(Boolean))].filter(
+        (n) => !machine || n === machine
+      );
 
       names.forEach((name) => {
         dateSet.add(dateKey);
@@ -539,7 +541,7 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
       });
     });
     return { dates, machines: machinesList, totals };
-  }, [matrixRows]);
+  }, [matrixRows, machine]);
   const dash = (n) => n || "-";
   const sumDates = (m) =>
     matrix.dates.reduce(

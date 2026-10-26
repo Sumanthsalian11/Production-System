@@ -704,6 +704,8 @@ export default function ProductionMachineStatusModule() {
 
   /* Extra time slots (idle / breakdown alongside a production entry) */
   const [extraSlots, setExtraSlots] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const submitLock = useRef(false);
   const [serverTotal, setServerTotal] = useState(0);
   const [summaryData, setSummaryData] = useState({ rows: [], statuses: [], total: 0 });
   const [filterOpts, setFilterOpts] = useState({ locations: [], printers: [], machines: [] });
@@ -960,6 +962,18 @@ export default function ProductionMachineStatusModule() {
   /* ── Submit ── */
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLock.current) return; // already saving, ignore extra clicks
+    submitLock.current = true;
+    setSubmitting(true);
+    try {
+      await submitEntry();
+    } finally {
+      submitLock.current = false;
+      setSubmitting(false);
+    }
+  };
+
+  const submitEntry = async () => {
 
     if (!form.activityId) return showAlert("Select activity", "warning");
     if (!form.machineId)  return showAlert("Select machine", "warning");
@@ -1929,7 +1943,9 @@ export default function ProductionMachineStatusModule() {
                   </div>
                   <div className="pms-actions">
                     <button type="submit"
-                      className={`pms-btn ${editingId ? "pms-btn-update" : "pms-btn-save"}`}>
+                      className={`pms-btn ${editingId ? "pms-btn-update" : "pms-btn-save"}`}
+                      disabled={submitting}
+                      style={submitting ? { opacity: 0.6, cursor: "not-allowed" } : undefined}>
                       <FiSave className="pms-ico" />
                       {editingId
                         ? (extraSlots.length > 0 ? `Update + Save ${extraSlots.length} Slot${extraSlots.length > 1 ? "s" : ""}` : "Update Entry")
