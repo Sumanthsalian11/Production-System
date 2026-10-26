@@ -23,6 +23,10 @@ const sumMins = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const formatTime = (minutes) => `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 const fmtD = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "-");
 const DETAIL_PAGE_SIZE = 50;
+const fmtDay = (key) => {
+  const d = new Date(`${key}T00:00:00`);
+  return `${d.getDate()}-${d.toLocaleString("en-US", { month: "short" })}-${String(d.getFullYear()).slice(2)}`;
+};
 
 // ---------- Excel helpers ----------
 const dmy = (key) => key.split("-").reverse().join("-");
@@ -472,6 +476,158 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
     return { list, totals };
   }, [rows]);
 
+  // ---------- Machine-wise Production Impression (all machines x dates) ----------
+  const [matrixRows, setMatrixRows] = useState([]);
+  const [matrixLoading, setMatrixLoading] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    setMatrixLoading(true);
+    axios
+      .get(`${BASE_URL}/api/production-real`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          from: fromDate || undefined,
+          to: toDate || undefined,
+          workOrder: debouncedWo || undefined,
+          customer: customer || undefined,
+          location: location || undefined
+        }
+      })
+      .then((r) => live && setMatrixRows(Array.isArray(r.data) ? r.data : r.data.data || []))
+      .catch((e) => console.error("Error fetching machine-wise impression:", e))
+      .finally(() => live && setMatrixLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromDate, toDate, debouncedWo, customer, location]);
+
+  const matrix = useMemo(() => {
+    const dateSet = new Set();
+    const byMachine = new Map();
+
+    matrixRows.forEach((r) => {
+      if (!isProdStatus(normStatus(r.machineStatus))) return;
+      const dateKey = String(r.productionDate || "").split("T")[0];
+      if (!dateKey) return;
+      const imp = Number(r.productionImpression) || 0;
+      const isNight = String(r.shift || "").toLowerCase() === "night";
+      const names = [...new Set((r.machiness || []).map((p) => p.machineId?.machineName).filter(Boolean))];
+
+      names.forEach((name) => {
+        dateSet.add(dateKey);
+        let m = byMachine.get(name);
+        if (!m) {
+          m = { name, days: {} };
+          byMachine.set(name, m);
+        }
+        const c = m.days[dateKey] || (m.days[dateKey] = { day: 0, night: 0 });
+        if (isNight) c.night += imp;
+        else c.day += imp;
+      });
+    });
+
+    const dates = [...dateSet].sort();
+    const machinesList = [...byMachine.values()].sort((a, b) => a.name.localeCompare(b.name));
+    const totals = {};
+    dates.forEach((d) => {
+      totals[d] = { day: 0, night: 0 };
+      machinesList.forEach((m) => {
+        totals[d].day += m.days[d]?.day || 0;
+        totals[d].night += m.days[d]?.night || 0;
+      });
+    });
+    return { dates, machines: machinesList, totals };
+  }, [matrixRows]);
+  const dash = (n) => n || "-";
+  const sumDates = (m) =>
+    matrix.dates.reduce(
+      (a, d) => ({ day: a.day + (m.days[d]?.day || 0), night: a.night + (m.days[d]?.night || 0) }),
+      { day: 0, night: 0 }
+    );
+
+  // td cells for Day / Night / Total (dash when empty), used by the screen table
+  const sumCells = (day, night) => (
+    <>
+      <td className="mono">{day ? day.toLocaleString("en-IN") : "-"}</td>
+      <td className="mono">{night ? night.toLocaleString("en-IN") : "-"}</td>
+      <td className="mono">{day + night ? (day + night).toLocaleString("en-IN") : "-"}</td>
+    </>
+  );
+
+  const buildMatrixBuf = (list) => {
+    const aoa = [
+      ["Machine", ...matrix.dates.flatMap((d) => [fmtDay(d), "", ""]), "Grand Total", "", ""],
+      ["", ...matrix.dates.flatMap(() => ["Day", "Night shift", "Total"]), "Day", "Night shift", "Total"]
+    ];
+
+    list.forEach((m) => {
+      const s = sumDates(m);
+      aoa.push([
+        m.name,
+        ...matrix.dates.flatMap((d) => {
+          const c = m.days[d] || { day: 0, night: 0 };
+          return [dash(c.day), dash(c.night), dash(c.day + c.night)];
+        }),
+        dash(s.day), dash(s.night), dash(s.day + s.night)
+      ]);
+    });
+
+    const all = list.reduce(
+      (a, m) => {
+        const s = sumDates(m);
+        return { day: a.day + s.day, night: a.night + s.night };
+      },
+      { day: 0, night: 0 }
+    );
+    aoa.push([
+      "Grand Total",
+      ...matrix.dates.flatMap((d) => {
+        const day = list.reduce((a, m) => a + (m.days[d]?.day || 0), 0);
+        const night = list.reduce((a, m) => a + (m.days[d]?.night || 0), 0);
+        return [dash(day), dash(night), dash(day + night)];
+      }),
+      dash(all.day), dash(all.night), dash(all.day + all.night)
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+      ...matrix.dates.map((_, i) => ({ s: { r: 0, c: 1 + i * 3 }, e: { r: 0, c: 3 + i * 3 } })),
+      { s: { r: 0, c: 1 + matrix.dates.length * 3 }, e: { r: 0, c: 3 + matrix.dates.length * 3 } }
+    ];
+    ws["!cols"] = [
+      { wch: 24 },
+      ...matrix.dates.flatMap(() => [{ wch: 10 }, { wch: 12 }, { wch: 10 }]),
+      { wch: 10 }, { wch: 12 }, { wch: 10 }
+    ];
+    styleSheet(ws, 2, [aoa.length - 1]);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Machine Impression");
+    return XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  };
+  const exportMatrixExcel = async () => {
+    if (!matrix.machines.length) return window.alert("No data to export");
+    try {
+      const label = `${fromDate || "start"}_to_${toDate || "end"}`;
+      const safe = (s) => String(s).replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+      const zip = new JSZip();
+      zip.file(`All_Machines_Impression_${label}.xlsx`, buildMatrixBuf(matrix.machines));
+      matrix.machines.forEach((m) => {
+        zip.file(`${safe(m.name)}_Impression_${label}.xlsx`, buildMatrixBuf([m]));
+      });
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      saveAs(blob, `Machine_Impression_${label}.zip`);
+    } catch (e) {
+      console.error("Matrix export failed:", e);
+      window.alert("Export failed");
+    }
+  };
+
   const [exporting, setExporting] = useState(false);
 
   // one Excel per machine (Sheet 1 = Daily Report, Sheet 2 = Detail Records); several machines -> zip
@@ -667,6 +823,73 @@ function MachineDetailReport({ initial, machines, machineStatuses, customers, lo
                   ))}
                   <td></td>
                   <td>{fmtHMS(report.totals.prodMins + sumMins(report.totals.status))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <div className="card shadow-lg mb-4">
+        <div className="card-header d-flex justify-content-between align-items-center">
+          <strong>Machine-wise Production Impression</strong>
+          <button className="btn btn-primary btn-sm px-3" onClick={exportMatrixExcel} disabled={!matrix.machines.length}>
+            Export Excel (ZIP)
+          </button>
+        </div>
+
+        <div className="table-responsive" style={{ maxHeight: "60vh", overflow: "auto" }}>
+          {matrixLoading ? (
+            <div className="p-4 text-center fw-bold">Loading…</div>
+          ) : matrix.machines.length === 0 ? (
+            <div className="p-4 text-center fw-bold">No records for selected filters</div>
+          ) : (
+            <table className="table table-bordered table-hover mb-0 align-middle" style={{ whiteSpace: "nowrap" }}>
+              <thead className="sticky-top">
+                <tr>
+                  <th rowSpan={2} style={{ minWidth: 160 }}>Machine</th>
+                  {matrix.dates.map((d) => (
+                    <th key={d} colSpan={3} className="dt-group">{fmtDay(d)}</th>
+                  ))}
+                  <th colSpan={3} className="dt-group">Grand Total</th>
+                </tr>
+                <tr>
+                  {matrix.dates.map((d) => (
+                    <Fragment key={d}>
+                      <th className="dt-group">Day</th>
+                      <th className="dt-group">Night shift</th>
+                      <th className="dt-group">Total</th>
+                    </Fragment>
+                  ))}
+                  <th className="dt-group">Day</th>
+                  <th className="dt-group">Night shift</th>
+                  <th className="dt-group">Total</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {matrix.machines.map((m) => (
+                  <tr key={m.name}>
+                    <td className="left" style={{ fontWeight: 700 }}>{m.name}</td>
+                    {matrix.dates.map((d) => {
+                      const c = m.days[d] || { day: 0, night: 0 };
+                      return <Fragment key={d}>{sumCells(c.day, c.night)}</Fragment>;
+                    })}
+                    {sumCells(sumDates(m).day, sumDates(m).night)}
+                  </tr>
+                ))}
+              </tbody>
+
+              <tfoot>
+                <tr>
+                  <td>Grand Total</td>
+                  {matrix.dates.map((d) => (
+                    <Fragment key={d}>{sumCells(matrix.totals[d].day, matrix.totals[d].night)}</Fragment>
+                  ))}
+                  {sumCells(
+                    matrix.machines.reduce((a, m) => a + sumDates(m).day, 0),
+                    matrix.machines.reduce((a, m) => a + sumDates(m).night, 0)
+                  )}
                 </tr>
               </tfoot>
             </table>
