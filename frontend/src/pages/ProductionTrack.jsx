@@ -729,7 +729,22 @@ function ProductionRealDashboard() {
   }, [productionList, deferredFilters, deferredLocationFilter]);
 
   // ================= DROPDOWN OPTIONS (from server, not from the loaded rows) =================
-  const dropdownOptions = serverOptions;
+  // keep only unique values (ignores extra spaces / upper-lower case differences)
+  const uniqueList = (arr) => {
+    const seen = new Set();
+    return (arr || []).filter((v) => {
+      const key = String(v ?? "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
+  const dropdownOptions = {
+    ...serverOptions,
+    productTypes: uniqueList(serverOptions.productTypes),
+    customerNames: uniqueList(serverOptions.customerNames),
+  };
 
     // ================= LAST USED PER ACTIVITY =================
   const lastUsedByActivity = useMemo(() => {
