@@ -10,7 +10,7 @@ import {
   Factory, Search, LayoutDashboard, ClipboardList, Route,
   Gauge, Cpu, CheckCircle2, Users, Scroll, FileStack, X, Layers,
   TrendingUp, TrendingDown, ArrowUpDown, PackageCheck, RefreshCw, AlertTriangle,
-  ShieldCheck, ChevronDown, Download, CalendarCheck,
+  ShieldCheck, ChevronDown, Download, CalendarCheck, Maximize2,
 } from "lucide-react";
 import BASE_URL from "../config/api";
 
@@ -1038,6 +1038,10 @@ function GlobalStyles() {
       .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(11) { animation-delay: 1.45s; }
       .panel-3d svg:not([viewBox="0 0 24 24"]) > g > circle:nth-of-type(12) { animation-delay: 1.55s; }
 
+      /* ---- Full view of a chart panel ---- */
+      .fv-overlay { position: fixed; inset: 0; z-index: 9500; background: #ffffff; display: flex; align-items: stretch; justify-content: stretch; padding: 0; box-sizing: border-box; animation: lpvFade 0.2s ease-out backwards; }
+      .fv-panel { width: 100%; height: 100%; overflow: auto; background: #ffffff; border-radius: 0; padding: 22px 32px 28px; box-sizing: border-box; animation: lpvDrillIn 0.35s cubic-bezier(0.22, 0.8, 0.3, 1) backwards; }
+
       /* ---- respect reduced motion + keep print clean ---- */
       @media (prefers-reduced-motion: reduce) {
         .portal-universe *, .portal-universe *::before, .portal-universe *::after,
@@ -1085,9 +1089,44 @@ function KpiCard({ label, value, sub, icon: Icon, accent = "blue", trend, onDril
   );
 }
 
+// scale applied to chart heights while a panel is open in Full view (1 = normal)
+const FullViewContext = createContext(1);
+const useFullScale = () => useContext(FullViewContext);
+
+// Normal view: the height the chart asked for.
+// Full view: fills the screen (minus header + legend), so no scrolling.
+const useChartHeight = (base) => {
+  const scale = useFullScale();
+  const [vh, setVh] = useState(() => window.innerHeight);
+  useEffect(() => {
+    if (scale <= 1) return;
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [scale]);
+  return scale > 1 ? Math.max(base, vh - 220) : base;
+};
+
 function Panel({ title, sub, tag, icon: Icon, iconGrad, children, className = "", actions }) {
+  const rootRef = useRef(null);
+  const [hasChart, setHasChart] = useState(false);
+  const [full, setFull] = useState(false);
+
+  // the Full view button appears only on panels that contain a chart (icons are ignored)
+  useLayoutEffect(() => {
+    const found = Boolean(rootRef.current?.querySelector('svg:not([viewBox="0 0 24 24"])'));
+    setHasChart((prev) => (prev === found ? prev : found));
+  });
+
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e) => { if (e.key === "Escape") setFull(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [full]);
+
   return (
-    <div className={`panel-3d ${className}`}>
+    <div ref={rootRef} className={`panel-3d ${className}`}>
       {(title || tag || actions) && (
         <div className="panel-header-3d">
           <div className="panel-title-wrap">
@@ -1101,15 +1140,51 @@ function Panel({ title, sub, tag, icon: Icon, iconGrad, children, className = ""
               {sub && <p>{sub}</p>}
             </div>
           </div>
-          {(tag || actions) && (
+          {(tag || actions || hasChart) && (
             <div className="panel-actions">
               {tag && <span className="badge-pill" style={{ background: COLORS.mist, color: COLORS.slate }}>{tag}</span>}
               {actions}
+              {hasChart && (
+                <button
+                  type="button"
+                  onClick={() => setFull(true)}
+                  className="btn-3d btn-3d-secondary btn-3d-sm no-print"
+                  title="Open full view"
+                >
+                  <Maximize2 size={13} /> Full view
+                </button>
+              )}
             </div>
           )}
         </div>
       )}
       {children}
+
+      {full && createPortal(
+        <div className="fv-overlay no-print" onClick={() => setFull(false)}>
+          <div className="fv-panel lp-scroll" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-header-3d">
+              <div className="panel-title-wrap">
+                {Icon && (
+                  <div className="panel-icon-badge" style={{ background: iconGrad || ACCENTS.blue.grad }}>
+                    <Icon size={17} />
+                  </div>
+                )}
+                <div className="panel-title-text">
+                  {title && <h3>{title}</h3>}
+                  {sub && <p>{sub}</p>}
+                </div>
+              </div>
+              <div className="panel-actions">
+                {tag && <span className="badge-pill" style={{ background: COLORS.mist, color: COLORS.slate }}>{tag}</span>}
+                <button onClick={() => setFull(false)} className="drawer-close-btn" title="Close (Esc)"><X size={18} /></button>
+              </div>
+            </div>
+            <FullViewContext.Provider value={2}>{children}</FullViewContext.Provider>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1318,6 +1393,7 @@ function SingleSelectDropdown({ options, value, onChange, width = 280, placehold
 function DataTable({ columns, rows, pageSize = 12, onRowClick, onRowDoubleClick, initialSort }) {
   const [sort, setSort] = useState(initialSort || null);
   const [page, setPage] = useState(0);
+  const inFullView = useFullScale() > 1; // true only while a chart is open in Full view
 
   useEffect(() => { setPage(0); }, [rows]);
 
@@ -1338,6 +1414,8 @@ function DataTable({ columns, rows, pageSize = 12, onRowClick, onRowDoubleClick,
     setPage(0);
     setSort((s) => (s && s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" }));
   };
+
+  if (inFullView) return null; // tables are hidden in the maximized chart view
 
   return (
     <div>
@@ -1514,7 +1592,9 @@ const DRILL_HINT = "Double-click to view records";
    light highlight band plus a floating tooltip card listing every visible
    series' value for that category. Double-clicking a bar calls
    onDrill(row, seriesKey); double-clicking the band calls onDrill(row, null). */
-function BarsChart({ data, categoryKey, series, stacked = false, overlay = false, height = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill, askOnDrill = false }) {
+function BarsChart({ data, categoryKey, series, stacked = false, overlay = false, height: heightProp = 280, unit = "", valueFormatter, rotateLabels = -25, categoryColors, maxLabelChars = 10, onDrill, askOnDrill = false }) {
+  const height = useChartHeight(heightProp);
+  const inFull = useFullScale() > 1;
   const containerRef = useRef(null);
   const menuRef = useRef(null);
   const [menu, setMenu] = useState(null);
@@ -1584,7 +1664,7 @@ function BarsChart({ data, categoryKey, series, stacked = false, overlay = false
   const fallbackPlotW = scrollAreaW - margin.right;
   const plotWForVisible = fallbackPlotW;
   const barUnit = Math.max(plotWForVisible / VISIBLE_BARS, 30);
-  const needsScroll = n > VISIBLE_BARS;
+  const needsScroll = n > VISIBLE_BARS && !inFull;
   const VBW = needsScroll ? n * barUnit + margin.right : scrollAreaW;
   const plotW = VBW - margin.right;
   const plotH = Math.max(height - margin.top - margin.bottom, 40);
@@ -1606,6 +1686,7 @@ function BarsChart({ data, categoryKey, series, stacked = false, overlay = false
   const yScale = (v) => (v / niceMax) * plotH;
 
   const bandW = plotW / n;
+const labelChars = inFull ? Math.max(maxLabelChars, Math.min(24, Math.floor(bandW / 7))) : maxLabelChars;
   const groupW = bandW * 0.62;
   const barW = (stacked || overlay) ? groupW : groupW / seriesCount;
 
@@ -1712,12 +1793,12 @@ function BarsChart({ data, categoryKey, series, stacked = false, overlay = false
                   fontWeight={600}
                   transform={rotateLabels ? `rotate(${rotateLabels}, ${bandX + groupW / 2}, ${baseline + 18})` : undefined}
                   onClick={() => toggleLabel(String(row[categoryKey]))}
-                  style={{ cursor: String(row[categoryKey]).length > maxLabelChars ? "pointer" : "default" }}
+                  style={{ cursor: String(row[categoryKey]).length > labelChars ? "pointer" : "default" }}
                 >
                   {(() => {
                     const full = String(row[categoryKey]);
-                    if (full.length <= maxLabelChars || expandedLabels.has(full)) return full;
-                    return full.slice(0, maxLabelChars).trimEnd() + "…";
+                    if (full.length <= labelChars || expandedLabels.has(full)) return full;
+                    return full.slice(0, labelChars).trimEnd() + "…";
                   })()}
                 </text>
               </g>
@@ -1778,7 +1859,9 @@ function BarsChart({ data, categoryKey, series, stacked = false, overlay = false
    stay in <PieLegend />, driven externally. Hovering a slice shows the same
    floating tooltip card as BarsChart; double-clicking a slice calls
    onDrill({ name, value, color }). */
-function DonutChart({ data, height = 220, innerRatio = 0.55, onDrill }) {
+function DonutChart({ data, height: heightProp = 220, innerRatio = 0.55, onDrill }) {
+  const height = useChartHeight(heightProp);
+  const inFull = useFullScale() > 1;
   const containerRef = useRef(null);
   const [hover, setHover] = useState(null);
 
@@ -1791,7 +1874,7 @@ function DonutChart({ data, height = 220, innerRatio = 0.55, onDrill }) {
     );
   }
 
-  const VBW = 300;
+  const VBW = inFull ? height : 300;
   const cx = VBW / 2;
   const cy = height / 2;
   const outerR = Math.max(Math.min(VBW / 2 - 30, height / 2 - 26), 40);
@@ -1871,7 +1954,9 @@ function DonutChart({ data, height = 220, innerRatio = 0.55, onDrill }) {
    category and shows the same floating tooltip card; double-clicking calls
    onDrill(row) for the nearest category. Supports a second (right) y-axis for
    a dual-axis trend line. */
-function LinesChart({ data, categoryKey, series, height = 260, area = false, rotateLabels = 0, rightUnit = "%", onDrill }) {
+function LinesChart({ data, categoryKey, series, height: heightProp = 260, area = false, rotateLabels = 0, rightUnit = "%", onDrill }) {
+  const height = useChartHeight(heightProp);
+  const inFull = useFullScale() > 1;
   const containerRef = useRef(null);
   const [hoverIdx, setHoverIdx] = useState(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -1909,7 +1994,7 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
   const hasBars = series.some((s) => s.type === "bar");
 
   const nPts = data.length;
-  const needsScroll = nPts > 8;
+  const needsScroll = nPts > 8 && !inFull;
   let earlyMax = 0;
   data.forEach((row) => (leftSeries.length ? leftSeries : series).forEach((s) => {
     const v = Number(row[s.key]) || 0;
@@ -1917,7 +2002,9 @@ function LinesChart({ data, categoryKey, series, height = 260, area = false, rot
   }));
   const leftLabelLen = fmtFull(niceCeil(earlyMax)).length;
   const margin = { top: 20, right: hasRight ? 50 : 18, bottom: rotateLabels ? 66 : 34, left: Math.max(54, leftLabelLen * 7 + 14) };
-  const VBW = needsScroll ? Math.max(nPts * 60 + margin.left + margin.right, containerWidth || 1000) : 1000;
+  const VBW = needsScroll
+  ? Math.max(nPts * 60 + margin.left + margin.right, containerWidth || 1000)
+  : (inFull && containerWidth ? containerWidth : 1000);
   const plotW = VBW - margin.left - margin.right;
   const plotH = Math.max(height - margin.top - margin.bottom, 40);
   const baseline = margin.top + plotH;
