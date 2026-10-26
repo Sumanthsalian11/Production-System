@@ -338,7 +338,7 @@ function PlateRequestForm() {
       {/* 💅 LIGHT AQUA-GLASS DESIGN (scoped, no external CSS needed)               */}
       {/* ========================================================================= */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+        /* font loaded locally */
 
         .pr-root {
           --ink: #1f2d3a; --muted: #5f6c7a; --hint: #9aa5b1;

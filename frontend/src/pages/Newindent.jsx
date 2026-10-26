@@ -558,7 +558,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+        /* font loaded locally */
 
         /* ============ Theme tokens ============ */
         .indent-app-container {

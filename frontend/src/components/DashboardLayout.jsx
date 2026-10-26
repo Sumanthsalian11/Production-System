@@ -287,8 +287,10 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     const fetchAnnouncement = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         const token = localStorage.getItem("token");
+        if (!token) return;
         const res = await axios.get(`${BASE_URL}/api/auth/announcement`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -307,9 +309,9 @@ export default function DashboardLayout() {
     };
 
     fetchAnnouncement();
-    const interval = setInterval(fetchAnnouncement, 15000);
+    const interval = setInterval(fetchAnnouncement, 20000);
     return () => clearInterval(interval);
-  }, [isTickerMuted, announcementData?.type]);
+  }, [isTickerMuted]);
 
   const themeColors = useMemo(() => {
     const t = announcementData?.type || "broadcast";

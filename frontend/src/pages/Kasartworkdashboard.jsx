@@ -11,7 +11,7 @@ const GLOSSY_BLUE = "#fde3d8"; // light orange (active chips / send)
 const BRAND = "#e4572e";
 
 const kasArtworkStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+  /* font loaded locally */
   .paw-container{position:relative;width:100%!important;max-width:none!important;box-sizing:border-box;min-height:100%;margin:0!important;padding:16px 18px 28px;overflow:hidden;border:0;font-family:'Source Sans 3','Segoe UI',system-ui,-apple-system,sans-serif;color:#1f2d3a;background:#f3f5f7}
   .paw-container>*{position:relative}
 

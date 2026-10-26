@@ -69,7 +69,7 @@ export const STATUS = {
 // Data / codes: JetBrains Mono (ticket IDs, material codes, timestamps)
 // ---------------------------------------------------------------------------
 export const FONT_IMPORT = `
-  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+  /* font loaded locally */
 
   * { box-sizing: border-box; }
 

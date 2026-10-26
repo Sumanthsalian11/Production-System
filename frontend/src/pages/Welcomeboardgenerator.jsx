@@ -165,18 +165,15 @@ export default function WelcomeBoardGenerator() {
   // =========================================================
 
   useEffect(() => {
-    const link = document.createElement("link");
-
-    link.rel = "stylesheet";
-
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Barlow:wght@700;800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Playfair+Display:wght@700;800;900&family=Merriweather:wght@700;800;900&display=swap";
-
-    document.head.appendChild(link);
-
-    return () => {
-      document.head.removeChild(link);
-    };
+    const id = "wbg-google-fonts";
+    if (!document.getElementById(id)) {
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href =
+        "https://fonts.googleapis.com/css2?family=Barlow:wght@700;800;900&family=Poppins:wght@700;800;900&family=Montserrat:wght@700;800;900&family=Playfair+Display:wght@700;800;900&family=Merriweather:wght@700;800;900&display=swap";
+      document.head.appendChild(link);
+    }
   }, []);
 
   // =========================================================
@@ -359,7 +356,7 @@ export default function WelcomeBoardGenerator() {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       const canvas = await html2canvas(boardRef.current, {
-        scale: 3,
+        scale: 2,
         useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
@@ -1508,20 +1505,41 @@ const resetButtonStyle = {
 // DRAGGABLE LINE — wraps each text row so it can be repositioned
 // =============================================================
 
-function DraggableLine({ id, onDrag, style, children }) {
+const DraggableLine = React.memo(function DraggableLine({ id, onDrag, style, children }) {
   const draggingRef = useRef(false);
   const lastPointRef = useRef({ x: 0, y: 0 });
+  const rafIdRef = useRef(null);
+  const deltaRef = useRef({ dx: 0, dy: 0 });
+  const onDragRef = useRef(onDrag);
+  onDragRef.current = onDrag;
 
   const handlePointerMove = (e) => {
     if (!draggingRef.current) return;
-    const dx = e.clientX - lastPointRef.current.x;
-    const dy = e.clientY - lastPointRef.current.y;
+    deltaRef.current.dx += e.clientX - lastPointRef.current.x;
+    deltaRef.current.dy += e.clientY - lastPointRef.current.y;
     lastPointRef.current = { x: e.clientX, y: e.clientY };
-    onDrag(id, dx, dy);
+
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        if (deltaRef.current.dx !== 0 || deltaRef.current.dy !== 0) {
+          onDragRef.current(id, deltaRef.current.dx, deltaRef.current.dy);
+          deltaRef.current = { dx: 0, dy: 0 };
+        }
+      });
+    }
   };
 
   const handlePointerUp = () => {
     draggingRef.current = false;
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (deltaRef.current.dx !== 0 || deltaRef.current.dy !== 0) {
+      onDragRef.current(id, deltaRef.current.dx, deltaRef.current.dy);
+      deltaRef.current = { dx: 0, dy: 0 };
+    }
     document.removeEventListener("pointermove", handlePointerMove);
     document.removeEventListener("pointerup", handlePointerUp);
   };
@@ -1531,7 +1549,8 @@ function DraggableLine({ id, onDrag, style, children }) {
     e.stopPropagation();
     draggingRef.current = true;
     lastPointRef.current = { x: e.clientX, y: e.clientY };
-    document.addEventListener("pointermove", handlePointerMove);
+    deltaRef.current = { dx: 0, dy: 0 };
+    document.addEventListener("pointermove", handlePointerMove, { passive: true });
     document.addEventListener("pointerup", handlePointerUp);
   };
 
@@ -1540,7 +1559,7 @@ function DraggableLine({ id, onDrag, style, children }) {
       onPointerDown={handlePointerDown}
       style={{
         ...style,
-       cursor: "move",
+        cursor: "move",
         userSelect: "none",
         touchAction: "none",
       }}
@@ -1549,25 +1568,46 @@ function DraggableLine({ id, onDrag, style, children }) {
       {children}
     </div>
   );
-}
+});
 
 // =============================================================
 // STRETCH HANDLE — drag left/right to widen or narrow a line
 // =============================================================
 
-function StretchHandle({ id, onStretch, stretch }) {
+const StretchHandle = React.memo(function StretchHandle({ id, onStretch, stretch }) {
   const draggingRef = useRef(false);
   const lastXRef = useRef(0);
+  const rafIdRef = useRef(null);
+  const deltaXRef = useRef(0);
+  const onStretchRef = useRef(onStretch);
+  onStretchRef.current = onStretch;
 
   const handlePointerMove = (e) => {
     if (!draggingRef.current) return;
-    const dx = e.clientX - lastXRef.current;
+    deltaXRef.current += e.clientX - lastXRef.current;
     lastXRef.current = e.clientX;
-    onStretch(id, dx / 200);
+
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafIdRef.current = null;
+        if (deltaXRef.current !== 0) {
+          onStretchRef.current(id, deltaXRef.current / 200);
+          deltaXRef.current = 0;
+        }
+      });
+    }
   };
 
   const handlePointerUp = () => {
     draggingRef.current = false;
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (deltaXRef.current !== 0) {
+      onStretchRef.current(id, deltaXRef.current / 200);
+      deltaXRef.current = 0;
+    }
     document.removeEventListener("pointermove", handlePointerMove);
     document.removeEventListener("pointerup", handlePointerUp);
   };
@@ -1577,42 +1617,35 @@ function StretchHandle({ id, onStretch, stretch }) {
     e.stopPropagation();
     draggingRef.current = true;
     lastXRef.current = e.clientX;
-    document.addEventListener("pointermove", handlePointerMove);
+    deltaXRef.current = 0;
+    document.addEventListener("pointermove", handlePointerMove, { passive: true });
     document.addEventListener("pointerup", handlePointerUp);
   };
 
   return (
     <div
       onPointerDown={handlePointerDown}
-      // Keep this UI-only grip out of the exported board image
       data-html2canvas-ignore="true"
       title="Drag to stretch width"
       style={{
         position: "absolute",
         right: "-1.6cqw",
         top: "50%",
-        // Cancel out the parent's horizontal stretch so the grip
-        // stays a normal circle instead of stretching with the text.
         transform: `translateY(-50%) scaleX(${1 / stretch})`,
-
         width: "2.2cqw",
         height: "2.2cqw",
         minWidth: 18,
         minHeight: 18,
-
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-
         borderRadius: "50%",
         border: `1.5px solid ${BLUE}`,
         background: "#ffffff",
         boxShadow: "0 1px 4px rgba(0,0,0,0.35)",
-
         cursor: "ew-resize",
         userSelect: "none",
         touchAction: "none",
-
         color: BLUE,
         fontWeight: 700,
         fontSize: "1.3cqw",
@@ -1623,13 +1656,13 @@ function StretchHandle({ id, onStretch, stretch }) {
       ⇔
     </div>
   );
-}
+});
 
 // =============================================================
 // BOARD PREVIEW
 // =============================================================
 
-function BoardPreview({
+const BoardPreview = React.memo(function BoardPreview({
   boardRef,
   guests,
   companyName,
@@ -1827,4 +1860,4 @@ function BoardPreview({
       </div>
     </div>
   );
-}
+});

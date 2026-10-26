@@ -210,7 +210,7 @@ function ShreddingDashboard() {
     <div className="shredding-dashboard-wrapper">
       {/* ── Scoped Theme Matching Productiondashboard Exactly ── */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap');
+        /* font loaded locally */
 
         .shredding-dashboard-wrapper {
           --brand: #e4572e;

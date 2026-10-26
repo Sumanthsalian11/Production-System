@@ -4,6 +4,7 @@ import axios from "axios";
 import "../styles/adminPro.css";
 import BASE_URL from "../config/api";
 import { getAllModules } from "../config/menuItems";
+import * as XLSX from "xlsx";
 
 import { motion } from "framer-motion";
 import {
@@ -1623,6 +1624,36 @@ const [supplierFilter, setSupplierFilter] = useState("");
     return machine ? machine.machineName : "Unknown";
   };
 
+  // ==================== EXPORT ITEMS TO EXCEL ====================
+  const exportItemsToExcel = () => {
+    // Export the filtered rows when the list is open, otherwise all items
+    const source = showItemList ? filteredItems : items;
+    if (!source.length) return showAlert("No items to export");
+
+    const rows = source.map((i, idx) => ({
+      "Sl No": idx + 1,
+      "Item Code": i.itemCode || "",
+      "Customer Name": i.customerName || "",
+      "Description": i.description || "",
+      "Material Type": i.materialType || "",
+      "Front Colors": i.colorFront || "",
+      "Back Colors": i.colorBack || "",
+      "Waste Quantity": i.wasteQty ?? "",
+      "Job Size": i.jobSize || "",
+      "Ink Details": i.inkDetails || "",
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 6 }, { wch: 20 }, { wch: 24 }, { wch: 36 }, { wch: 18 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Items");
+    XLSX.writeFile(wb, `Items_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   // ==================== FILTERING LOGIC ====================
   const filteredPriorities = priorities.filter((p) =>
     (p.name || "").toLowerCase().includes(priorityFilter.toLowerCase())
@@ -2399,6 +2430,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
                 }}
               />
             </label>
+            <button type="button" className="pro-btn" onClick={exportItemsToExcel}>
+              📤 Export Excel
+            </button>
+
             {uploadingItems && <span style={{ fontSize: "13px", color: "#08406b" }}>Uploading...</span>}
           </div>
 

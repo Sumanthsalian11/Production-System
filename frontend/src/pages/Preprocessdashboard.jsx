@@ -76,7 +76,7 @@ function PoField({ icon, label, required, filled, alwaysFloat, caret, invalid, c
 const has = (v) => v !== "" && v !== null && v !== undefined;
 
 const preprocessStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+  /* font loaded locally */
   @keyframes pulseNotification {
     0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
     50% { transform: scale(1.03); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }

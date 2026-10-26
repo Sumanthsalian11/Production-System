@@ -11,7 +11,8 @@ exports.getWasteByWO = async (req, res) => {
       .select(
         "reelNo productionDate mattWaste printWaste realEndWaste"
       )
-      .sort({ productionDate: -1 });
+      .sort({ productionDate: -1 })
+      .lean();
 
     const data = reels.map((r) => ({
       productionId: r._id,
@@ -77,7 +78,9 @@ exports.getShreddingByWO = async (req, res) => {
   try {
     const data = await Shredding.find({
       efiWoNumber: req.params.wo,
-    }).sort({ shreddingDate: -1 });
+    })
+      .sort({ shreddingDate: -1 })
+      .lean();
 
     res.json(data);
   } catch (err) {

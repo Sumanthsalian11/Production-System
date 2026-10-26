@@ -59,4 +59,8 @@ const ShreddingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+ShreddingSchema.index({ efiWoNumber: 1, shreddingDate: -1 });
+ShreddingSchema.index({ productionId: 1 });
+ShreddingSchema.index({ shreddingDate: -1 });
+
 module.exports = mongoose.model("Shredding", ShreddingSchema);

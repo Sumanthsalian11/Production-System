@@ -2437,7 +2437,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       {/* SCOPED ENTERPRISE TEAL / ORANGE THEME (No separate CSS file required) */}
       {/* ========================================================================= */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+        /* font loaded locally */
 
         /* ---------- Theme tokens ---------- */
         .planner-dashboard-root {

@@ -729,7 +729,7 @@ export default function ClickReport() {
       {/* SCOPED ENTERPRISE TEAL / ORANGE THEME (same as Planner Dashboard)         */}
       {/* ========================================================================= */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+        /* font loaded locally */
 
         /* ---------- Theme tokens ---------- */
         .planner-dashboard-root {

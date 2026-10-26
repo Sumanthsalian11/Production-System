@@ -142,7 +142,7 @@ const Pagination = ({ page, totalPages, pageSize, total, onPage, onPageSize }) =
 
 /* ── Professional Theme (with richer table header color & sharp field visibility) ── */
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  /* font loaded locally */
 
   .pms-root {
     --bg: #f4f6f8;
