@@ -716,9 +716,9 @@ function ProductionReport() {
     const jobPerfData = jobPerformance.map((j) => ({
       "WO No": j.workOrder,
       Customer: j.customer,
-      "Order Qty": j.orderQty,
       "Product Type": jobInfo(j.workOrder).productType,
       Description: jobInfo(j.workOrder).description,
+      "Order Qty": j.orderQty,
       Production: j.production,
       "Completion %": ((j.production / j.orderQty) * 100).toFixed(2)
     }));
@@ -731,9 +731,9 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty,
         "Product Type": jobInfo(j.workOrder).productType,
-        Description: jobInfo(j.workOrder).description
+        Description: jobInfo(j.workOrder).description,
+        "Order Qty": j.orderQty,
       };
 
       usedActivities.forEach(({ id, name }) => {
@@ -753,9 +753,9 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty,
         "Product Type": jobInfo(j.workOrder).productType,
-        Description: jobInfo(j.workOrder).description
+        Description: jobInfo(j.workOrder).description,
+        "Order Qty": j.orderQty,
       };
 
       usedActivities.forEach(({ id, name }) => {
@@ -775,9 +775,9 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty,
         "Product Type": jobInfo(j.workOrder).productType,
-        Description: jobInfo(j.workOrder).description
+        Description: jobInfo(j.workOrder).description,
+        "Order Qty": j.orderQty,
       };
 
       usedActivities.forEach(({ id, name }) => {
@@ -792,28 +792,58 @@ function ProductionReport() {
     const jobWastePercentSheet = XLSX.utils.json_to_sheet(jobWastePercentData);
     XLSX.utils.book_append_sheet(wb, jobWastePercentSheet, "Job Waste %");
 
-    /* JOB ACTIVITY SUMMARY (production + wastage + waste % together) */
-    const jobActivityData = sortedJobActivityAll.map((j) => {
-      const row = {
-        "WO No": j.workOrder,
-        Customer: j.customer,
-        "Product Type": jobInfo(j.workOrder).productType,
-        Description: jobInfo(j.workOrder).description,
-        "Order Qty": j.orderQty
-      };
-      usedActivities.forEach(({ id, name }) => {
+    /* JOB ACTIVITY SUMMARY – same layout as the on-screen table
+       (activity name on top, Production | Wastage | Waste % underneath) */
+    const fixedHeads = ["WO No", "Customer", "Product Type", "Description", "Order Qty"];
+
+    const headRow1 = [...fixedHeads];
+    const headRow2 = fixedHeads.map(() => "");
+    usedActivities.forEach(({ name }) => {
+      headRow1.push(name, "", "");
+      headRow2.push("Production", "Wastage", "Waste %");
+    });
+
+    const bodyRows = sortedJobActivityAll.map((j) => {
+      const row = [
+        j.workOrder,
+        j.customer,
+        jobInfo(j.workOrder).productType,
+        jobInfo(j.workOrder).description,
+        j.orderQty
+      ];
+      usedActivities.forEach(({ id }) => {
         const a = j.acts?.[id];
-        row[name + " Production"] = a ? a.production : "";
-        row[name + " Wastage"] = a ? a.wastage : "";
-        row[name + " Waste %"] = a && a.wastePercent ? a.wastePercent.toFixed(2) : "";
+        row.push(
+          a ? a.production : "",
+          a ? a.wastage : "",
+          a && a.wastePercent ? a.wastePercent.toFixed(2) : ""
+        );
       });
       return row;
     });
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(jobActivityData),
-      "Job Activity Summary"
-    );
+
+    const actSheet = XLSX.utils.aoa_to_sheet([headRow1, headRow2, ...bodyRows]);
+
+    // merge: fixed columns span both header rows, each activity name spans its 3 columns
+    const merges = [];
+    fixedHeads.forEach((_, c) => merges.push({ s: { r: 0, c }, e: { r: 1, c } }));
+    usedActivities.forEach((_, i) => {
+      const c = fixedHeads.length + i * 3;
+      merges.push({ s: { r: 0, c }, e: { r: 0, c: c + 2 } });
+    });
+    actSheet["!merges"] = merges;
+
+    // column widths
+    actSheet["!cols"] = [
+      { wch: 10 },
+      { wch: 28 },
+      { wch: 16 },
+      { wch: 35 },
+      { wch: 12 },
+      ...usedActivities.flatMap(() => [{ wch: 13 }, { wch: 11 }, { wch: 10 }])
+    ];
+
+    XLSX.utils.book_append_sheet(wb, actSheet, "Job Activity Summary");
 
     /* MACHINE PRODUCTION */
     const machineProdData = machineProduction.map((m) => {
