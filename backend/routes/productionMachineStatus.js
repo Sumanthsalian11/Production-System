@@ -66,7 +66,7 @@ printerName: req.body.printerName || "",
     newRecord.durMins = minsOf(newRecord.fromTime, newRecord.toTime);
     newRecord.statusKey = String(newRecord.machineStatus || "").trim().toLowerCase();
     const saved = await newRecord.save();
-    clearPersoCache();
+    try { clearPersoCache(); } catch (e) { console.error("cache clear:", e); }
 
     res.status(201).json(saved);
   } catch (err) {
@@ -81,8 +81,54 @@ printerName: req.body.printerName || "",
 
 
 // ==========================================
-// GET ALL
+// BULK CREATE (main entry + slots, all or nothing)
 // ==========================================
+router.post("/bulk", async (req, res) => {
+  const ids = [];
+  try {
+    const entries = Array.isArray(req.body.entries) ? req.body.entries : [];
+    if (!entries.length) return res.status(400).json({ message: "No entries to save" });
+
+    const docs = entries.map((b) => {
+      const _id = new mongoose.Types.ObjectId();
+      ids.push(_id);
+      return {
+        _id,
+        productionDate: b.productionDate,
+        shift: b.shift,
+        activityId: b.activityId,
+        machineId: b.machineId,
+        machineStatus: b.machineStatus,
+        customerName: b.customerName,
+        materialType: b.materialType,
+        fromTime: b.fromTime,
+        toTime: b.toTime,
+        remarks: b.remarks,
+        enteredBy: b.enteredBy,
+        woNumber: b.woNumber,
+        totalPages: b.totalPages || 0,
+        wastageSheets: b.wastageSheets || 0,
+        wastePercentage: b.wastePercentage || 0,
+        reason: b.reason,
+        paperSize: b.paperSize || "",
+        printerName: b.printerName || "",
+        userLocations: b.userLocations || [],
+        durMins: minsOf(b.fromTime, b.toTime),
+        statusKey: String(b.machineStatus || "").trim().toLowerCase(),
+      };
+    });
+
+    const saved = await ProductionMachineStatus.insertMany(docs);
+    try { clearPersoCache(); } catch (e) { console.error("cache clear:", e); }
+    res.status(201).json(saved);
+  } catch (err) {
+    console.error("Bulk create error:", err);
+    // undo any rows that were inserted before the failure
+    if (ids.length) await ProductionMachineStatus.deleteMany({ _id: { $in: ids } }).catch(() => {});
+    const bad = err.name === "ValidationError" || err.name === "CastError";
+    res.status(bad ? 400 : 500).json({ message: "Error creating records", error: err.message });
+  }
+});
 router.get("/", async (req, res) => {
   try {
     const q = req.query;
@@ -294,7 +340,7 @@ const clearPersoCache = () => {
   persoCache.forEach((e) => { e.dirty = true; });
   rCache.clear();
   clearTimeout(warmTimer);
-  warmTimer = setTimeout(() => warmPerso(), 3000);
+  warmTimer = setTimeout(() => warmPerso(), 45000);
   warmTimer.unref?.();
 };
 
@@ -681,21 +727,16 @@ reason: req.body.reason,
 paperSize:   req.body.paperSize   || "",
 printerName: req.body.printerName || "",
         enteredBy: req.body.enteredBy,
-userLocations: req.body.userLocations || [],
-       
+        userLocations: req.body.userLocations || [],
+        durMins: minsOf(req.body.fromTime, req.body.toTime),
+        statusKey: String(req.body.machineStatus || "").trim().toLowerCase(),
       },
       {
         new: true,
       }
     );
 
-    clearPersoCache();
-    if (updated) {
-      await ProductionMachineStatus.updateOne(
-        { _id: updated._id },
-        { $set: { durMins: minsOf(updated.fromTime, updated.toTime), statusKey: String(updated.machineStatus || "").trim().toLowerCase() } }
-      );
-    }
+    try { clearPersoCache(); } catch (e) { console.error("cache clear:", e); }
     res.json(updated);
   } catch (err) {
     console.error("Update error:", err);
@@ -714,7 +755,7 @@ userLocations: req.body.userLocations || [],
 router.delete("/:id", async (req, res) => {
   try {
     await ProductionMachineStatus.findByIdAndDelete(req.params.id);
-    clearPersoCache();
+    try { clearPersoCache(); } catch (e) { console.error("cache clear:", e); }
 
     res.json({
       message: "Deleted successfully",

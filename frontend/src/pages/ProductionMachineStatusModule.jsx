@@ -683,6 +683,15 @@ function ShiftBadge({ shift }) {
   );
 }
 
+/* ── readable error text ── */
+const errMsg = (err, fallback = "Error saving data") => {
+  const s = err?.response?.status;
+  if (s === 401 || s === 403) return "Session expired. Please log in again.";
+  if (err?.code === "ECONNABORTED") return "Server took too long. Check the records list before saving again.";
+  if (!err?.response) return "Cannot reach server. Check your connection.";
+  return `${fallback} (${s}): ${err.response.data?.error || err.response.data?.message || err.message}`;
+};
+
 /* ── Default slot ── */
 const newSlot = () => ({ id: Date.now() + Math.random(), machineStatus: "", fromTime: "", toTime: "", reason: "" });
 
@@ -744,7 +753,7 @@ export default function ProductionMachineStatusModule() {
     });
   };
 
-  const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
+  const authHeaders = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` }, timeout: 30000 }), [token]);
 
   /* ── Decode token ── */
   useEffect(() => {
@@ -967,6 +976,9 @@ export default function ProductionMachineStatusModule() {
     setSubmitting(true);
     try {
       await submitEntry();
+    } catch (err) {
+      console.error("Submit error:", err);
+      showAlert(errMsg(err), "error");
     } finally {
       submitLock.current = false;
       setSubmitting(false);
@@ -1045,77 +1057,56 @@ export default function ProductionMachineStatusModule() {
 
     const basePayload = { ...form, enteredBy: loggedInUser, userLocations };
 
+    const slotPayloads = extraSlots.map((slot) => ({
+      productionDate: form.productionDate,
+      shift:          form.shift,
+      activityId:     form.activityId,
+      machineId:      form.machineId,
+      machineStatus:  slot.machineStatus,
+      paperSize:      form.paperSize,
+      printerName:    form.printerName,
+      fromTime:       slot.fromTime,
+      toTime:         slot.toTime,
+      reason:         slot.reason || "",
+      customerName:   form.customerName || "",
+      materialType:   form.materialType || "",
+      woNumber:       form.woNumber || "",
+      totalPages:     0,
+      wastageSheets:  0,
+      wastePercentage:0,
+      remarks:        "",
+      enteredBy:      loggedInUser,
+      userLocations,
+    }));
+
+    const API = `${BASE_URL}/api/production-machine-status`;
+
     try {
       if (editingId) {
-        await axios.put(
-          `${BASE_URL}/api/production-machine-status/${editingId}`,
-          basePayload,
-          authHeaders
-        );
+        await axios.put(`${API}/${editingId}`, basePayload, authHeaders);
 
-        for (const slot of extraSlots) {
-          const slotPayload = {
-            productionDate: form.productionDate,
-            shift:          form.shift,
-            activityId:     form.activityId,
-            machineId:      form.machineId,
-            machineStatus:  slot.machineStatus,
-            paperSize:      form.paperSize,
-            printerName:    form.printerName,
-            fromTime:       slot.fromTime,
-            toTime:         slot.toTime,
-            reason:         slot.reason || "",
-            customerName:   form.customerName   || "",
-            materialType:   form.materialType   || "",
-            woNumber:       form.woNumber       || "",
-            totalPages:     "",
-            wastageSheets:  "",
-            wastePercentage:"",
-            remarks:        "",
-            enteredBy:      loggedInUser,
-            userLocations,
-          };
-          await axios.post(`${BASE_URL}/api/production-machine-status`, slotPayload, authHeaders);
+        if (slotPayloads.length) {
+          try {
+            await axios.post(`${API}/bulk`, { entries: slotPayloads }, authHeaders);
+          } catch (err) {
+            console.error("Slot save error:", err);
+            showAlert(`Entry updated, but time slots were NOT saved: ${errMsg(err, "Error")}`, "error");
+            fetchRecords();
+            return; // form stays open, so clicking Update again is safe (PUT can be repeated)
+          }
         }
-
         showAlert(
-          extraSlots.length > 0
-            ? `Entry updated (+ ${extraSlots.length} new slot${extraSlots.length > 1 ? "s" : ""})`
+          slotPayloads.length
+            ? `Entry updated (+ ${slotPayloads.length} new slot${slotPayloads.length > 1 ? "s" : ""})`
             : "Entry updated",
           "success"
         );
       } else {
-        await axios.post(`${BASE_URL}/api/production-machine-status`, basePayload, authHeaders);
-
-        for (const slot of extraSlots) {
-          const slotPayload = {
-            productionDate: form.productionDate,
-            shift:          form.shift,
-            activityId:     form.activityId,
-            machineId:      form.machineId,
-            machineStatus:  slot.machineStatus,
-            paperSize:      form.paperSize,
-            printerName:    form.printerName,
-            fromTime:       slot.fromTime,
-            toTime:         slot.toTime,
-            reason:         slot.reason || "",
-            customerName:   form.customerName   || "",
-            materialType:   form.materialType   || "",
-            woNumber:       form.woNumber       || "",
-            totalPages:     "",
-            wastageSheets:  "",
-            wastePercentage:"",
-            remarks:        "",
-            enteredBy:      loggedInUser,
-            userLocations,
-          };
-          await axios.post(`${BASE_URL}/api/production-machine-status`, slotPayload, authHeaders);
-        }
-
-        const slotCount = extraSlots.length;
+        // main entry + all slots in ONE request (all saved or none saved)
+        await axios.post(`${API}/bulk`, { entries: [basePayload, ...slotPayloads] }, authHeaders);
         showAlert(
-          slotCount > 0
-            ? `Entry saved (+ ${slotCount} time slot${slotCount > 1 ? "s" : ""})`
+          slotPayloads.length
+            ? `Entry saved (+ ${slotPayloads.length} time slot${slotPayloads.length > 1 ? "s" : ""})`
             : "Entry saved",
           "success"
         );
@@ -1123,8 +1114,9 @@ export default function ProductionMachineStatusModule() {
 
       resetForm();
       fetchRecords();
-    } catch {
-      showAlert("Error saving data", "error");
+    } catch (err) {
+      console.error("Save error:", err);
+      showAlert(errMsg(err), "error");
     }
   };
 
