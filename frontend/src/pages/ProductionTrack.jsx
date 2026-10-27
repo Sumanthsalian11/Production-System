@@ -1992,6 +1992,50 @@ const statusColumns = useMemo(() => {
       }
     }
 
+    // 🚫 An activity's total Production Qty (for this WO) must not cross the production of the other activities
+    if (!isOffDay && form.machineStatus?.toLowerCase() === "production") {
+      const woRecs = await fetchRecords({ workOrderExact: workOrderNumber });
+
+      // total saved production qty per activity for this work order
+      const actTotals = new Map();
+      woRecs.forEach((item) => {
+        if (editingId && item._id === editingId) return;
+        if (String(item.workOrder) !== String(workOrderNumber)) return;
+        const qty = Number(item.productionQty) || 0;
+        if (qty <= 0) return;
+        const actIds = new Set(
+          (item.machiness || []).map((m) => String(m.activityId?._id || m.activityId))
+        );
+        actIds.forEach((id) => actTotals.set(id, (actTotals.get(id) || 0) + qty));
+      });
+
+      for (const pair of activityMachinePairs) {
+        const pairActId = String(pair.activityId?._id || pair.activityId);
+        const ownTotal = actTotals.get(pairActId) || 0;
+
+        // highest production among the OTHER activities
+        let maxOther = 0;
+        let maxOtherId = "";
+        actTotals.forEach((v, id) => {
+          if (id !== pairActId && v > maxOther) { maxOther = v; maxOtherId = id; }
+        });
+
+        if (maxOther <= 0) continue;     // no other activity has production yet
+        if (ownTotal > maxOther) continue; // this activity is the leading one, no limit
+
+        const newTotal = ownTotal + (Number(form.productionQty) || 0);
+        if (newTotal > maxOther) {
+          const thisName = activities.find((a) => String(a._id) === pairActId)?.activityName || "Activity";
+          const otherName = activities.find((a) => String(a._id) === maxOtherId)?.activityName || "another activity";
+          showAlert(
+            `${thisName}: total Production Qty for this WO (${newTotal.toLocaleString("en-IN")}) cannot exceed ${otherName} production (${maxOther.toLocaleString("en-IN")}).`,
+            "warning"
+          );
+          return;
+        }
+      }
+    }
+
     // ✅ Remarks mandatory only when wastage > production
     if (
       form.machineStatus?.toLowerCase() === "production" &&
