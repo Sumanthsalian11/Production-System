@@ -134,6 +134,7 @@ function ProductionReport() {
   const [expandedHeader, setExpandedHeader] = useState(null);
   const [usedMachines, setUsedMachines] = useState([]);
   const [wastageVisible, setWastageVisible] = useState(50);
+  const [activityVisible, setActivityVisible] = useState(50);
   const [itemStages, setItemStages] = useState([]);
   const [woDetail, setWoDetail] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -577,6 +578,14 @@ function ProductionReport() {
     [machineUtilizationDatewise]
   );
 
+  // combined activity table: all jobs, newest work order first (more rows load while scrolling)
+  const sortedJobActivityAll = useMemo(
+    () => [...jobMachinePerformance].sort((a, b) => b.workOrder - a.workOrder),
+    [jobMachinePerformance]
+  );
+
+  useEffect(() => setActivityVisible(50), [sortedJobActivityAll]);
+
   const fmtD = (v) => (v ? new Date(v).toLocaleDateString("en-IN") : "-");
   const fmtDT = (v) =>
     v
@@ -782,6 +791,29 @@ function ProductionReport() {
 
     const jobWastePercentSheet = XLSX.utils.json_to_sheet(jobWastePercentData);
     XLSX.utils.book_append_sheet(wb, jobWastePercentSheet, "Job Waste %");
+
+    /* JOB ACTIVITY SUMMARY (production + wastage + waste % together) */
+    const jobActivityData = sortedJobActivityAll.map((j) => {
+      const row = {
+        "WO No": j.workOrder,
+        Customer: j.customer,
+        "Product Type": jobInfo(j.workOrder).productType,
+        Description: jobInfo(j.workOrder).description,
+        "Order Qty": j.orderQty
+      };
+      usedActivities.forEach(({ id, name }) => {
+        const a = j.acts?.[id];
+        row[name + " Production"] = a ? a.production : "";
+        row[name + " Wastage"] = a ? a.wastage : "";
+        row[name + " Waste %"] = a && a.wastePercent ? a.wastePercent.toFixed(2) : "";
+      });
+      return row;
+    });
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(jobActivityData),
+      "Job Activity Summary"
+    );
 
     /* MACHINE PRODUCTION */
     const machineProdData = machineProduction.map((m) => {
@@ -1138,6 +1170,46 @@ function ProductionReport() {
         }
         .production-report-universe .dt-muted { color: #94a3b8; }
 
+        /* Clear column + row borders for ALL tables (stay visible with sticky headers) */
+        .production-report-universe table {
+          border-collapse: separate !important;
+          border-spacing: 0;
+          border-left: 1px solid #4f8aa6;
+          border-top: 1px solid #4f8aa6;
+        }
+
+        .production-report-universe table th,
+        .production-report-universe table td {
+          border: 0 !important;
+          border-right: 1px solid #4f8aa6 !important;
+          border-bottom: 1px solid #4f8aa6 !important;
+        }
+
+        /* thick divider after the fixed columns and after every activity group (Activity Summary) */
+        .production-report-universe table .grp-end {
+          border-right: 3px solid #0877ad !important;
+        }
+
+        /* Clear column + row borders for ALL tables (stay visible with sticky headers) */
+        .production-report-universe table {
+          border-collapse: separate !important;
+          border-spacing: 0;
+          border-left: 1px solid #4f8aa6;
+          border-top: 1px solid #4f8aa6;
+        }
+
+        .production-report-universe table th,
+        .production-report-universe table td {
+          border: 0 !important;
+          border-right: 1px solid #4f8aa6 !important;
+          border-bottom: 1px solid #4f8aa6 !important;
+        }
+
+        /* thick divider after the fixed columns and after every activity group (Activity Summary) */
+        .production-report-universe table .grp-end {
+          border-right: 3px solid #0877ad !important;
+        }
+
         /* Respect users who prefer no motion */
         @media (prefers-reduced-motion: reduce) {
           .production-report-universe > div,
@@ -1394,11 +1466,11 @@ function ProductionReport() {
               <tr>
                 <th>WO No</th>
                 <th>Customer</th>
-                <th>Order Qty</th>
 
                 <th>Product Type</th>
                 <th>Description</th>
 
+                <th>Order Qty</th>
                 {usedActivities.map(({ id, name: machine }) => (
                   <th key={id} style={{ minWidth: "170px" }}>
                     <span
@@ -1467,16 +1539,16 @@ function ProductionReport() {
                         {j.customer}
                       </span>
                     </td>
-                    <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
                     <td>{jobInfo(j.workOrder).productType}</td>
                     <td
                       title={jobInfo(j.workOrder).description}
                       style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                    >
+                      >
                       {jobInfo(j.workOrder).description}
                     </td>
 
+                      <td>{j.orderQty.toLocaleString("en-IN")}</td>
                     {usedActivities.map(({ id }) => (
                       <td key={id}>
                         {j.acts?.[id]
@@ -1515,10 +1587,10 @@ function ProductionReport() {
               <tr>
                 <th>WO No</th>
                 <th>Customer</th>
-                <th>Order Qty</th>
 
                 <th>Product Type</th>
                 <th>Description</th>
+                <th>Order Qty</th>
 
                 {usedActivities.map(({ id, name: machine }) => (
                   <th key={id} style={{ maxWidth: "170px" }}>
@@ -1581,15 +1653,15 @@ function ProductionReport() {
                       {j.customer}
                     </span>
                   </td>
-                  <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
                   <td>{jobInfo(j.workOrder).productType}</td>
                   <td
                     title={jobInfo(j.workOrder).description}
                     style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-                  >
+                    >
                     {jobInfo(j.workOrder).description}
                   </td>
+                    <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
                   {usedActivities.map(({ id }) => (
                     <td key={id} className="text-danger fw-bold">
@@ -1620,10 +1692,10 @@ function ProductionReport() {
               <tr>
                 <th>WO No</th>
                 <th>Customer</th>
-                <th>Order Qty</th>
 
                 <th>Product Type</th>
                 <th>Description</th>
+                <th>Order Qty</th>
 
                 {usedActivities.map(({ id, name: machine }) => (
                   <th key={id + "percent"} style={{ maxWidth: "170px" }}>
@@ -1695,7 +1767,6 @@ function ProductionReport() {
                       {j.customer}
                     </span>
                   </td>
-                  <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
                   <td>{jobInfo(j.workOrder).productType}</td>
                   <td
@@ -1704,6 +1775,7 @@ function ProductionReport() {
                   >
                     {jobInfo(j.workOrder).description}
                   </td>
+                  <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
                   {usedActivities.map(({ id }) => (
                     <td key={id} className="fw-bold">
@@ -1712,6 +1784,93 @@ function ProductionReport() {
                         : "-"}
                     </td>
                   ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ======================================================================
+          NEW TABLE: JOBWISE ACTIVITY SUMMARY (production + wastage + waste % together)
+          ====================================================================== */}
+      <div className="card shadow-lg mb-4">
+        <div className="card-header text-center">
+          <strong>Jobwise Activity Summary (Production, Wastage &amp; Waste %)</strong>
+        </div>
+
+        <div
+          className="table-responsive"
+          style={{ maxHeight: "320px", overflow: "auto" }}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
+              setActivityVisible((v) => Math.min(v + 100, sortedJobActivityAll.length));
+            }
+          }}
+        >
+          <table className="table table-striped table-bordered table-hover mb-0 align-middle act-summary">
+            <thead className="table-dark sticky-top">
+              <tr>
+                <th rowSpan={2}>WO No</th>
+                <th rowSpan={2}>Customer</th>
+                <th rowSpan={2}>Product Type</th>
+                <th rowSpan={2}>Description</th>
+                <th rowSpan={2} className="grp-end">Order Qty</th>
+                {usedActivities.map(({ id, name }) => (
+                  <th key={id} colSpan={3} title={name} className="grp-end">
+                    {name}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {usedActivities.flatMap(({ id }) => [
+                  <th key={id + "p"}>Production</th>,
+                  <th key={id + "w"}>Wastage</th>,
+                  <th key={id + "pc"} className="grp-end">Waste %</th>
+                ])}
+              </tr>
+            </thead>
+
+            <tbody>
+              {sortedJobActivityAll.length === 0 && (
+                <tr>
+                  <td colSpan={5 + usedActivities.length * 3}>No data for the selected filters</td>
+                </tr>
+              )}
+
+              {sortedJobActivityAll.slice(0, activityVisible).map((j) => (
+                <tr key={j.workOrder}>
+                  <td className="fw-bold">#{j.workOrder}</td>
+                  <td
+                    title={j.customer}
+                    style={{ maxWidth: "150px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    {j.customer}
+                  </td>
+                  <td>{jobInfo(j.workOrder).productType}</td>
+                  <td
+                    title={jobInfo(j.workOrder).description}
+                    style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    {jobInfo(j.workOrder).description}
+                  </td>
+                  <td className="grp-end">{j.orderQty ? j.orderQty.toLocaleString("en-IN") : "-"}</td>
+
+                  {usedActivities.flatMap(({ id }) => {
+                    const a = j.acts?.[id];
+                    return [
+                      <td key={id + "p"}>
+                        {a ? Number(a.production).toLocaleString("en-IN") : "-"}
+                      </td>,
+                      <td key={id + "w"} className="text-danger fw-bold">
+                        {a ? Number(a.wastage).toLocaleString("en-IN") : "-"}
+                      </td>,
+                      <td key={id + "pc"} className="fw-bold grp-end">
+                        {a && a.wastePercent ? a.wastePercent.toFixed(2) + "%" : "-"}
+                      </td>
+                    ];
+                  })}
                 </tr>
               ))}
             </tbody>
