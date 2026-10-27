@@ -74,7 +74,9 @@ function InternalRegister() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "ADMIN"
+    role: "ADMIN",
+    authType: "local",
+    ldapUsername: ""
   });
 
   // NEW: centered pop-up message (user created / broadcast launched)
@@ -215,7 +217,7 @@ function InternalRegister() {
     const { email, password, confirmPassword } = form;
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}$/;
     if (!emailRegex.test(email)) return "Invalid email";
-    if (password !== confirmPassword) return "Passwords do not match";
+    if (form.authType !== "ldap" && password !== confirmPassword) return "Passwords do not match";
     return null;
   };
 
@@ -309,7 +311,9 @@ function InternalRegister() {
       email: "",
       password: "",
       confirmPassword: "",
-      role: "ADMIN"
+      role: "ADMIN",
+      authType: "local",
+      ldapUsername: ""
     });
     setSelectedLocations([]);
     setSelectedModules([]);
@@ -322,7 +326,7 @@ function InternalRegister() {
     setSuccess("");
 
     if (editUserId) {
-      if (form.password && form.password !== form.confirmPassword) {
+      if (form.authType !== "ldap" && form.password && form.password !== form.confirmPassword) {
         setError("Passwords do not match");
         return;
       }
@@ -332,9 +336,11 @@ function InternalRegister() {
         name: form.name,
         role: form.role,
         locations: selectedLocations,
-        modules: form.role === "ADMIN" ? [] : selectedModules
+        modules: form.role === "ADMIN" ? [] : selectedModules,
+        authType: form.authType,
+        ldapUsername: form.ldapUsername
       };
-      if (form.password) payload.password = form.password;
+      if (form.authType !== "ldap" && form.password) payload.password = form.password;
 
       try {
         await axios.put(
@@ -413,7 +419,9 @@ function InternalRegister() {
       email: user.email,
       password: "",
       confirmPassword: "",
-      role: user.role
+      role: user.role,
+      authType: user.authType || "local",
+      ldapUsername: user.ldapUsername || ""
     });
     setSelectedLocations(user.locations || []);
     setSelectedModules(user.modules || []);
@@ -1591,6 +1599,38 @@ function InternalRegister() {
 
                   <div style={styles.formGroup}>
                     <label style={styles.formLabel}>
+                      <span>🔐</span> Login Type
+                    </label>
+                    <select
+                      name="authType"
+                      value={form.authType}
+                      style={styles.formSelect}
+                      onChange={handleChange}
+                    >
+                      <option value="local">Local password</option>
+                      <option value="ldap">Domain (LDAP)</option>
+                    </select>
+                  </div>
+
+                  {form.authType === "ldap" && (
+                    <div style={styles.formGroup}>
+                      <label style={styles.formLabel}>
+                        <FaUserSecret /> Domain Username (optional)
+                      </label>
+                      <input
+                        name="ldapUsername"
+                        value={form.ldapUsername}
+                        style={styles.formInput}
+                        placeholder="Enter domain username "
+                        onChange={handleChange}
+                        onFocus={(e) => Object.assign(e.target.style, styles.formInputFocus)}
+                        onBlur={resetBlur}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ ...styles.formGroup, display: form.authType === "ldap" ? "none" : "flex" }}>
+                    <label style={styles.formLabel}>
                       <RiLockPasswordFill /> {editUserId ? "New Password (optional)" : "Password"}
                     </label>
                     <div style={styles.passwordWrapper}>
@@ -1603,7 +1643,7 @@ function InternalRegister() {
                         onChange={handleChange}
                         onFocus={(e) => Object.assign(e.target.style, styles.formInputFocus)}
                         onBlur={resetBlur}
-                        required={!editUserId}
+                        required={!editUserId && form.authType !== "ldap"}
                       />
                       <button
                         type="button"
@@ -1615,7 +1655,7 @@ function InternalRegister() {
                     </div>
                   </div>
 
-                  <div style={styles.formGroup}>
+                  <div style={{ ...styles.formGroup, display: form.authType === "ldap" ? "none" : "flex" }}>
                     <label style={styles.formLabel}>
                       <RiLockPasswordFill /> Confirm {editUserId ? "New " : ""}Password
                     </label>
@@ -1629,7 +1669,7 @@ function InternalRegister() {
                         onChange={handleChange}
                         onFocus={(e) => Object.assign(e.target.style, styles.formInputFocus)}
                         onBlur={resetBlur}
-                        required={!editUserId}
+                        required={!editUserId && form.authType !== "ldap"}
                       />
                       <button
                         type="button"
@@ -2077,7 +2117,11 @@ function InternalRegister() {
                       </td>
 
                       <td style={styles.td}>
-                        <span style={styles.passwordMask}>••••••••</span>
+                        {user.authType === "ldap" ? (
+                          <span style={{ ...styles.locationTag }}>Domain (LDAP)</span>
+                        ) : (
+                          <span style={styles.passwordMask}>••••••••</span>
+                        )}
                       </td>
 
                       <td style={styles.td}>

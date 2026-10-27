@@ -515,7 +515,7 @@ function InternalLogin() {
           <div className="credentials-box">
             <div className="auth-lead">
               <h2 className="auth-heading">Sign In</h2>
-              <p className="auth-desc">Enter your corporate credentials to verify identity</p>
+              <p className="auth-desc">Use your domain password if you have a domain account, otherwise your portal password</p>
             </div>
 
             <form onSubmit={handleSubmit}>

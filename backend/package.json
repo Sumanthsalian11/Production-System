@@ -22,6 +22,7 @@
     "groq-sdk": "^1.6.0",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.2",
+    "ldapjs": "^3.0.7",
     "mongoose": "^9.10.1",
     "multer": "^2.4.0",
     "node-cron": "^4.6.0",

@@ -19,7 +19,9 @@ const userSchema = new mongoose.Schema(
 
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return this.authType !== "ldap"; // domain users have no local password
+      },
       minlength: 12,
     },
 
@@ -50,6 +52,20 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // "local" = password stored here (existing behaviour), "ldap" = verified against domain
+    authType: {
+      type: String,
+      enum: ["local", "ldap"],
+      default: "local",
+    },
+
+    // optional domain username; if empty the user's email is used for the bind
+    ldapUsername: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   { timestamps: true }
 );
@@ -63,6 +79,7 @@ userSchema.pre("save", async function () {
 
 // 🔹 Compare password
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 

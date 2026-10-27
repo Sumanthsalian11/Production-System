@@ -4,6 +4,7 @@ const WorkOrder = require("../models/WorkOrder");
 const PrintingInstruction = require("../models/Print");
 const jwt = require("jsonwebtoken");
 const Announcement = require("../models/Announcement");
+const { verifyLDAPUser } = require("../utils/ldapAuth");
 
 // Helper: generate JWT token
 const generateToken = (user) => {
@@ -72,7 +73,7 @@ exports.customerLogin = async (req, res) => {
 =========================== */
 exports.internalRegister = async (req, res) => {
   try {
-    const { name, email, password, role, locations, modules } = req.body; // <-- include modules
+    const { name, email, password, role, locations, modules, authType, ldapUsername } = req.body; // <-- include modules
 
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -80,10 +81,14 @@ exports.internalRegister = async (req, res) => {
     if (existingUser)
       return res.status(400).json({ message: "Internal User already exists" });
 
+    const isLdap = authType === "ldap";
+
     const user = await User.create({
       name,
       email: normalizedEmail,
-      password,
+      ...(isLdap ? {} : { password }),
+      authType: isLdap ? "ldap" : "local",
+      ldapUsername: isLdap ? String(ldapUsername || "").trim() : "",
       role,
       isInternal: true,
       locations: locations || [],
@@ -129,13 +134,33 @@ exports.internalLogin = async (req, res) => {
       isInternal: true,
       $or: [
         { email: identifier },
-        { name: { $regex: new RegExp(`^${identifier}$`, "i") } }
+        { name: { $regex: new RegExp(`^${identifier}$`, "i") } },
+        {
+          ldapUsername: {
+            $regex: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+          }
+        }
       ]
     });
 
     if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    const isMatch = await user.comparePassword(password);
+    let isMatch = false;
+    if (user.authType === "ldap") {
+      try {
+        await verifyLDAPUser(user.ldapUsername || user.email, password);
+        isMatch = true;
+      } catch (ldapErr) {
+        if (ldapErr.name !== "InvalidCredentialsError") {
+          console.error("LDAP authentication error:", ldapErr.message);
+          return res.status(503).json({
+            message: "Domain server is not reachable. Please try again or contact your administrator."
+          });
+        }
+      }
+    } else {
+      isMatch = await user.comparePassword(password); // local users: unchanged
+    }
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
     // ✅ validate location
 if (location && !user.locations.includes(location)) {
@@ -231,6 +256,10 @@ exports.changePassword = async (req, res) => {
     const user = await User.findById(req.user._id || req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    if (user.authType === "ldap") {
+      return res.status(400).json({ message: "Domain users must change their password in Windows/domain, not here" });
+    }
+
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) return res.status(400).json({ message: "Current password is incorrect" });
 
@@ -253,7 +282,7 @@ exports.changePassword = async (req, res) => {
 exports.updateInternalUser = async (req, res) => {
   try {
     const userId = req.params.id;
-    const { name, role, password, locations, modules } = req.body; // ✅ include modules
+    const { name, role, password, locations, modules, authType, ldapUsername } = req.body; // ✅ include modules
 
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -274,9 +303,17 @@ exports.updateInternalUser = async (req, res) => {
       user.modules = modules;
     }
 
-    // 🔹 Password reset
-    if (password && password.trim() !== "") {
+    // 🔹 Login type (local / ldap)
+    if (authType === "ldap" || authType === "local") user.authType = authType;
+    if (typeof ldapUsername === "string") user.ldapUsername = ldapUsername.trim();
+
+    // 🔹 Password reset (local users only)
+    if (user.authType !== "ldap" && password && password.trim() !== "") {
       user.password = password;
+    }
+
+    if (user.authType !== "ldap" && !user.password) {
+      return res.status(400).json({ message: "Set a password to switch this user to local login" });
     }
 
    await user.save();
