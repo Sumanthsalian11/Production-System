@@ -126,6 +126,7 @@ function ProductionReport() {
   const [searchWO, setSearchWO] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState("");
+  const [productTypeFilter, setProductTypeFilter] = useState("");
   const [fromDate, setFromDate] = useState(monthStart()); // first load = current month only
   const [toDate, setToDate] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
@@ -159,6 +160,7 @@ function ProductionReport() {
           wo: debouncedSearchWO || undefined,
           customer: customerFilter || undefined,
           machine: machineFilter || undefined,
+          productType: productTypeFilter || undefined,
           location: locationFilter || undefined
         },
         // real progress when the browser knows the total size
@@ -187,7 +189,7 @@ function ProductionReport() {
   useEffect(() => {
     fetchProduction();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromDate, toDate, debouncedSearchWO, customerFilter, machineFilter, locationFilter]);
+  }, [fromDate, toDate, debouncedSearchWO, customerFilter, machineFilter, productTypeFilter, locationFilter]);
 
   // stage-wise tree: load only this work order's rows when opened
   useEffect(() => {
@@ -222,6 +224,7 @@ function ProductionReport() {
     setSearchWO("");
     setCustomerFilter("");
     setMachineFilter("");
+    setProductTypeFilter("");
     setFromDate(monthStart());
     setToDate("");
     setLocationFilter("");
@@ -303,6 +306,7 @@ function ProductionReport() {
   }, [machineFirstSeen]);
 
   const customers = summary.customers || [];
+  const productTypes = summary.productTypes || [];
 
   // ================= JOB-LEVEL AGGREGATION (sums come from the server) =================
   const jobAggregates = useMemo(() => {
@@ -344,6 +348,51 @@ function ProductionReport() {
     return map;
   }, [summary, stageRankByType]);
 
+  // per work order: activity -> totals (sum of all machines inside that activity)
+  const jobActivityTotals = useMemo(() => {
+    const map = {};
+    Object.values(jobAggregates).forEach((j) => {
+      const acts = {};
+      Object.keys(j.byActivity || {}).forEach((actId) => {
+        if (!actId) return;
+        let p = 0;
+        let w = 0;
+        Object.values(j.byActivity[actId] || {}).forEach((m) => {
+          p += Number(m.production) || 0;
+          w += Number(m.wastage) || 0;
+        });
+        acts[actId] = {
+          production: p,
+          wastage: w,
+          wastePercent: p ? (w / p) * 100 : 0
+        };
+      });
+      map[j.workOrder] = acts;
+    });
+    return map;
+  }, [jobAggregates]);
+
+  // activity columns (Activity master order, unknown ones at the end)
+  const usedActivities = useMemo(() => {
+    const seen = new Set();
+    Object.values(jobActivityTotals).forEach((a) =>
+      Object.keys(a).forEach((id) => seen.add(id))
+    );
+    const ordered = activities.map((a) => String(a._id)).filter((id) => seen.has(id));
+    seen.forEach((id) => {
+      if (!ordered.includes(id)) ordered.push(id);
+    });
+    return ordered.map((id) => ({
+      id,
+      name: activities.find((a) => String(a._id) === id)?.activityName || "Unknown activity"
+    }));
+  }, [jobActivityTotals, activities]);
+
+  const jobInfo = (wo) => ({
+    productType: jobAggregates[wo]?.productType || "-",
+    description: jobAggregates[wo]?.jobDescription || jobAggregates[wo]?.description || "-"
+  });
+
   const jobPerformance = useMemo(
     () =>
       Object.values(jobAggregates).map((j) => ({
@@ -369,7 +418,8 @@ function ProductionReport() {
           machines,
           lastMachine: j.lastMachine,
           finalProduction: j.finalProduction,
-          finalWastage: j.finalWastage
+          finalWastage: j.finalWastage,
+          acts: jobActivityTotals[j.workOrder] || {}
         };
       }),
     [jobAggregates]
@@ -386,7 +436,8 @@ function ProductionReport() {
           workOrder: j.workOrder,
           customer: j.customer,
           orderQty: j.orderQty,
-          machines
+          machines,
+          acts: jobActivityTotals[j.workOrder] || {}
         };
       }),
     [jobAggregates]
@@ -403,7 +454,8 @@ function ProductionReport() {
           workOrder: j.workOrder,
           customer: j.customer,
           orderQty: j.orderQty,
-          machines
+          machines,
+          acts: jobActivityTotals[j.workOrder] || {}
         };
       }),
     [jobAggregates]
@@ -656,6 +708,8 @@ function ProductionReport() {
       "WO No": j.workOrder,
       Customer: j.customer,
       "Order Qty": j.orderQty,
+      "Product Type": jobInfo(j.workOrder).productType,
+      Description: jobInfo(j.workOrder).description,
       Production: j.production,
       "Completion %": ((j.production / j.orderQty) * 100).toFixed(2)
     }));
@@ -668,13 +722,15 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty
+        "Order Qty": j.orderQty,
+        "Product Type": jobInfo(j.workOrder).productType,
+        Description: jobInfo(j.workOrder).description
       };
 
-      Object.keys(j.machines || {}).forEach((machine) => {
-        const value = j.machines?.[machine];
+      usedActivities.forEach(({ id, name }) => {
+        const value = j.acts?.[id]?.production || 0;
         if (value > 0) {
-          row[machine + " Production"] = value;
+          row[name + " Production"] = value;
         }
       });
       return row;
@@ -688,13 +744,15 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty
+        "Order Qty": j.orderQty,
+        "Product Type": jobInfo(j.workOrder).productType,
+        Description: jobInfo(j.workOrder).description
       };
 
-      Object.keys(j.machines || {}).forEach((machine) => {
-        const value = j.machines?.[machine];
+      usedActivities.forEach(({ id, name }) => {
+        const value = j.acts?.[id]?.wastage || 0;
         if (value > 0) {
-          row[machine + " Wastage"] = value;
+          row[name + " Wastage"] = value;
         }
       });
       return row;
@@ -708,15 +766,17 @@ function ProductionReport() {
       let row = {
         "WO No": j.workOrder,
         Customer: j.customer,
-        "Order Qty": j.orderQty
+        "Order Qty": j.orderQty,
+        "Product Type": jobInfo(j.workOrder).productType,
+        Description: jobInfo(j.workOrder).description
       };
 
-      Object.keys(j.machines || {}).forEach((machine) => {
-        const value = j.machines?.[machine];
+      usedActivities.forEach(({ id, name }) => {
+        const value = j.acts?.[id]?.wastePercent || 0;
         if (value > 0) {
-          row[machine + " Waste %"] = value.toFixed(2);
+          row[name + " Waste %"] = value.toFixed(2);
         }
-      });
+      }); 
       return row;
     });
 
@@ -1140,6 +1200,22 @@ function ProductionReport() {
           </div>
 
           <div className="col-md-2">
+            <label className="form-label">Product Type</label>
+            <select
+              className="form-select"
+              value={productTypeFilter}
+              onChange={(e) => setProductTypeFilter(e.target.value)}
+            >
+              <option value="">All Product Types</option>
+              {productTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-md-2">
             <label className="form-label">Machine</label>
             <select
               className="form-select"
@@ -1253,6 +1329,8 @@ function ProductionReport() {
               <tr>
                 <th>WO No</th>
                 <th>Customer</th>
+                <th>Product Type</th>
+                <th>Description</th>
                 <th>Order Qty</th>
                 <th>Production Qty</th>
                 <th>Completion %</th>
@@ -1275,9 +1353,16 @@ function ProductionReport() {
                   >
                     <td className="fw-bold">#{j.workOrder}</td>
                     <td className="fw-semibold">{j.customer}</td>
-                    <td>
-                      {j.orderQty ? j.orderQty.toLocaleString("en-IN") : "-"}
+                    <td>{jobInfo(j.workOrder).productType}</td>
+                    <td
+                      title={jobInfo(j.workOrder).description}
+                      style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                      >
+                      {jobInfo(j.workOrder).description}
                     </td>
+                      <td>
+                        {j.orderQty ? j.orderQty.toLocaleString("en-IN") : "-"}
+                      </td>
                     <td className="fw-bold">
                       {j.production
                         ? j.production.toLocaleString("en-IN")
@@ -1311,8 +1396,11 @@ function ProductionReport() {
                 <th>Customer</th>
                 <th>Order Qty</th>
 
-                {usedMachines.map((machine) => (
-                  <th key={machine} style={{ minWidth: "170px" }}>
+                <th>Product Type</th>
+                <th>Description</th>
+
+                {usedActivities.map(({ id, name: machine }) => (
+                  <th key={id} style={{ minWidth: "170px" }}>
                     <span
                       title={machine}
                       style={{
@@ -1381,12 +1469,18 @@ function ProductionReport() {
                     </td>
                     <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
-                    {usedMachines.map((machine) => (
-                      <td key={machine}>
-                        {j.machines?.[machine] || j.machines?.[machine] === 0
-                          ? Number(j.machines[machine]).toLocaleString(
-                              "en-IN"
-                            )
+                    <td>{jobInfo(j.workOrder).productType}</td>
+                    <td
+                      title={jobInfo(j.workOrder).description}
+                      style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                    >
+                      {jobInfo(j.workOrder).description}
+                    </td>
+
+                    {usedActivities.map(({ id }) => (
+                      <td key={id}>
+                        {j.acts?.[id]
+                          ? Number(j.acts[id].production).toLocaleString("en-IN")
                           : "-"}
                       </td>
                     ))}
@@ -1423,8 +1517,11 @@ function ProductionReport() {
                 <th>Customer</th>
                 <th>Order Qty</th>
 
-                {usedMachines.map((machine) => (
-                  <th key={machine} style={{ maxWidth: "170px" }}>
+                <th>Product Type</th>
+                <th>Description</th>
+
+                {usedActivities.map(({ id, name: machine }) => (
+                  <th key={id} style={{ maxWidth: "170px" }}>
                     <span
                       title={machine}
                       style={{
@@ -1486,11 +1583,17 @@ function ProductionReport() {
                   </td>
                   <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
-                  {usedMachines.map((machine) => (
-                    <td key={machine} className="text-danger fw-bold">
-                      {j.machines?.[machine] || j.machines?.[machine] === 0
-                        ? j.machines[machine]
-                        : "-"}
+                  <td>{jobInfo(j.workOrder).productType}</td>
+                  <td
+                    title={jobInfo(j.workOrder).description}
+                    style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    {jobInfo(j.workOrder).description}
+                  </td>
+
+                  {usedActivities.map(({ id }) => (
+                    <td key={id} className="text-danger fw-bold">
+                      {j.acts?.[id] ? j.acts[id].wastage : "-"}
                     </td>
                   ))}
                 </tr>
@@ -1519,8 +1622,11 @@ function ProductionReport() {
                 <th>Customer</th>
                 <th>Order Qty</th>
 
-                {usedMachines.map((machine) => (
-                  <th key={machine + "percent"} style={{ maxWidth: "170px" }}>
+                <th>Product Type</th>
+                <th>Description</th>
+
+                {usedActivities.map(({ id, name: machine }) => (
+                  <th key={id + "percent"} style={{ maxWidth: "170px" }}>
                     <span
                       title={machine}
                       style={{
@@ -1591,10 +1697,18 @@ function ProductionReport() {
                   </td>
                   <td>{j.orderQty.toLocaleString("en-IN")}</td>
 
-                  {usedMachines.map((machine) => (
-                    <td key={machine} className="fw-bold">
-                      {j.machines?.[machine]
-                        ? j.machines[machine].toFixed(2) + "%"
+                  <td>{jobInfo(j.workOrder).productType}</td>
+                  <td
+                    title={jobInfo(j.workOrder).description}
+                    style={{ maxWidth: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    {jobInfo(j.workOrder).description}
+                  </td>
+
+                  {usedActivities.map(({ id }) => (
+                    <td key={id} className="fw-bold">
+                      {j.acts?.[id]?.wastePercent
+                        ? j.acts[id].wastePercent.toFixed(2) + "%"
                         : "-"}
                     </td>
                   ))}

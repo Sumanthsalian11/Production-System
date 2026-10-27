@@ -418,8 +418,8 @@ router.get("/report", authMiddleware, async (req, res) => {
 // ⚡ SERVER-SIDE SUMMARY for the Production Report page (aggregated in MongoDB)
 router.get("/report-summary", authMiddleware, async (req, res) => {
   try {
-    const { from, to, wo, customer, machine, location } = req.query;
-    const key = ["S", from, to, wo, customer, machine, location].map((v) => v || "").join("|");
+    const { from, to, wo, customer, machine, location, productType } = req.query;
+    const key = ["S", from, to, wo, customer, machine, location, productType].map((v) => v || "").join("|");
     const hit = reportCache.get(key);
     if (hit && Date.now() - hit.t < REPORT_TTL_MS) {
       return res.type("application/json").send(hit.body);
@@ -446,6 +446,10 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       };
     }
     if (customer) match.customerName = customer;
+    if (productType) {
+      // trimmed + case-insensitive, so "Book" and "book " are treated as one type
+      match.productType = new RegExp("^\\s*" + escapeRegex(String(productType).trim()) + "\\s*$", "i");
+    }
     if (location) match.userLocations = location;
 
     // machine filter: ids are passed as ObjectId AND string (aggregation does not cast types)
@@ -496,11 +500,22 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
     const optsP = (async () => {
       const c = reportCache.get(okey);
       if (c && Date.now() - c.t < REPORT_TTL_MS) return c.v;
-      const [cu, lo] = await Promise.all([
+      const [cu, lo, pt] = await Promise.all([
         ProductionReal.distinct("customerName", dateMatch),
         ProductionReal.distinct("userLocations", dateMatch),
+        ProductionReal.distinct("productType", dateMatch),
       ]);
-      const v = { customers: cu.filter(Boolean), locations: lo.filter(Boolean) };
+      const seenPT = new Set();
+      const productTypes = pt
+        .filter((x) => {
+          const k = String(x ?? "").trim().toLowerCase();
+          if (!k || seenPT.has(k)) return false;
+          seenPT.add(k);
+          return true;
+        })
+        .map((x) => String(x).trim())
+        .sort((a, b) => a.localeCompare(b));
+      const v = { customers: cu.filter(Boolean), locations: lo.filter(Boolean), productTypes };
       put(okey, { t: Date.now(), v });
       return v;
     })();
@@ -555,6 +570,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
             c: { $first: "$customerName" },
             oq: { $first: "$orderQty" },
             pt: { $max: "$productType" },
+            jd: { $max: "$jobDescription" },
             latest: {
               $max: {
                 t: "$createdAt",
@@ -598,6 +614,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
         customer: r.c,
         orderQty: r.oq,
         productType: (r.latest && r.latest.pt) || r.pt,
+        jobDescription: r.jd || "",
         latestProduction: Number(r.latest?.p) || 0,
         latestWastage: Number(r.latest?.w) || 0,
         byActivity: {},
@@ -650,6 +667,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       machineOrder: [...first.entries()],
       customers: opts.customers,
       locations: opts.locations,
+      productTypes: opts.productTypes,
     });
 
     put(key, { t: Date.now(), body });
