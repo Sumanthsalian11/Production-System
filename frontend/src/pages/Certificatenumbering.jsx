@@ -11,7 +11,7 @@ const FONT_LINK =
   "https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=Roboto:wght@400;700&family=Open+Sans:wght@400;700&family=Montserrat:wght@400;700&family=Lato:wght@400;700&family=Poppins:wght@400;700&family=Source+Sans+3:wght@400;700&display=swap";
 
 const BASE_FONTS = [
-  "Arial", "Helvetica", "Verdana", "Tahoma", "Times New Roman", "Georgia", "Courier New",
+  "Century", "Arial", "Helvetica", "Verdana", "Tahoma", "Times New Roman", "Georgia", "Courier New",
   "Roboto", "Open Sans", "Montserrat", "Lato", "Poppins", "Source Sans 3",
 ];
 
@@ -284,6 +284,25 @@ function render(S, ctx, n, s, p, preview, row, out) {
     if (B) B[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2 };
   }
 
+  /* custom text items */
+  for (const t of S.texts || []) {
+    if (!t.on || !t.text) continue;
+    const tpx = ((num(t.pt) || 12) * p.dpi) / 72;
+    ctx.font = `${t.italic ? "italic " : ""}${t.bold ? 700 : 400} ${tpx}px "${t.family || p.family}", sans-serif`;
+    ctx.fillStyle = t.color;
+    const tx = num(t.x) * u, ty = num(t.y) * u;
+    const lines = String(t.text).split("\n");
+    let maxW = 0;
+    lines.forEach((ln, i) => {
+      const ly = ty + i * tpx * 1.2;
+      const lw = ctx.measureText(ln).width;
+      ctx.fillText(ln, tx, ly);
+      if (t.underline && ln) ctx.fillRect(tx, ly + tpx * 1.05, lw, Math.max(1, tpx * 0.06));
+      maxW = Math.max(maxW, lw);
+    });
+    if (B) B[t.id] = { x: tx, y: ty, w: Math.max(maxW, tpx * 2), h: tpx * 1.2 * lines.length };
+  }
+
   /* what the barcode / QR encode: serial number or an Excel column */
   const enc = (key, ascii) => {
     const v = key === SERIAL || !row ? val : String(row[key] ?? "").trim();
@@ -445,7 +464,10 @@ async function centerLayout(f, W, H) {
 
 export default function CertificateNumbering() {
   const [f, setF] = useState(DEFAULTS);
-  const [fonts] = useState(BASE_FONTS);
+  const [fonts, setFonts] = useState(BASE_FONTS);
+  const [texts, setTexts] = useState([]);   // custom text items
+  const [toast, setToast] = useState(null); // { msg, cls } shown at the top
+  const toastT = useRef(null);
   const [dims, setDims] = useState({ w: 2480, h: 1754 });
   const [sel, setSel] = useState("num");
   const [artName, setArtName] = useState("None — blank A4 landscape");
@@ -477,6 +499,9 @@ export default function CertificateNumbering() {
   const colsRef = useRef(cols);
   colsRef.current = cols;
   S.cols = cols;
+  const textsRef = useRef(texts);
+  textsRef.current = texts;
+  S.texts = texts;
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -487,6 +512,47 @@ export default function CertificateNumbering() {
     setCols((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
   };
   const say = (msg, cls = "") => setStatus({ msg, cls });
+  const fail = (msg, cls = "err") => {
+    setStatus({ msg, cls });
+    setToast({ msg, cls });
+    clearTimeout(toastT.current);
+    toastT.current = setTimeout(() => setToast(null), 4500);
+  };
+
+  const setTxt = (id, k) => (e) => {
+    const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setTexts((ts) => ts.map((t) => (t.id === id ? { ...t, [k]: v } : t)));
+  };
+  const addText = () => {
+    const id = `txt_${Date.now()}`;
+    const u = P(f).dpi / 25.4;
+    setTexts((ts) => [...ts, {
+      id, text: "New text", on: true, family: "", pt: String(f.pt),
+      bold: false, italic: false, underline: false, color: "#222222",
+      x: r1((S.w / u) * 0.1), y: r1((S.h / u) * 0.1 + ts.length * 8),
+    }]);
+    setSel(id);
+    setPropsOpen(true);
+  };
+  const removeText = (id) => {
+    setTexts((ts) => ts.filter((t) => t.id !== id));
+    if (sel === id) setSel("num");
+    if (measure === id) setMeasure(null);
+  };
+  const onFont = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      let name = file.name.replace(/\.(ttf|otf|woff2?)$/i, "").replace(/[^\w\s-]/g, "").trim() || "Custom";
+      if (name === name.toUpperCase()) name = name[0] + name.slice(1).toLowerCase();
+      const face = new FontFace(name, await file.arrayBuffer());
+      await face.load();
+      document.fonts.add(face);
+      setFonts((fs) => (fs.includes(name) ? fs : [name, ...fs]));
+      say(`Font "${name}" added for this session.`, "ok");
+    } catch { say("Could not read that font file.", "err"); }
+  };
 
   /* google fonts */
   useEffect(() => {
@@ -523,6 +589,9 @@ export default function CertificateNumbering() {
     (async () => {
       const p = P(f);
       try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
+      for (const t of S.texts || []) {
+        if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
+      }
       if (dead) return;
       const cv = cvRef.current;
       if (!cv) return;
@@ -562,7 +631,7 @@ export default function CertificateNumbering() {
       if (S.clearBusy) { S.clearBusy = false; requestAnimationFrame(() => setBusy("")); }
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, sel, measure, fonts, S]);
+  }, [f, cols, sheet, pv, dims, sel, measure, fonts, texts, S]);
 
   /* ---------- move variable matter ---------- */
   const toArt = (e) => {
@@ -582,12 +651,16 @@ export default function CertificateNumbering() {
     if (POS_KEYS[k]) {
       const [kx, ky] = POS_KEYS[k];
       setF((o) => ({ ...o, [kx]: sx, [ky]: sy }));
+    } else if (k.startsWith("txt_")) {
+      setTexts((ts) => ts.map((t) => (t.id === k ? { ...t, x: sx, y: sy } : t)));
     } else {
       setCols((cs) => cs.map((c) => (c.id === k ? { ...c, x: sx, y: sy } : c)));
     }
   };
   const getPos = (k) => {
     if (POS_KEYS[k]) { const [kx, ky] = POS_KEYS[k]; return [num(fRef.current[kx]), num(fRef.current[ky])]; }
+    const t = textsRef.current.find((q) => q.id === k);
+    if (t) return [num(t.x), num(t.y)];
     const c = colsRef.current.find((q) => q.id === k);
     return c ? [num(c.x), num(c.y)] : [0, 0];
   };
@@ -711,6 +784,7 @@ export default function CertificateNumbering() {
 
       /* Excel field styling: kept by header name, applied now and to any Excel uploaded later */
       S.tplCols = new Map((t.cols || []).map((c) => [c.header, c]));
+      setTexts(Array.isArray(t.texts) ? t.texts : []);
       setCols((cs) => cs.map((c) => (S.tplCols.has(c.header) ? withTpl(c, S.tplCols.get(c.header)) : c)));
 
       /* everything except the number range */
@@ -752,7 +826,7 @@ export default function CertificateNumbering() {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
-          name, settings, cols: live, createdBy: whoAmI(),
+          name, settings, cols: live, texts: textsRef.current, createdBy: whoAmI(),
           artName: S.img ? artName.replace(/\s·\s\d+×\d+px$/, "") : "", artW: S.w, artH: S.h, clearArt: !S.img,
         }),
       });
@@ -923,6 +997,9 @@ export default function CertificateNumbering() {
     }
     try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
 
+    for (const t of S.texts || []) {
+      if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
+    }
     setRunning(true);
     stopFlag.current = false;
     setProgress(0);
@@ -1032,7 +1109,9 @@ export default function CertificateNumbering() {
   const count = okRange ? p.to - p.from + 1 : 0;
   const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
   const selCol = cols.find((c) => c.id === sel);
-  const selName = sel === "num" ? "Number" : sel === "bar" ? "Barcode" : sel === "qr" ? "QR Code" : selCol ? selCol.header : "";
+  const selText = texts.find((t) => t.id === sel);
+  const selName = sel === "num" ? "Number" : sel === "bar" ? "Barcode" : sel === "qr" ? "QR Code"
+    : selText ? "Custom text" : selCol ? selCol.header : "";
   const onCenter = async () => { const c = await centerLayout(f, S.w, S.h); setF((o) => ({ ...o, ...c })); };
 
   /* zoom control helpers */
@@ -1055,6 +1134,25 @@ export default function CertificateNumbering() {
       <option value={SERIAL}>Serial number</option>
       {sheet && sheet.headers.map((h) => <option key={h} value={h}>Excel column: {h}</option>)}
     </>
+  );
+
+  const textFields = (t) => (
+    <div className="cn-row">
+      <Field span={12} label="Text"><textarea rows={2} value={t.text} onChange={setTxt(t.id, "text")} /></Field>
+      <Field span={12} label="Font">
+        <select value={t.family} onChange={setTxt(t.id, "family")}>
+          <option value="">Same as numbering ({f.font})</option>
+          {fonts.map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </Field>
+      <Field span={6} label="Size (pt)"><input type="number" min="1" step="0.5" value={t.pt} onChange={setTxt(t.id, "pt")} /></Field>
+      <Field span={6} label="Colour"><input type="color" value={t.color} onChange={setTxt(t.id, "color")} /></Field>
+      <Switch span={6} checked={t.bold} onChange={setTxt(t.id, "bold")}>Bold</Switch>
+      <Switch span={6} checked={t.italic} onChange={setTxt(t.id, "italic")}>Italic</Switch>
+      <Switch span={12} checked={t.underline} onChange={setTxt(t.id, "underline")}>Underline</Switch>
+      <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={t.x} onChange={setTxt(t.id, "x")} /></Mm></Field>
+      <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={t.y} onChange={setTxt(t.id, "y")} /></Mm></Field>
+    </div>
   );
 
   const props = (() => {
@@ -1084,6 +1182,7 @@ export default function CertificateNumbering() {
         <Field span={12} label="Tile Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
       </div>
     ) : <div className="cn-info">QR code is currently OFF. Turn it on in the QR Code section.</div>;
+    if (selText) return textFields(selText);
     if (selCol) return (
       <div className="cn-row">
         <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={selCol.x} onChange={setCol(selCol.id, "x")} /></Mm></Field>
@@ -1099,6 +1198,8 @@ export default function CertificateNumbering() {
   return (
     <div className="cn-root">
       <style>{CSS}</style>
+
+      {toast && <div className={`cn-toast ${toast.cls}`} role="alert">{toast.msg}</div>}
 
       {/* loading overlay: blocks all input until the artwork is processed and painted */}
       {busy && (
@@ -1195,6 +1296,12 @@ export default function CertificateNumbering() {
                   <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
                   <Field span={6} label="Number X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
                   <Field span={6} label="Number Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
+                  <div className="cn-actions">
+                    <label className="cn-btn ghost">
+                      <input type="file" accept=".ttf,.otf,.woff,.woff2" hidden onChange={onFont} />
+                      Upload font (TTF/OTF)
+                    </label>
+                  </div>
                 </div>
               </div>
             </details>
@@ -1274,6 +1381,27 @@ export default function CertificateNumbering() {
                     <button className="cn-btn ghost danger" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}><Ic n="trash" />Remove Excel</button>
                   </>
                 )}
+              </div>
+            </details>
+            <details className="cn-sec" open={texts.length > 0}>
+              <summary><Ic n="type" /><em>08</em>Custom Text {texts.length > 0 && <span className="cn-pill">{texts.length}</span>}</summary>
+              <div className="cn-body">
+                <button className="cn-btn" type="button" onClick={addText}><Ic n="plus" />Add Text</button>
+                {texts.map((t) => (
+                  <details key={t.id} className={`cn-col${t.on ? "" : " off"}`} open onFocus={() => setSel(t.id)}>
+                    <summary>
+                      <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={t.on} onChange={setTxt(t.id, "on")} />
+                        <span title={t.text}>{t.text.split("\n")[0] || "(empty)"}</span>
+                      </label>
+                      <button className="cn-icon-btn" type="button" title="Remove"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeText(t.id); }}>
+                        <Ic n="trash" />
+                      </button>
+                    </summary>
+                    {textFields(t)}
+                  </details>
+                ))}
               </div>
             </details>
           </form>
@@ -1433,6 +1561,8 @@ function whoAmI() {
 }
 
 const CSS = `
+@font-face{font-family:"Century";src:url("/fonts/CENTURY.TTF") format("truetype");font-display:swap}
+.cn-root textarea{width:100%;padding:5px 7px;font:inherit;color:var(--ink);background:#fff;border:1px solid var(--line2);border-radius:6px;resize:vertical}
 .cn-root{
   --bg:#f1f4f6;--surface:#ffffff;--ink:#0b2730;--muted:#5c737d;--line:#dce3e7;--line2:#c5d2d8;
   --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#137358;

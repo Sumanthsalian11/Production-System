@@ -7,6 +7,7 @@ const numberingJobSchema = new mongoose.Schema(
     to: { type: Number, required: true },
     digits: { type: Number, default: 6 },
     word: { type: String, default: "" },
+    texts: { type: Array, default: [] },
     createdBy: { type: String, default: "" },
   },
   { timestamps: true }
