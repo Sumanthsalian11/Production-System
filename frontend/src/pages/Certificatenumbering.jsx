@@ -1193,10 +1193,6 @@ export default function CertificateNumbering() {
       <div className="cn-row">
         <Field span={6} label="X (Left)"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
         <Field span={6} label="Y (Top)"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
-        <Field span={6} label="Font size (pt)"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
-        <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
-        <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
-        <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
       </div>
     );
     if (sel === "bar") return f.bar ? (
