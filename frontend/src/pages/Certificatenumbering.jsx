@@ -511,13 +511,16 @@ export default function CertificateNumbering() {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setCols((cs) => cs.map((c) => (c.id === id ? { ...c, [k]: v } : c)));
   };
-  const say = (msg, cls = "") => setStatus({ msg, cls });
-  const fail = (msg, cls = "err") => {
-    setStatus({ msg, cls });
-    setToast({ msg, cls });
+  const say = (msg, cls = "") => {
+    if (!msg) { setStatus({ msg: "", cls: "" }); setToast(null); return; }
+    // live progress / "Loading…" messages stay in the footer
+    if (msg.startsWith("Rendering") || /…$/.test(msg)) { setStatus({ msg, cls }); return; }
+    setStatus({ msg: "", cls: "" });
+    setToast({ msg, cls });             // results show in the top banner
     clearTimeout(toastT.current);
-    toastT.current = setTimeout(() => setToast(null), 4500);
+    toastT.current = setTimeout(() => setToast(null), cls === "err" ? 4500 : 3000);
   };
+  const fail = (msg, cls = "err") => say(msg, cls);
 
   const setTxt = (id, k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -764,9 +767,39 @@ export default function CertificateNumbering() {
   };
   useEffect(() => { loadTpls(); }, []);
 
+  /* "— choose to load —" selected: unload the current template, back to defaults (range kept) */
+  const resetTemplate = async () => {
+    setTplName("");
+    setSel("num");
+    setMeasure(null);
+    S.tplCols = new Map();
+    setTexts([]);
+    clearArt();                       // blank A4 landscape again
+
+    const o = fRef.current;
+    const n = { ...DEFAULTS, from: o.from, to: o.to };
+    const c = await centerLayout(n, S.w, S.h);
+    setF({ ...n, ...c });
+
+    /* if an Excel is loaded, put its fields back to the default styling/positions */
+    if (sheet && S.rows.length) {
+      const dpi = P(n).dpi;
+      const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
+      const pt = Math.max(4, Math.round(num(n.pt) * 0.75));
+      const step = pt * 0.3528 * 1.7;
+      setCols(sheet.headers.map((h, i) => ({
+        id: `c${i}`, header: h, on: i < 3, label: false, pt: String(pt),
+        color: "#222222", lc: "#222222",
+        x: r1(wmm * 0.05), y: r1(hmm * 0.08 + i * step),
+      })));
+      setSel("c0");
+    }
+    say("Template unloaded.", "ok");
+  };
+
   const applyTemplate = async (id) => {
     setTplId(id);
-    if (!id) return;
+    if (!id) { resetTemplate(); return; }
     try {
       say("Loading template…");
       const r = await fetch(`${API}/api/numbering-templates/${id}`, { headers: authHeaders() });
@@ -1199,7 +1232,11 @@ export default function CertificateNumbering() {
     <div className="cn-root">
       <style>{CSS}</style>
 
-      {toast && <div className={`cn-toast ${toast.cls}`} role="alert">{toast.msg}</div>}
+      {toast && (
+        <div className={`cn-toast ${toast.cls}`} role="alert" onClick={() => setToast(null)}>
+          {toast.msg}
+        </div>
+      )}
 
       {/* loading overlay: blocks all input until the artwork is processed and painted */}
       {busy && (
@@ -1574,6 +1611,31 @@ const CSS = `
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
 .cn-ic{flex:0 0 auto}
+.cn-dlg-back{
+  position:absolute;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
+  background:rgba(11,39,48,.35);backdrop-filter:blur(1.5px);animation:cnfadein .15s ease;
+}
+  .cn-toast{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:70;
+  min-width:300px;max-width:min(680px,92%);padding:16px 26px;border-radius:12px;cursor:pointer;
+  font-weight:700;font-size:15px;line-height:1.5;text-align:center;overflow-wrap:anywhere;
+  background:#fff;border:1px solid var(--line2);box-shadow:0 10px 34px rgba(11,39,48,.28);
+  animation:cntoast .2s ease;
+}
+.cn-toast.ok{color:var(--ok);border-color:#b7dccf;background:#eefaf5}
+.cn-toast.err{color:var(--err);border-color:#efc2bf;background:#fdf0ef}
+@keyframes cntoast{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+.cn-dlg{
+  width:min(380px,90%);padding:18px 18px 14px;border-radius:10px;background:#fff;
+  border:1px solid var(--line2);border-top:4px solid var(--accent);box-shadow:0 12px 40px rgba(11,39,48,.3);
+  display:flex;flex-direction:column;gap:14px;
+}
+.cn-dlg p{margin:0;font-size:13.5px;font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+.cn-dlg .cn-btn{align-self:flex-end;min-width:70px}
+.cn-dlg.ok{border-top-color:var(--ok)}
+.cn-dlg.ok p{color:var(--ok)}
+.cn-dlg.err{border-top-color:var(--err)}
+.cn-dlg.err p{color:var(--err)}
 
 /* loading overlay (artwork upload) */
 .cn-busy{
