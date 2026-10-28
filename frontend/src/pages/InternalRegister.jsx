@@ -209,9 +209,14 @@ function InternalRegister() {
     fetchUsers();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value.trim() });
-  };
+const handleChange = (e) => {
+  const { name, value } = e.target;
+  const noSpaceFields = ["email", "password", "confirmPassword"];
+  setForm({
+    ...form,
+    [name]: noSpaceFields.includes(name) ? value.replace(/\s/g, "") : value
+  });
+};
 
   const validateForm = () => {
     const { email, password, confirmPassword } = form;
@@ -333,12 +338,12 @@ function InternalRegister() {
 
       const token = localStorage.getItem("token");
       const payload = {
-        name: form.name,
+        name: form.name.trim().replace(/\s+/g, " "),
         role: form.role,
         locations: selectedLocations,
         modules: form.role === "ADMIN" ? [] : selectedModules,
         authType: form.authType,
-        ldapUsername: form.ldapUsername
+        ldapUsername: form.ldapUsername.trim()
       };
       if (form.authType !== "ldap" && form.password) payload.password = form.password;
 
@@ -375,13 +380,15 @@ function InternalRegister() {
     }
 
     // NEW: keep details for the pop-up before the form is reset
-    const createdName = form.name;
+    const createdName = form.name.trim().replace(/\s+/g, " ");
     const createdEmail = form.email;
     const createdRole = form.role;
 
     try {
       await axios.post(`${BASE_URL}/api/auth/internal/register`, {
         ...form,
+        name: form.name.trim().replace(/\s+/g, " "),
+        ldapUsername: form.ldapUsername.trim(),
         locations: selectedLocations,
         modules: selectedModules
       });

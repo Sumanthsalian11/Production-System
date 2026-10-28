@@ -365,7 +365,7 @@ function InternalLogin() {
 
   // ---- ORIGINAL HANDLERS (unchanged) ----
   const handleChange = (e) => {
-    const value = e.target.value.trim();
+    const value = e.target.value;
     setForm({ ...form, [e.target.name]: value });
   };
 
@@ -375,7 +375,10 @@ function InternalLogin() {
     setLoading(true);
 
     try {
-      const res = await axios.post(`${BASE_URL}/api/auth/internal/login`, form);
+      const res = await axios.post(`${BASE_URL}/api/auth/internal/login`, {
+        email: form.email.trim(),
+        password: form.password,
+      });
 
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("role", res.data.role);
