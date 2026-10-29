@@ -238,6 +238,7 @@ function ProductionRealDashboard() {
     const [allowedMachineIds, setAllowedMachineIds] = useState(null); // null = no restriction
   const [locationFilter, setLocationFilter] = useState("");
   const [locationOptions, setLocationOptions] = useState([]);
+  const [locationMachineNames, setLocationMachineNames] = useState(null); // null = no location selected
   const [serverOptions, setServerOptions] = useState({ productTypes: [], customerNames: [], machineNames: [] });
   const [selectedMaterialIndex, setSelectedMaterialIndex] = useState("");
   const [recordsView, setRecordsView] = useState("details");
@@ -1300,7 +1301,14 @@ const statusColumns = useMemo(() => {
       });
     });
 
+    const locNames = locationMachineNames;
     return Array.from(groupMap.values())
+      .map((group) =>
+        locNames
+          ? { ...group, rows: new Map([...group.rows].filter(([, r]) => locNames.has(r.machineName))) }
+          : group
+      )
+      .filter((group) => group.rows.size > 0)
       .filter((group) =>
         !String(group.activityName || "")
           .toLowerCase()
@@ -1324,7 +1332,7 @@ const statusColumns = useMemo(() => {
   // still only computed while the Summary view is on screen
   const productionSummaryReport = useMemo(
     () => (recordsView === "summary" ? buildProductionSummary() : []),
-    [recordsView, summaryRows, activities, machines, statusColumns]
+    [recordsView, summaryRows, activities, machines, statusColumns, locationMachineNames]
   );
 
   // ================= JWT =================
@@ -1367,6 +1375,24 @@ const statusColumns = useMemo(() => {
       })
       .catch((err) => console.error("Error fetching location machines:", err));
   }, [userLocations, token]);
+
+  // ================= MASTER MACHINES OF THE SELECTED LOCATION (Summary Report) =================
+  useEffect(() => {
+    if (!locationFilter) {
+      setLocationMachineNames(null);
+      return;
+    }
+    axios
+      .get(`${BASE_URL}/api/master/locations`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        const loc = (res.data || []).find((l) => l.locationName === locationFilter);
+        const ids = new Set((loc?.machines || []).map((m) => String(m._id || m)));
+        const names = new Set((loc?.machines || []).map((m) => m?.machineName).filter(Boolean));
+        machines.filter((m) => ids.has(String(m._id))).forEach((m) => names.add(m.machineName));
+        setLocationMachineNames(names);
+      })
+      .catch((err) => console.error("Error fetching location machines:", err));
+  }, [locationFilter, machines, token]);
 
   // ================= FETCH ACTIVITIES =================
   const fetchActivities = async () => {
