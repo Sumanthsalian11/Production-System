@@ -11,10 +11,10 @@ const { autoScheduleWorkOrder } = require("../controllers/scheduleController");
 // "123" -> 123, 1230-1239, 12300-12399 ...
 const prefixRanges = (field, raw) => {
   const s = String(raw).trim();
-  if (!/^\d{1,7}$/.test(s)) return null; // null => matches nothing
+  if (!/^\d{1,15}$/.test(s)) return null; // null => matches nothing
   const n = Number(s);
   const ranges = [];
-  for (let extra = 0; extra <= 8; extra++) {
+  for (let extra = 0; extra <= 8 && s.length + extra <= 15; extra++) {
     const m = 10 ** extra;
     ranges.push({ [field]: { $gte: n * m, $lt: (n + 1) * m } });
   }
