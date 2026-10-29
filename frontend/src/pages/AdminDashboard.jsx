@@ -1696,12 +1696,13 @@ const [supplierFilter, setSupplierFilter] = useState("");
       "Waste Quantity": i.wasteQty ?? "",
       "Job Size": i.jobSize || "",
       "Ink Details": i.inkDetails || "",
+      "Unique Code": i.uniqueCode || "",
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 6 }, { wch: 20 }, { wch: 24 }, { wch: 36 }, { wch: 18 },
-      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 14 },
     ];
 
     const wb = XLSX.utils.book_new();
