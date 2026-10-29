@@ -319,6 +319,45 @@ function Pager({ page, totalPages, total, pageSize, onPage, onPageSize }) {
   );
 }
 
+function AddableSelect({ value, onChange, options, placeholder, disabled, noAdd }) {
+  const [adding, setAdding] = useState(false);
+
+  // no stored options yet (new customer) -> plain text box
+  if (!disabled && (adding || (options.length === 0 && !value) || (options.length === 0 && !noAdd))) {
+    return (
+      <div style={{ display: "flex", gap: 4 }}>
+        <input
+          className="pro-input"
+          style={{ flex: 1 }}
+          autoFocus={adding}
+          placeholder={`New ${placeholder}`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {options.length > 0 && (
+          <button type="button" className="pro-btn" onClick={() => { setAdding(false); onChange(""); }}>✕</button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      className="pro-input"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        if (e.target.value === "__new__") { setAdding(true); onChange(""); }
+        else onChange(e.target.value);
+      }}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      {!noAdd && <option value="__new__">＋ Add new…</option>}
+    </select>
+  );
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(null); // which master form popup is open
@@ -380,6 +419,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [showFreightTypeList, setShowFreightTypeList] = useState(false);
 
   const [newItem, setNewItem] = useState({
+    uniqueCode: "",
     itemCode: "",
     customerName: "",
     description: "",
@@ -391,6 +431,18 @@ const [supplierFilter, setSupplierFilter] = useState("");
     inkDetails: "",
   });
   const [newItemPdf, setNewItemPdf] = useState(null);
+  const [newItemKey, setNewItemKey] = useState(0);
+  const uniqueCodes = useMemo(
+    () => [...new Set(items.map((i) => i.uniqueCode).filter(Boolean))].sort(),
+    [items]
+  );
+  const optionsFor = (field) =>
+    [...new Set(
+      items
+        .filter((i) => i.uniqueCode === newItem.uniqueCode && (field === "customerName" || i.customerName === newItem.customerName))
+        .map((i) => String(i[field] ?? "").trim())
+        .filter(Boolean)
+    )].sort();
 
   const [branches, setBranches] = useState([]);
   const [newBranch, setNewBranch] = useState({
@@ -618,6 +670,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       wasteQty: "",
       jobSize: "",
       inkDetails: "",
+      uniqueCode: "",
     });
     setNewItemPdf(null);
     setNewTransportation("");
@@ -1424,8 +1477,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
       wasteQty: "",
       jobSize: "",
       inkDetails: "",
+      uniqueCode: "",
     });
     setNewItemPdf(null);
+    setNewItemKey((k) => k + 1);
     fetchMasters();
   };
 
@@ -2357,10 +2412,40 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </span>
           </div>
 
-          <div className="pro-grid">
+          <div className="pro-grid" key={newItemKey}>
+            <AddableSelect
+              placeholder="Unique Code"
+              value={newItem.uniqueCode}
+              options={uniqueCodes}
+              onChange={(v) => {
+                const custs = [...new Set(items.filter((i) => i.uniqueCode === v).map((i) => i.customerName).filter(Boolean))];
+                setNewItem({
+                  ...newItem,
+                  uniqueCode: v,
+                  customerName: custs.length === 1 ? custs[0] : "",
+                  description: "", materialType: "", colorFront: "", colorBack: "",
+                  wasteQty: "", jobSize: "", inkDetails: "",
+                });
+              }}
+            />
+
+            <input
+              className="pro-input"
+              placeholder="Item Code (SFG Code)"
+              value={newItem.itemCode}
+              onChange={(e) => setNewItem({ ...newItem, itemCode: e.target.value })}
+            />
+
+            <AddableSelect
+              placeholder="Customer Name"
+              value={newItem.customerName}
+              options={optionsFor("customerName")}
+              disabled={!newItem.uniqueCode}
+              noAdd
+              onChange={(v) => setNewItem({ ...newItem, customerName: v })}
+            />
+
             {[
-              ["itemCode", "Item Code (SFG Code)"],
-              ["customerName", "Customer Name"],
               ["description", "Description"],
               ["materialType", "Material Type"],
               ["colorFront", "Front Colors"],
@@ -2369,12 +2454,13 @@ const [supplierFilter, setSupplierFilter] = useState("");
               ["jobSize", "Job Size"],
               ["inkDetails", "Ink Details"],
             ].map(([key, placeholder]) => (
-              <input
+              <AddableSelect
                 key={key}
-                className="pro-input"
                 placeholder={placeholder}
                 value={newItem[key]}
-                onChange={(e) => setNewItem({ ...newItem, [key]: e.target.value })}
+                options={optionsFor(key)}
+                disabled={!newItem.customerName}
+                onChange={(v) => setNewItem({ ...newItem, [key]: v })}
               />
             ))}
           </div>
@@ -2451,7 +2537,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             >
               {uploadResult.error
                 ? `❌ ${uploadResult.error}`
-                : `✅ Inserted: ${uploadResult.inserted} | Skipped (duplicates): ${uploadResult.skipped}${
+                : `✅ Inserted: ${uploadResult.inserted} | Updated: ${uploadResult.updated || 0} | Skipped (duplicates): ${uploadResult.skipped}${
                     uploadResult.errors?.length ? ` | Errors: ${uploadResult.errors.length}` : ""
                   }`}
             </div>

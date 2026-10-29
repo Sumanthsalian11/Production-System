@@ -32,27 +32,41 @@ router.post("/bulk-upload", upload.single("file"), async (req, res) => {
       const itemCode = row["itemCode"] || row["Item Code"] || row["SFG Code"];
       if (!itemCode) { results.skipped++; continue; }
 
+      const pick = (...keys) => {
+        for (const k of keys) if (row[k] !== undefined && row[k] !== null) return String(row[k]).trim();
+        return "";
+      };
+      const data = {
+        uniqueCode:   pick("uniqueCode", "Unique Code"),
+        customerName: pick("customerName", "Customer Name"),
+        description:  pick("description", "Description"),
+        materialType: pick("materialType", "Material Type"),
+        colorFront:   pick("colorFront", "Color Front", "Front Colors"),
+        colorBack:    pick("colorBack", "Color Back", "Back Colors"),
+        wasteQty:     pick("wasteQty", "Waste Qty", "Waste Quantity"),
+        jobSize:      pick("jobSize", "Job Size (MM)", "Job Size"),
+        inkDetails:   pick("inkDetails", "Ink Details"),
+      };
+      if (data.wasteQty === "") delete data.wasteQty;
+
       const exists = await Item.findOne({ itemCode: String(itemCode).trim() });
-      if (exists) { results.skipped++; continue; }
+      if (exists) {
+        // fill / refresh only the fields present in the Excel
+        const set = {};
+        Object.entries(data).forEach(([k, v]) => {
+          if (v !== "" && String(exists[k] ?? "") !== v) set[k] = v;
+        });
+        if (Object.keys(set).length) {
+          await Item.updateOne({ _id: exists._id }, { $set: set });
+          results.updated = (results.updated || 0) + 1;
+        } else {
+          results.skipped++;
+        }
+        continue;
+      }
 
       try {
-        await Item.create({
-          itemCode:     String(itemCode).trim(),
-          customerName: String(row["customerName"] || row["Customer Name"] || "").trim(),
-          description:  String(row["description"]  || row["Description"]  || "").trim(),
-          materialType: String(row["materialType"] || row["Material Type"] || "").trim(),
-          colorFront:   String(row["colorFront"]   || row["Color Front"]   || "").trim(),
-         colorBack: String(
-  row["Color Back"] ?? ""
-).trim(),
-          wasteQty:     String(row["wasteQty"]     || row["Waste Qty"]     || "").trim(),
-         jobSize: String(
-  row["jobSize"] ??
-  row["Job Size (MM)"] ??
-  ""
-).trim(),
-          inkDetails:   String(row["inkDetails"]   || row["Ink Details"]   || "").trim(),
-        });
+        await Item.create({ itemCode: String(itemCode).trim(), ...data });
         results.inserted++;
       } catch (e) {
         results.errors.push(`${itemCode}: ${e.message}`);

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const itemSchema = new mongoose.Schema({
   itemCode: { type: String, unique: true },
+  uniqueCode: String,
   customerName: String,
   description: String,
   materialType: String,
