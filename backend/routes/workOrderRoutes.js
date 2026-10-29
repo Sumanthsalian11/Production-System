@@ -32,6 +32,10 @@ const buildFilter = (q) => {
     and.push({ "machines.machineId": q.machine });
   }
 
+   if (q.planningUser) {
+    and.push({ planningUser: String(q.planningUser) });
+  }
+
   if (q.woNo) {
     and.push(prefixRanges("efiWoNumber", q.woNo) || { _id: { $exists: false } });
   }
@@ -117,17 +121,19 @@ router.get("/paged", authMiddleware, async (req, res) => {
 let metaCache = { t: 0, v: null };
 const warmMeta = async () => {
   try {
-    const [planned, customers, locations] = await Promise.all([
+    const [planned, customers, locations, planners] = await Promise.all([
       WorkOrder.countDocuments({ status: "PLANNED" }),
       WorkOrder.distinct("customer", { status: "PLANNED" }),
-      WorkOrder.distinct("userLocations", { status: "PLANNED" })
+      WorkOrder.distinct("userLocations", { status: "PLANNED" }),
+      WorkOrder.distinct("planningUser", { status: "PLANNED" })
     ]);
     metaCache = {
       t: Date.now(),
       v: {
         planned,
         customers: customers.filter(Boolean).sort(),
-        locations: locations.filter(Boolean).sort()
+        locations: locations.filter(Boolean).sort(),
+        planners: planners.filter(Boolean).sort()
       }
     };
   } catch (e) {
@@ -139,17 +145,19 @@ setInterval(warmMeta, 2 * 60 * 1000);
 router.get("/meta", authMiddleware, async (req, res) => {
   try {
     if (metaCache.v && Date.now() - metaCache.t < 300000) return res.json(metaCache.v);
-    const [planned, customers, locations] = await Promise.all([
+    const [planned, customers, locations, planners] = await Promise.all([
       WorkOrder.countDocuments({ status: "PLANNED" }),
       WorkOrder.distinct("customer", { status: "PLANNED" }),
-      WorkOrder.distinct("userLocations", { status: "PLANNED" })
+      WorkOrder.distinct("userLocations", { status: "PLANNED" }),
+      WorkOrder.distinct("planningUser", { status: "PLANNED" })
     ]);
     metaCache = {
       t: Date.now(),
       v: {
         planned,
         customers: customers.filter(Boolean).sort(),
-        locations: locations.filter(Boolean).sort()
+        locations: locations.filter(Boolean).sort(),
+        planners: planners.filter(Boolean).sort()
       }
     };
     return res.json(metaCache.v);

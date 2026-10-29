@@ -162,7 +162,7 @@ function PlannerDashboard() {
   const [totalRows, setTotalRows] = useState(0);
   const [plannedCount, setPlannedCount] = useState(0);
   const [tableLoading, setTableLoading] = useState(false);
-  const [filterOptions, setFilterOptions] = useState({ customers: [], locations: [] });
+  const [filterOptions, setFilterOptions] = useState({ customers: [], locations: [], planners: [] });
   const reqId = useRef(0);
 
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -190,6 +190,7 @@ function PlannerDashboard() {
   const [filterWoNo, setFilterWoNo] = useState("");
   const [filterProductCode, setFilterProductCode] = useState("");
   const [filterMachine, setFilterMachine] = useState("");
+  const [filterPlanning, setFilterPlanning] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -344,13 +345,14 @@ function PlannerDashboard() {
     woNo: filterWoNo.trim(),
     productCode: filterProductCode.trim(),
     machine: filterMachine,
+    planningUser: filterPlanning,
     location: filterUserLocation,
     from: dateFrom,
     to: dateTo
   });
 
   const hasFilter = () =>
-    !!(filterWoNo || filterProductCode || filterMachine || dateFrom || dateTo || filterUserLocation || filterCustomer);
+    !!(filterWoNo || filterProductCode || filterMachine || filterPlanning || dateFrom || dateTo || filterUserLocation || filterCustomer);
 
   const fetchWorkOrders = async (targetPage = page) => {
     const id = ++reqId.current;
@@ -382,7 +384,8 @@ function PlannerDashboard() {
       setPlannedCount(res.data.planned || 0);
       setFilterOptions({
         customers: res.data.customers || [],
-        locations: res.data.locations || []
+        locations: res.data.locations || [],
+        planners: res.data.planners || []
       });
     } catch (err) {
       console.error("Error fetching meta:", err);
@@ -453,13 +456,13 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
   // reset to page 1 when any filter changes
   useEffect(() => {
     setPage(1);
-  }, [filterCustomer, filterWoNo, filterProductCode, filterMachine, filterUserLocation, dateFrom, dateTo]);
+  }, [filterCustomer, filterWoNo, filterProductCode, filterMachine, filterPlanning, filterUserLocation, dateFrom, dateTo]);
 
   // reload table when page / filters change (debounced)
   useEffect(() => {
     const t = setTimeout(() => fetchWorkOrders(page), 350);
     return () => clearTimeout(t);
-  }, [page, filterCustomer, filterWoNo, filterProductCode, filterMachine, filterUserLocation, dateFrom, dateTo]);
+  }, [page, filterCustomer, filterWoNo, filterProductCode, filterMachine, filterPlanning, filterUserLocation, dateFrom, dateTo]);
 
   // Fetch data
   useEffect(() => {
@@ -2215,10 +2218,14 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       y += 12;
 
       const machineName = String(
-        wo.machines?.map(pair => {
-          const mac = machines.find(m => String(m._id) === String(pair.machineId?._id || pair.machineId));
-          return mac?.machineName || "-";
-        }).join(", ") || "-"
+        [...new Set(
+          (wo.machines || [])
+            .map(pair => {
+              const mac = machines.find(m => String(m._id) === String(pair.machineId?._id || pair.machineId));
+              return mac?.machineName;
+            })
+            .filter(Boolean)
+        )].join(", ") || "-"
       );
 
       const fields = [
@@ -5144,6 +5151,19 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                       </select>
                     </PoField>
 
+                    <PoField icon="bi-person-badge" label="Planning" alwaysFloat caret>
+                      <select
+                        className="po-input"
+                        value={filterPlanning}
+                        onChange={(e) => setFilterPlanning(e.target.value)}
+                      >
+                        <option value="">All Planners</option>
+                        {filterOptions.planners.map(name => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </PoField>
+
                     <PoField icon="bi-calendar-event" label="From Date" alwaysFloat>
                       <input
                         type="date"
@@ -5169,6 +5189,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         setFilterWoNo("");
                         setFilterProductCode("");
                         setFilterMachine("");
+                        setFilterPlanning("");
                         setFilterUserLocation("");
                         setDateFrom(new Date(Date.now() - 7 * 86400000).toLocaleDateString("en-CA"));
                         setDateTo(new Date().toLocaleDateString("en-CA"));
