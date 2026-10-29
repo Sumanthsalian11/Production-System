@@ -323,7 +323,7 @@ function AddableSelect({ value, onChange, options, placeholder, disabled, noAdd 
   const [adding, setAdding] = useState(false);
 
   // no stored options yet (new customer) -> plain text box
-  if (!disabled && (adding || (options.length === 0 && !value) || (options.length === 0 && !noAdd))) {
+  if (!disabled && (adding || options.length === 0)) {
     return (
       <div style={{ display: "flex", gap: 4 }}>
         <input
