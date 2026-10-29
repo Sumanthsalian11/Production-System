@@ -723,6 +723,7 @@ export default function ProductionMachineStatusModule() {
     workOrder: "", dateFrom: "", dateTo: "", month: "", shift: "", machine: "", machineStatus: "", printer: "",
   });
   const [locationFilter, setLocationFilter] = useState("");
+  const [locationMachineNames, setLocationMachineNames] = useState(null); // null = no location selected
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [recordsView, setRecordsView] = useState("details");
@@ -783,6 +784,24 @@ export default function ProductionMachineStatusModule() {
       })
       .catch((err) => console.error("Error fetching location machines:", err));
   }, [userLocations, authHeaders]);
+
+  /* ── Master machines of the selected location (Summary Report) ── */
+  useEffect(() => {
+    if (!locationFilter) {
+      setLocationMachineNames(null);
+      return;
+    }
+    axios
+      .get(`${BASE_URL}/api/master/locations`, authHeaders)
+      .then((res) => {
+        const loc = (res.data || []).find((l) => l.locationName === locationFilter);
+        const ids = new Set((loc?.machines || []).map((m) => String(m._id || m)));
+        const names = new Set((loc?.machines || []).map((m) => m?.machineName).filter(Boolean));
+        machines.filter((m) => ids.has(String(m._id))).forEach((m) => names.add(m.machineName));
+        setLocationMachineNames(names);
+      })
+      .catch((err) => console.error("Error fetching location machines:", err));
+  }, [locationFilter, machines, authHeaders]);
 
   /* ── Fetch masters ── */
   const fetchAll = async () => {
@@ -1302,8 +1321,11 @@ export default function ProductionMachineStatusModule() {
       }
     });
 
+    const locNames = locationMachineNames;
     return Array.from(groupMap.values()).map((group) => {
-      const rows = Array.from(group.rows.values()).map((r) => ({
+      const rows = Array.from(group.rows.values())
+        .filter((r) => !locNames || locNames.has(r.machineName))
+        .map((r) => ({
         ...r,
         dayRemarks: Array.from(r.dayRemarks).join(", ") || "-",
         nightRemarks: Array.from(r.nightRemarks).join(", ") || "-",
@@ -1315,12 +1337,12 @@ export default function ProductionMachineStatusModule() {
       const order = [...new Set(rows.map((r) => r.machineName))];
       rows.sort((a, b) => order.indexOf(a.machineName) - order.indexOf(b.machineName));
       return { activityName: group.activityName, rows };
-    });
+    }).filter((g) => g.rows.length > 0);
   };
 
   const summaryRows = useMemo(
     () => (recordsView === "summary" ? buildSummary() : []),
-    [recordsView, summaryData, activities, machines, printers, persoActivity, statusColumns]
+    [recordsView, summaryData, activities, machines, printers, persoActivity, statusColumns, locationMachineNames]
   );
 
   const summarySizes = useMemo(
