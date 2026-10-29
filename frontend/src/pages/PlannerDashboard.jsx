@@ -235,6 +235,37 @@ function PlannerDashboard() {
   // ⭐ Activity 2 (additional activities, multi-select checkboxes)
   const [activity2, setActivity2] = useState([]);
   const [showActivity2Dropdown, setShowActivity2Dropdown] = useState(false);
+  const [signoffOrder, setSignoffOrder] = useState([]);
+
+  useEffect(() => {
+    axios
+      .get(`${BASE_URL}/api/workorders/signoff-order`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((r) => setSignoffOrder(r.data.order || []))
+      .catch(() => {});
+  }, []);
+
+  const orderedActivities = [...activities].sort((a, b) => {
+    const ia = signoffOrder.indexOf(a._id);
+    const ib = signoffOrder.indexOf(b._id);
+    return (ia === -1 ? 1e6 : ia) - (ib === -1 ? 1e6 : ib);
+  });
+
+  const saveSignoffOrder = async () => {
+    if (!activity2.length) return alert("Tick the activities in the order you want, then click Set");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/workorders/signoff-order`,
+        { order: activity2 },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+      setSignoffOrder(activity2);
+      alert("Sign-off order saved");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to save order");
+    }
+  };
 
   // ⭐ Modal state for Activity/Machine/Paper Code entries
   const [showRowModal, setShowRowModal] = useState(false);
@@ -4384,10 +4415,22 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
 
                         {showActivity2Dropdown && (
                           <div className="wo-dd">
+                            {isAdmin && (
+                              <div style={{ padding: "6px 8px", borderBottom: "1px solid #e5e9f0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+                                <button
+                                  type="button"
+                                  className="wo-btn wo-btn-soft"
+                                  style={{ width: "100%" }}
+                                  onClick={saveSignoffOrder}
+                                >
+                                  Set (save this order)
+                                </button>
+                              </div>
+                            )}
                             {activities.length === 0 ? (
                               <div className="wo-dd-empty">No activities found</div>
                             ) : (
-                              activities.map((a) => {
+                              orderedActivities.map((a) => {
                                 const selectedIndex = activity2.indexOf(a._id);
                                 const isSelected = selectedIndex !== -1;
                                 return (

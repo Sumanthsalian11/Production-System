@@ -194,6 +194,37 @@ router.post("/existing-order-ids", authMiddleware, async (req, res) => {
 });
 
 // =============================================
+// ACTIVITIES SIGN-OFF ORDER (admin sets, everyone reads)
+// =============================================
+const SignoffOrder = require("../models/SignoffOrder");
+
+router.get("/signoff-order", authMiddleware, async (req, res) => {
+  try {
+    const doc = await SignoffOrder.findOne({ key: "signoff" }).lean();
+    res.json({ order: doc?.order || [] });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/signoff-order", authMiddleware, async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const order = (req.body.order || []).map(String);
+    const doc = await SignoffOrder.findOneAndUpdate(
+      { key: "signoff" },
+      { order },
+      { upsert: true, new: true }
+    );
+    res.json({ order: doc.order });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
 // CREATE WORK ORDER
 // =============================================
 router.post("/create", authMiddleware, async (req, res) => {
