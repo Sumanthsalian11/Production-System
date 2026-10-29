@@ -462,6 +462,26 @@ async function centerLayout(f, W, H) {
   };
 }
 
+/* ---------- persistent custom fonts (IndexedDB) ---------- */
+const fontDb = () =>
+  new Promise((res, rej) => {
+    const r = indexedDB.open("cn-fonts", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("fonts", { keyPath: "name" });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+const fontTx = async (mode, fn) => {
+  const db = await fontDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("fonts", mode);
+    const req = fn(tx.objectStore("fonts"));
+    tx.oncomplete = () => res(req && req.result);
+    tx.onerror = () => rej(tx.error);
+  });
+};
+const fontSave = (name, data) => fontTx("readwrite", (s) => s.put({ name, data }));
+const fontList = () => fontTx("readonly", (s) => s.getAll());
+
 export default function CertificateNumbering() {
   const [f, setF] = useState(DEFAULTS);
   const [fonts, setFonts] = useState(BASE_FONTS);
@@ -549,13 +569,34 @@ export default function CertificateNumbering() {
     try {
       let name = file.name.replace(/\.(ttf|otf|woff2?)$/i, "").replace(/[^\w\s-]/g, "").trim() || "Custom";
       if (name === name.toUpperCase()) name = name[0] + name.slice(1).toLowerCase();
-      const face = new FontFace(name, await file.arrayBuffer());
+      const data = await file.arrayBuffer();
+      const face = new FontFace(name, data.slice(0));
       await face.load();
       document.fonts.add(face);
+      await fontSave(name, data);
       setFonts((fs) => (fs.includes(name) ? fs : [name, ...fs]));
-      say(`Font "${name}" added for this session.`, "ok");
+      say(`Font "${name}" saved.`, "ok");
     } catch { say("Could not read that font file.", "err"); }
   };
+
+  /* saved custom fonts */
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await fontList();
+        const names = [];
+        for (const { name, data } of saved) {
+          try {
+            const face = new FontFace(name, data.slice(0));
+            await face.load();
+            document.fonts.add(face);
+            names.push(name);
+          } catch { /* skip a corrupt entry */ }
+        }
+        if (names.length) setFonts((fs) => [...names.filter((n) => !fs.includes(n)), ...fs]);
+      } catch { /* IndexedDB unavailable */ }
+    })();
+  }, []);
 
   /* google fonts */
   useEffect(() => {
