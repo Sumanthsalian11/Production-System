@@ -193,99 +193,106 @@ router.get("/filter-options", async (req, res) => {
 });
 
 // Summary Report: grouped in MongoDB, only totals are sent
+// Summary Report: grouped in MongoDB, cached like the Perso report
+const summaryKey = (q) => "S|" + JSON.stringify(Object.keys(q).sort().map((k) => [k, q[k]]));
+
+const buildSummaryData = async (q) => {
+  const query = await buildQuery(q);
+
+  const part = (f, i) => ({
+    $convert: {
+      input: { $arrayElemAt: [{ $split: [{ $ifNull: [f, ""] }, ":"] }, i] },
+      to: "int", onError: 0, onNull: 0,
+    },
+  });
+  const toMin = (f) => ({ $add: [{ $multiply: [part(f, 0), 60] }, part(f, 1)] });
+  const mins = {
+    $cond: [
+      { $or: [{ $eq: [{ $ifNull: ["$fromTime", ""] }, ""] }, { $eq: [{ $ifNull: ["$toTime", ""] }, ""] }] },
+      0,
+      {
+        $let: {
+          vars: { f: toMin("$fromTime"), t: toMin("$toTime") },
+          in: {
+            $cond: [
+              { $lte: ["$$t", "$$f"] },
+              { $subtract: [{ $add: ["$$t", 1440] }, "$$f"] },
+              { $subtract: ["$$t", "$$f"] },
+            ],
+          },
+        },
+      },
+    ],
+  };
+
+  const [rows, actDocs, macDocs] = await Promise.all([
+    ProductionMachineStatus.aggregate([
+      { $match: query },
+      {
+        $project: {
+          a: "$activityId",
+          m: "$machineId",
+          p: { $ifNull: ["$printerName", ""] },
+          s: { $ifNull: ["$shift", ""] },
+          st: { $trim: { input: { $toString: { $ifNull: ["$machineStatus", ""] } } } },
+          ps: { $trim: { input: { $toString: { $ifNull: ["$paperSize", ""] } } } },
+          pages: { $ifNull: ["$totalPages", 0] },
+          rm: { $trim: { input: { $toString: { $ifNull: ["$remarks", ""] } } } },
+          mins: { $ifNull: ["$durMins", mins] },
+        },
+      },
+      {
+        $group: {
+          _id: { a: "$a", m: "$m", p: "$p", s: "$s", st: { $toLower: "$st" }, ps: "$ps" },
+          label: { $first: "$st" },
+          pages: { $sum: "$pages" },
+          mins: { $sum: "$mins" },
+          n: { $sum: 1 },
+          rm: { $addToSet: "$rm" },
+        },
+      },
+    ]).allowDiskUse(true),
+    mongoose.model("ActivityMaster").find({}, "activityName").lean(),
+    mongoose.model("MachineMaster").find({}, "machineName").lean(),
+  ]);
+
+  const actMap = new Map(actDocs.map((a) => [String(a._id), a.activityName]));
+  const macMap = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
+  const statuses = new Map();
+  let total = 0;
+
+  const out = rows.map((r) => {
+    total += r.n;
+    if (r._id.st && !statuses.has(r._id.st)) statuses.set(r._id.st, r.label || r._id.st);
+    return {
+      activityName: actMap.get(String(r._id.a)) || "-",
+      machineName: macMap.get(String(r._id.m)) || "-",
+      printerName: r._id.p,
+      shift: r._id.s,
+      machineStatus: r.label,
+      paperSize: r._id.ps,
+      totalPages: r.pages,
+      mins: r.mins,
+      remarks: (r.rm || []).filter(Boolean),
+    };
+  });
+
+  return {
+    rows: out,
+    statuses: [...statuses].map(([key, label]) => ({ key, label })),
+    total,
+  };
+};
+
 router.get("/summary", async (req, res) => {
   try {
-    const query = await buildQuery(req.query);
-
-    const part = (f, i) => ({
-      $convert: {
-        input: { $arrayElemAt: [{ $split: [{ $ifNull: [f, ""] }, ":"] }, i] },
-        to: "int", onError: 0, onNull: 0,
-      },
-    });
-    const toMin = (f) => ({ $add: [{ $multiply: [part(f, 0), 60] }, part(f, 1)] });
-    const mins = {
-      $cond: [
-        { $or: [{ $eq: [{ $ifNull: ["$fromTime", ""] }, ""] }, { $eq: [{ $ifNull: ["$toTime", ""] }, ""] }] },
-        0,
-        {
-          $let: {
-            vars: { f: toMin("$fromTime"), t: toMin("$toTime") },
-            in: {
-              $cond: [
-                { $lte: ["$$t", "$$f"] },
-                { $subtract: [{ $add: ["$$t", 1440] }, "$$f"] },
-                { $subtract: ["$$t", "$$f"] },
-              ],
-            },
-          },
-        },
-      ],
-    };
-
-    const [rows, actDocs, macDocs] = await Promise.all([
-      ProductionMachineStatus.aggregate([
-        { $match: query },
-        {
-          $project: {
-            a: "$activityId",
-            m: "$machineId",
-            p: { $ifNull: ["$printerName", ""] },
-            s: { $ifNull: ["$shift", ""] },
-            st: { $trim: { input: { $toString: { $ifNull: ["$machineStatus", ""] } } } },
-            ps: { $trim: { input: { $toString: { $ifNull: ["$paperSize", ""] } } } },
-            pages: { $ifNull: ["$totalPages", 0] },
-            rm: { $trim: { input: { $toString: { $ifNull: ["$remarks", ""] } } } },
-            mins,
-          },
-        },
-        {
-          $group: {
-            _id: { a: "$a", m: "$m", p: "$p", s: "$s", st: { $toLower: "$st" }, ps: "$ps" },
-            label: { $first: "$st" },
-            pages: { $sum: "$pages" },
-            mins: { $sum: "$mins" },
-            n: { $sum: 1 },
-            rm: { $addToSet: "$rm" },
-          },
-        },
-      ]).allowDiskUse(true),
-      mongoose.model("ActivityMaster").find({}, "activityName").lean(),
-      mongoose.model("MachineMaster").find({}, "machineName").lean(),
-    ]);
-
-    const actMap = new Map(actDocs.map((a) => [String(a._id), a.activityName]));
-    const macMap = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
-    const statuses = new Map();
-    let total = 0;
-
-    const out = rows.map((r) => {
-      total += r.n;
-      if (r._id.st && !statuses.has(r._id.st)) statuses.set(r._id.st, r.label || r._id.st);
-      return {
-        activityName: actMap.get(String(r._id.a)) || "-",
-        machineName: macMap.get(String(r._id.m)) || "-",
-        printerName: r._id.p,
-        shift: r._id.s,
-        machineStatus: r.label,
-        paperSize: r._id.ps,
-        totalPages: r.pages,
-        mins: r.mins,
-        remarks: (r.rm || []).filter(Boolean),
-      };
-    });
-
-    res.json({
-      rows: out,
-      statuses: [...statuses].map(([key, label]) => ({ key, label })),
-      total,
-    });
+    const q = req.query;
+    res.json(await persoCached(summaryKey(q), isHeavy(q), () => buildSummaryData(q)));
   } catch (err) {
     console.error("Summary error:", err);
     res.status(500).json({ message: "Error building summary", error: err.message });
   }
 });
-
 // ==========================================
 // PERSO REPORT (grouped in MongoDB, only totals + first 50 job rows are sent)
 // ==========================================
@@ -342,6 +349,11 @@ const clearPersoCache = () => {
   clearTimeout(warmTimer);
   warmTimer = setTimeout(() => warmPerso(), 45000);
   warmTimer.unref?.();
+  clearTimeout(summaryWarmTimer);
+  summaryWarmTimer = setTimeout(() => {
+    persoRefresh(summaryKey({}), () => buildSummaryData({})).catch(console.error);
+  }, 2000);
+  summaryWarmTimer.unref?.();
 };
 
 // ---------- helpers ----------
@@ -657,6 +669,8 @@ const warmPerso = () => {
   const weekQ = { dateFrom: d(from), dateTo: d(to) };          // same default the page opens with
   persoRefresh(persoKey(weekQ), () => buildPersoReport(weekQ, false)).catch(console.error);
   persoRefresh("OPTS", buildPersoOptions).catch(console.error);
+  persoRefresh(summaryKey({}), () => buildSummaryData({})).catch(console.error);   // Summary Report, no filters
+  persoRefresh(summaryKey(weekQ), () => buildSummaryData(weekQ)).catch(console.error);
 };
 setTimeout(warmPerso, 5000).unref?.();
 setInterval(warmPerso, 10 * 60 * 1000).unref?.();
