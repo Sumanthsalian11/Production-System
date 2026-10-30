@@ -103,33 +103,33 @@ exports.internalRegister = async (req, res) => {
 
 exports.internalLogin = async (req, res) => {
   try {
-   const { email, password, role, location } = req.body;
+    const { email, password, role, location } = req.body;
 
     const identifier = email.toLowerCase().trim();
 
-    // 🔥 ENV ADMIN LOGIN (only email)
+    // ENV admin login (email only)
     if (
       identifier === process.env.ADMIN_EMAIL &&
       password === process.env.ADMIN_PASSWORD
     ) {
-     const token = jwt.sign(
-  {
-    role: process.env.ADMIN_ROLE,
-    name: "Admin",
-    locations: [],
-    modules: []   // env admin always sees everything (frontend bypasses filter for admin)
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: "1d" }
-);
+      const token = jwt.sign(
+        {
+          role: process.env.ADMIN_ROLE,
+          name: "Admin",
+          locations: [],
+          modules: [],
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
 
       return res.json({
         token,
-        role: process.env.ADMIN_ROLE
+        role: process.env.ADMIN_ROLE,
       });
     }
 
-    // 🔥 LOGIN WITH EMAIL OR NAME
+    // Login with email or name
     const user = await User.findOne({
       isInternal: true,
       $or: [
@@ -137,15 +137,21 @@ exports.internalLogin = async (req, res) => {
         { name: { $regex: new RegExp(`^${identifier}$`, "i") } },
         {
           ldapUsername: {
-            $regex: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
-          }
-        }
-      ]
+            $regex: new RegExp(
+              `^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+              "i"
+            ),
+          },
+        },
+      ],
     });
 
-    if (!user) return res.status(400).json({ message: "Invalid credentials" });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     let isMatch = false;
+
     if (user.authType === "ldap") {
       try {
         await verifyLDAPUser(user.ldapUsername || user.email, password);
@@ -154,33 +160,34 @@ exports.internalLogin = async (req, res) => {
         if (ldapErr.name !== "InvalidCredentialsError") {
           console.error("LDAP authentication error:", ldapErr.message);
           return res.status(503).json({
-            message: "Domain server is not reachable. Please try again or contact your administrator."
+            message:
+              "Domain server is not reachable. Please try again or contact your administrator.",
           });
         }
       }
     } else {
-      isMatch = await user.comparePassword(password); // local users: unchanged
+      isMatch = await user.comparePassword(password); // Local users: unchanged
     }
-    if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
-    // ✅ validate location
-if (location && !user.locations.includes(location)) {
-  return res.status(400).json({ message: "Invalid user location" });
-}
 
-// ✅ store login location
-// ✅ AUTO ASSIGN LOGIN LOCATION
-user.loginLocation =
-  location || user.locations?.[0] || "";
-
-await user.save();
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
 
     if (role && user.role !== role) {
       return res.status(400).json({ message: "Invalid role for this user" });
     }
 
+    // Validate location
+    if (location && !user.locations.includes(location)) {
+      return res.status(400).json({ message: "Invalid user location" });
+    }
+
+    // Store login location, or use the user's first location
+    user.loginLocation = location || user.locations?.[0] || "";
+    await user.save();
+
     const token = generateToken(user);
     res.json({ token, role: user.role });
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
