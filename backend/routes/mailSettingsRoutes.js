@@ -21,6 +21,7 @@ router.get("/:key", auth, async (req, res) => {
       toEmails: s?.toEmails || [],
       ccEmails: s?.ccEmails || [],
       sendTime: s?.sendTime || DEFAULT_TIMES[key],
+      machineIds: s?.machineIds || [],
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to load mail settings" });
@@ -32,7 +33,7 @@ router.put("/:key", auth, async (req, res) => {
     const key = req.params.key;
     if (!DEFAULT_TIMES[key]) return res.status(400).json({ message: "Unknown report" });
 
-    const { toEmails = [], ccEmails = [], sendTime } = req.body;
+    const { toEmails = [], ccEmails = [], sendTime, machineIds = [] } = req.body;
 
     if (!TIME_RE.test(String(sendTime || ""))) {
       return res.status(400).json({ message: "Invalid send time" });
@@ -42,7 +43,7 @@ router.put("/:key", auth, async (req, res) => {
 
     const saved = await MailSettings.findOneAndUpdate(
       { key },
-      { toEmails, ccEmails, sendTime },
+      { toEmails, ccEmails, sendTime, machineIds: Array.isArray(machineIds) ? machineIds.map(String) : [] },
       { upsert: true, new: true }
     );
     res.json(saved);
@@ -61,6 +62,7 @@ router.get("/", auth, async (req, res) => {
         toEmails: s.toEmails || [],
         ccEmails: s.ccEmails || [],
         sendTime: s.sendTime,
+        machineIds: s.machineIds || [],
       }))
     );
   } catch (err) {

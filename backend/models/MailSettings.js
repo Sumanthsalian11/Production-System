@@ -6,6 +6,7 @@ const mailSettingsSchema = new mongoose.Schema(
     toEmails: { type: [String], default: [] },
     ccEmails: { type: [String], default: [] },
     sendTime: { type: String, default: "15:00" }, // 24h "HH:MM"
+    machineIds: { type: [String], default: [] }, // machines to include in the mail (empty = all machines)
   },
   { timestamps: true }
 );

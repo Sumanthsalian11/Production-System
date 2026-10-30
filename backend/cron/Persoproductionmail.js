@@ -77,7 +77,9 @@ cron.schedule("* * * * *", async () => {
     yDay.setDate(yDay.getDate() - 1); // production date = yesterday
     const ymd = `${yDay.getFullYear()}-${String(yDay.getMonth() + 1).padStart(2, "0")}-${String(yDay.getDate()).padStart(2, "0")}`;
 
+    const selIds = (settings?.machineIds || []).map(String);
     const entries = await ProductionMachineStatus.find({
+      ...(selIds.length ? { machineId: { $in: selIds } } : {}),
       productionDate: {
         $gte: new Date(`${ymd}T00:00:00.000Z`),
         $lte: new Date(`${ymd}T23:59:59.999Z`),
@@ -187,7 +189,7 @@ cron.schedule("* * * * *", async () => {
     const statusColumns = [...statusSeen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
 
     machineDocs
-      .filter((m) => persoMachineIds.has(String(m._id)))
+      .filter((m) => persoMachineIds.has(String(m._id)) && (!selIds.length || selIds.includes(String(m._id))))
       .forEach((m) => {
         const machineName = m.machineName || "Unknown";
         const hasMachineRows = Object.values(map).some((x) => x.machineName === machineName);

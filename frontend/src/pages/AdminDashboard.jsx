@@ -812,13 +812,33 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
   ];
   const [mailKey, setMailKey] = useState("indentSummary");
-  const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00" });
+  const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00", machineIds: [] });
   const [mailList, setMailList] = useState([]);
   const [showMailList, setShowMailList] = useState(false);
   const [editingMailKey, setEditingMailKey] = useState(null);
 
   const mailLabel = (key) => MAIL_REPORTS.find((r) => r.key === key)?.label || key;
   const mailDefaultTime = (key) => MAIL_REPORTS.find((r) => r.key === key)?.defaultTime || "10:00";
+
+  // machines shown in the tick list: Perso report = machines of the Perso Printing activity only
+  const mailMachineOptions = (key) => {
+    if (key === "persoProduction") {
+      const list = activities.filter((a) => /perso/i.test(a.activityName || ""));
+      const act = list.find((a) => /print/i.test(a.activityName || "")) || list[0];
+      const ids = new Set((act?.machines || []).map((m) => String(m._id || m)));
+      return machines.filter((m) => ids.has(String(m._id)));
+    }
+    if (key === "floorProduction") {
+      // same rule as the Floor mail: every activity except "Perso Printing"
+      // a machine shared with Perso still shows here if another activity uses it
+      const ids = new Set();
+      activities
+        .filter((a) => String(a.activityName || "").trim().replace(/\s+/g, " ").toLowerCase() !== "perso printing")
+        .forEach((a) => (a.machines || []).forEach((m) => ids.add(String(m._id || m))));
+      return machines.filter((m) => ids.has(String(m._id)));
+    }
+    return machines;
+  };
 
   const parseEmails = (str) =>
     String(str || "")
@@ -828,7 +848,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
   const clearMailForm = (key = "indentSummary") => {
     setMailKey(key);
-    setMailSettings({ toText: "", ccText: "", sendTime: mailDefaultTime(key) });
+    setMailSettings({ toText: "", ccText: "", sendTime: mailDefaultTime(key), machineIds: [] });
     setEditingMailKey(null);
   };
 
@@ -853,7 +873,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     try {
       await axios.put(
         `${BASE_URL}/api/mail-settings/${mailKey}`,
-        { toEmails, ccEmails, sendTime: mailSettings.sendTime },
+        { toEmails, ccEmails, sendTime: mailSettings.sendTime, machineIds: mailSettings.machineIds || [] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       showAlert("Mail settings saved successfully");
@@ -4105,7 +4125,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
               disabled={editingMailKey !== null}
               onChange={(e) => {
                 setMailKey(e.target.value);
-                setMailSettings({ ...mailSettings, sendTime: mailDefaultTime(e.target.value) });
+                setMailSettings({ ...mailSettings, machineIds: [], sendTime: mailDefaultTime(e.target.value) });
               }}
             >
               {MAIL_REPORTS.map((r) => (
@@ -4148,6 +4168,53 @@ const [supplierFilter, setSupplierFilter] = useState("");
             />
           </div>
 
+          {mailKey !== "indentSummary" && (
+            <div className="machine-picker" style={{ marginBottom: "12px" }}>
+              <div className="picker-header">
+                <span>Machines to include in mail (none ticked = all machines)</span>
+                <strong>{(mailSettings.machineIds || []).length} selected</strong>
+              </div>
+              <div style={{ display: "flex", gap: 8, margin: "6px 0" }}>
+                <button
+                  type="button"
+                  className="pro-btn"
+                  onClick={() => setMailSettings((prev) => ({ ...prev, machineIds: mailMachineOptions(mailKey).map((m) => m._id) }))}
+                >
+                  Select All
+                </button>
+                <button
+                  type="button"
+                  className="pro-btn"
+                  onClick={() => setMailSettings((prev) => ({ ...prev, machineIds: [] }))}
+                >
+                  Clear
+                </button>
+              </div>
+              <div className="machine-grid">
+                {mailMachineOptions(mailKey).map((m) => {
+                  const selected = (mailSettings.machineIds || []).includes(m._id);
+                  return (
+                    <label key={m._id} className={`machine-tile ${selected ? "selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() =>
+                          setMailSettings((prev) => ({
+                            ...prev,
+                            machineIds: (prev.machineIds || []).includes(m._id)
+                              ? prev.machineIds.filter((id) => id !== m._id)
+                              : [...(prev.machineIds || []), m._id],
+                          }))
+                        }
+                      />
+                      <span>{m.machineName}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: "8px" }}>
             <button className="pro-btn primary" onClick={saveMailSettings}>
               {editingMailKey ? "Update Settings" : "Save Settings"}
@@ -4170,7 +4237,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
                   <li key={m.key} className="d-flex justify-content-between align-items-center">
                     <span>
                       <strong>{mailLabel(m.key)}</strong> • Time: {m.sendTime} • TO:{" "}
-                      {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"}
+                      {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"} • Machines:{" "}
+                      {(m.machineIds || []).length ? `${m.machineIds.length} selected` : "All"}
                     </span>
                     <div style={{ display: "flex", gap: "8px" }}>
                       <button
@@ -4181,6 +4249,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                             toText: (m.toEmails || []).join(", "),
                             ccText: (m.ccEmails || []).join(", "),
                             sendTime: m.sendTime,
+                            machineIds: (m.machineIds || []).map(String),
                           });
                           setEditingMailKey(m.key);
                         }}

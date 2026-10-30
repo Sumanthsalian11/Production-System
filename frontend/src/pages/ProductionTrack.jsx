@@ -2111,7 +2111,19 @@ const statusColumns = useMemo(() => {
         });
 
         if (maxOther <= 0) continue;     // no other activity has production yet
-        if (ownTotal > maxOther) continue; // this activity is the leading one, no limit
+
+        // when editing, the record being edited is left out of ownTotal, so add its saved qty
+        // back to decide whether this activity was already the leading one
+        const editedRec = editingId ? woRecs.find((r) => r._id === editingId) : null;
+        const editedQty =
+          editedRec &&
+          (editedRec.machiness || []).some(
+            (m) => String(m.activityId?._id || m.activityId) === pairActId
+          )
+            ? Number(editedRec.productionQty) || 0
+            : 0;
+
+        if (ownTotal + editedQty > maxOther) continue; // this activity is the leading one, no limit
 
         const newTotal = ownTotal + (Number(form.productionQty) || 0);
         if (newTotal > maxOther) {

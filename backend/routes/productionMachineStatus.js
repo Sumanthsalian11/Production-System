@@ -343,6 +343,7 @@ const persoCached = async (key, heavy, compute) => {
 
 // writes mark entries stale (heavy ones are rebuilt in the background); also drops the /report/* cache
 let warmTimer = null;
+let summaryWarmTimer = null;
 const clearPersoCache = () => {
   persoCache.forEach((e) => { e.dirty = true; });
   rCache.clear();
@@ -746,7 +747,7 @@ printerName: req.body.printerName || "",
         statusKey: String(req.body.machineStatus || "").trim().toLowerCase(),
       },
       {
-        new: true,
+        returnDocument: "after",
       }
     );
 

@@ -67,6 +67,7 @@ cron.schedule("* * * * *", async () => {
     // TO / CC from Admin (falls back to productionMailConfig if left empty)
     const TO = settings?.toEmails?.length ? settings.toEmails : DEFAULT_TO;
     const CC = settings?.ccEmails?.length ? settings.ccEmails : DEFAULT_CC;
+    const selIds = (settings?.machineIds || []).map(String);
 
     // Window: set time yesterday to set time today
     const [sh, sm] = sendTime.split(":").map(Number);
@@ -169,7 +170,7 @@ cron.schedule("* * * * *", async () => {
       if (isExcluded(act.activityName)) return;
       const actMachineIds = (act.machines || []).map(String);
       allMachines
-        .filter((m) => actMachineIds.includes(String(m._id)))
+        .filter((m) => actMachineIds.includes(String(m._id)) && (!selIds.length || selIds.includes(String(m._id))))
         .forEach((m) => {
           const key = `${act.activityName}|||${m.machineName}`;
           if (!grouped[key]) {
@@ -200,6 +201,7 @@ cron.schedule("* * * * *", async () => {
         if (isExcluded(activityName)) return;
         const machineName = pair.machineId?.machineName || "Unknown";
         const machineId = pair.machineId?._id || pair.machineId;
+        if (selIds.length && !selIds.includes(String(machineId))) return;
         const key = `${activityName}|||${machineName}`;
 
         if (!grouped[key]) {
