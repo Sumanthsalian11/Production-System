@@ -384,6 +384,8 @@ function AdminDashboard() {
   const [transportations, setTransportations] = useState([]);
   const [newTransportation, setNewTransportation] = useState("");
 const [impWaste, setImpWaste] = useState("");
+const [qtyValidationActs, setQtyValidationActs] = useState([]); // activity ids validated by planner Total Qty
+const [qtyWaste, setQtyWaste] = useState("");
 const [suppliers, setSuppliers] = useState([]);
 const [newSupplier, setNewSupplier] = useState("");
 const [showSupplierList, setShowSupplierList] = useState(false);
@@ -581,6 +583,35 @@ const [supplierFilter, setSupplierFilter] = useState("");
   };
 
   useEffect(() => { fetchImpWaste(); }, []);
+
+  const fetchActivityValidation = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/activity-validation`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setQtyValidationActs((res.data.qtyActivities || []).map(String));
+      setQtyWaste(String(res.data.qtyWastePercent ?? 0));
+    } catch (err) {
+      console.error("Error fetching activity validation:", err);
+    }
+  };
+
+  const saveActivityValidation = async () => {
+    try {
+      await axios.put(
+        `${BASE_URL}/api/master/activity-validation`,
+        { qtyActivities: qtyValidationActs, qtyWastePercent: Number(qtyWaste) || 0 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Activity validation saved successfully");
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save activity validation");
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "activityValidation") fetchActivityValidation();
+  }, [activeSection]);
 
   const fetchRoles = async () => {
     try {
@@ -1245,6 +1276,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "transportation", label: "Transportation", icon: Factory },
     { id: "supplier", label: "Supplier Master", icon: Factory },
     { id: "impWaste", label: "Impression Waste %", icon: Activity },
+    { id: "activityValidation", label: "Activity Validation", icon: Activity },
     { id: "freightCharge", label: "Freight Charge Type", icon: Layers },
     { id: "freightType", label: "Freight Type", icon: Layers },
     { id: "machineStatus", label: "Machine Status", icon: Activity },
@@ -2873,8 +2905,83 @@ const [supplierFilter, setSupplierFilter] = useState("");
           </button>
 
           <p style={{ marginTop: 12, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
-            Production Entry allows total Production Impression up to Planner Impression + this %.
+            Production Entry allows total Production Impression up to Planner Impression + this %. Total Qty activities use their own waste % in Activity Validation.
           </p>
+        </motion.div>
+      )}
+
+      {/* ACTIVITY VALIDATION (Impression / Total Qty) */}
+      {activeSection === "activityValidation" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Activity size={18} /> Activity Validation</span>
+          </div>
+
+          <p style={{ marginBottom: 10, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
+            Choose how Production Entry validates each activity. <b>Impression</b> = Planner Impression + waste %
+            (current behaviour). <b>Total Qty</b> = Planner Total Qty of the work order + the Total Qty Waste % set below.
+          </p>
+
+          <div style={tableScrollContainerStyle}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={stickyThStyle}>Sl No</th>
+                  <th style={stickyThStyle}>Activity</th>
+                  <th style={stickyThStyle}>Validate Based On</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activities.map((a, idx) => (
+                  <tr key={a._id}>
+                    <td style={tdStyle}>{idx + 1}</td>
+                    <td style={{ ...tdStyle, fontWeight: 800 }}>{a.activityName}</td>
+                    <td style={tdStyle}>
+                      <select
+                        className="pro-input"
+                        value={qtyValidationActs.includes(String(a._id)) ? "qty" : "imp"}
+                        onChange={(e) =>
+                          setQtyValidationActs((prev) =>
+                            e.target.value === "qty"
+                              ? [...new Set([...prev, String(a._id)])]
+                              : prev.filter((id) => id !== String(a._id))
+                          )
+                        }
+                      >
+                        <option value="imp">Impression (Planner Impression)</option>
+                        <option value="qty">Total Qty (Planner Total Qty)</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+                {activities.length === 0 && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: 14, textAlign: "center", color: "#4a6f8c" }}>
+                      No activities found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            <div className="activity-name-field" style={{ marginBottom: 10 }}>
+              <label>Total Qty Waste % (allowed over Planner Total Qty)</label>
+              <input
+                className="pro-input"
+                type="number"
+                min="0"
+                step="any"
+                placeholder="e.g. 3"
+                value={qtyWaste}
+                onChange={(e) => setQtyWaste(e.target.value)}
+              />
+            </div>
+            <button className="pro-btn primary" onClick={saveActivityValidation}>
+              Save
+            </button>
+          </div>
         </motion.div>
       )}
 

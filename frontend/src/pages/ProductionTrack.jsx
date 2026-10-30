@@ -32,7 +32,7 @@ const FIELD_ICONS = {
   "Product Type:": FiTag, "Job Size:": FiMaximize, "Material Code:": FiHash,
   "Pages:": FiBookOpen, "Material Description:": FiList, "Material Group Desc.:": FiLayers,
   "Mill:": FiBriefcase, "GSM:": FiBox, "Paper Size:": FiMaximize,
-  "Planner UPS:": FiGrid, "Planner Impression:": FiTrendingUp, "Order Qty:": FiPackage, "Entered By": FiUser
+  "Planner UPS:": FiGrid, "Planner Impression:": FiTrendingUp, "Order Qty:": FiPackage, "Planner Total Qty:": FiPackage, "Entered By": FiUser
 };
 const FieldIcon = ({ name }) => {
   const Icon = FIELD_ICONS[name];
@@ -251,6 +251,8 @@ function ProductionRealDashboard() {
   const tableWrapRef = useRef(null);
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
   const [impWastePct, setImpWastePct] = useState(0);
+              const [qtyValidationActs, setQtyValidationActs] = useState([]); // activity ids validated by planner Total Qty
+  const [qtyWastePct, setQtyWastePct] = useState(0); // allowed waste % over planner Total Qty(current behaviour). <b>Total Qty</b> = Planner Total Qty of the work order + the Total Qty Waste % set below.
   const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
   const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
@@ -500,6 +502,7 @@ function ProductionRealDashboard() {
               ? {
                   ...prev,
                   date: res.data.date,
+                  totalQty: res.data.totalQty,
                   materials: woMaterials,
                   machines: woMachines
                 }
@@ -1547,6 +1550,19 @@ const statusColumns = useMemo(() => {
     fetchFilterOptions();
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get(`${BASE_URL}/api/master/activity-validation`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      .then((res) => {
+        setQtyValidationActs((res.data.qtyActivities || []).map(String));
+        setQtyWastePct(Number(res.data.qtyWastePercent) || 0);
+      })
+      .catch((err) => console.error("Error fetching activity validation:", err));
+  }, [token]);
+
   // when a filter changes -> fetch from the server (debounced); cleared filters -> back to latest 50
   const firstFilterRun = useRef(true);
   useEffect(() => {
@@ -1978,6 +1994,9 @@ const statusColumns = useMemo(() => {
         const pairActivityId = String(pair.activityId?._id || pair.activityId);
         const pairActivity = activities.find((a) => String(a._id) === pairActivityId);
 
+        // this activity is validated by planner Total Qty (set in Admin), not by impression
+        if (qtyValidationActs.includes(pairActivityId)) continue;
+
         // planned Total Impression for this activity (from the Work Order's machines rows)
         let plannedImp = (workOrderDetails?.machines || [])
           .filter((m) => String(m.activityId?._id || m.activityId) === pairActivityId)
@@ -2014,6 +2033,51 @@ const statusColumns = useMemo(() => {
             "warning"
           );
           return;
+        }
+      }
+    }
+
+    // 🚫 Activities set to "Total Qty" in Admin: total Production Qty for this WO + activity
+    // must not cross the Total Qty of the Planner.
+    if (!isOffDay && form.machineStatus?.toLowerCase() === "production") {
+      const qtyPairs = activityMachinePairs.filter((p) =>
+        qtyValidationActs.includes(String(p.activityId?._id || p.activityId))
+      );
+
+      if (qtyPairs.length > 0) {
+        const plannerTotalQty = Number(workOrderDetails?.totalQty) || 0;
+        if (plannerTotalQty <= 0) {
+          showAlert("Planner Total Qty not found for this work order, cannot validate", "warning");
+          return;
+        }
+
+        const woQtyRecs = await fetchRecords({ workOrderExact: workOrderNumber });
+
+        for (const pair of qtyPairs) {
+          const pairActId = String(pair.activityId?._id || pair.activityId);
+
+          const existingQty = woQtyRecs.reduce((sum, item) => {
+            if (editingId && item._id === editingId) return sum;
+            if (String(item.workOrder) !== String(workOrderNumber)) return sum;
+            const sameActivity = item.machiness?.some(
+              (m) => String(m.activityId?._id || m.activityId) === pairActId
+            );
+            if (!sameActivity) return sum;
+            return sum + (Number(item.productionQty) || 0);
+          }, 0);
+
+          const newTotalQty = existingQty + (Number(form.productionQty) || 0);
+
+          const allowedQty = Math.round(plannerTotalQty * (1 + qtyWastePct / 100));
+
+          if (newTotalQty > allowedQty) {
+            const actName = activities.find((a) => String(a._id) === pairActId)?.activityName || "Activity";
+            showAlert(
+              `${actName}: total Production Qty for this WO (${newTotalQty.toLocaleString("en-IN")}) exceeds the allowed limit (${allowedQty.toLocaleString("en-IN")} = Planner Total Qty ${plannerTotalQty.toLocaleString("en-IN")} + ${qtyWastePct}% waste).`,
+              "warning"
+            );
+            return;
+          }
         }
       }
     }
@@ -3261,6 +3325,12 @@ const statusColumns = useMemo(() => {
 
                       <InfoTile label="Order Qty:" col="col-6 col-md-2">
                         {workOrderDetails.orderQty}
+                      </InfoTile>
+
+                      <InfoTile label="Planner Total Qty:" col="col-6 col-md-2">
+                        {Number(workOrderDetails.totalQty) > 0
+                          ? Number(workOrderDetails.totalQty).toLocaleString("en-IN")
+                          : "-"}
                       </InfoTile>
 
                     </div>

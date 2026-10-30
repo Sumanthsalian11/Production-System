@@ -51,6 +51,7 @@ exports.getWorkOrder = async (req, res) => {
 
       qty: wo.qtyInLvs,
       orderQty: wo.orderQty,
+      totalQty: wo.totalQty,
     });
   } catch (err) {
     console.log("GET WO ERROR:", err);

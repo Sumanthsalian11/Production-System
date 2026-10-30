@@ -14,10 +14,45 @@ const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
 const xlsx = require("xlsx"); // npm install xlsx
 const RmIqc = require("../models/RmIqc");
+const ActivityValidation = require("../models/ActivityValidation");
+const authMiddleware = require("../middleware/authMiddleware");
 // reuse the same `upload` (multer memoryStorage) you already use for items bulk-upload / pdf
+
+
+router.get("/activity-validation", authMiddleware, async (req, res) => {
+  try {
+    const doc = await ActivityValidation.findOne({ key: "main" }).lean();
+    res.json({
+      qtyActivities: doc?.qtyActivities || [],
+      qtyWastePercent: doc?.qtyWastePercent ?? 0,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching activity validation" });
+  }
+});
+
+router.put("/activity-validation", authMiddleware, async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const qtyActivities = (req.body.qtyActivities || []).map(String);
+    const qtyWastePercent = Math.max(Number(req.body.qtyWastePercent) || 0, 0);
+    const doc = await ActivityValidation.findOneAndUpdate(
+      { key: "main" },
+      { qtyActivities, qtyWastePercent },
+      { upsert: true, new: true }
+    );
+    res.json({ qtyActivities: doc.qtyActivities, qtyWastePercent: doc.qtyWastePercent });
+  } catch (err) {
+    res.status(500).json({ message: "Error saving activity validation" });
+  }
+});
 
 // GET all
 router.get("/rm-iqc",  async (req, res) => {
+const ActivityValidation = require("../models/ActivityValidation");
+const authMiddleware = require("../middleware/authMiddleware");
   try {
     const data = await RmIqc.find().sort({ slNo: 1 });
     res.json(data);
