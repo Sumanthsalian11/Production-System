@@ -505,7 +505,7 @@ function InternalLogin() {
             </div>
 
             <button
-              type="button"
+              type="button"     
               className="theme-switch-btn"
               onClick={toggleTheme}
               aria-label="Toggle Theme"
@@ -591,7 +591,7 @@ function InternalLogin() {
 
           <div className="release-badge-bar">
             <span className="release-pill">
-              <FaTag /> V1.1.6
+              <FaTag /> V1.1.7
             </span>
             <p className="ann-copyright">© 2026 Manipal Payment and Identity Solutions</p>
           </div>

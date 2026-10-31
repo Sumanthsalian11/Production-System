@@ -98,6 +98,56 @@ function NewIndent() {
   const [customerFilter, setCustomerFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
 
+  // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
+  const [searchMode, setSearchMode] = useState("code");
+  const [itemList, setItemList] = useState([]);
+  const [custSearch, setCustSearch] = useState("");
+  const [descSearch, setDescSearch] = useState("");
+
+  const itemCodeOf = (it) => String(it.productCode || it.itemCode || it.code || "");
+  const descLabelOf = (it) => `${itemCodeOf(it)} - ${norm(it.description)}`;
+
+  useEffect(() => {
+    axios
+      .get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setItemList(Array.isArray(res.data) ? res.data : (res.data?.data || [])))
+      .catch(() => setItemList([]));
+  }, []);
+
+  const customerNames = useMemo(
+    () =>
+      [...new Set(itemList.map((it) => norm(it.customerName)).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      ),
+    [itemList]
+  );
+
+  // only the products of the chosen customer
+  const customerItems = useMemo(
+    () => itemList.filter((it) => custSearch && norm(it.customerName) === norm(custSearch)),
+    [itemList, custSearch]
+  );
+
+  // sends the chosen code through the existing handleChange (so all current logic runs)
+  const pickItemCode = (code) => {
+    if (!code) return;
+    handleChange({ target: { name: "productCode", value: code } });
+  };
+
+  const onDescPick = (val) => {
+    setDescSearch(val);
+    const it = customerItems.find((x) => descLabelOf(x) === val);
+    if (it) pickItemCode(itemCodeOf(it));
+  };
+
+  // clear the search boxes when the form is reset / code cleared
+  useEffect(() => {
+    if (!form.productCode) {
+      setCustSearch("");
+      setDescSearch("");
+    }
+  }, [form.productCode]);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -1500,6 +1550,83 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
 
                 <div className="row g-2">
+                  <div className="col-12 d-flex justify-content-center">
+                  <div
+                    className="d-flex gap-4 align-items-center"
+                    style={{
+                      border: "1px solid #070809",
+                      borderRadius: "8px",
+                      background: "#dde6f0b5",
+                      padding: "6px 16px"
+                    }}
+                  >
+                    <div className="form-check form-check-inline m-0">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="productSearchMode"
+                        id="psm-code"
+                        checked={searchMode === "code"}
+                        onChange={() => setSearchMode("code")}
+                      />
+                      <label className="form-check-label fw-bold" htmlFor="psm-code">
+                        Product Code
+                      </label>
+                    </div>
+                    <div className="form-check form-check-inline m-0">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="productSearchMode"
+                        id="psm-customer"
+                        checked={searchMode === "customer"}
+                        onChange={() => setSearchMode("customer")}
+                      />
+                      <label className="form-check-label fw-bold" htmlFor="psm-customer">
+                        Customer / Description
+                      </label>
+                    </div>
+                  </div>
+
+                  </div>
+
+                  {searchMode === "customer" && (
+                    <>
+                      <PoField className="col-12 col-md-4" icon="bi-person" label="Select Customer" alwaysFloat>
+                        <input
+                          className="po-input"
+                          list="indent-customer-list"
+                          value={custSearch}
+                          placeholder="Type to search customer"
+                          onChange={(e) => {
+                            setCustSearch(e.target.value);
+                            setDescSearch("");
+                          }}
+                        />
+                        <datalist id="indent-customer-list">
+                          {customerNames.map((n) => (
+                            <option key={n} value={n} />
+                          ))}
+                        </datalist>
+                      </PoField>
+
+                      <PoField className="col-12 col-md-8" icon="bi-card-text" label="Search Description" alwaysFloat>
+                        <input
+                          className="po-input"
+                          list="indent-desc-list"
+                          value={descSearch}
+                          disabled={!customerItems.length}
+                          placeholder={customerItems.length ? "Type to search description or code, then pick from the list" : "Select a customer first"}
+                          onChange={(e) => onDescPick(e.target.value)}
+                        />
+                        <datalist id="indent-desc-list">
+                          {customerItems.map((it, i) => (
+                            <option key={`${itemCodeOf(it)}-${i}`} value={descLabelOf(it)} />
+                          ))}
+                        </datalist>
+                      </PoField>
+                    </>
+                  )}
                   <PoField className="col-6 col-md-4"
                     icon="bi-upc-scan"
                     label="Product Code"
@@ -1513,6 +1640,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   >
                     <input
                       ref={productCodeRef}
+                      readOnly={searchMode !== "code"}
                       type="text"
                       name="productCode"
                       className="po-input"
@@ -2149,7 +2277,22 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         <span className="text-muted fw-semibold">{ind.location?.locationName || "-"}</span>
                       </td>
                       <td>{ind.items[0]?.lamination || "-"}</td>
-                      <td>{ind.items[0]?.finish || "-"}</td>
+                      <td
+                        style={{
+                          maxWidth: "140px",
+                          cursor: "pointer",
+                          whiteSpace: expandedCell === `fin-${ind._id}` ? "normal" : "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                        onClick={() =>
+                          setExpandedCell(expandedCell === `fin-${ind._id}` ? null : `fin-${ind._id}`)
+                        }
+                      >
+                        {expandedCell === `fin-${ind._id}`
+                          ? ind.items[0]?.finish || "-"
+                          : truncateText(ind.items[0]?.finish, 20)}
+                      </td>
                       <td>{ind.items[0]?.paperGroup || "-"}</td>
                       <td>{ind.items[0]?.paperSize || "-"}</td>
                       <td>{ind.items[0]?.gsm || "-"}</td>
@@ -2214,13 +2357,21 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           {ind.status}
                         </span>
                       </td>
-                      <td>
-                        <div
-                          style={{ maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                          title={ind.items[0]?.remark}
-                        >
-                          {ind.items[0]?.remark || "-"}
-                        </div>
+                      <td
+                        style={{
+                          maxWidth: "180px",
+                          cursor: "pointer",
+                          whiteSpace: expandedCell === `rem-${ind._id}` ? "normal" : "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                        onClick={() =>
+                          setExpandedCell(expandedCell === `rem-${ind._id}` ? null : `rem-${ind._id}`)
+                        }
+                      >
+                        {expandedCell === `rem-${ind._id}`
+                          ? ind.items[0]?.remark || "-"
+                          : truncateText(ind.items[0]?.remark)}
                       </td>
                       <td>
                         <div className="d-flex align-items-center gap-1 justify-content-center">
