@@ -324,7 +324,7 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
     await sendMail({
       to: recipients,
       cc: ccList,
-      subject: `SM/ W&D FLOOR PRODUCTION REPORT ${dateStr}.`,
+      subject: `FLOOR PRODUCTION REPORT ${dateStr}.`,
       html,
     });
 

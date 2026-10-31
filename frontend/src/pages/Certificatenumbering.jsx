@@ -1744,11 +1744,8 @@ export default function CertificateNumbering() {
               <strong>Preview</strong>
               <span className="cn-dim">{dims.w}×{dims.h}px</span>
 
-              <span className="cn-rowsel">
-                Row
-                <input type="number" min="1" max={sheet ? sheet.count : 1} value={pv} disabled={!sheet} onChange={(e) => setPv(e.target.value)} aria-label="Preview row" />
-                of {sheet ? sheet.count.toLocaleString() : 1}
-              </span>
+
+
             </div>
 
             <div className="cn-tool-center">
@@ -1768,19 +1765,27 @@ export default function CertificateNumbering() {
             </div>
 
             <div className="cn-tool-right">
-              {selName && <span className="cn-badge" title={`Active: ${selName}`}>{selName}</span>}
+
               <button className="cn-btn ghost sm" type="button" disabled={running} onClick={onCenter} title="Centre number and barcode">
-                <Ic n="center" /> Centre
+                <Ic n="center" />
               </button>
               <button className={`cn-btn ghost sm ${isMaximized ? "active-mode" : ""}`} type="button" onClick={toggleMaximize} title={isMaximized ? "Restore sidebars" : "Maximize preview (hide sidebars)"}>
-                <Ic n={isMaximized ? "shrink" : "expand"} /> {isMaximized ? "Restore" : "Maximize"}
+                <Ic n={isMaximized ? "shrink" : "expand"} />
               </button>
               {!propsOpen && (
                 <button className="cn-btn ghost sm" type="button" title="Show inspector panel" onClick={() => setPropsOpen(true)}>
                   <Ic n="panelRight" /> Inspector
                 </button>
               )}
-            </div>
+              <div className="cn-gen-btns">
+                <button className="cn-btn primary sm" type="button" disabled={running} onClick={() => generate("pdf")}>
+                  <Ic n="down" /> Download PDF
+                </button>
+                <button className="cn-btn ghost sm" type="button" disabled={running} onClick={() => generate("zip")}>
+                  Download Images (ZIP)
+                </button>
+                {running && <button className="cn-btn stop sm" type="button" onClick={() => { stopFlag.current = true; }}><Ic n="stop" /> Stop</button>}
+              </div>            </div>
           </div>
 
           <div className="cn-canvas-wrap">
@@ -1839,34 +1844,20 @@ export default function CertificateNumbering() {
         </aside>
       </div>
 
-      {/* ---------- generation footer bar ---------- */}
-      <footer className="cn-gen">
-        <div className="cn-gen-info">
-          <div className="cn-gen-stats">
-            <b>{count.toLocaleString()} certificates</b>
-            <span className="cn-badge-inline">{okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Set range"}</span>
-            {sheet && <span className="cn-muted">Excel: {sheet.count.toLocaleString()} rows</span>}
-          </div>
-          <div className="cn-bar" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
-          <div className={`cn-status ${status.cls}`} role="status" aria-live="polite">
-            {status.cls === "ok" && status.msg.startsWith("Done") ? "✓ " : ""}{status.msg}
+      {running && (
+        <div className="cn-gen" role="status" aria-live="polite">
+          <span className="cn-loader" aria-hidden="true" />
+          <div className="cn-gen-info">
+            <div className="cn-gen-stats">
+              <b>{count.toLocaleString()} certificates</b>
+              <span className="cn-badge-inline">{okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Set range"}</span>
+              {sheet && <span className="cn-muted">Excel: {sheet.count.toLocaleString()} rows</span>}
+            </div>
+            <div className="cn-bar" aria-hidden="true"><i style={{ width: `${progress}%` }} /></div>
+            <div className={`cn-status ${status.cls}`}>{status.msg || "Preparing download…"}</div>
           </div>
         </div>
-
-        <div className="cn-gen-btns">
-          <button className="cn-btn primary" type="button" disabled={running} onClick={() => generate("pdf")}>
-            <Ic n="down" /> Download PDF
-          </button>
-          <button className="cn-btn ghost" type="button" disabled={running} onClick={() => generate("zip")}>
-            Download Images (ZIP)
-          </button>
-          {running && (
-            <button className="cn-btn stop" type="button" onClick={() => { stopFlag.current = true; }}>
-              <Ic n="stop" /> Stop
-            </button>
-          )}
-        </div>
-      </footer>
+      )}
     </div>
   );
 }
@@ -1938,14 +1929,14 @@ const CSS = `
 }
 @keyframes cn-rot{to{transform:rotate(360deg)}}
 
-/* workspace grid: defaults to 280px left, 1fr center, 225px right */
+/* Compact settings panels leave more room for the page preview. */
 .cn-work{
   flex:1;min-height:0;display:grid;
-  grid-template-columns:280px minmax(0,1fr) 225px;
+  grid-template-columns:220px minmax(0,1fr) 180px;
   gap:8px;padding:6px;transition:grid-template-columns .2s ease;
 }
-.cn-work.no-side{grid-template-columns:0px minmax(0,1fr) 225px}
-.cn-work.no-props{grid-template-columns:280px minmax(0,1fr) 0px}
+.cn-work.no-side{grid-template-columns:0px minmax(0,1fr) 180px}
+.cn-work.no-props{grid-template-columns:220px minmax(0,1fr) 0px}
 .cn-work.no-side.no-props{grid-template-columns:0px minmax(0,1fr) 0px}
 
 .cn-side,.cn-stage,.cn-props{
@@ -1961,7 +1952,7 @@ const CSS = `
 
 .cn-panel-header{
   display:flex;align-items:center;justify-content:space-between;
-  padding:7px 10px;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:6px 8px;background:var(--surface);border-bottom:1px solid var(--line);
 }
 .cn-panel-title{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--ink)}
 .cn-icon-btn{
@@ -1971,7 +1962,7 @@ const CSS = `
 }
 .cn-icon-btn:hover{background:var(--accent-soft);color:var(--accent-d)}
 
-.cn-side form{flex:1;min-height:0;overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:6px}
+.cn-side form{flex:1;min-height:0;overflow-y:auto;padding:5px;display:flex;flex-direction:column;gap:5px}
 
 /* sections inside accordion */
 .cn-sec{border:1px solid var(--line);border-radius:7px;background:var(--surface)}
@@ -2054,9 +2045,9 @@ const CSS = `
 .cn-stage{display:flex;flex-direction:column;overflow:hidden;position:relative}
 .cn-tool{
   display:flex;align-items:center;justify-content:space-between;gap:8px;
-  padding:5px 10px;border-bottom:1px solid var(--line);background:#fafbfc;flex-wrap:nowrap;
+  padding:5px 10px;border-bottom:1px solid var(--line);background:#fafbfc;flex-wrap:nowrap;overflow:hidden;white-space:nowrap;
 }
-.cn-tool-left,.cn-tool-center,.cn-tool-right{display:flex;align-items:center;gap:6px}
+.cn-tool-left,.cn-tool-center,.cn-tool-right{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .cn-tool-left strong{font-size:13px;font-weight:700}
 .cn-rowsel{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted)}
 .cn-rowsel input{width:50px!important;height:24px!important;padding:0 4px}
@@ -2073,7 +2064,7 @@ const CSS = `
 
 /* canvas view wrap */
 .cn-canvas-wrap{
-  flex:1;min-height:0;display:flex;padding:10px;overflow:auto;
+  flex:1;min-height:0;display:flex;padding:6px;overflow:auto;
   background-color:#e9edf0;background-image:radial-gradient(#c7d3db 1px,transparent 1px);background-size:20px 20px;
 }
 .cn-preview-canvas{
@@ -2090,7 +2081,7 @@ const CSS = `
 .cn-hints .warn{color:#8a5a00;font-weight:600}
 
 /* right inspector */
-.cn-props-body{padding:8px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.cn-props-body{padding:7px 8px;overflow-y:auto;display:flex;flex-direction:column;gap:7px}
 .cn-props-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block}
 .cn-props-head-info{display:flex;flex-direction:column;gap:1px;padding-bottom:6px;border-bottom:1px solid var(--line)}
 .cn-props-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
@@ -2100,7 +2091,7 @@ const CSS = `
 
 /* generation footer bar */
 .cn-gen{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 12px;
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;width:min(420px,92%);display:flex;align-items:center;gap:10px;padding:8px 12px;
   background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(11,39,48,.04);
 }
 .cn-gen-info{flex:1 1 280px;min-width:0;display:flex;flex-direction:column;gap:3px}
@@ -2111,11 +2102,11 @@ const CSS = `
 .cn-bar i{display:block;height:100%;background:var(--accent);transition:width .15s}
 .cn-status{font-size:11.5px;color:var(--muted);min-height:14px}
 .cn-status.err{color:var(--err)}.cn-status.ok{color:var(--ok);font-weight:600}
-.cn-gen-btns{display:flex;gap:6px;flex-wrap:wrap}
+.cn-gen-btns{display:flex;gap:5px;flex-wrap:nowrap}.cn-loader{width:18px;height:18px;flex:0 0 auto;border:2px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:cn-rot .8s linear infinite}.cn-gen .cn-gen-info{flex:1 1 auto}.cn-gen .cn-status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* responsive adjustments */
 @media (max-width:1080px){
-  .cn-work{grid-template-columns:260px minmax(0,1fr) 200px}
+  .cn-work{grid-template-columns:210px minmax(0,1fr) 170px}
 }
 @media (max-width:880px){
   .cn-root{height:auto;overflow:visible}
