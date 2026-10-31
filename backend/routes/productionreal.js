@@ -546,7 +546,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
       ]),
       // machine utilization (machine x date x status)
       agg([
-        { $match: reportMatch },
+        { $match: { $or: [reportMatch, { ...match, workOrder: 0 }] } },
         {
           $project: {
             _id: 0,

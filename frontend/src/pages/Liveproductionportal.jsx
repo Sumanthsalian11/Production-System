@@ -4606,9 +4606,49 @@ const excludeZeroProductionWorkOrders = (rows) => {
   });
   return rows.filter((row) => {
     const wo = String(row.workOrder ?? "").trim();
-    return wo && (totals.get(wo) || 0) > 0;
+    return wo && (wo === "0" || (totals.get(wo) || 0) > 0);
   });
 };
+const isOffDayRow = (r) => String(r.workOrder ?? "").trim() === "0";
+
+// adds Off Day (WO 0) hours to Machine Utilization only
+function withOffDayUtilization(data, offRows) {
+  if (!offRows.length) return data;
+  const cols = [...data.statusColumns];
+  const add = new Map();
+  offRows.forEach((item) => {
+    const sk = statusKeyFor(item.machineStatus);
+    if (!sk) return;
+    if (sk !== "production" && !cols.some((c) => c.key === sk)) {
+      cols.push({ key: sk, label: String(item.machineStatus).trim(), color: statusColor(item.machineStatus, cols.length) });
+    }
+    const h = hoursBetween(dateOnly(item.productionDate), item.productionFromTime, item.productionToTime);
+    const prs = item.machiness?.length ? item.machiness : [{}];
+    prs.forEach((p) => {
+      const mn = p.machineId?.machineName || "Unassigned";
+      const e = add.get(mn) || {};
+      e[sk] = (e[sk] || 0) + h / prs.length;
+      add.set(mn, e);
+    });
+  });
+  const rows = data.machineUtilization.map((r) => ({ ...r }));
+  add.forEach((e, mn) => {
+    let r = rows.find((x) => x.machine === mn);
+    if (!r) {
+      r = { machine: mn, production: 0, impression: 0, totalHours: 0, utilizationPct: 0 };
+      rows.push(r);
+    }
+    Object.entries(e).forEach(([k, v]) => { r[k] = Number(((r[k] || 0) + v).toFixed(1)); });
+  });
+  rows.forEach((r) => {
+    cols.forEach((c) => { if (r[c.key] === undefined) r[c.key] = 0; });
+    const total = (r.production || 0) + cols.reduce((s, c) => s + (r[c.key] || 0), 0);
+    r.totalHours = Number(total.toFixed(1));
+    r.utilizationPct = total > 0 ? Number((((r.production || 0) / total) * 100).toFixed(1)) : 0;
+  });
+  rows.sort((a, b) => b.totalHours - a.totalHours);
+  return { ...data, machineUtilization: rows, statusColumns: cols };
+}
 export default function LiveProductionPortal() {
   const outlet = useOutletContext();
   const selectedYear = outlet?.selectedYear || "all";
@@ -4882,7 +4922,10 @@ export default function LiveProductionPortal() {
   const deferredRealRows = useDeferredValue(filteredRealRows);
   const deferredReelRows = useDeferredValue(filteredReelRows);
   const isUpdatingSummary = filteredRealRows !== deferredRealRows || filteredReelRows !== deferredReelRows;
-  const data = useMemo(() => buildDashboardData(deferredRealRows, deferredReelRows, masterStatuses, itemStages), [deferredRealRows, deferredReelRows, masterStatuses, itemStages]);
+  const data = useMemo(() => {
+    const base = buildDashboardData(deferredRealRows.filter((r) => !isOffDayRow(r)), deferredReelRows, masterStatuses, itemStages);
+    return withOffDayUtilization(base, deferredRealRows.filter(isOffDayRow));
+  }, [deferredRealRows, deferredReelRows, masterStatuses, itemStages]);
 
   const openWO = (wo) => setDrawerWO(wo);
   const trackWO = (wo) => {
