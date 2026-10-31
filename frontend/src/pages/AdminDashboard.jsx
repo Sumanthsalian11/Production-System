@@ -827,7 +827,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
       const list = activities.filter((a) => /perso/i.test(a.activityName || ""));
       const act = list.find((a) => /print/i.test(a.activityName || "")) || list[0];
       const ids = new Set((act?.machines || []).map((m) => String(m._id || m)));
-      return machines.filter((m) => ids.has(String(m._id)));
+      const persoLocIds = mailLocation
+        ? new Set((locations.find((l) => l.locationName === mailLocation)?.machines || []).map((m) => String(m._id || m)))
+        : null;
+      return machines.filter((m) => ids.has(String(m._id)) && (!persoLocIds || persoLocIds.has(String(m._id))));
     }
     if (key === "floorProduction") {
       // same rule as the Floor mail: every activity except "Perso Printing"
@@ -4186,7 +4189,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </select>
           </div>
 
-          {mailKey === "floorProduction" && (
+          {(mailKey === "floorProduction" || mailKey === "persoProduction") && (
             <div className="activity-name-field" style={{ marginBottom: "10px" }}>
               <label>User Location (blank = all locations)</label>
               <select

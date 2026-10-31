@@ -34,8 +34,8 @@ router.put("/:key", auth, async (req, res) => {
     const key = req.params.key;
     const baseKey = String(key).split("::")[0];
     if (!DEFAULT_TIMES[baseKey]) return res.status(400).json({ message: "Unknown report" });
-    // location is only allowed for the floor report
-    if (key.includes("::") && (baseKey !== "floorProduction" || !key.split("::")[1])) {
+    // location is allowed for the floor and perso reports
+    if (key.includes("::") && (!["floorProduction", "persoProduction"].includes(baseKey) || !key.split("::")[1])) {
       return res.status(400).json({ message: "Unknown report" });
     }
 

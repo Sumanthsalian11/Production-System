@@ -12,7 +12,8 @@ const DEFAULT_TO = toArr(mailConfig.TO ?? mailConfig.to);
 const DEFAULT_CC = toArr(mailConfig.CC ?? mailConfig.cc);
 const MailSettings = require("../models/MailSettings");
 const pad = (n) => String(n).padStart(2, "0");
-let lastRunKey = "";
+const lastRunKeys = {}; // one entry per setting (location), so each location mail fires once
+const Location = require("../models/LocationMaster"); // adjust to the model behind /api/master/locations
 
 // Machine Status master (adjust the file name to your model, same as Machine / Activity above)
 let MachineStatus = null;
@@ -56,18 +57,8 @@ const escapeHtml = (v) =>
 
 // Runs daily at 10:00 AM and reports entries whose PRODUCTION DATE is yesterday
 // (TEST: change "0 10 * * *" to a time 2 minutes ahead, restart Node, then change it back)
-cron.schedule("* * * * *", async () => {
+const runPersoReport = async (settings, location) => {
   try {
-    const settings = await MailSettings.findOne({ key: "persoProduction" }).lean();
-    const sendTime = settings?.sendTime || "10:00";
-
-    const now = new Date();
-    const nowHM = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    if (nowHM !== sendTime) return;
-
-    const runKey = `${now.toDateString()} ${sendTime}`;
-    if (lastRunKey === runKey) return;
-    lastRunKey = runKey;
 
     // TO / CC from Admin (falls back to productionMailConfig if left empty)
     const TO = settings?.toEmails?.length ? settings.toEmails : DEFAULT_TO;
@@ -77,7 +68,17 @@ cron.schedule("* * * * *", async () => {
     yDay.setDate(yDay.getDate() - 1); // production date = yesterday
     const ymd = `${yDay.getFullYear()}-${String(yDay.getMonth() + 1).padStart(2, "0")}-${String(yDay.getDate()).padStart(2, "0")}`;
 
-    const selIds = (settings?.machineIds || []).map(String);
+    // ticked machines, else every machine of the location, else all
+    let selIds = (settings?.machineIds || []).map(String);
+    if (location) {
+      const loc = await Location.findOne({ locationName: location }).lean();
+      const locIds = (loc?.machines || []).map((m) => String(m._id || m));
+      selIds = selIds.length ? selIds.filter((id) => locIds.includes(id)) : locIds;
+      if (!selIds.length) {
+        console.log(`⚠️ Perso mail: no machines for location "${location}" - skipped.`);
+        return;
+      }
+    }
     const entries = await ProductionMachineStatus.find({
       ...(selIds.length ? { machineId: { $in: selIds } } : {}),
       productionDate: {
@@ -618,7 +619,7 @@ cron.schedule("* * * * *", async () => {
     await sendMail({
       to: recipients,
       cc: ccList,
-      subject: `PERSO PRODUCTION REPORT ${dateStr}.`,
+      subject: `PERSO PRODUCTION REPORT ${dateStr}${location ? ` - ${location}` : ""}.`,
       html: entries.length ? htmlSummary : htmlNoEntry,
       attachments: entries.length
         ? [
@@ -632,8 +633,32 @@ cron.schedule("* * * * *", async () => {
     });
 
     console.log(
-      `✅ Perso production report mail sent for ${dateStr} | to: ${recipients.join(", ")}`
+      `✅ Perso production report mail sent for ${dateStr}${location ? ` [${location}]` : ""} | to: ${recipients.join(", ")}`
     );
+  } catch (err) {
+    console.error(`❌ Perso Production Mail Error [${settings?.key}]:`, err);
+  }
+};
+
+// every minute: fire each stored setting ("persoProduction" and "persoProduction::<Location>") at its own send time
+cron.schedule("* * * * *", async () => {
+  try {
+    const now = new Date();
+    const nowHM = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    let docs = await MailSettings.find({ key: /^persoProduction(::|$)/ }).lean();
+    if (!docs.length) docs = [{ key: "persoProduction" }]; // nothing saved yet -> old default behaviour
+
+    for (const settings of docs) {
+      const sendTime = settings.sendTime || "10:00";
+      if (nowHM !== sendTime) continue;
+
+      const runKey = `${now.toDateString()} ${sendTime}`;
+      if (lastRunKeys[settings.key] === runKey) continue;
+      lastRunKeys[settings.key] = runKey;
+
+      await runPersoReport(settings, settings.key.split("::")[1] || "");
+    }
   } catch (err) {
     console.error("❌ Perso Production Mail Cron Error:", err);
   }
