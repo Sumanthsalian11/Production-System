@@ -16,6 +16,7 @@ const BASE_FONTS = [
 ];
 
 const SERIAL = "__serial";
+const CUSTOM = "__custom";
 
 const DEFAULTS = {
   dpi: "300", series: "default", noArt: false,
@@ -23,7 +24,9 @@ const DEFAULTS = {
   from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
   bar: true, bw: "50", bh: "10", qz: true, bx: "196", by: "24", benc: SERIAL,
-  qr: true, qs: "25", qx: "262", qy: "175", qenc: SERIAL,
+  qr: true, qs: "15", qx: "92", qy: "88", qenc: SERIAL,
+  cpre: "", cst: "1", cdg: "3",
+  qpre: "", qst: "1", qdg: "3",
   per: "500",
 };
 
@@ -41,6 +44,8 @@ const P = (f) => ({
   bx: num(f.bx), by: num(f.by), benc: f.benc,
   qr: f.qr, qs: Math.max(8, num(f.qs)), qx: num(f.qx), qy: num(f.qy), qenc: f.qenc,
   noArt: f.noArt,
+  cpre: f.cpre || "", cst: parseInt(f.cst, 10) || 0, cdg: Math.max(1, parseInt(f.cdg, 10) || 1),
+  qpre: f.qpre || "", qst: parseInt(f.qst, 10) || 0, qdg: Math.max(1, parseInt(f.qdg, 10) || 1),
   dpi: Math.max(36, parseInt(f.dpi, 10) || 300),
   per: Math.max(1, parseInt(f.per, 10) || 500),
 });
@@ -100,7 +105,10 @@ function getQR(S, val, p) {
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
 const JPG_Q = 0.95;               // ZIP (full-page JPEG) export quality
-const PATCH_Q = 0.98;             // PDF export: quality of the small number/barcode/QR patches
+const PATCH_Q = 0.8;                    // quality of the number / Excel-text patches
+const BG_MAX = 1.2 * 1024 * 1024;       // artwork stays lossless only if it compresses below this
+const BG_Q = 0.85;                      // otherwise it is stored as a JPEG at this quality
+const PDF_TARGET = 3.5 * 1024 * 1024;   // target size of each PDF file             // PDF export: quality of the small number/barcode/QR patches
 const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
   new Promise((res, rej) => {
@@ -141,11 +149,11 @@ function makePdfWriter(wpt, hpt) {
   const blobPart = (b) => { parts.push(b); pos += b.size; };
   const begin = (id) => { offs[id] = pos; text(`${id} 0 obj\n`); };
   const W = wpt.toFixed(3), H = hpt.toFixed(3);
-  let bg = 0;
-  const imageObj = (blob, wPx, hPx, filter) => {
+  let bg = 0, shared = [], resId = 0;
+  const imageObj = (blob, wPx, hPx, filter, gray) => {
     const id = nextId++;
     begin(id);
-    text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter ${filter} /Length ${blob.size} >>\nstream\n`);
+    text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} ${gray ? "/ColorSpace /DeviceGray /BitsPerComponent 1" : "/ColorSpace /DeviceRGB /BitsPerComponent 8"} /Filter ${filter} /Length ${blob.size} >>\nstream\n`);
     blobPart(blob);
     text("\nendstream\nendobj\n");
     return id;
@@ -155,6 +163,38 @@ function makePdfWriter(wpt, hpt) {
     get pages() { return kids.length; },
     /* the artwork is stored ONCE in the file and shared by every page */
     setBackground(blob, wPx, hPx, filter) { bg = imageObj(blob, wPx, hPx, filter); },
+    /* shared 1-bit stencil (digit / word / custom text), stored once per file */
+    useMask(name, blob, wPx, hPx) {
+      const id = nextId++;
+      begin(id);
+      text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Length ${blob.size} >>\nstream\n`);
+      blobPart(blob);
+      text("\nendstream\nendobj\n");
+      shared.push(`/${name} ${id} 0 R`);
+    },
+    /* compact page: compressed content stream + optional patches (Excel text) */
+    addCompact(z, patches) {
+      let res;
+      if (!patches.length) {
+        if (!resId) { resId = nextId++; begin(resId); text(`<< /XObject << ${shared.join(" ")} >> >>\nendobj\n`); }
+        res = `${resId} 0 R`;
+      } else {
+        const refs = shared.slice();
+        patches.forEach((q, i) => {
+          const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : imageObj(q.blob, q.w, q.h, "/DCTDecode");
+          refs.push(`/P${i} ${id} 0 R`);
+        });
+        res = `<< /XObject << ${refs.join(" ")} >> >>`;
+      }
+      const cont = nextId++, page = nextId++;
+      begin(cont);
+      text(`<< /Filter /FlateDecode /Length ${z.size} >>\nstream\n`);
+      blobPart(z);
+      text("\nendstream\nendobj\n");
+      begin(page);
+      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources ${res} /Contents ${cont} 0 R >>\nendobj\n`);
+      kids.push(page);
+    },
     /* a page = shared artwork + small JPEG patches (number / barcode / QR / Excel text) placed on top.
        patches: [{ blob, x, y, w, h }] in artwork pixels, k = points per pixel */
     addPage(patches, k) {
@@ -162,7 +202,7 @@ function makePdfWriter(wpt, hpt) {
       let ops = "";
       if (bg) { refs.push(`/Bg ${bg} 0 R`); ops += `q ${W} 0 0 ${H} 0 0 cm /Bg Do Q\n`; }
       patches.forEach((q, i) => {
-        const id = imageObj(q.blob, q.w, q.h, "/DCTDecode");
+        const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : imageObj(q.blob, q.w, q.h, "/DCTDecode");
         refs.push(`/P${i} ${id} 0 R`);
         const w = q.w * k, h = q.h * k, x = q.x * k, y = hpt - q.y * k - h;
         ops += `q ${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm /P${i} Do Q\n`;
@@ -187,7 +227,38 @@ function makePdfWriter(wpt, hpt) {
     },
   };
 }
+/* 1-bit black/white image -> Flate-compressed bytes (barcode / QR patches) */
+const bitsBlob = (img) => {
+  const { width: w, height: h, data: d } = img, rb = (w + 7) >> 3, out = new Uint8Array(rb * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      if (d[(y * w + x) * 4] >= 128) out[y * rb + (x >> 3)] |= 0x80 >> (x & 7);
+  return new Response(new Blob([out]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+};
 const nextFrame = () => new Promise((r) => setTimeout(r, 30));
+const deflate = (s) => new Response(new Blob([s]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+
+/* text -> shared 1-bit mask, drawn at 3x so the edges stay sharp (used by the compact PDF) */
+async function makeMask(lines, font, px, ul) {
+  const SS = 3, pd = Math.ceil(px * 0.25);
+  const mc = document.createElement("canvas").getContext("2d");
+  mc.font = font;
+  const wd = Math.max(1, ...lines.map((l) => mc.measureText(l).width));
+  const W = Math.ceil(wd + 2 * pd), H = Math.ceil(px * 1.2 * lines.length + 2 * pd);
+  const c = document.createElement("canvas");
+  c.width = W * SS; c.height = H * SS;
+  const x = c.getContext("2d", { alpha: false });
+  x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height);
+  x.scale(SS, SS);
+  x.fillStyle = "#000"; x.font = font; x.textBaseline = "top";
+  lines.forEach((ln, i) => {
+    const ly = pd + i * px * 1.2;
+    x.fillText(ln, pd, ly);
+    if (ul && ln) x.fillRect(pd, ly + px * 1.05, x.measureText(ln).width, Math.max(1, px * 0.06));
+  });
+  const blob = await bitsBlob(x.getImageData(0, 0, c.width, c.height));
+  return { blob, w: c.width, h: c.height, pw: W, ph: H, pad: pd };
+}
 
 /* first page of a PDF -> PNG blob, rendered so that 1 page-mm = 1 artwork-mm at the returned dpi */
 async function rasterPdf(file, dpi) {
@@ -230,6 +301,9 @@ async function makeBackground(S, p) {
     const rgb = new Uint8Array(S.w * S.h * 3);
     for (let i = 0, j = 0; i < d.length; i += 4) { rgb[j++] = d[i]; rgb[j++] = d[i + 1]; rgb[j++] = d[i + 2]; }
     const z = await new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+    if (z.size <= BG_MAX) return { blob: z, filter: "/FlateDecode" };
+    const j = await toBlob(c, "image/jpeg", BG_Q);
+    if (j && j.size < z.size) return { blob: j, filter: "/DCTDecode" };
     return { blob: z, filter: "/FlateDecode" };
   } catch {
     const j = await toBlob(c, "image/jpeg", 1);
@@ -248,7 +322,7 @@ function render(S, ctx, n, s, p, preview, row, out) {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, S.w, S.h);
   // the preview always shows the artwork (for positioning); the output leaves it out when ticked
-  if (S.img && (preview || !p.noArt)) ctx.drawImage(preview ? (S.prev || S.img) : (S.bmp || S.img), 0, 0, S.w, S.h);
+  if (S.img && !p.noArt) ctx.drawImage(preview ? (S.prev || S.img) : (S.bmp || S.img), 0, 0, S.w, S.h);
 
   ctx.textBaseline = "top";
   ctx.font = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
@@ -304,7 +378,12 @@ function render(S, ctx, n, s, p, preview, row, out) {
   }
 
   /* what the barcode / QR encode: serial number or an Excel column */
-  const enc = (key, ascii) => {
+  const enc = (key, ascii, isQr) => {
+    if (key === CUSTOM) {
+      const base = isFinite(p.from) ? p.from : 1;
+      const c = (isQr ? p.qpre : p.cpre) + pad(Math.max(0, (isQr ? p.qst : p.cst) + n - base), isQr ? p.qdg : p.cdg);
+      return ascii && !/^[ -~]+$/.test(c) ? val : c;
+    }
     const v = key === SERIAL || !row ? val : String(row[key] ?? "").trim();
     if (!v || (ascii && !/^[ -~]+$/.test(v))) return val;
     return v;
@@ -315,13 +394,13 @@ function render(S, ctx, n, s, p, preview, row, out) {
     const c = safe((v) => (preview ? getBarcode(S, v, p) : makeBarcode(v, p)), enc(p.benc, true));
     ctx.imageSmoothingEnabled = s < 1;
     ctx.drawImage(c, p.bx * u, p.by * u);
-    if (B) B.bar = { x: p.bx * u, y: p.by * u, w: c.width, h: c.height };
+    if (B) B.bar = { x: p.bx * u, y: p.by * u, w: c.width, h: c.height, cv: c };
   }
   if (p.qr) {
-    const c = safe((v) => (preview ? getQR(S, v, p) : makeQR(v, p)), enc(p.qenc, false));
+    const c = safe((v) => (preview ? getQR(S, v, p) : makeQR(v, p)), enc(p.qenc, false, true));
     ctx.imageSmoothingEnabled = s < 1;
     ctx.drawImage(c, p.qx * u, p.qy * u);
-    if (B) B.qr = { x: p.qx * u, y: p.qy * u, w: c.width, h: c.height };
+    if (B) B.qr = { x: p.qx * u, y: p.qy * u, w: c.width, h: c.height, cv: c };
   }
   ctx.restore();
 }
@@ -482,10 +561,16 @@ const fontTx = async (mode, fn) => {
 const fontSave = (name, data) => fontTx("readwrite", (s) => s.put({ name, data }));
 const fontList = () => fontTx("readonly", (s) => s.getAll());
 
+const defText = (i = 0, pt = "16") => ({
+  id: `txt_${Date.now()}_${i}`, text: "New text", on: false, family: "", pt,
+  bold: false, italic: false, underline: false, color: "#222222",
+  x: "21", y: String(Math.round((14.9 + i * 8) * 10) / 10),
+});
+
 export default function CertificateNumbering() {
   const [f, setF] = useState(DEFAULTS);
   const [fonts, setFonts] = useState(BASE_FONTS);
-  const [texts, setTexts] = useState([]);   // custom text items
+  const [texts, setTexts] = useState(() => [defText()]);   // custom text items (1 by default)
   const [toast, setToast] = useState(null); // { msg, cls } shown at the top
   const toastT = useRef(null);
   const [dims, setDims] = useState({ w: 2480, h: 1754 });
@@ -561,6 +646,31 @@ export default function CertificateNumbering() {
     setTexts((ts) => ts.filter((t) => t.id !== id));
     if (sel === id) setSel("num");
     if (measure === id) setMeasure(null);
+  };
+  /* set how many custom text boxes exist (adds new ones / trims from the end) */
+  const setTextCount = (v) => {
+    const n = Math.min(20, Math.max(0, parseInt(v, 10) || 0));
+    const cur = textsRef.current;
+    if (n < cur.length) {
+      const keep = cur.slice(0, n).map((t) => t.id);
+      if (sel.startsWith("txt_") && !keep.includes(sel)) setSel("num");
+      if (measure && measure.startsWith("txt_") && !keep.includes(measure)) setMeasure(null);
+    } else if (n > cur.length) {
+      setPropsOpen(true);
+    }
+    const u = P(fRef.current).dpi / 25.4;
+    setTexts((ts) => {
+      if (n <= ts.length) return ts.slice(0, n);
+      const add = [];
+      for (let i = ts.length; i < n; i++) {
+        add.push({
+          id: `txt_${Date.now()}_${i}`, text: "New text", on: false, family: "", pt: String(fRef.current.pt),
+          bold: false, italic: false, underline: false, color: "#222222",
+          x: r1((S.w / u) * 0.1), y: r1((S.h / u) * 0.1 + i * 8),
+        });
+      }
+      return [...ts, ...add];
+    });
   };
   const onFont = async (e) => {
     const file = e.target.files[0];
@@ -777,7 +887,7 @@ export default function CertificateNumbering() {
         ...o,
         pt: String(Math.max(4, Math.round(hmm * 0.07 * 2.835))),
         bw: r1(wmm * 0.3), bh: r1(hmm * 0.1),
-        qs: String(qs), qx: r1(wmm - qs - wmm * 0.03), qy: r1(hmm - qs - hmm * 0.04),
+        qs: o.qs, qx: o.qx, qy: o.qy,
       };
       const c = await centerLayout(next, S.w, S.h);
       S.clearBusy = true;
@@ -814,7 +924,7 @@ export default function CertificateNumbering() {
     setSel("num");
     setMeasure(null);
     S.tplCols = new Map();
-    setTexts([]);
+    setTexts([defText()]);
     clearArt();                       // blank A4 landscape again
 
     const o = fRef.current;
@@ -858,7 +968,7 @@ export default function CertificateNumbering() {
 
       /* Excel field styling: kept by header name, applied now and to any Excel uploaded later */
       S.tplCols = new Map((t.cols || []).map((c) => [c.header, c]));
-      setTexts(Array.isArray(t.texts) ? t.texts : []);
+      setTexts(Array.isArray(t.texts) && t.texts.length ? t.texts : [defText()]);
       setCols((cs) => cs.map((c) => (S.tplCols.has(c.header) ? withTpl(c, S.tplCols.get(c.header)) : c)));
 
       /* everything except the number range */
@@ -866,8 +976,8 @@ export default function CertificateNumbering() {
         const n = { ...DEFAULTS, ...t.settings, from: o.from, to: o.to };
         if (S.rows.length) {
           const hs = Object.keys(S.rows[0]);
-          if (n.benc !== SERIAL && !hs.includes(n.benc)) n.benc = SERIAL;
-          if (n.qenc !== SERIAL && !hs.includes(n.qenc)) n.qenc = SERIAL;
+          if (n.benc !== SERIAL && n.benc !== CUSTOM && !hs.includes(n.benc)) n.benc = SERIAL;
+          if (n.qenc !== SERIAL && n.qenc !== CUSTOM && !hs.includes(n.qenc)) n.qenc = SERIAL;
         }
         return n;
       });
@@ -1012,7 +1122,8 @@ export default function CertificateNumbering() {
       const start = Number.isInteger(from) && from >= 0 ? from : 1;
       setF((q) => ({
         ...q, from: String(start), to: String(start + rows.length - 1),
-        benc: headers.includes(q.benc) ? q.benc : SERIAL, qenc: headers.includes(q.qenc) ? q.qenc : SERIAL,
+        benc: headers.includes(q.benc) || q.benc === CUSTOM ? q.benc : SERIAL,
+        qenc: headers.includes(q.qenc) || q.qenc === CUSTOM ? q.qenc : SERIAL,
       }));
       say(`Loaded ${rows.length.toLocaleString()} rows · ${headers.length} columns. Range set to match.`, "ok");
     } catch (err) {
@@ -1026,7 +1137,7 @@ export default function CertificateNumbering() {
     setPv("1");
     setSel("num");
     setMeasure(null);
-    setF((q) => ({ ...q, benc: SERIAL, qenc: SERIAL }));
+    setF((q) => ({ ...q, benc: q.benc === CUSTOM ? CUSTOM : SERIAL, qenc: q.qenc === CUSTOM ? CUSTOM : SERIAL }));
     say("");
   };
 
@@ -1103,6 +1214,9 @@ export default function CertificateNumbering() {
       /* PDF: the artwork is embedded once (lossless); each page only adds small patches for the variable matter.
          ZIP: full-page JPEGs, encoded in parallel while the next page is being drawn. */
       const bg = PDF ? await makeBackground(S, p) : null;
+      const bgBytes = bg ? bg.blob.size : 0;
+      const COMPACT = PDF && p.noArt;   // PDF + hidden background → tiny vector pages
+      const pageRoom = PDF && !COMPACT ? Math.max(1024 * 1024, PDF_TARGET - bgBytes) : Infinity;
       const K = 72 / p.dpi;
       const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 2 : 4;
       const pending = [];
@@ -1114,6 +1228,18 @@ export default function CertificateNumbering() {
         for (const k of Object.keys(boxes)) {
           const b = boxes[k];
           if (!b) continue;
+          if ((k === "bar" && p.qz) || k === "qr") {
+            const bx0 = Math.ceil(b.x), by0 = Math.ceil(b.y);
+            const bw = Math.floor(b.x + b.w) - bx0, bh = Math.floor(b.y + b.h) - by0;
+            if (bw >= 1 && bh >= 1) {
+              const bc = document.createElement("canvas");
+              bc.width = bw; bc.height = bh;
+              const bctx = bc.getContext("2d", { alpha: false });
+              bctx.drawImage(off, bx0, by0, bw, bh, 0, 0, bw, bh);
+              jobs.push(bitsBlob(bctx.getImageData(0, 0, bw, bh)).then((blob) => ({ blob, bits: true, x: bx0, y: by0, w: bw, h: bh })));
+              continue;
+            }
+          }
           const pad4 = Math.ceil(Math.max(4, Math.min(b.h * 0.25, 40)));
           const x0 = Math.max(0, Math.floor(b.x - pad4)), y0 = Math.max(0, Math.floor(b.y - pad4));
           const x1 = Math.min(S.w, Math.ceil(b.x + b.w + pad4)), y1 = Math.min(S.h, Math.ceil(b.y + b.h + pad4));
@@ -1127,6 +1253,84 @@ export default function CertificateNumbering() {
         return Promise.all(jobs);
       };
 
+      /* ----- compact mode (PDF + hidden background) ----- */
+      let stat = null;
+      if (COMPACT) {
+        const u = p.dpi / 25.4, px = (p.pt * p.dpi) / 72;
+        const nf = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
+        const mctx = document.createElement("canvas").getContext("2d");
+        mctx.font = nf;
+        const glyphs = {};
+        for (const d of "0123456789") glyphs[d] = await makeMask([d], nf, px, false);
+        const word = p.word ? await makeMask([p.word], nf, px, false) : null;
+        const items = [];
+        for (const t of S.texts || []) {
+          if (!t.on || !t.text) continue;
+          const tpx = ((num(t.pt) || 12) * p.dpi) / 72;
+          const tf = `${t.italic ? "italic " : ""}${t.bold ? 700 : 400} ${tpx}px "${t.family || p.family}", sans-serif`;
+          items.push({ m: await makeMask(String(t.text).split("\n"), tf, tpx, t.underline), x: num(t.x) * u, y: num(t.y) * u, c: t.color });
+        }
+        stat = { u, mctx, glyphs, word, items, offW: p.word ? mctx.measureText(p.word + " ").width : 0 };
+      }
+      const rgb = (h) => {
+        const v = parseInt(h.slice(1), 16);
+        return [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((a) => (a / 255).toFixed(3)).join(" ");
+      };
+      const put = (name, m, x, y) =>
+        `q ${m.pw} 0 0 ${-m.ph} ${(x - m.pad).toFixed(1)} ${(y - m.pad + m.ph).toFixed(1)} cm /${name} Do Q\n`;
+      const compactPage = (n, boxes) => {
+        const val = pad(n, p.digits), nx = p.nx * stat.u, ny = p.ny * stat.u;
+        let ops = `q ${K.toFixed(6)} 0 0 ${(-K).toFixed(6)} 0 ${hpt.toFixed(3)} cm\n`;
+        if (stat.word) ops += `${rgb(p.wc)} rg\n` + put("W", stat.word, nx, ny);
+        ops += `${rgb(p.nc)} rg\n`;
+        for (let i = 0; i < val.length; i++) {
+          const dx = stat.mctx.measureText(val.slice(0, i)).width;
+          ops += put("G" + val[i], stat.glyphs[val[i]], nx + stat.offW + dx, ny);
+        }
+        stat.items.forEach((it, i) => { ops += `${rgb(it.c)} rg\n` + put("T" + i, it.m, it.x, it.y); });
+
+        /* barcode → vector bars */
+        if (boxes.bar && boxes.bar.cv) {
+          const b = boxes.bar, cv = b.cv;
+          const d = cv.getContext("2d").getImageData(0, cv.height >> 1, cv.width, 1).data;
+          let rects = "", s = -1;
+          for (let i = 0; i <= cv.width; i++) {
+            const dark = i < cv.width && d[i * 4 + 3] > 128 && d[i * 4] < 128;
+            if (dark && s < 0) s = i;
+            else if (!dark && s >= 0) { rects += `${s} 0 ${i - s} ${cv.height} re `; s = -1; }
+          }
+          ops += `q 1 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)} cm 0 g ${rects}f Q\n`;
+        }
+        /* QR → vector modules */
+        if (boxes.qr && boxes.qr.cv) {
+          const b = boxes.qr, cv = b.cv, W = cv.width;
+          const d = cv.getContext("2d").getImageData(0, 0, W, W).data;
+          const at = (x, y) => d[(y * W + x) * 4] < 128;
+          let i0 = 0;
+          while (i0 < W && !at(i0, i0)) i0++;
+          if (i0 < W) {
+            const cell = i0 / 4, nm = Math.round(W / cell) - 8;
+            let rects = "";
+            for (let r = 0; r < nm; r++) {
+              let s = -1;
+              for (let k = 0; k <= nm; k++) {
+                const dark = k < nm && at(Math.floor((k + 4.5) * cell), Math.floor((r + 4.5) * cell));
+                if (dark && s < 0) s = k;
+                else if (!dark && s >= 0) { rects += `${s} ${r} ${k - s} 1 re `; s = -1; }
+              }
+            }
+            ops += `q ${cell} 0 0 ${cell} ${(b.x + 4 * cell).toFixed(2)} ${(b.y + 4 * cell).toFixed(2)} cm 0 g ${rects}f Q\n`;
+          }
+        }
+        /* Excel columns still go through the normal patches */
+        const rest = {};
+        for (const k of Object.keys(boxes)) if (k !== "num" && k !== "bar" && k !== "qr" && !k.startsWith("txt_")) rest[k] = boxes[k];
+        return patchesFor(rest).then(async (got) => {
+          got.forEach((t, i) => { ops += `q ${t.w} 0 0 ${-t.h} ${t.x} ${t.y + t.h} cm /P${i} Do Q\n`; });
+          return { z: await deflate(ops + "Q\n"), got };
+        });
+      };
+
       const closeFile = async (c) => {
         const blob = c.pdf ? c.pdf.finish() : await c.zip.generateAsync({ type: "blob", compression: "STORE" });
         saveBlob(`certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}.${c.pdf ? "pdf" : "zip"}`, blob);
@@ -1135,12 +1339,20 @@ export default function CertificateNumbering() {
       const take = async () => {
         const q = pending.shift();
         const got = await q.work;
-        if (PDF ? got.some((t) => !t.blob) : !got) throw new Error("Could not encode a page (artwork too large for this browser).");
+        if (COMPACT ? got.got.some((t) => !t.blob) : PDF ? got.some((t) => !t.blob) : !got) throw new Error("Could not encode a page (artwork too large for this browser).");
         if (!cur) {
           cur = { a: q.n, last: q.n, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : new JSZip() };
           if (cur.pdf && bg) { cur.pdf.setBackground(bg.blob, S.w, S.h, bg.filter); cur.bytes += bg.blob.size; }
+          if (COMPACT) {
+            for (const d of Object.keys(stat.glyphs)) { const g = stat.glyphs[d]; cur.pdf.useMask("G" + d, g.blob, g.w, g.h); cur.bytes += g.blob.size; }
+            if (stat.word) { cur.pdf.useMask("W", stat.word.blob, stat.word.w, stat.word.h); cur.bytes += stat.word.blob.size; }
+            stat.items.forEach((it, i) => { cur.pdf.useMask("T" + i, it.m.blob, it.m.w, it.m.h); cur.bytes += it.m.blob.size; });
+          }
         }
-        if (PDF) {
+        if (COMPACT) {
+          cur.pdf.addCompact(got.z, got.got);
+          cur.bytes += got.z.size + got.got.reduce((s, t) => s + t.blob.size, 0);
+        } else if (PDF) {
           cur.pdf.addPage(got, K);
           cur.bytes += got.reduce((s, t) => s + t.blob.size, 0);
         } else {
@@ -1148,20 +1360,21 @@ export default function CertificateNumbering() {
           cur.bytes += got.size;
         }
         cur.last = q.n;
+        cur.count = (cur.count || 0) + 1;
         done++;
         if (done % 4 === 0 || done === total) {
           setProgress((done / total) * 100);
           say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
           await tick();
         }
-        if (cur.bytes >= MAX_FILE) { const c = cur; cur = null; await closeFile(c); }
+        if (cur.bytes >= MAX_FILE || cur.bytes - bgBytes >= pageRoom || cur.count >= p.per) { const c = cur; cur = null; await closeFile(c); }
       };
 
       for (let n = p.from; n <= p.to && !stopFlag.current; n++) {
         if (pending.length >= INFLIGHT) await take();
         const boxes = {};
         render(S, ctx, n, 1, p, false, S.rows[n - p.from], boxes);
-        pending.push({ n, work: PDF ? patchesFor(boxes) : toBlob(off, "image/jpeg", JPG_Q) });
+        pending.push({ n, work: COMPACT ? compactPage(n, boxes) : PDF ? patchesFor(boxes) : toBlob(off, "image/jpeg", JPG_Q) });
       }
       if (!stopFlag.current) {
         while (pending.length) await take();
@@ -1206,7 +1419,30 @@ export default function CertificateNumbering() {
   const encOptions = (
     <>
       <option value={SERIAL}>Serial number</option>
+      <option value={CUSTOM}>Custom: prefix + running number</option>
       {sheet && sheet.headers.map((h) => <option key={h} value={h}>Excel column: {h}</option>)}
+    </>
+  );
+
+  const customFields = (
+    <>
+      <Field span={4} label="Prefix"><input type="text" value={f.cpre} onChange={set("cpre")} placeholder="CRIOK" /></Field>
+      <Field span={4} label="Start at"><input type="number" min="0" value={f.cst} onChange={set("cst")} /></Field>
+      <Field span={4} label="Digits"><input type="number" min="1" max="20" value={f.cdg} onChange={set("cdg")} /></Field>
+      <div className="cn-info" style={{ gridColumn: "1/-1" }}>
+        Example: {p.cpre}{pad(p.cst, p.cdg)}, {p.cpre}{pad(p.cst + 1, p.cdg)}, {p.cpre}{pad(p.cst + 2, p.cdg)} …
+      </div>
+    </>
+  );
+
+  const customFieldsQ = (
+    <>
+      <Field span={4} label="Prefix"><input type="text" value={f.qpre} onChange={set("qpre")} placeholder="QRK" /></Field>
+      <Field span={4} label="Start at"><input type="number" min="0" value={f.qst} onChange={set("qst")} /></Field>
+      <Field span={4} label="Digits"><input type="number" min="1" max="20" value={f.qdg} onChange={set("qdg")} /></Field>
+      <div className="cn-info" style={{ gridColumn: "1/-1" }}>
+        Example: {p.qpre}{pad(p.qst, p.qdg)}, {p.qpre}{pad(p.qst + 1, p.qdg)}, {p.qpre}{pad(p.qst + 2, p.qdg)} …
+      </div>
     </>
   );
 
@@ -1300,7 +1536,7 @@ export default function CertificateNumbering() {
           </div>
 
           <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-            <details className="cn-sec" open>
+            <details className="cn-sec">
               <summary><Ic n="tpl" /><em>01</em>Template</summary>
               <div className="cn-body">
                 <div className="cn-row">
@@ -1321,7 +1557,7 @@ export default function CertificateNumbering() {
               </div>
             </details>
 
-            <details className="cn-sec" open>
+            <details className="cn-sec">
               <summary><Ic n="art" /><em>02</em>Artwork</summary>
               <div className="cn-body">
                 <label className="cn-drop">
@@ -1335,12 +1571,12 @@ export default function CertificateNumbering() {
                 <div className="cn-row">
                   <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
                   <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
-                  <Switch checked={f.noArt} onChange={set("noArt")}>Hide background on export</Switch>
+                  <Switch checked={f.noArt} onChange={set("noArt")}>Hide background (preview &amp; export)</Switch>
                 </div>
               </div>
             </details>
 
-            <details className="cn-sec" open>
+            <details className="cn-sec">
               <summary><Ic n="hash" /><em>03</em>Numbering</summary>
               <div className="cn-body">
                 <div className="cn-range">
@@ -1392,6 +1628,7 @@ export default function CertificateNumbering() {
                     <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
                     <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
                     <Field span={12} label="Encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
+                    {f.benc === CUSTOM && customFields}
                   </div>
                 )}
               </div>
@@ -1407,15 +1644,14 @@ export default function CertificateNumbering() {
                     <Field span={4} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
                     <Field span={4} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
                     <Field span={12} label="Encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
+                    {f.qenc === CUSTOM && customFieldsQ}
                   </div>
                 )}
-                <div className="cn-row">
-                  <Field span={12} label="Pages per output batch"><input type="number" min="1" value={f.per} onChange={set("per")} /></Field>
-                </div>
+
               </div>
             </details>
 
-            <details className="cn-sec" open={!!sheet}>
+            <details className="cn-sec">
               <summary><Ic n="xls" /><em>07</em>Excel Data {sheet && <span className="cn-pill">{sheet.count.toLocaleString()} rows</span>}</summary>
               <div className="cn-body">
                 <label className="cn-drop">
@@ -1457,12 +1693,16 @@ export default function CertificateNumbering() {
                 )}
               </div>
             </details>
-            <details className="cn-sec" open={texts.length > 0}>
+            <details className="cn-sec">
               <summary><Ic n="type" /><em>08</em>Custom Text {texts.length > 0 && <span className="cn-pill">{texts.length}</span>}</summary>
               <div className="cn-body">
-                <button className="cn-btn" type="button" onClick={addText}><Ic n="plus" />Add Text</button>
+                <div className="cn-row">
+                  <Field span={12} label="Number of text boxes">
+                    <input type="number" min="0" max="20" step="1" value={texts.length} onChange={(e) => setTextCount(e.target.value)} />
+                  </Field>
+                </div>
                 {texts.map((t) => (
-                  <details key={t.id} className={`cn-col${t.on ? "" : " off"}`} open onFocus={() => setSel(t.id)}>
+                  <details key={t.id} className={`cn-col${t.on ? "" : " off"}`} onFocus={() => setSel(t.id)}>
                     <summary>
                       <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
                         <input type="checkbox" checked={t.on} onChange={setTxt(t.id, "on")} />
@@ -1476,6 +1716,17 @@ export default function CertificateNumbering() {
                     {textFields(t)}
                   </details>
                 ))}
+              </div>
+            </details>
+          <details className="cn-sec">
+              <summary><Ic n="down" /><em>09</em>Output</summary>
+              <div className="cn-body">
+                <div className="cn-row">
+                  <Field span={12} label="Pages per output file">
+                    <input type="number" min="1" value={f.per} onChange={set("per")} />
+                  </Field>
+                </div>
+                <div className="cn-info">PDF / ZIP is split into a new file after this many certificates.</div>
               </div>
             </details>
           </form>
@@ -1822,13 +2073,14 @@ const CSS = `
 
 /* canvas view wrap */
 .cn-canvas-wrap{
-  flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px;overflow:auto;
+  flex:1;min-height:0;display:flex;padding:10px;overflow:auto;
   background-color:#e9edf0;background-image:radial-gradient(#c7d3db 1px,transparent 1px);background-size:20px 20px;
 }
 .cn-preview-canvas{
-  display:block;box-shadow:0 3px 6px rgba(11,39,48,.1),0 16px 40px rgba(11,39,48,.2);
+  display:block;margin:auto;box-shadow:0 3px 6px rgba(11,39,48,.1),0 16px 40px rgba(11,39,48,.2);
   touch-action:none;background:#fff;
 }
+.cn-preview-canvas:not(.fit-mode){flex:none}
 .cn-preview-canvas.fit-mode{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 
 .cn-hints{
