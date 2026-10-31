@@ -7,7 +7,7 @@ const sendMail = require("../utils/mailSender");
 const MailSettings = require("../models/MailSettings");
 const { TO: DEFAULT_TO, CC: DEFAULT_CC } = require("../utils/productionMailConfig");
 const pad = (n) => String(n).padStart(2, "0");
-let lastRunKey = "";
+const lastRunKeys = {};
 
 // Machine Status master (adjust the file name to your model, same as Activity / Machine above)
 let MachineStatus = null;
@@ -52,8 +52,14 @@ const isExcluded = (name) =>
 
 // Runs daily at 6:00 AM, reports on the PREVIOUS calendar day (Day + Night shift complete)
 cron.schedule("* * * * *", async () => {
+  const all = await MailSettings.find({ key: /^floorProduction(::|$)/ }).lean();
+  const list = all.length ? all : [{ key: "floorProduction" }];
+  for (const s of list) await runFloorMail(s);
+});
+
+async function runFloorMail(settings) {
   try {
-    const settings = await MailSettings.findOne({ key: "floorProduction" }).lean();
+    const location = String(settings.key).includes("::") ? String(settings.key).split("::")[1] : "";
     const sendTime = settings?.sendTime || "10:00";
 
     const now = new Date();
@@ -61,8 +67,8 @@ cron.schedule("* * * * *", async () => {
     if (nowHM !== sendTime) return;
 
     const runKey = `${now.toDateString()} ${sendTime}`;
-    if (lastRunKey === runKey) return;
-    lastRunKey = runKey;
+    if (lastRunKeys[settings.key] === runKey) return;
+    lastRunKeys[settings.key] = runKey;
 
     // TO / CC from Admin (falls back to productionMailConfig if left empty)
     const TO = settings?.toEmails?.length ? settings.toEmails : DEFAULT_TO;
@@ -93,6 +99,7 @@ cron.schedule("* * * * *", async () => {
         $gte: new Date(`${ymd}T00:00:00.000Z`),
         $lte: new Date(`${ymd}T23:59:59.999Z`),
       },
+      ...(location ? { userLocations: location } : {}),
     })
       .populate("machiness.activityId")
       .populate("machiness.machineId")
@@ -136,7 +143,7 @@ cron.schedule("* * * * *", async () => {
       await sendMail({
         to: toList,
         cc: ccNoEntry,
-        subject: `SM/ W&D FLOOR PRODUCTION REPORT ${dateStr}. - NO ENTRY MADE`,
+        subject: `SM/ W&D FLOOR PRODUCTION REPORT ${dateStr}.${location ? ` (${location})` : ""} - NO ENTRY MADE`,
         html: noEntryHtml,
       });
 
@@ -324,7 +331,7 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
     await sendMail({
       to: recipients,
       cc: ccList,
-      subject: `FLOOR PRODUCTION REPORT ${dateStr}.`,
+      subject: `FLOOR PRODUCTION REPORT ${dateStr}.${location ? ` (${location})` : ""}`,
       html,
     });
 
@@ -334,4 +341,4 @@ const timingStyle = totalMins < 24 * 60 ? "background:#ff4d4d;color:#ffffff;" : 
   } catch (err) {
     console.error("❌ Production Mail Cron Error:", err);
   }
-});
+}

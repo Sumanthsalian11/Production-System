@@ -14,13 +14,14 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 router.get("/:key", auth, async (req, res) => {
   try {
     const key = req.params.key;
-    if (!DEFAULT_TIMES[key]) return res.status(400).json({ message: "Unknown report" });
+    const baseKey = String(key).split("::")[0];
+    if (!DEFAULT_TIMES[baseKey]) return res.status(400).json({ message: "Unknown report" });
 
     const s = await MailSettings.findOne({ key }).lean();
     res.json({
       toEmails: s?.toEmails || [],
       ccEmails: s?.ccEmails || [],
-      sendTime: s?.sendTime || DEFAULT_TIMES[key],
+      sendTime: s?.sendTime || DEFAULT_TIMES[baseKey],
       machineIds: s?.machineIds || [],
     });
   } catch (err) {
@@ -31,7 +32,12 @@ router.get("/:key", auth, async (req, res) => {
 router.put("/:key", auth, async (req, res) => {
   try {
     const key = req.params.key;
-    if (!DEFAULT_TIMES[key]) return res.status(400).json({ message: "Unknown report" });
+    const baseKey = String(key).split("::")[0];
+    if (!DEFAULT_TIMES[baseKey]) return res.status(400).json({ message: "Unknown report" });
+    // location is only allowed for the floor report
+    if (key.includes("::") && (baseKey !== "floorProduction" || !key.split("::")[1])) {
+      return res.status(400).json({ message: "Unknown report" });
+    }
 
     const { toEmails = [], ccEmails = [], sendTime, machineIds = [] } = req.body;
 
@@ -73,7 +79,7 @@ router.get("/", auth, async (req, res) => {
 // delete one stored setting (the mail then uses its default time and recipients)
 router.delete("/:key", auth, async (req, res) => {
   try {
-    if (!DEFAULT_TIMES[req.params.key]) return res.status(400).json({ message: "Unknown report" });
+    if (!DEFAULT_TIMES[String(req.params.key).split("::")[0]]) return res.status(400).json({ message: "Unknown report" });
     await MailSettings.deleteOne({ key: req.params.key });
     res.json({ message: "Deleted" });
   } catch (err) {

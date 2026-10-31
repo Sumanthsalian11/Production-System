@@ -816,6 +816,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [mailList, setMailList] = useState([]);
   const [showMailList, setShowMailList] = useState(false);
   const [editingMailKey, setEditingMailKey] = useState(null);
+  const [mailLocation, setMailLocation] = useState("");
 
   const mailLabel = (key) => MAIL_REPORTS.find((r) => r.key === key)?.label || key;
   const mailDefaultTime = (key) => MAIL_REPORTS.find((r) => r.key === key)?.defaultTime || "10:00";
@@ -835,7 +836,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
       activities
         .filter((a) => String(a.activityName || "").trim().replace(/\s+/g, " ").toLowerCase() !== "perso printing")
         .forEach((a) => (a.machines || []).forEach((m) => ids.add(String(m._id || m))));
-      return machines.filter((m) => ids.has(String(m._id)));
+      const locIds = mailLocation
+        ? new Set((locations.find((l) => l.locationName === mailLocation)?.machines || []).map((m) => String(m._id || m)))
+        : null;
+      return machines.filter((m) => ids.has(String(m._id)) && (!locIds || locIds.has(String(m._id))));
     }
     return machines;
   };
@@ -850,6 +854,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     setMailKey(key);
     setMailSettings({ toText: "", ccText: "", sendTime: mailDefaultTime(key), machineIds: [] });
     setEditingMailKey(null);
+    setMailLocation("");
   };
 
   const fetchMailList = async () => {
@@ -872,7 +877,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     if (!mailSettings.sendTime) return showAlert("Select the send time");
     try {
       await axios.put(
-        `${BASE_URL}/api/mail-settings/${mailKey}`,
+        `${BASE_URL}/api/mail-settings/${encodeURIComponent(mailLocation ? `${mailKey}::${mailLocation}` : mailKey)}`,
         { toEmails, ccEmails, sendTime: mailSettings.sendTime, machineIds: mailSettings.machineIds || [] },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -888,10 +893,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const deleteMailSettings = async (key) => {
     if (!(await askConfirm("Are you sure you want to delete?"))) return;
     try {
-      await axios.delete(`${BASE_URL}/api/mail-settings/${key}`, {
+      await axios.delete(`${BASE_URL}/api/mail-settings/${encodeURIComponent(key)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (editingMailKey === key) clearMailForm(key);
+      if (editingMailKey === key) clearMailForm(key.split("::")[0]);
       fetchMailList();
     } catch (err) {
       showAlert("Failed to delete");
@@ -4169,6 +4174,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
               disabled={editingMailKey !== null}
               onChange={(e) => {
                 setMailKey(e.target.value);
+                setMailLocation("");
                 setMailSettings({ ...mailSettings, machineIds: [], sendTime: mailDefaultTime(e.target.value) });
               }}
             >
@@ -4179,6 +4185,28 @@ const [supplierFilter, setSupplierFilter] = useState("");
               ))}
             </select>
           </div>
+
+          {mailKey === "floorProduction" && (
+            <div className="activity-name-field" style={{ marginBottom: "10px" }}>
+              <label>User Location (blank = all locations)</label>
+              <select
+                className="pro-input"
+                value={mailLocation}
+                disabled={editingMailKey !== null}
+                onChange={(e) => {
+                  setMailLocation(e.target.value);
+                  setMailSettings((prev) => ({ ...prev, machineIds: [] }));
+                }}
+              >
+                <option value="">All Locations</option>
+                {locations.map((l) => (
+                  <option key={l._id} value={l.locationName}>
+                    {l.locationName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="activity-name-field" style={{ marginBottom: "10px" }}>
             <label>TO (comma separated emails)</label>
@@ -4280,7 +4308,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
                 {mailList.map((m) => (
                   <li key={m.key} className="d-flex justify-content-between align-items-center">
                     <span>
-                      <strong>{mailLabel(m.key)}</strong> • Time: {m.sendTime} • TO:{" "}
+                      <strong>{mailLabel(m.key.split("::")[0])}</strong>
+                      {m.key.includes("::") ? ` • Location: ${m.key.split("::")[1]}` : " • All Locations"} • Time: {m.sendTime} • TO:{" "}
                       {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"} • Machines:{" "}
                       {(m.machineIds || []).length ? `${m.machineIds.length} selected` : "All"}
                     </span>
@@ -4288,7 +4317,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
                       <button
                         className="pro-btn"
                         onClick={() => {
-                          setMailKey(m.key);
+                          setMailKey(m.key.split("::")[0]);
+                          setMailLocation(m.key.split("::")[1] || "");
                           setMailSettings({
                             toText: (m.toEmails || []).join(", "),
                             ccText: (m.ccEmails || []).join(", "),
