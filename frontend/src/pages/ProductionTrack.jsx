@@ -252,7 +252,7 @@ function ProductionRealDashboard() {
   const [allowedProductionUps, setAllowedProductionUps] = useState([]);
   const [impWastePct, setImpWastePct] = useState(0);
               const [qtyValidationActs, setQtyValidationActs] = useState([]); // activity ids validated by planner Total Qty
-  const [qtyWastePct, setQtyWastePct] = useState(0); // allowed waste % over planner Total Qty(current behaviour). <b>Total Qty</b> = Planner Total Qty of the work order + the Total Qty Waste % set below.
+  const [qtyWastePct, setQtyWastePct] = useState(0); // allowed waste % over planner Total Qty
   const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
   const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
@@ -2086,6 +2086,31 @@ const statusColumns = useMemo(() => {
     if (!isOffDay && form.machineStatus?.toLowerCase() === "production") {
       const woRecs = await fetchRecords({ workOrderExact: workOrderNumber });
 
+      // stage order of this item (from Item Stages in Admin); null = not configured
+      const ptKey = String(workOrderDetails?.productType || "").trim().toUpperCase();
+      const stageRec = itemStages.find((r) => String(r.itemName || "").trim().toUpperCase() === ptKey);
+      // stage order = the order in which activities were first entered for this WO (not from Item Stages)
+      const firstEntry = new Map();
+      woRecs.forEach((item) => {
+        if (String(item.workOrder) !== String(workOrderNumber)) return;
+        if ((Number(item.productionQty) || 0) <= 0) return;
+        const ts = new Date(item.createdAt).getTime() || 0;
+        (item.machiness || []).forEach((m) => {
+          const id = String(m.activityId?._id || m.activityId);
+          const prevTs = firstEntry.get(id);
+          if (prevTs === undefined || ts < prevTs) firstEntry.set(id, ts);
+        });
+      });
+      const stageOrderIds = [...firstEntry.entries()]
+        .sort((a, b) => a[1] - b[1])
+        .map(([id]) => id);
+
+      // an activity not entered yet goes at the end (it is the next stage)
+      activityMachinePairs.forEach((p) => {
+        const id = String(p.activityId?._id || p.activityId);
+        if (!stageOrderIds.includes(id)) stageOrderIds.push(id);
+      });
+
       // total saved production qty per activity for this work order
       const actTotals = new Map();
       woRecs.forEach((item) => {
@@ -2102,6 +2127,33 @@ const statusColumns = useMemo(() => {
       for (const pair of activityMachinePairs) {
         const pairActId = String(pair.activityId?._id || pair.activityId);
         const ownTotal = actTotals.get(pairActId) || 0;
+
+        // stage-wise: limited by the nearest earlier stage (Item Stages order) that has production
+        if (stageOrderIds) {
+          const stageIdx = stageOrderIds.indexOf(pairActId);
+          if (stageIdx !== -1) {
+            let prevId = "";
+            let prevTotal = 0;
+            for (let s = stageIdx - 1; s >= 0; s--) {
+              const t = actTotals.get(stageOrderIds[s]) || 0;
+              if (t > 0) { prevId = stageOrderIds[s]; prevTotal = t; break; }
+            }
+
+            if (prevTotal > 0) {
+              const newStageTotal = ownTotal + (Number(form.productionQty) || 0);
+              if (newStageTotal > prevTotal) {
+                const thisName = activities.find((a) => String(a._id) === pairActId)?.activityName || "Activity";
+                const prevName = activities.find((a) => String(a._id) === prevId)?.activityName || "previous stage";
+                showAlert(
+                  `${thisName}: total Production Qty for this WO (${newStageTotal.toLocaleString("en-IN")}) cannot exceed ${prevName} production (${prevTotal.toLocaleString("en-IN")}).`,
+                  "warning"
+                );
+                return;
+              }
+            }
+            continue; // stage-wise check done for this activity
+          }
+        }
 
         // highest production among the OTHER activities
         let maxOther = 0;

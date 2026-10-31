@@ -1314,6 +1314,39 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "roles", label: "Roles", icon: Activity },
   ];
 
+  const MASTER_LISTS = {
+    priorities:             { path: "priorities",           set: setPriorities },
+    branch:                 { path: "branch",               set: setBranches },
+    "inner-packing":        { path: "inner-packing",        set: setInnerPackings },
+    items:                  { path: "items",                set: setItems },
+    transportations:        { path: "transportations",      set: setTransportations },
+    suppliers:              { path: "suppliers",            set: setSuppliers },
+    "freight-charge-types": { path: "freight-charge-types", set: setFreightChargeTypes },
+    "freight-types":        { path: "freight-types",        set: setFreightTypes },
+    "machine-status":       { path: "machine-status",       set: setMachineStatuses },
+    "paper-sizes":          { path: "paper-sizes",          set: setPaperSizes },
+    printers:               { path: "printers",             set: setPrinters },
+    machine:                { path: "machines",             set: setMachines },
+    activities:             { path: "activities",           set: setActivities },
+    location:               { path: "locations",            set: setLocations },
+    materials:              { path: "materials",            set: setMaterials },
+    "rm-iqc":               { path: "rm-iqc",               set: setInspections },
+  };
+
+  // refetch only ONE list instead of all 17
+  const refreshMaster = async (key) => {
+    const m = MASTER_LISTS[key];
+    if (!m) return fetchMasters();
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/${m.path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      m.set(res.data);
+    } catch (err) {
+      console.error(`Refresh ${key} failed:`, err);
+    }
+  };
+
   const fetchMasters = async () => {
     const config = { headers: { Authorization: `Bearer ${token}` } };
     const [
@@ -1413,7 +1446,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewFreightCharge("");
-    fetchMasters();
+    refreshMaster("freight-charge-types");
   };
 
   const addFreightType = async () => {
@@ -1424,7 +1457,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewFreightType("");
-    fetchMasters();
+    refreshMaster("freight-types");
   };
 
   const addBranch = async () => {
@@ -1433,7 +1466,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewBranch({ branchCode: "", dispatchAddress: "" });
-    fetchMasters();
+    refreshMaster("branch");
   };
 
   const addPaperSize = async () => {
@@ -1450,7 +1483,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     setNewPaperSize("");
     setNewPaperWastage("");
     setNewPaperRate("");
-    fetchMasters();
+    refreshMaster("paper-sizes");
   };
 
   const addPrinter = async () => {
@@ -1459,7 +1492,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewPrinter({ printerName: "", machineName: "" });
-    fetchMasters();
+    refreshMaster("printers");
   };
 
   const addInnerPacking = async () => {
@@ -1474,7 +1507,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       outerPack: "",
       innerPerOuter: "",
     });
-    fetchMasters();
+    refreshMaster("inner-packing");
   };
 
   const addSupplier = async () => {
@@ -1489,7 +1522,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewSupplier("");
-    fetchMasters();
+    refreshMaster("suppliers");
   };
 
   const addTransportation = async () => {
@@ -1500,7 +1533,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewTransportation("");
-    fetchMasters();
+    refreshMaster("transportations");
   };
 
   const addItem = async () => {
@@ -1533,18 +1566,18 @@ const [supplierFilter, setSupplierFilter] = useState("");
     });
     setNewItemPdf(null);
     setNewItemKey((k) => k + 1);
-    fetchMasters();
+    refreshMaster("items");
   };
 
   const addPriority = async () => {
     if (!newPriority.trim()) return;
-    axios.post(
+    await axios.post(
       `${BASE_URL}/api/master/priorities`,
       { name: newPriority.trim() },
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewPriority("");
-    fetchMasters();
+    await refreshMaster("priorities");
   };
 
   const addMachine = async () => {
@@ -1586,7 +1619,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
     setNewMachine({ machineName: "", ups: [], fixed: false });
     setNewMachineUpsText("");
-    fetchMasters();
+    refreshMaster("machine");
   };
 
   const toggleNewMachineUps = (val) => {
@@ -1616,7 +1649,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      fetchMasters();
+      refreshMaster("machine");
     } catch (err) {
       console.error("Error updating fixed status:", err);
       showAlert("Failed to update Fixed status");
@@ -1642,11 +1675,11 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
   const addActivity = async () => {
     if (!newActivity.activityName || newActivity.machines.length === 0) return;
-    axios.post(`${BASE_URL}/api/master/activities`, newActivity, {
+    await axios.post(`${BASE_URL}/api/master/activities`, newActivity, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewActivity({ activityName: "", machines: [] });
-    fetchMasters();
+    await refreshMaster("activities");
   };
 
   const addMachineStatus = async () => {
@@ -1658,13 +1691,13 @@ const [supplierFilter, setSupplierFilter] = useState("");
       showAlert("Status already exists");
       return;
     }
-    axios.post(
+    await axios.post(
       `${BASE_URL}/api/master/machine-status`,
       { statusName: newMachineStatus.trim() },
       { headers: { Authorization: `Bearer ${token}` } }
     );
     setNewMachineStatus("");
-    fetchMasters();
+    await refreshMaster("machine-status");
   };
 
   const toggleLocationMachine = (setter, id) =>
@@ -1681,16 +1714,16 @@ const [supplierFilter, setSupplierFilter] = useState("");
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewLocation({ locationName: "", address: "", machines: [] });
-    fetchMasters();
+    refreshMaster("location");
   };
 
   const addMaterial = async () => {
     if (!newMaterial.code) return;
-    axios.post(`${BASE_URL}/api/master/materials`, newMaterial, {
+    await axios.post(`${BASE_URL}/api/master/materials`, newMaterial, {
       headers: { Authorization: `Bearer ${token}` },
     });
     setNewMaterial({ code: "", description: "", group: "", mill: "", gsm: "", paperSize: "", length: "", width: "" });
-    fetchMasters();
+    await refreshMaster("materials");
   };
 
   const updateMaster = async (url, id, data) => {
@@ -1704,26 +1737,36 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
     const payload = typeof data === "string" ? { name: data } : data;
 
+    const list = MASTER_LISTS[url];
+    if (list) list.set((prev) => prev.map((r) => (r._id === id ? { ...r, ...payload } : r)));
+    setEditingId(null);
+    setEditingValue("");
+    setEditingData({});
+
     try {
-      axios.put(`${BASE_URL}/api/master/${url}/${id}`, payload, {
+      await axios.put(`${BASE_URL}/api/master/${url}/${id}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setEditingId(null);
-      setEditingValue("");
-      setEditingData({});
-      fetchMasters();
+      refreshMaster(url);
     } catch (err) {
       console.error("Update failed:", err.response?.data || err.message);
+      refreshMaster(url);
       showAlert("Update failed: " + (err.response?.data?.message || err.message));
     }
   };
 
   const deleteMaster = async (url, id) => {
     if (!(await askConfirm("Are you sure you want to delete?"))) return;
-    axios.delete(`${BASE_URL}/api/master/${url}/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    fetchMasters();
+    const list = MASTER_LISTS[url];
+    if (list) list.set((prev) => prev.filter((r) => r._id !== id));
+    try {
+      await axios.delete(`${BASE_URL}/api/master/${url}/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      refreshMaster(url);
+      showAlert("Failed to delete: " + (err.response?.data?.message || err.message));
+    }
   };
 
   const getMachineNameById = (id) => {
@@ -2559,7 +2602,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                       }
                     );
                     setUploadResult(res.data);
-                    fetchMasters();
+                    refreshMaster("items");
                   } catch (err) {
                     setUploadResult({ error: err.response?.data?.message || "Upload failed" });
                   } finally {
@@ -3672,7 +3715,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
                                       );
                                       setEditingId(null);
                                       setEditingValue("");
-                                      fetchMasters();
+                                    
+                                      refreshMaster("printers");
                                     }}
                                   >
                                     Save
@@ -3711,7 +3755,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                                         { machineName: p.machineName, printerName: name },
                                         { headers: { Authorization: `Bearer ${token}` } }
                                       );
-                                      fetchMasters();
+                                      refreshMaster("printers");
                                     }}
                                   >
                                     Delete
@@ -3774,7 +3818,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                       }
                     );
                     setInspectionUploadResult(res.data);
-                    fetchMasters();
+                    refreshMaster("rm-iqc");
                   } catch (err) {
                     setInspectionUploadResult({ error: err.response?.data?.message || "Upload failed" });
                   } finally {
@@ -5140,7 +5184,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                       }
                     );
                     setMaterialUploadResult(res.data);
-                    fetchMasters();
+                   refreshMaster("materials");
                   } catch (err) {
                     setMaterialUploadResult({ error: err.response?.data?.message || "Upload failed" });
                   } finally {
