@@ -113,7 +113,7 @@ function getQR(S, val, p) {
 
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
-const JPG_Q = 0.95;               // ZIP (full-page JPEG) export quality
+const JPG_Q = 0.85;               // ZIP (full-page JPEG) export quality
 const PATCH_Q = 0.8;                    // quality of the number / Excel-text patches
 const BG_MAX = 1.2 * 1024 * 1024;       // artwork stays lossless only if it compresses below this
 const BG_Q = 0.85;                      // otherwise it is stored as a JPEG at this quality
@@ -1505,7 +1505,7 @@ export default function CertificateNumbering() {
       const COMPACT = PDF && p.noArt;   // PDF + hidden background → tiny vector pages
       const pageRoom = PDF && !COMPACT ? Math.max(1024 * 1024, PDF_TARGET - bgBytes) : Infinity;
       const K = 72 / p.dpi;
-      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 2 : 4;
+      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 3 : Math.min(12, Math.max(4, navigator.hardwareConcurrency || 4));
       const pending = [];
       let cur = null;
 
