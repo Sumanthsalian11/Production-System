@@ -131,6 +131,7 @@
 .ambient-spotlight {
   position: absolute;
   border-radius: 50%;
+  filter: blur(100px);
   pointer-events: none;
   z-index: 0;
   will-change: transform;
@@ -176,6 +177,8 @@
   background: var(--frame-bg);
   border: 1px solid var(--frame-border);
   box-shadow: var(--frame-shadow);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
   display: grid;
   grid-template-columns: 1.15fr 1fr;
   position: relative;
@@ -198,12 +201,12 @@
   pointer-events: none;
   z-index: 5;
   opacity: 0.85;
-  --frame-angle: 40deg;
+  animation: frameSpin 9s linear infinite;
 }
 @keyframes frameSpin { to { --frame-angle: 360deg; } }
 @keyframes framePopIn {
-  from { opacity: 0; transform: translateY(26px) scale(0.975); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(26px) scale(0.975); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 
 /* ===================== LEFT PANEL ===================== */
@@ -313,7 +316,7 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-
+  animation: titleShimmer 9s ease-in-out infinite alternate;
 }
 @keyframes titleShimmer {
   from { background-position: 0% 50%; }
