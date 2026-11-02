@@ -6,6 +6,14 @@ const NumberingTemplateSchema = new mongoose.Schema(
     nameKey: { type: String, required: true, unique: true, index: true }, // lower-case name, one template per name
     settings: { type: mongoose.Schema.Types.Mixed, default: {} },          // all form fields except the number range
     cols: { type: [mongoose.Schema.Types.Mixed], default: [] },            // Excel field styling, matched by header
+    texts: { type: [mongoose.Schema.Types.Mixed], default: [] },        // custom text boxes
+    arts: {
+      type: [{
+        _id: false, slot: Number, name: String, w: Number, h: Number, mime: String,
+        data: { type: Buffer, select: false },
+      }],
+      default: [],
+    },
     artName: { type: String, default: "" },
     artW: { type: Number, default: 0 },
     artH: { type: Number, default: 0 },

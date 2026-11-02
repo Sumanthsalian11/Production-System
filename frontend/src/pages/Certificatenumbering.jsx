@@ -1117,14 +1117,16 @@ export default function CertificateNumbering() {
       const t = await r.json();
       if (!r.ok) throw new Error(t.message || "Could not load that template.");
 
-      if (t.hasArt) {
-        const ar = await fetch(`${API}/api/numbering-templates/${id}/art`, { headers: authOnly() });
-        if (!ar.ok) throw new Error("Could not load the template artwork.");
+      const metas = Array.isArray(t.arts) && t.arts.length ? t.arts : (t.hasArt ? [{ slot: 0, name: t.artName }] : []);
+      for (let i = 0; i < 3; i++) {
+        const m = metas.find((a) => a.slot === i);
+        if (!m) { clearArt(i); continue; }
+        const ar = await fetch(`${API}/api/numbering-templates/${id}/art?slot=${i}`, { headers: authOnly() });
+        if (!ar.ok) throw new Error(`Could not load artwork ${i + 1}.`);
         const blob = await ar.blob();
-        setArtImage(await loadImg(blob), blob, t.artName || "Template artwork", 0);
-      } else {
-        clearArt(0);
+        setArtImage(await loadImg(blob), blob, m.name || "Template artwork", i);
       }
+      setAct(0); actRef.current = 0; bind(0);
 
       /* Excel field styling: kept by header name, applied now and to any Excel uploaded later */
       S.tplCols = new Map((t.cols || []).map((c) => [c.header, c]));
@@ -1162,16 +1164,22 @@ export default function CertificateNumbering() {
     if (same && !replaceOk && !window.confirm(`A template named "${same.name}" already exists. Replace it?`)) return;
     setSaveDlg(null);
     setTplBusy(true);
-    bind(0);
     try {
-      let art = S.blob;
-      if (S.img && art && art.size > MAX_ART) {
-        const cv = document.createElement("canvas");
-        cv.width = S.w; cv.height = S.h;
-        cv.getContext("2d").drawImage(S.img, 0, 0);
-        art = await toBlob(cv, "image/jpeg", 0.9);
+      const arts = [];
+      const used = [0, 1, 2].filter((i) => S.slots[i].img);
+      const lim = Math.floor(MAX_ART / Math.max(1, used.length));   // all artworks share one 16 MB document
+      for (const i of used) {
+        const s = S.slots[i];
+        let blob = s.blob;
+        if (blob && blob.size > lim) {
+          const cv = document.createElement("canvas");
+          cv.width = s.w; cv.height = s.h;
+          cv.getContext("2d").drawImage(s.img, 0, 0);
+          blob = await toBlob(cv, "image/jpeg", 0.9);
+        }
+        if (!blob || blob.size > lim) throw new Error(`Artwork ${i + 1} is too large to save (limit ${Math.floor(lim / 1048576)} MB each with ${used.length} artworks).`);
+        arts.push({ slot: i, blob, name: artNames[i].replace(/\s·\s\d+×\d+px$/, ""), w: s.w, h: s.h });
       }
-      if (S.img && (!art || art.size > MAX_ART)) throw new Error("Artwork is too large to save (limit 14 MB).");
 
       const { from, to, ...settings } = fRef.current;
       const live = colsRef.current.length ? colsRef.current.map(pickCol) : [...S.tplCols.values()];
@@ -1180,19 +1188,19 @@ export default function CertificateNumbering() {
         headers: authHeaders(),
         body: JSON.stringify({
           name, settings, cols: live, texts: textsRef.current, createdBy: whoAmI(),
-          artName: S.img ? artNames[0].replace(/\s·\s\d+×\d+px$/, "") : "", artW: S.w, artH: S.h, clearArt: !S.img,
+          arts: arts.map(({ slot, name, w, h }) => ({ slot, name, w, h })),
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.message || "Could not save the template.");
 
-      if (S.img && art) {
-        const ar = await fetch(`${API}/api/numbering-templates/${d._id}/art`, {
+      for (const a of arts) {
+        const ar = await fetch(`${API}/api/numbering-templates/${d._id}/art?slot=${a.slot}`, {
           method: "PUT",
-          headers: { ...authOnly(), "Content-Type": art.type || "image/png" },
-          body: art,
+          headers: { ...authOnly(), "Content-Type": a.blob.type || "image/png" },
+          body: a.blob,
         });
-        if (!ar.ok) throw new Error("Saved the settings but the artwork upload failed.");
+        if (!ar.ok) throw new Error(`Saved the settings but artwork ${a.slot + 1} failed to upload.`);
       }
       live.forEach((c) => S.tplCols.set(c.header, c));
       await loadTpls();
