@@ -525,7 +525,7 @@ function Ic({ n }) {
   );
 }
 
-/* ---------- centre number + barcode on the artwork ---------- */
+/* ---------- centre number + barcode + QR on the artwork ---------- */
 async function centerLayout(f, W, H) {
   const p = P(f);
   const u = p.dpi / 25.4;
@@ -539,15 +539,25 @@ async function centerLayout(f, W, H) {
   const th = px * 1.2;
 
   const bar = p.bar ? makeBarcode(val, p) : null;
+  let qrc = null;
+  if (p.qr) { try { qrc = makeQR(val, p); } catch { qrc = null; } }
   const bw = bar ? bar.width : 0, bh = bar ? bar.height : 0;
-  const gap = bar ? 2 * u : 0;
+  const qw = qrc ? qrc.width : 0, qh = qrc ? qrc.height : 0;
+  const gap = 2 * u;
 
-  const top = Math.max(0, (H - (th + gap + bh)) / 2);
+  /* stack: number, barcode, QR, centred as one block */
+  const total = th + (bar ? gap + bh : 0) + (qrc ? gap + qh : 0);
+  const top = Math.max(0, (H - total) / 2);
+  const barY = top + th + gap;
+  const qrY = top + th + (bar ? gap + bh : 0) + gap;
   const rr = (v) => String(Math.round((Math.max(0, v) / u) * 10) / 10);
-  return {
+
+  const out = {
     nx: rr((W - tw) / 2), ny: rr(top),
-    bx: rr((W - bw) / 2), by: rr(top + th + gap),
+    bx: rr((W - bw) / 2), by: rr(barY),
   };
+  if (qrc) { out.qx = rr((W - qw) / 2); out.qy = rr(qrY); }
+  return out;
 }
 
 /* ---------- persistent custom fonts (IndexedDB) ---------- */
@@ -794,7 +804,14 @@ export default function CertificateNumbering() {
         const idx = Math.min(Math.max((parseInt(pv, 10) || 1) - 1, 0), Math.max(0, S.rows.length - 1));
         const n = (isFinite(p.from) ? p.from : 1) + idx;
         S.box = { num: null, bar: null, qr: null };
-        render(S, ctx, n, s, p, true, S.rows[idx]);
+        if (i === actRef.current) {
+          render(S, ctx, n, s, p, true, S.rows[idx]);
+        } else {
+          /* not selected: artwork only, for comparison */
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, cv.width, cv.height);
+          if (S.img && !p.noArt) ctx.drawImage(S.prev || S.img, 0, 0, cv.width, cv.height);
+        }
         ctx.save();
         ctx.scale(s, s);
         if (!S.img) {
@@ -824,7 +841,7 @@ export default function CertificateNumbering() {
       if (S.clearBusy) { S.clearBusy = false; requestAnimationFrame(() => setBusy("")); }
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, S]);
+  }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, act, S]);
 
   /* ---------- Simplex: UPS sheet preview ---------- */
   useEffect(() => {
@@ -942,7 +959,11 @@ export default function CertificateNumbering() {
     S.slots[i] = blankSlot();
     setDims((d) => d.map((x, k) => (k === i ? { w: 2480, h: 1754 } : x)));
     setArtNames((a) => a.map((x, k) => (k === i ? "None — blank A4 landscape" : x)));
-    if (actRef.current === i) bind(i);
+    if (actRef.current === i) {
+      const nx = S.slots.findIndex((s) => s.img);
+      const to = nx >= 0 ? nx : 0;
+      setAct(to); actRef.current = to; bind(to);
+    }
   };
 
   /* image (PNG/JPG/WebP) or PDF (first page) — shows a full-screen loader until the preview is painted */
@@ -965,8 +986,14 @@ export default function CertificateNumbering() {
       await nextFrame();
       setArtImage(img, blob, label, i);
       /* auto-layout only for the first artwork; the others reuse the shared layout */
-      const first = i === 0 || !S.slots.some((s, k) => k !== i && s.img);
-      if (!first) { S.clearBusy = true; setF((o) => ({ ...o })); say(""); return; }
+      const first = !S.slots.some((s, k) => k !== i && s.img);
+      if (!first) {
+        /* keep the layout already set up; only repaint */
+        S.clearBusy = true;
+        setF((o) => ({ ...o }));
+        say("");
+        return;
+      }
       const o = dpiFix ? { ...fRef.current, dpi: String(dpiFix) } : fRef.current;
       const dpi = P(o).dpi;
       const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
@@ -1574,6 +1601,9 @@ export default function CertificateNumbering() {
   const p = P(f);
   const okRange = Number.isInteger(p.from) && Number.isInteger(p.to) && p.to >= p.from;
   const showSheet = f.mode === "simplex" && sheetView;
+  /* show only uploaded artworks; if none are uploaded yet, show one blank artwork */
+  const visible = [0, 1, 2].filter((i) => S.slots[i].img);
+  if (!visible.length) visible.push(0);
   const count = okRange ? p.to - p.from + 1 : 0;
   const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
   const selCol = cols.find((c) => c.id === sel);
@@ -2030,11 +2060,13 @@ export default function CertificateNumbering() {
           </div>
 
           <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
-            <div className="cn-trio" style={zoom !== "fit" ? { width: `${zoom * 3}%` } : undefined}>
+            <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
               {[0, 1, 2].map((i) => (
-                <figure key={i} className={`cn-card${act === i ? " act" : ""}`}>
+                <figure key={i} hidden={!visible.includes(i)} className={`cn-card${act === i ? " act" : ""}`}
+                  onClick={() => { setAct(i); actRef.current = i; bind(i); }}>
                   <figcaption>
                     <b>Artwork {i + 1}</b>
+                    {act === i && <span className="cn-badge">Editing</span>}
                     <span className="cn-dim">{dims[i].w}×{dims[i].h}px</span>
                     <div className="cn-card-dl">
                       <button className="cn-btn primary sm" type="button"
