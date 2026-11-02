@@ -147,21 +147,24 @@ exports.internalLogin = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(400).json({ message: "Invalid credentials", debug: `No user found for "${identifier}"` });
     }
 
     let isMatch = false;
+    let debug = "";
 
     if (user.authType === "ldap") {
       try {
         await verifyLDAPUser(user.ldapUsername || user.email, password);
         isMatch = true;
       } catch (ldapErr) {
+        debug = `LDAP bind as "${user.ldapUsername || user.email}" → ${ldapErr.name}: ${ldapErr.message}`;
         if (ldapErr.name !== "InvalidCredentialsError") {
           console.error("LDAP authentication error:", ldapErr.message);
           return res.status(503).json({
             message:
               "Domain server is not reachable. Please try again or contact your administrator.",
+            debug,
           });
         }
       }
@@ -170,7 +173,7 @@ exports.internalLogin = async (req, res) => {
     }
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials" });
+      return res.status(400).json({ message: "Invalid credentials", debug: debug || `Local password mismatch (authType: ${user.authType})` });
     }
 
     if (role && user.role !== role) {

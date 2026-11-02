@@ -409,7 +409,8 @@ function InternalLogin() {
       if (target) navigate(target);
       else setError("Your role is not recognised. Contact your administrator.");
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid credentials. Check your details and try again.");
+      const d = err.response?.data;
+      setError((d?.message || "Invalid credentials. Check your details and try again.") + (d?.debug ? `  [${d.debug}]` : ""));
     }
 
     setLoading(false);
