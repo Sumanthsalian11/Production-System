@@ -514,12 +514,14 @@ const ICONS = {
   shrink: "M4 14h6v6 M20 10h-6V4 M14 10l7-7 M10 14l-7 7",
   plus: "M12 5v14 M5 12h14",
   minus: "M5 12h14",
+  lines: "M4 6h16 M4 12h16 M4 18h10",
+  close: "M6 6l12 12 M18 6L6 18",
   fit: "M3 9V5a2 2 0 0 1 2-2h4 M21 9V5a2 2 0 0 0-2-2h-4 M3 15v4a2 2 0 0 0 2 2h4 M21 15v4a2 2 0 0 1-2 2h-4",
 };
 
-function Ic({ n }) {
+function Ic({ n, s = 15 }) {
   return (
-    <svg className="cn-ic" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg className="cn-ic" viewBox="0 0 24 24" width={s} height={s} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={ICONS[n] || "M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0"} />
     </svg>
   );
@@ -617,6 +619,7 @@ export default function CertificateNumbering() {
   /* Layout toggles & Zoom to maximize preview window */
   const [sideOpen, setSideOpen] = useState(true);
   const [propsOpen, setPropsOpen] = useState(true);
+  const [tool, setTool] = useState(null);   // which floating tool card is open
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
   const [sheetView, setSheetView] = useState(false);   // Simplex: show the UPS sheet preview
   const shRef = useRef(null);
@@ -1619,6 +1622,7 @@ export default function CertificateNumbering() {
   const isMaximized = maxed;
   const enterMax = async () => {
     setMaxed(true);
+    setTool(null);
     setSideOpen(false);
     setPropsOpen(false);
     try { await rootRef.current?.requestFullscreen?.(); } catch { /* overlay fallback still applies */ }
@@ -1716,6 +1720,229 @@ export default function CertificateNumbering() {
     return <div className="cn-info">Click any element on the certificate to inspect and adjust its properties.</div>;
   })();
 
+  const tools = [
+    {
+      id: "template", icon: "tpl", label: "Template", title: "Template",
+      body: (
+        <div className="cn-row">
+          <Field span={12} label="Saved templates">
+            <select value={tplId} onChange={(e) => applyTemplate(e.target.value)} disabled={tplBusy}>
+              <option value="">{tpls.length ? "— choose to load —" : "— none saved yet —"}</option>
+              {tpls.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
+            </select>
+          </Field>
+          <Field span={12} label="Template name">
+            <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Certificate A4" />
+          </Field>
+          <div className="cn-actions">
+            <button className="cn-btn ghost" type="button" onClick={saveTemplate} disabled={tplBusy}><Ic n="save" />{tplBusy ? "Working…" : "Save"}</button>
+            <button className="cn-btn ghost danger" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}><Ic n="trash" />Delete</button>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "artwork", icon: "art", label: "Artwork", title: "Artwork",
+      body: (
+        <>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="cn-artslot">
+              <label className="cn-drop">
+                <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={(e) => onArt(e, i)} />
+                <Ic n="art" />
+                <strong>Artwork {i + 1}</strong>
+                <small>PNG, JPG, WebP or PDF</small>
+                <span className="cn-btn sm">Upload File</span>
+              </label>
+              <div className="cn-file"><b>{artNames[i]}</b></div>
+              {S.slots[i].img && (
+                <button className="cn-btn ghost danger sm" type="button" onClick={() => clearArt(i)}><Ic n="trash" />Remove</button>
+              )}
+            </div>
+          ))}
+          <div className="cn-row">
+            <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
+            <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
+            <Switch checked={f.noArt} onChange={set("noArt")}>Hide background (preview &amp; export)</Switch>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "numbering", icon: "hash", label: "Number", title: "Numbering",
+      body: (
+        <>
+          <div className="cn-range"><strong>{rangeTxt}</strong></div>
+          <div className="cn-row">
+            <Field span={12} label="Static word"><input type="text" value={f.word} onChange={set("word")} /></Field>
+            <Field span={4} label="From *"><input type="number" min="0" value={f.from} onChange={set("from")} /></Field>
+            <Field span={4} label="To *"><input type="number" min="0" value={f.to} onChange={set("to")} /></Field>
+            <Field span={4} label="Digits"><input type="number" min="1" max="20" value={f.digits} onChange={set("digits")} /></Field>
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "style", icon: "type", label: "Style", title: "Text Styling",
+      body: (
+        <div className="cn-row">
+          <Field span={12} label="Font family *">
+            <select value={f.font} onChange={set("font")}>
+              {fonts.map((n) => <option key={n}>{n}</option>)}
+            </select>
+          </Field>
+          <Field span={6} label="Size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
+          <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
+          <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
+          <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
+          <Field span={6} label="Number X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
+          <Field span={6} label="Number Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
+          <div className="cn-actions">
+            <label className="cn-btn ghost">
+              <input type="file" accept=".ttf,.otf,.woff,.woff2" hidden onChange={onFont} />
+              Upload font (TTF/OTF)
+            </label>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "barcode", icon: "bar", label: "Barcode", title: "Barcode (128)",
+      body: (
+        <>
+          <Switch checked={f.bar} onChange={set("bar")}>Barcode {f.bar ? "ON" : "OFF"}</Switch>
+          {f.bar && (
+            <div className="cn-row">
+              <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
+              <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
+              <Switch span={12} checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
+              <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
+              <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
+              <Field span={12} label="Encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
+              {f.benc === CUSTOM && customFields}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "qr", icon: "qr", label: "QR", title: "QR Code",
+      body: (
+        <>
+          <Switch checked={f.qr} onChange={set("qr")}>QR code {f.qr ? "ON" : "OFF"}</Switch>
+          {f.qr && (
+            <div className="cn-row">
+              <Field span={4} label="Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
+              <Field span={4} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
+              <Field span={4} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
+              <Field span={12} label="Encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
+              {f.qenc === CUSTOM && customFieldsQ}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "excel", icon: "xls", label: "Excel", title: "Excel Data", badge: sheet ? sheet.count.toLocaleString() : null,
+      body: (
+        <>
+          <label className="cn-drop">
+            <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
+            <Ic n="xls" />
+            <strong>Excel Import</strong>
+            <small>Merge tabular rows onto certificates</small>
+            <span className="cn-btn sm">Upload Spreadsheet</span>
+          </label>
+          <div className="cn-file">
+            <b>{sheet ? sheet.name : "No file attached"}</b>
+            {sheet && <span>{sheet.count.toLocaleString()} rows · {sheet.headers.length} columns</span>}
+          </div>
+          {sheet && (
+            <>
+              {cols.map((c) => (
+                <details key={c.id} className={`cn-col${c.on ? "" : " off"}`} onFocus={() => setSel(c.id)}>
+                  <summary>
+                    <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={c.on} onChange={setCol(c.id, "on")} />
+                      <span title={c.header}>{c.header}</span>
+                    </label>
+                    <label className="cn-f cn-chk cn-mini" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} />
+                      <span>Name</span>
+                    </label>
+                  </summary>
+                  <div className="cn-row">
+                    <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
+                    <Field span={4} label="Colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
+                    <Field span={4} label="Label"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
+                    <Field span={6} label="X"><Mm><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Mm></Field>
+                    <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Mm></Field>
+                  </div>
+                </details>
+              ))}
+              <button className="cn-btn ghost danger" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}><Ic n="trash" />Remove Excel</button>
+            </>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "texts", icon: "lines", label: "Text", title: "Custom Text", badge: texts.length > 0 ? String(texts.length) : null,
+      body: (
+        <>
+          <div className="cn-row">
+            <Field span={12} label="Number of text boxes">
+              <input type="number" min="0" max="20" step="1" value={texts.length} onChange={(e) => setTextCount(e.target.value)} />
+            </Field>
+          </div>
+          {texts.map((t) => (
+            <details key={t.id} className={`cn-col${t.on ? "" : " off"}`} onFocus={() => setSel(t.id)}>
+              <summary>
+                <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={t.on} onChange={setTxt(t.id, "on")} />
+                  <span title={t.text}>{t.text.split("\n")[0] || "(empty)"}</span>
+                </label>
+                <button className="cn-icon-btn" type="button" title="Remove"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeText(t.id); }}>
+                  <Ic n="trash" />
+                </button>
+              </summary>
+              {textFields(t)}
+            </details>
+          ))}
+        </>
+      ),
+    },
+    {
+      id: "output", icon: "down", label: "Output", title: "Output",
+      body: (
+        <>
+          <div className="cn-row">
+            <Field span={12} label="Layout">
+              <select value={f.mode} onChange={set("mode")}>
+                <option value="normal">Normal (one per page)</option>
+                <option value="simplex">Simplex (UPS sheet)</option>
+                <option value="duplex">Duplex</option>
+              </select>
+            </Field>
+            {f.mode === "simplex" && (
+              <>
+                <Field span={4} label="UPS (down)"><input type="number" min="1" max="50" value={f.ups} onChange={set("ups")} /></Field>
+                <Field span={4} label="Columns"><input type="number" min="1" max="10" value={f.ucols} onChange={set("ucols")} /></Field>
+                <Field span={4} label="Gap"><Mm><input type="number" min="0" step="0.5" value={f.ugap} onChange={set("ugap")} /></Mm></Field>
+              </>
+            )}
+            <Field span={12} label="Pages per output file">
+              <input type="number" min="1" value={f.per} onChange={set("per")} />
+            </Field>
+          </div>
+          <div className="cn-info">PDF / ZIP is split into a new file after this many certificates.</div>
+        </>
+      ),
+    },
+  ];
+  const activeTool = tools.find((t) => t.id === tool);
+
   return (
     <div className={`cn-root${maxed ? " cn-max" : ""}`} ref={rootRef}>
       <style>{CSS}</style>
@@ -1772,237 +1999,44 @@ export default function CertificateNumbering() {
       {/* workspace grid: dynamically expands preview canvas */}
       <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`}>
         
-        {/* ---------- left: configuration sidebar ---------- */}
-        <aside className="cn-side" aria-label="Settings and controls">
-          <div className="cn-panel-header">
-            <div className="cn-panel-title">
-              <Ic n="tpl" />
-              <span>Configuration</span>
-            </div>
-            <button className="cn-icon-btn" type="button" title="Collapse sidebar" onClick={() => setSideOpen(false)}>
-              <Ic n="sidebar" />
+       
+
+        {/* ---------- left: slim tool rail ---------- */}
+        <nav className="cn-rail" aria-label="Tools">
+          {tools.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`cn-rb${tool === t.id ? " on" : ""}`}
+              title={t.title}
+              onClick={() => setTool((cur) => (cur === t.id ? null : t.id))}
+            >
+              <Ic n={t.icon} s={18} />
+              <span>{t.label}</span>
+              {t.badge && <i className="cn-rb-badge">{t.badge}</i>}
             </button>
+          ))}
+          <div className="cn-rail-sp" />
+          <button type="button" className="cn-rb" title="Hide tool rail" onClick={() => { setSideOpen(false); setTool(null); }}>
+            <Ic n="sidebar" s={18} />
+            <span>Hide</span>
+          </button>
+        </nav>
+
+        {/* floating tool card */}
+        {sideOpen && activeTool && (
+          <div className="cn-fly" role="dialog" aria-label={activeTool.title}>
+            <div className="cn-fly-head">
+              <strong>{activeTool.title}</strong>
+              <button className="cn-icon-btn" type="button" title="Close" onClick={() => setTool(null)}>
+                <Ic n="close" />
+              </button>
+            </div>
+            <form className="cn-fly-body" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
+              {activeTool.body}
+            </form>
           </div>
-
-          <form autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-            <details className="cn-sec">
-              <summary><Ic n="tpl" /><em>01</em>Template</summary>
-              <div className="cn-body">
-                <div className="cn-row">
-                  <Field span={12} label="Saved templates">
-                    <select value={tplId} onChange={(e) => applyTemplate(e.target.value)} disabled={tplBusy}>
-                      <option value="">{tpls.length ? "— choose to load —" : "— none saved yet —"}</option>
-                      {tpls.map((t) => <option key={t._id} value={t._id}>{t.name}</option>)}
-                    </select>
-                  </Field>
-                  <Field span={12} label="Template name">
-                    <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="e.g. Certificate A4" />
-                  </Field>
-                  <div className="cn-actions">
-                    <button className="cn-btn ghost" type="button" onClick={saveTemplate} disabled={tplBusy}><Ic n="save" />{tplBusy ? "Working…" : "Save"}</button>
-                    <button className="cn-btn ghost danger" type="button" onClick={deleteTemplate} disabled={tplBusy || !tplId}><Ic n="trash" />Delete</button>
-                  </div>
-                </div>
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="art" /><em>02</em>Artwork</summary>
-              <div className="cn-body">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="cn-artslot">
-                    <label className="cn-drop">
-                      <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={(e) => onArt(e, i)} />
-                      <Ic n="art" />
-                      <strong>Artwork {i + 1}</strong>
-                      <small>PNG, JPG, WebP or PDF</small>
-                      <span className="cn-btn sm">Upload File</span>
-                    </label>
-                    <div className="cn-file"><b>{artNames[i]}</b></div>
-                    {S.slots[i].img && (
-                      <button className="cn-btn ghost danger sm" type="button" onClick={() => clearArt(i)}><Ic n="trash" />Remove</button>
-                    )}
-                  </div>
-                ))}
-                <div className="cn-row">
-                  <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
-                  <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
-                  <Switch checked={f.noArt} onChange={set("noArt")}>Hide background (preview &amp; export)</Switch>
-                </div>
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="hash" /><em>03</em>Numbering</summary>
-              <div className="cn-body">
-                <div className="cn-range">
-                  <strong>{rangeTxt}</strong>
-                </div>
-                <div className="cn-row">
-                  <Field span={12} label="Static word"><input type="text" value={f.word} onChange={set("word")} /></Field>
-                  <Field span={4} label="From *"><input type="number" min="0" value={f.from} onChange={set("from")} /></Field>
-                  <Field span={4} label="To *"><input type="number" min="0" value={f.to} onChange={set("to")} /></Field>
-                  <Field span={4} label="Digits"><input type="number" min="1" max="20" value={f.digits} onChange={set("digits")} /></Field>
-                </div>
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="type" /><em>04</em>Text Styling</summary>
-              <div className="cn-body">
-                <div className="cn-row">
-                  <Field span={12} label="Font family *">
-                    <select value={f.font} onChange={set("font")}>
-                      {fonts.map((n) => <option key={n}>{n}</option>)}
-                    </select>
-                  </Field>
-                  <Field span={6} label="Size (pt) *"><input type="number" min="1" step="0.5" value={f.pt} onChange={set("pt")} /></Field>
-                  <Switch span={6} checked={f.bold} onChange={set("bold")}>Bold</Switch>
-                  <Field span={6} label="Word colour"><input type="color" value={f.wc} onChange={set("wc")} /></Field>
-                  <Field span={6} label="Number colour"><input type="color" value={f.nc} onChange={set("nc")} /></Field>
-                  <Field span={6} label="Number X"><Mm><input type="number" step="0.5" value={f.nx} onChange={set("nx")} /></Mm></Field>
-                  <Field span={6} label="Number Y"><Mm><input type="number" step="0.5" value={f.ny} onChange={set("ny")} /></Mm></Field>
-                  <div className="cn-actions">
-                    <label className="cn-btn ghost">
-                      <input type="file" accept=".ttf,.otf,.woff,.woff2" hidden onChange={onFont} />
-                      Upload font (TTF/OTF)
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="bar" /><em>05</em>Barcode (128)</summary>
-              <div className="cn-body">
-                <Switch checked={f.bar} onChange={set("bar")}>Barcode {f.bar ? "ON" : "OFF"}</Switch>
-                {f.bar && (
-                  <div className="cn-row">
-                    <Field span={6} label="Width"><Mm><input type="number" min="5" step="1" value={f.bw} onChange={set("bw")} /></Mm></Field>
-                    <Field span={6} label="Height"><Mm><input type="number" min="2" step="0.5" value={f.bh} onChange={set("bh")} /></Mm></Field>
-                    <Switch span={12} checked={f.qz} onChange={set("qz")}>Quiet zone</Switch>
-                    <Field span={6} label="X"><Mm><input type="number" step="0.5" value={f.bx} onChange={set("bx")} /></Mm></Field>
-                    <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={f.by} onChange={set("by")} /></Mm></Field>
-                    <Field span={12} label="Encodes"><select value={f.benc} onChange={set("benc")}>{encOptions}</select></Field>
-                    {f.benc === CUSTOM && customFields}
-                  </div>
-                )}
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="qr" /><em>06</em>QR Code</summary>
-              <div className="cn-body">
-                <Switch checked={f.qr} onChange={set("qr")}>QR code {f.qr ? "ON" : "OFF"}</Switch>
-                {f.qr && (
-                  <div className="cn-row">
-                    <Field span={4} label="Size"><Mm><input type="number" min="8" step="1" value={f.qs} onChange={set("qs")} /></Mm></Field>
-                    <Field span={4} label="X"><Mm><input type="number" step="0.5" value={f.qx} onChange={set("qx")} /></Mm></Field>
-                    <Field span={4} label="Y"><Mm><input type="number" step="0.5" value={f.qy} onChange={set("qy")} /></Mm></Field>
-                    <Field span={12} label="Encodes"><select value={f.qenc} onChange={set("qenc")}>{encOptions}</select></Field>
-                    {f.qenc === CUSTOM && customFieldsQ}
-                  </div>
-                )}
-
-              </div>
-            </details>
-
-            <details className="cn-sec">
-              <summary><Ic n="xls" /><em>07</em>Excel Data {sheet && <span className="cn-pill">{sheet.count.toLocaleString()} rows</span>}</summary>
-              <div className="cn-body">
-                <label className="cn-drop">
-                  <input type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSheet} />
-                  <Ic n="xls" />
-                  <strong>Excel Import</strong>
-                  <small>Merge tabular rows onto certificates</small>
-                  <span className="cn-btn sm">Upload Spreadsheet</span>
-                </label>
-                <div className="cn-file">
-                  <b>{sheet ? sheet.name : "No file attached"}</b>
-                  {sheet && <span>{sheet.count.toLocaleString()} rows · {sheet.headers.length} columns</span>}
-                </div>
-                {sheet && (
-                  <>
-                    {cols.map((c) => (
-                      <details key={c.id} className={`cn-col${c.on ? "" : " off"}`} onFocus={() => setSel(c.id)}>
-                        <summary>
-                          <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
-                            <input type="checkbox" checked={c.on} onChange={setCol(c.id, "on")} />
-                            <span title={c.header}>{c.header}</span>
-                          </label>
-                          <label className="cn-f cn-chk cn-mini" onClick={(e) => e.stopPropagation()}>
-                            <input type="checkbox" checked={c.label} onChange={setCol(c.id, "label")} />
-                            <span>Name</span>
-                          </label>
-                        </summary>
-                        <div className="cn-row">
-                          <Field span={4} label="Size (pt)"><input type="number" min="1" step="0.5" value={c.pt} onChange={setCol(c.id, "pt")} /></Field>
-                          <Field span={4} label="Colour"><input type="color" value={c.color} onChange={setCol(c.id, "color")} /></Field>
-                          <Field span={4} label="Label"><input type="color" value={c.lc || c.color} disabled={!c.label} onChange={setCol(c.id, "lc")} /></Field>
-                          <Field span={6} label="X"><Mm><input type="number" step="0.5" value={c.x} onChange={setCol(c.id, "x")} /></Mm></Field>
-                          <Field span={6} label="Y"><Mm><input type="number" step="0.5" value={c.y} onChange={setCol(c.id, "y")} /></Mm></Field>
-                        </div>
-                      </details>
-                    ))}
-                    <button className="cn-btn ghost danger" type="button" style={{ alignSelf: "flex-start" }} onClick={removeSheet}><Ic n="trash" />Remove Excel</button>
-                  </>
-                )}
-              </div>
-            </details>
-            <details className="cn-sec">
-              <summary><Ic n="type" /><em>08</em>Custom Text {texts.length > 0 && <span className="cn-pill">{texts.length}</span>}</summary>
-              <div className="cn-body">
-                <div className="cn-row">
-                  <Field span={12} label="Number of text boxes">
-                    <input type="number" min="0" max="20" step="1" value={texts.length} onChange={(e) => setTextCount(e.target.value)} />
-                  </Field>
-                </div>
-                {texts.map((t) => (
-                  <details key={t.id} className={`cn-col${t.on ? "" : " off"}`} onFocus={() => setSel(t.id)}>
-                    <summary>
-                      <label className="cn-f cn-chk" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={t.on} onChange={setTxt(t.id, "on")} />
-                        <span title={t.text}>{t.text.split("\n")[0] || "(empty)"}</span>
-                      </label>
-                      <button className="cn-icon-btn" type="button" title="Remove"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeText(t.id); }}>
-                        <Ic n="trash" />
-                      </button>
-                    </summary>
-                    {textFields(t)}
-                  </details>
-                ))}
-              </div>
-            </details>
-          <details className="cn-sec">
-              <summary><Ic n="down" /><em>09</em>Output</summary>
-              <div className="cn-body">
-                <div className="cn-row">
-                  <Field span={12} label="Layout">
-                    <select value={f.mode} onChange={set("mode")}>
-                      <option value="normal">Normal (one per page)</option>
-                      <option value="simplex">Simplex (UPS sheet)</option>
-                      <option value="duplex">Duplex</option>
-                    </select>
-                  </Field>
-                  {f.mode === "simplex" && (
-                    <>
-                      <Field span={4} label="UPS (down)"><input type="number" min="1" max="50" value={f.ups} onChange={set("ups")} /></Field>
-                      <Field span={4} label="Columns"><input type="number" min="1" max="10" value={f.ucols} onChange={set("ucols")} /></Field>
-                      <Field span={4} label="Gap"><Mm><input type="number" min="0" step="0.5" value={f.ugap} onChange={set("ugap")} /></Mm></Field>
-                    </>
-                  )}
-                  <Field span={12} label="Pages per output file">
-                    <input type="number" min="1" value={f.per} onChange={set("per")} />
-                  </Field>
-                </div>
-                <div className="cn-info">PDF / ZIP is split into a new file after this many certificates.</div>
-              </div>
-            </details>
-          </form>
-        </aside>
-
-        {/* ---------- centre: large preview stage ---------- */}
+        )}
         <section className="cn-stage">
           <div className="cn-tool">
             <div className="cn-tool-left">
@@ -2059,6 +2093,7 @@ export default function CertificateNumbering() {
               </div>            </div>
           </div>
 
+          <div className="cn-canvas-area">
           <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
             <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
               {[0, 1, 2].map((i) => (
@@ -2100,6 +2135,30 @@ export default function CertificateNumbering() {
             <canvas ref={shRef} className="cn-preview-canvas fit-mode" />
           </div>
 
+          {/* floating inspector over the preview */}
+          {propsOpen && (
+            <aside className="cn-props" aria-label="Element properties">
+              <div className="cn-props-head">
+                <span className="cn-props-dot" />
+                <strong className="cn-props-n">{selName || "Nothing selected"}</strong>
+                <button className="cn-icon-btn" type="button" title="Hide inspector" onClick={() => setPropsOpen(false)}>
+                  <Ic n="close" />
+                </button>
+              </div>
+              <div className="cn-props-body">
+                {props}
+                {measure && (
+                  <div className="cn-meas">
+                    <b>Edge distances</b>
+                    <span>X: {r1(getPos(measure)[0])} mm · Y: {r1(getPos(measure)[1])} mm</span>
+                    <small>Esc to clear.</small>
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
+          </div>
+
           <div className="cn-hints">
             <span><b>Tip:</b> Click &amp; drag elements on the canvas.</span>
             <span>Arrow keys nudge position (Shift = 5 mm).</span>
@@ -2108,36 +2167,6 @@ export default function CertificateNumbering() {
           </div>
         </section>
 
-        {/* ---------- right: selected element inspector ---------- */}
-        <aside className="cn-props" aria-label="Element properties">
-          <div className="cn-panel-header">
-            <div className="cn-panel-title">
-              <span className="cn-props-dot" />
-              <span>Inspector</span>
-            </div>
-            <button className="cn-icon-btn" type="button" title="Collapse inspector" onClick={() => setPropsOpen(false)}>
-              <Ic n="panelRight" />
-            </button>
-          </div>
-
-          <div className="cn-props-body">
-            <div className="cn-props-head-info">
-              <span className="cn-props-tag">Active Selection</span>
-              <strong className="cn-props-n">{selName || "Nothing selected"}</strong>
-            </div>
-
-            {props}
-
-            {measure && (
-              <div className="cn-meas">
-                <b>Measuring Distances</b>
-                <span>X: {r1(getPos(measure)[0])} mm</span>
-                <span>Y: {r1(getPos(measure)[1])} mm</span>
-                <small>Distance guides from all 4 page edges are active. Press Esc to clear.</small>
-              </div>
-            )}
-          </div>
-        </aside>
       </div>
 
       {running && (
@@ -2464,6 +2493,62 @@ const CSS = `
 .cn-card-dl{margin-left:auto;display:flex;gap:5px}
 .cn-card canvas{display:block;width:100%;height:auto;margin:0;box-shadow:none}
 @media (max-width:880px){.cn-trio{grid-template-columns:1fr}}
+
+/* ===== tool rail + floating panels (large preview) ===== */
+.cn-work,.cn-work.no-props{display:grid;grid-template-columns:56px minmax(0,1fr);gap:4px;padding:4px}
+.cn-work.no-side,.cn-work.no-side.no-props{grid-template-columns:0px minmax(0,1fr);gap:0}
+.cn-work{position:relative}
+.cn-stage{min-height:0;min-width:0}
+.cn-rail{
+  display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 3px;min-height:0;overflow-y:auto;overflow-x:hidden;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+}
+.cn-work.no-side .cn-rail{opacity:0;pointer-events:none;border:none;padding:0;overflow:hidden}
+.cn-rail-sp{flex:1}
+.cn-rb{
+  position:relative;width:48px;padding:6px 0 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  border:none;background:transparent;border-radius:8px;color:var(--muted);cursor:pointer;font:600 9.5px/1.1 inherit;
+}
+.cn-rb:hover{background:var(--accent-soft);color:var(--accent-d)}
+.cn-rb.on{background:var(--accent);color:#fff}
+.cn-rb-badge{
+  position:absolute;top:2px;right:2px;min-width:15px;height:15px;padding:0 3px;border-radius:999px;
+  background:var(--accent);color:#fff;font:700 8.5px/15px inherit;font-style:normal;text-align:center;
+}
+.cn-rb.on .cn-rb-badge{background:#fff;color:var(--accent-d)}
+.cn-fly{
+  position:absolute;left:64px;top:8px;z-index:30;width:286px;max-height:calc(100% - 16px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--surface);border:1px solid var(--line2);border-radius:10px;
+  box-shadow:0 14px 40px rgba(11,39,48,.28);animation:cnfadein .12s ease;
+}
+.cn-fly-head{display:flex;align-items:center;justify-content:space-between;padding:6px 8px 6px 12px;border-bottom:1px solid var(--line);background:#fafbfc}
+.cn-fly-head strong{font-size:12.5px}
+.cn-fly-body{padding:10px 12px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:0}
+.cn-canvas-area{flex:1;min-height:0;position:relative;display:flex}
+.cn-canvas-wrap{padding:4px}
+.cn-trio{gap:8px}
+.cn-hints{padding:3px 10px;font-size:10.5px}
+.cn-props{
+  position:absolute;right:12px;bottom:12px;top:auto;left:auto;z-index:15;width:208px;max-height:calc(100% - 24px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:rgba(255,255,255,.97);border:1px solid var(--line2);border-radius:10px;
+  box-shadow:0 10px 30px rgba(11,39,48,.25);animation:cnfadein .12s ease;
+}
+.cn-props-head{display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;border-bottom:1px solid var(--line);background:#fafbfc}
+.cn-props-head .cn-props-n{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cn-props-body{padding:8px;min-height:0}
+@media (max-width:880px){
+  .cn-root{height:100dvh;overflow:hidden}
+  .cn-work,.cn-work.no-props{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  .cn-work.no-side,.cn-work.no-side.no-props{grid-template-columns:minmax(0,1fr);grid-template-rows:0px minmax(0,1fr)}
+  .cn-stage{order:0;min-height:0}
+  .cn-rail{flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:3px}
+  .cn-rail-sp{display:none}
+  .cn-fly{left:8px;right:8px;top:64px;width:auto;max-height:calc(100% - 72px)}
+  .cn-props{width:180px}
+  .cn-trio{grid-template-columns:1fr!important}
+}
 
 @media (prefers-reduced-motion:reduce){
   .cn-root,.cn-root *,.cn-root *::before,.cn-root *::after{animation:none!important}
