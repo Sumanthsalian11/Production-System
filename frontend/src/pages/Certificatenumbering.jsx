@@ -1746,6 +1746,7 @@ export default function CertificateNumbering() {
   /* show only uploaded artworks; if none are uploaded yet, show one blank artwork */
   const visible = [0, 1, 2].filter((i) => S.slots[i].img);
   if (!visible.length) visible.push(0);
+  const fitAr = Math.min(...visible.map((i) => (dims[i].w || 1) / (dims[i].h || 1)));
   const count = okRange ? p.to - p.from + 1 : 0;
   const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
   const selCol = cols.find((c) => c.id === sel);
@@ -2249,8 +2250,8 @@ export default function CertificateNumbering() {
           </div>
 
           <div className="cn-canvas-area" ref={areaRef}>
-          <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
-            <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
+          <div className={`cn-canvas-wrap${zoom === "fit" ? " cn-fit" : ""}`} style={showSheet ? { display: "none" } : undefined}>
+            <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, "--n": visible.length, "--ar": fitAr, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
               {[0, 1, 2].map((i) => (
                 <figure key={i} hidden={!visible.includes(i)} className={`cn-card${act === i ? " act" : ""}`}
                   onClick={() => { setAct(i); actRef.current = i; bind(i); }}>
@@ -2725,6 +2726,20 @@ const CSS = `
 
 .cn-drag{cursor:grab;touch-action:none;user-select:none}
 .cn-drag:active{cursor:grabbing}
+
+/* ===== single-page fit preview (no scrolling) ===== */
+.cn-canvas-wrap.cn-fit{overflow:hidden;container-type:size}
+.cn-fit .cn-trio{
+  --cols:var(--n);--rows:1;
+  --cardw:calc(((100cqh - var(--rows) * 46px - (var(--rows) - 1) * 8px) / var(--rows)) * var(--ar));
+  width:min(100%, calc(var(--cols) * var(--cardw) + (var(--cols) - 1) * 8px));
+  margin:auto;align-self:center;
+}
+.cn-fit .cn-card figcaption{flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+.cn-fit .cn-card figcaption .cn-dim{display:none}
+@media (max-width:880px){
+  .cn-fit .cn-trio{--cols:1;--rows:var(--n)}
+}
 
 @media (prefers-reduced-motion:reduce){
   .cn-root,.cn-root *,.cn-root *::before,.cn-root *::after{animation:none!important}
