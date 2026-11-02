@@ -32,6 +32,10 @@ const DEFAULTS = {
 };
 
 const pad = (n, d) => String(n).padStart(d, "0");
+const blankSlot = () => ({
+  img: null, blob: null, prev: null, w: 2480, h: 1754,
+  name: "None — blank A4 landscape", box: { num: null, bar: null, qr: null },
+});
 const num = (v, d = 0) => { const x = parseFloat(v); return isFinite(x) ? x : d; };
 const r1 = (v) => String(Math.round(v * 10) / 10);
 
@@ -578,9 +582,12 @@ export default function CertificateNumbering() {
   const [texts, setTexts] = useState(() => [defText()]);   // custom text items (1 by default)
   const [toast, setToast] = useState(null); // { msg, cls } shown at the top
   const toastT = useRef(null);
-  const [dims, setDims] = useState({ w: 2480, h: 1754 });
+  const [dims, setDims] = useState([{ w: 2480, h: 1754 }, { w: 2480, h: 1754 }, { w: 2480, h: 1754 }]);
   const [sel, setSel] = useState("num");
-  const [artName, setArtName] = useState("None — blank A4 landscape");
+  const [artNames, setArtNames] = useState(Array(3).fill("None — blank A4 landscape"));
+  const [act, setAct] = useState(0);            // active artwork slot (0..2)
+  const actRef = useRef(0);
+  actRef.current = act;
   const [status, setStatus] = useState({ msg: "", cls: "" });
   const [progress, setProgress] = useState(0);
   const [running, setRunning] = useState(false);
@@ -608,8 +615,10 @@ export default function CertificateNumbering() {
   const maxedRef = useRef(false);
   maxedRef.current = maxed;
 
-  const cvRef = useRef(null);
-  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false }).current;
+  const cvRefs = useRef([null, null, null]);
+  const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false, slots: [blankSlot(), blankSlot(), blankSlot()] }).current;
+  /* S.img / S.w / S.h / S.prev / S.blob / S.box always mirror one slot, so render() and generate() work unchanged */
+  const bind = (i) => { const s = S.slots[i]; S.img = s.img; S.blob = s.blob; S.prev = s.prev; S.w = s.w; S.h = s.h; S.box = s.box; };
   const drag = useRef(null);
   const stopFlag = useRef(false);
   const fRef = useRef(f);
@@ -763,8 +772,9 @@ export default function CertificateNumbering() {
     return () => clearTimeout(t);
   }, [f.series, running]);
 
-  /* preview */
+  /* preview: one canvas per artwork slot */
   useEffect(() => {
+    if (running) return;
     let dead = false;
     (async () => {
       const p = P(f);
@@ -773,45 +783,48 @@ export default function CertificateNumbering() {
         if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
       }
       if (dead) return;
-      const cv = cvRef.current;
-      if (!cv) return;
-      // High-resolution preview render
-      const s = Math.min(1, 2048 / S.w);
-      cv.width = Math.round(S.w * s);
-      cv.height = Math.round(S.h * s);
-      const ctx = cv.getContext("2d");
-      const idx = Math.min(Math.max((parseInt(pv, 10) || 1) - 1, 0), Math.max(0, S.rows.length - 1));
-      const n = (isFinite(p.from) ? p.from : 1) + idx;
-      S.box = { num: null, bar: null, qr: null };
-      render(S, ctx, n, s, p, true, S.rows[idx]);
-      ctx.save();
-      ctx.scale(s, s);
-      if (!S.img) {
-        ctx.fillStyle = "rgba(16,52,61,.28)";
-        ctx.font = `600 ${S.w * 0.022}px Figtree, Arial, sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("Choose base artwork to place numbers on it", S.w / 2, S.h / 2);
+      for (let i = 0; i < 3; i++) {
+        const cv = cvRefs.current[i];
+        if (!cv) continue;
+        bind(i);
+        const s = Math.min(1, 1600 / S.w);
+        cv.width = Math.round(S.w * s);
+        cv.height = Math.round(S.h * s);
+        const ctx = cv.getContext("2d");
+        const idx = Math.min(Math.max((parseInt(pv, 10) || 1) - 1, 0), Math.max(0, S.rows.length - 1));
+        const n = (isFinite(p.from) ? p.from : 1) + idx;
+        S.box = { num: null, bar: null, qr: null };
+        render(S, ctx, n, s, p, true, S.rows[idx]);
+        ctx.save();
+        ctx.scale(s, s);
+        if (!S.img) {
+          ctx.fillStyle = "rgba(16,52,61,.28)";
+          ctx.font = `600 ${S.w * 0.03}px Figtree, Arial, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`Choose artwork ${i + 1}`, S.w / 2, S.h / 2);
+        }
+        const b = S.box[sel];
+        if (b) {
+          ctx.setLineDash([12, 8]);
+          ctx.lineWidth = (3 / s) * 0.6;
+          ctx.strokeStyle = "#0f7f96";
+          ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
+        }
+        const mb = measure ? S.box[measure] : null;
+        if (mb) {
+          const rect = cv.getBoundingClientRect();
+          const k = rect.width && cv.width ? rect.width / cv.width : 1;
+          drawMeasure(ctx, S, mb, p.dpi / 25.4, k, s);
+        }
+        ctx.restore();
+        S.slots[i].box = S.box;
       }
-      const b = S.box[sel];
-      if (b) {
-        ctx.setLineDash([12, 8]);
-        ctx.lineWidth = (3 / s) * 0.6;
-        ctx.strokeStyle = "#0f7f96";
-        ctx.strokeRect(b.x - 6, b.y - 6, b.w + 12, b.h + 12);
-      }
-      const mb = measure ? S.box[measure] : null;
-      if (mb) {
-        const rect = cv.getBoundingClientRect();
-        const k = rect.width && cv.width ? rect.width / cv.width : 1;
-        drawMeasure(ctx, S, mb, p.dpi / 25.4, k, s);
-      }
-      ctx.restore();
-      /* artwork upload finished painting → remove the loading overlay */
+      bind(actRef.current);
       if (S.clearBusy) { S.clearBusy = false; requestAnimationFrame(() => setBusy("")); }
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, sel, measure, fonts, texts, S]);
+  }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, S]);
 
   /* ---------- Simplex: UPS sheet preview ---------- */
   useEffect(() => {
@@ -824,6 +837,7 @@ export default function CertificateNumbering() {
         if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
       }
       if (dead || !shRef.current) return;
+      bind(actRef.current);
       const u = p.dpi / 25.4, gap = p.ugap * u;
       const SW = S.w * p.ucols + gap * (p.ucols - 1), SH = S.h * p.ups + gap * (p.ups - 1);
       const k = Math.min(1, 2048 / SW);
@@ -850,17 +864,17 @@ export default function CertificateNumbering() {
       }
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, texts, fonts, sheetView, S]);
+  }, [f, cols, sheet, pv, dims, texts, fonts, sheetView, act, S]);
 
   /* ---------- move variable matter ---------- */
-  const toArt = (e) => {
-    const r = cvRef.current.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) * S.w) / r.width, y: ((e.clientY - r.top) * S.h) / r.height };
+  const toArt = (e, i) => {
+    const r = e.currentTarget.getBoundingClientRect(), s = S.slots[i];
+    return { x: ((e.clientX - r.left) * s.w) / r.width, y: ((e.clientY - r.top) * s.h) / r.height };
   };
-  const hit = (pt) => {
-    const m = S.w * 0.008;
-    for (const k of Object.keys(S.box).reverse()) {
-      const b = S.box[k];
+  const hit = (pt, i) => {
+    const s = S.slots[i], m = s.w * 0.008;
+    for (const k of Object.keys(s.box).reverse()) {
+      const b = s.box[k];
       if (b && pt.x >= b.x - m && pt.x <= b.x + b.w + m && pt.y >= b.y - m && pt.y <= b.y + b.h + m) return k;
     }
     return null;
@@ -883,24 +897,26 @@ export default function CertificateNumbering() {
     const c = colsRef.current.find((q) => q.id === k);
     return c ? [num(c.x), num(c.y)] : [0, 0];
   };
-  const onDown = (e) => {
-    const pt = toArt(e), k = hit(pt);
+  const onDown = (i) => (e) => {
+    setAct(i); actRef.current = i; bind(i);
+    const pt = toArt(e, i), k = hit(pt, i);
     if (!k) { setMeasure(null); return; }
     setSel(k);
     if (!propsOpen) setPropsOpen(true);
-    drag.current = { k, dx: pt.x - S.box[k].x, dy: pt.y - S.box[k].y };
-    cvRef.current.setPointerCapture(e.pointerId);
-    cvRef.current.focus();
+    drag.current = { k, i, dx: pt.x - S.box[k].x, dy: pt.y - S.box[k].y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.focus();
   };
-  const onMove = (e) => {
-    const pt = toArt(e);
-    if (!drag.current) { cvRef.current.style.cursor = hit(pt) ? "move" : "default"; return; }
+  const onMove = (i) => (e) => {
+    const pt = toArt(e, i);
+    if (!drag.current) { e.currentTarget.style.cursor = hit(pt, i) ? "move" : "default"; return; }
+    if (drag.current.i !== i) return;
     const u = P(fRef.current).dpi / 25.4;
     setPos(drag.current.k, (pt.x - drag.current.dx) / u, (pt.y - drag.current.dy) / u);
   };
   const onUp = () => { drag.current = null; };
-  const onDbl = (e) => {
-    const k = hit(toArt(e));
+  const onDbl = (i) => (e) => {
+    const k = hit(toArt(e, i), i);
     if (k) { setSel(k); setMeasure(k); } else setMeasure(null);
   };
   const onKey = (e) => {
@@ -913,20 +929,24 @@ export default function CertificateNumbering() {
   };
 
   /* ---------- uploads ---------- */
-  const setArtImage = (img, blob, label) => {
-    S.img = img; S.blob = blob; S.w = img.naturalWidth; S.h = img.naturalHeight;
-    S.prev = makePreviewImg(img);
-    setDims({ w: S.w, h: S.h });
-    setArtName(`${label} · ${S.w}×${S.h}px`);
+  const setArtImage = (img, blob, label, i = 0) => {
+    const s = S.slots[i];
+    s.img = img; s.blob = blob; s.w = img.naturalWidth; s.h = img.naturalHeight;
+    s.prev = makePreviewImg(img);
+    s.name = `${label} · ${s.w}×${s.h}px`;
+    setDims((d) => d.map((x, k) => (k === i ? { w: s.w, h: s.h } : x)));
+    setArtNames((a) => a.map((x, k) => (k === i ? s.name : x)));
+    setAct(i); actRef.current = i; bind(i);
   };
-  const clearArt = () => {
-    S.img = null; S.prev = null; S.blob = null; S.w = 2480; S.h = 1754;
-    setDims({ w: S.w, h: S.h });
-    setArtName("None — blank A4 landscape");
+  const clearArt = (i) => {
+    S.slots[i] = blankSlot();
+    setDims((d) => d.map((x, k) => (k === i ? { w: 2480, h: 1754 } : x)));
+    setArtNames((a) => a.map((x, k) => (k === i ? "None — blank A4 landscape" : x)));
+    if (actRef.current === i) bind(i);
   };
 
   /* image (PNG/JPG/WebP) or PDF (first page) — shows a full-screen loader until the preview is painted */
-  const onArt = async (e) => {
+  const onArt = async (e, i = 0) => {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
@@ -943,7 +963,10 @@ export default function CertificateNumbering() {
       const img = await loadImg(blob);
       setBusy("Preparing preview…");
       await nextFrame();
-      setArtImage(img, blob, label);
+      setArtImage(img, blob, label, i);
+      /* auto-layout only for the first artwork; the others reuse the shared layout */
+      const first = i === 0 || !S.slots.some((s, k) => k !== i && s.img);
+      if (!first) { S.clearBusy = true; setF((o) => ({ ...o })); say(""); return; }
       const o = dpiFix ? { ...fRef.current, dpi: String(dpiFix) } : fRef.current;
       const dpi = P(o).dpi;
       const wmm = (S.w * 25.4) / dpi, hmm = (S.h * 25.4) / dpi;
@@ -990,7 +1013,7 @@ export default function CertificateNumbering() {
     setMeasure(null);
     S.tplCols = new Map();
     setTexts([defText()]);
-    clearArt();                       // blank A4 landscape again
+    [0, 1, 2].forEach(clearArt); setAct(0); actRef.current = 0; bind(0);
 
     const o = fRef.current;
     const n = { ...DEFAULTS, from: o.from, to: o.to };
@@ -1026,9 +1049,9 @@ export default function CertificateNumbering() {
         const ar = await fetch(`${API}/api/numbering-templates/${id}/art`, { headers: authOnly() });
         if (!ar.ok) throw new Error("Could not load the template artwork.");
         const blob = await ar.blob();
-        setArtImage(await loadImg(blob), blob, t.artName || "Template artwork");
+        setArtImage(await loadImg(blob), blob, t.artName || "Template artwork", 0);
       } else {
-        clearArt();
+        clearArt(0);
       }
 
       /* Excel field styling: kept by header name, applied now and to any Excel uploaded later */
@@ -1067,6 +1090,7 @@ export default function CertificateNumbering() {
     if (same && !replaceOk && !window.confirm(`A template named "${same.name}" already exists. Replace it?`)) return;
     setSaveDlg(null);
     setTplBusy(true);
+    bind(0);
     try {
       let art = S.blob;
       if (S.img && art && art.size > MAX_ART) {
@@ -1084,7 +1108,7 @@ export default function CertificateNumbering() {
         headers: authHeaders(),
         body: JSON.stringify({
           name, settings, cols: live, texts: textsRef.current, createdBy: whoAmI(),
-          artName: S.img ? artName.replace(/\s·\s\d+×\d+px$/, "") : "", artW: S.w, artH: S.h, clearArt: !S.img,
+          artName: S.img ? artNames[0].replace(/\s·\s\d+×\d+px$/, "") : "", artW: S.w, artH: S.h, clearArt: !S.img,
         }),
       });
       const d = await res.json();
@@ -1106,6 +1130,7 @@ export default function CertificateNumbering() {
     } catch (err) {
       say(err.message || "Could not save the template.", "err");
     } finally {
+      bind(actRef.current);
       setTplBusy(false);
     }
   };
@@ -1240,7 +1265,7 @@ export default function CertificateNumbering() {
     return data;
   }
 
-  async function generateSimplex(kind) {
+  async function generateSimplex(kind, slot) {
     const p = P(f);
     if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
       say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
@@ -1275,7 +1300,7 @@ export default function CertificateNumbering() {
     const wpt = (SW * 72) / p.dpi, hpt = (SH * 72) / p.dpi;
     let cur = null, done = 0;
     const closeFile = (c) => {
-      const go = (blob) => saveBlob(`sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}.${PDF ? "pdf" : "zip"}`, blob);
+      const go = (blob) => saveBlob(`sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}.${PDF ? "pdf" : "zip"}`, blob);
       return PDF ? go(c.pdf.finish()) : c.zip.generateAsync({ type: "blob", compression: "STORE" }).then(go);
     };
     try {
@@ -1316,9 +1341,14 @@ export default function CertificateNumbering() {
     }
   }
 
-  async function generate(kind) {
+  async function generate(kind, slot = 0) {
     if (running) return;
-    if (f.mode === "simplex") return generateSimplex(kind);
+    bind(slot);
+    try { await generateInner(kind, slot); } finally { bind(actRef.current); }
+  }
+
+  async function generateInner(kind, slot) {
+    if (f.mode === "simplex") return generateSimplex(kind, slot);
     const p = P(f);
     if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
       say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
@@ -1483,7 +1513,7 @@ export default function CertificateNumbering() {
 
       const closeFile = async (c) => {
         const blob = c.pdf ? c.pdf.finish() : await c.zip.generateAsync({ type: "blob", compression: "STORE" });
-        saveBlob(`certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}.${c.pdf ? "pdf" : "zip"}`, blob);
+        saveBlob(`certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}.${c.pdf ? "pdf" : "zip"}`, blob);
       };
       /* takes the oldest encoded page (order is preserved) and adds it to the current output file */
       const take = async () => {
@@ -1749,14 +1779,21 @@ export default function CertificateNumbering() {
             <details className="cn-sec">
               <summary><Ic n="art" /><em>02</em>Artwork</summary>
               <div className="cn-body">
-                <label className="cn-drop">
-                  <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={onArt} />
-                  <Ic n="art" />
-                  <strong>Artwork</strong>
-                  <small>PNG, JPG, WebP or PDF</small>
-                  <span className="cn-btn sm">Upload File</span>
-                </label>
-                <div className="cn-file"><b>{artName}</b><span>DPI {f.dpi}</span></div>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="cn-artslot">
+                    <label className="cn-drop">
+                      <input type="file" accept="image/*,application/pdf,.pdf" hidden onChange={(e) => onArt(e, i)} />
+                      <Ic n="art" />
+                      <strong>Artwork {i + 1}</strong>
+                      <small>PNG, JPG, WebP or PDF</small>
+                      <span className="cn-btn sm">Upload File</span>
+                    </label>
+                    <div className="cn-file"><b>{artNames[i]}</b></div>
+                    {S.slots[i].img && (
+                      <button className="cn-btn ghost danger sm" type="button" onClick={() => clearArt(i)}><Ic n="trash" />Remove</button>
+                    )}
+                  </div>
+                ))}
                 <div className="cn-row">
                   <Field span={6} label="Artwork DPI"><input type="number" min="36" max="1200" value={f.dpi} onChange={set("dpi")} /></Field>
                   <Field span={6} label="Series"><input type="text" value={f.series} onChange={set("series")} /></Field>
@@ -1951,7 +1988,7 @@ export default function CertificateNumbering() {
                   <button className={`cn-btn ghost sm ${sheetView ? "active-mode" : ""}`} type="button" onClick={() => setSheetView(true)}>Sheet</button>
                 </>
               )}
-              <span className="cn-dim">{dims.w}×{dims.h}px</span>
+              <span className="cn-dim">{dims[act].w}×{dims[act].h}px</span>
 
 
 
@@ -1987,30 +2024,44 @@ export default function CertificateNumbering() {
                 </button>
               )}
               <div className="cn-gen-btns">
-                <button className="cn-btn primary sm" type="button" disabled={running} onClick={() => generate("pdf")}>
-                  <Ic n="down" /> Download PDF
-                </button>
-                <button className="cn-btn ghost sm" type="button" disabled={running} onClick={() => generate("zip")}>
-                  Download Images (ZIP)
-                </button>
+                
                 {running && <button className="cn-btn stop sm" type="button" onClick={() => { stopFlag.current = true; }}><Ic n="stop" /> Stop</button>}
               </div>            </div>
           </div>
 
           <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
-            <canvas
-              ref={cvRef}
-              tabIndex={0}
-              className={`cn-preview-canvas ${zoom === "fit" ? "fit-mode" : ""}`}
-              style={zoom !== "fit" ? { width: `${zoom}%`, maxWidth: "none", maxHeight: "none" } : undefined}
-              aria-label="Certificate preview canvas. Click and drag elements to position them."
-              onPointerDown={onDown}
-              onPointerMove={onMove}
-              onPointerUp={onUp}
-              onPointerCancel={onUp}
-              onDoubleClick={onDbl}
-              onKeyDown={onKey}
-            />
+            <div className="cn-trio" style={zoom !== "fit" ? { width: `${zoom * 3}%` } : undefined}>
+              {[0, 1, 2].map((i) => (
+                <figure key={i} className={`cn-card${act === i ? " act" : ""}`}>
+                  <figcaption>
+                    <b>Artwork {i + 1}</b>
+                    <span className="cn-dim">{dims[i].w}×{dims[i].h}px</span>
+                    <div className="cn-card-dl">
+                      <button className="cn-btn primary sm" type="button"
+                        disabled={running || (i > 0 && !S.slots[i].img)} onClick={() => generate("pdf", i)}>
+                        <Ic n="down" /> PDF
+                      </button>
+                      <button className="cn-btn ghost sm" type="button"
+                        disabled={running || (i > 0 && !S.slots[i].img)} onClick={() => generate("zip", i)}>
+                        ZIP
+                      </button>
+                    </div>
+                  </figcaption>
+                  <canvas
+                    ref={(el) => { cvRefs.current[i] = el; }}
+                    tabIndex={0}
+                    className="cn-preview-canvas"
+                    aria-label={`Artwork ${i + 1} preview. Click and drag elements to position them.`}
+                    onPointerDown={onDown(i)}
+                    onPointerMove={onMove(i)}
+                    onPointerUp={onUp}
+                    onPointerCancel={onUp}
+                    onDoubleClick={onDbl(i)}
+                    onKeyDown={onKey}
+                  />
+                </figure>
+              ))}
+            </div>
           </div>
 
           <div className="cn-canvas-wrap" style={{ display: showSheet ? "flex" : "none" }}>
@@ -2097,8 +2148,8 @@ const CSS = `
   --accent:#0f7f96;--accent-d:#0a6678;--accent-soft:#e6f3f6;--err:#b3261e;--ok:#137358;
   --shadow:0 1px 3px rgba(11,39,48,.05),0 6px 18px rgba(11,39,48,.06);
   position:relative;
-  display:flex;flex-direction:column;height:calc(100dvh - 16px);min-height:540px;width:100%;max-width:100%;
-  background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column;height:100dvh;min-height:540px;width:100%;max-width:100%;
+  background:var(--bg);color:var(--ink);border:none;border-radius:0;overflow:hidden;
   font:13px/1.4 "Figtree","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
@@ -2147,11 +2198,11 @@ const CSS = `
 /* Compact settings panels leave more room for the page preview. */
 .cn-work{
   flex:1;min-height:0;display:grid;
-  grid-template-columns:220px minmax(0,1fr) 180px;
+  grid-template-columns:190px minmax(0,1fr) 170px;
   gap:8px;padding:6px;transition:grid-template-columns .2s ease;
 }
-.cn-work.no-side{grid-template-columns:0px minmax(0,1fr) 180px}
-.cn-work.no-props{grid-template-columns:220px minmax(0,1fr) 0px}
+.cn-work.no-side{grid-template-columns:0px minmax(0,1fr) 170px}
+.cn-work.no-props{grid-template-columns:190px minmax(0,1fr) 0px}
 .cn-work.no-side.no-props{grid-template-columns:0px minmax(0,1fr) 0px}
 
 .cn-side,.cn-stage,.cn-props{
@@ -2372,6 +2423,15 @@ const CSS = `
 /* excel column items and inspector content */
 .cn-col{animation:cnfadein .3s ease backwards}
 .cn-props-body{animation:cnfadein .4s ease .5s backwards}
+
+.cn-artslot{display:flex;flex-direction:column;gap:4px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.cn-trio{flex:none;align-self:flex-start;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:start}
+.cn-card{margin:0;min-width:0;background:var(--surface);border:2px solid var(--line);border-radius:8px;overflow:hidden}
+.cn-card.act{border-color:var(--accent)}
+.cn-card figcaption{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:5px 8px;border-bottom:1px solid var(--line);font-size:12px}
+.cn-card-dl{margin-left:auto;display:flex;gap:5px}
+.cn-card canvas{display:block;width:100%;height:auto;margin:0;box-shadow:none}
+@media (max-width:880px){.cn-trio{grid-template-columns:1fr}}
 
 @media (prefers-reduced-motion:reduce){
   .cn-root,.cn-root *,.cn-root *::before,.cn-root *::after{animation:none!important}
