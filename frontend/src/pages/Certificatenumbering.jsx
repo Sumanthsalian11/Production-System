@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
-import JSZip from "jszip";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
 import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker&inline";
@@ -113,7 +112,7 @@ function getQR(S, val, p) {
 
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
-const JPG_Q = 0.85;               // ZIP (full-page JPEG) export quality
+const JPG_Q = 0.85;               // JPEG quality used for simplex PDF pages
 const PATCH_Q = 0.8;                    // quality of the number / Excel-text patches
 const BG_MAX = 1.2 * 1024 * 1024;       // artwork stays lossless only if it compresses below this
 const BG_Q = 0.85;                      // otherwise it is stored as a JPEG at this quality
@@ -246,6 +245,54 @@ const bitsBlob = (img) => {
 };
 const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 const deflate = (s) => new Response(new Blob([s]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+
+/* fast "store" ZIP writer (no compression): much quicker than JSZip for hundreds of JPEG pages */
+const CRC_T = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+  return t;
+})();
+const crc32 = (u8) => {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+};
+function makeZipWriter() {
+  const enc = new TextEncoder();
+  const parts = [], ents = [];
+  let pos = 0;
+  return {
+    async file(name, blob) {
+      const u8 = new Uint8Array(await blob.arrayBuffer());
+      const nb = enc.encode(name), crc = crc32(u8), size = u8.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+      h.setUint16(8, 0, true); h.setUint16(10, 0, true); h.setUint16(12, 0x21, true);
+      h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
+      h.setUint16(26, nb.length, true); h.setUint16(28, 0, true);
+      ents.push({ nb, crc, size, off: pos });
+      parts.push(new Uint8Array(h.buffer), nb, blob);
+      pos += 30 + nb.length + size;
+    },
+    finish() {
+      const cdStart = pos;
+      for (const e of ents) {
+        const d = new DataView(new ArrayBuffer(46));
+        d.setUint32(0, 0x02014b50, true); d.setUint16(4, 20, true); d.setUint16(6, 20, true); d.setUint16(8, 0x0800, true);
+        d.setUint16(10, 0, true); d.setUint16(12, 0, true); d.setUint16(14, 0x21, true);
+        d.setUint32(16, e.crc, true); d.setUint32(20, e.size, true); d.setUint32(24, e.size, true);
+        d.setUint16(28, e.nb.length, true); d.setUint32(42, e.off, true);
+        parts.push(new Uint8Array(d.buffer), e.nb);
+        pos += 46 + e.nb.length;
+      }
+      const z = new DataView(new ArrayBuffer(22));
+      z.setUint32(0, 0x06054b50, true); z.setUint16(8, ents.length, true); z.setUint16(10, ents.length, true);
+      z.setUint32(12, pos - cdStart, true); z.setUint32(16, cdStart, true);
+      parts.push(new Uint8Array(z.buffer));
+      return new Blob(parts, { type: "application/zip" });
+    },
+  };
+}
 
 /* text -> shared 1-bit mask, drawn at 3x so the edges stay sharp (used by the compact PDF) */
 async function makeMask(lines, font, px, ul) {
@@ -1403,12 +1450,19 @@ export default function CertificateNumbering() {
     const off = document.createElement("canvas");
     off.width = SW; off.height = SH;
     const ctx = off.getContext("2d", { alpha: false });
-    const PDF = kind === "pdf";
+    const ZIP = kind === "zip";
+    const PDF = true;
     const wpt = (SW * 72) / p.dpi, hpt = (SH * 72) / p.dpi;
     let cur = null, done = 0;
-    const closeFile = (c) => {
-      const go = (blob) => saveBlob(`sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}.${PDF ? "pdf" : "zip"}`, blob);
-      return PDF ? go(c.pdf.finish()) : c.zip.generateAsync({ type: "blob", compression: "STORE" }).then(go);
+    const zipBundle = ZIP ? makeZipWriter() : null;
+    let zipCount = 0;
+    const closeFile = async (c) => {
+      const pdfBlob = c.pdf.finish();
+      const base = `sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}`;
+      if (ZIP) {
+        await zipBundle.file(`Certificates/${base}.pdf`, pdfBlob);
+        zipCount++;
+      } else saveBlob(`${base}.pdf`, pdfBlob);
     };
     try {
       S.bmp = S.img && !p.noArt && window.createImageBitmap ? await createImageBitmap(S.img) : null;
@@ -1428,9 +1482,9 @@ export default function CertificateNumbering() {
         }
         const blob = await toBlob(off, "image/jpeg", JPG_Q);
         if (!blob) throw new Error("Could not encode a sheet (too large for this browser).");
-        if (!cur) cur = { a: p.from + si * per, last, count: 0, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : new JSZip() };
+        if (!cur) cur = { a: p.from + si * per, last, count: 0, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : makeZipWriter() };
         if (PDF) cur.pdf.addPage([{ blob, x: 0, y: 0, w: SW, h: SH }], 72 / p.dpi);
-        else cur.zip.file(`sheet_${pad(si + 1, 3)}.jpg`, blob);
+        else await cur.zip.file(`sheet_${pad(si + 1, 3)}.jpg`, blob);
         cur.last = last; cur.count++; cur.bytes += blob.size;
         setProgress((done / total) * 100);
         say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
@@ -1438,6 +1492,7 @@ export default function CertificateNumbering() {
         if (cur.count >= p.per || cur.bytes >= 1.9 * 1024 * 1024 * 1024) { const c = cur; cur = null; await closeFile(c); }
       }
       if (!stopFlag.current && cur) await closeFile(cur);
+      if (ZIP && zipCount) saveBlob(`sheets_${pad(p.from, p.digits)}-${pad(p.to, p.digits)}_art${slot + 1}.zip`, zipBundle.finish());
       if (stopFlag.current) say("Stopped.");
       else say(`Done. ${total.toLocaleString()} certificates on ${sheets.toLocaleString()} sheets${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
     } catch (err) {
@@ -1497,17 +1552,19 @@ export default function CertificateNumbering() {
 
       /* split output by size: a new file starts once ~1.9 GB is reached (viewers fail on PDFs of 2 GB+) */
       const MAX_FILE = 1.9 * 1024 * 1024 * 1024;
-      const PDF = kind === "pdf";
-      /* PDF: the artwork is embedded once (lossless); each page only adds small patches for the variable matter.
-         ZIP: full-page JPEGs, encoded in parallel while the next page is being drawn. */
+      const ZIP = kind === "zip";
+      const PDF = true;
+      /* PDF output is generated for both download choices; ZIP wraps that PDF as a single archive entry. */
       const bg = PDF ? await makeBackground(S, p) : null;
       const bgBytes = bg ? bg.blob.size : 0;
       const COMPACT = PDF && p.noArt;   // PDF + hidden background → tiny vector pages
       const pageRoom = PDF && !COMPACT ? Math.max(1024 * 1024, PDF_TARGET - bgBytes) : Infinity;
       const K = 72 / p.dpi;
-      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 3 : Math.min(12, Math.max(4, navigator.hardwareConcurrency || 4));
+      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 4 : Math.min(16, Math.max(8, navigator.hardwareConcurrency || 8));
       const pending = [];
       let cur = null;
+      const zipBundle = ZIP ? makeZipWriter() : null;
+      let zipCount = 0;
 
       /* crop each drawn element (with a small margin) out of the rendered page and JPEG-encode it */
       const patchesFor = (boxes) => {
@@ -1619,8 +1676,12 @@ export default function CertificateNumbering() {
       };
 
       const closeFile = async (c) => {
-        const blob = c.pdf ? c.pdf.finish() : await c.zip.generateAsync({ type: "blob", compression: "STORE" });
-        saveBlob(`certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}.${c.pdf ? "pdf" : "zip"}`, blob);
+        const pdfBlob = c.pdf.finish();
+        const base = `certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}`;
+        if (ZIP) {
+        await zipBundle.file(`Certificates/${base}.pdf`, pdfBlob);
+        zipCount++;
+      } else saveBlob(`${base}.pdf`, pdfBlob);
       };
       /* takes the oldest encoded page (order is preserved) and adds it to the current output file */
       const take = async () => {
@@ -1628,7 +1689,7 @@ export default function CertificateNumbering() {
         const got = await q.work;
         if (COMPACT ? got.got.some((t) => !t.blob) : PDF ? got.some((t) => !t.blob) : !got) throw new Error("Could not encode a page (artwork too large for this browser).");
         if (!cur) {
-          cur = { a: q.n, last: q.n, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : new JSZip() };
+          cur = { a: q.n, last: q.n, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : makeZipWriter() };
           if (cur.pdf && bg) { cur.pdf.setBackground(bg.blob, S.w, S.h, bg.filter); cur.bytes += bg.blob.size; }
           if (COMPACT) {
             for (const d of Object.keys(stat.glyphs)) { const g = stat.glyphs[d]; cur.pdf.useMask("G" + d, g.blob, g.w, g.h); cur.bytes += g.blob.size; }
@@ -1643,13 +1704,13 @@ export default function CertificateNumbering() {
           cur.pdf.addPage(got, K);
           cur.bytes += got.reduce((s, t) => s + t.blob.size, 0);
         } else {
-          cur.zip.file(`${pad(q.n, p.digits)}.jpg`, got);
+          await cur.zip.file(`${pad(q.n, p.digits)}.jpg`, got);
           cur.bytes += got.size;
         }
         cur.last = q.n;
         cur.count = (cur.count || 0) + 1;
         done++;
-        if (done % 4 === 0 || done === total) {
+        if (done % 20 === 0 || done === total) {
           setProgress((done / total) * 100);
           say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
           await tick();
@@ -1667,6 +1728,7 @@ export default function CertificateNumbering() {
         while (pending.length) await take();
         if (cur) await closeFile(cur);
       }
+      if (ZIP && zipCount) saveBlob(`certificates_${pad(p.from, p.digits)}-${pad(p.to, p.digits)}_art${slot + 1}.zip`, zipBundle.finish());
       if (stopFlag.current) say("Stopped.");
       else say(`Done. ${total.toLocaleString()} certificates generated${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
     } catch (err) {
