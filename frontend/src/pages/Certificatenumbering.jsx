@@ -620,6 +620,10 @@ export default function CertificateNumbering() {
   const [sideOpen, setSideOpen] = useState(true);
   const [propsOpen, setPropsOpen] = useState(true);
   const [tool, setTool] = useState(null);   // which floating tool card is open
+  const [inspPos, setInspPos] = useState(null);   // inspector position next to the selected element
+  const areaRef = useRef(null);
+  const propsRef = useRef(null);
+  const placeRef = useRef(null);
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
   const [sheetView, setSheetView] = useState(false);   // Simplex: show the UPS sheet preview
   const shRef = useRef(null);
@@ -785,6 +789,43 @@ export default function CertificateNumbering() {
     return () => clearTimeout(t);
   }, [f.series, running]);
 
+  /* put the inspector next to the selected element */
+  const placeInspector = () => {
+    const i = actRef.current;
+    const area = areaRef.current, cv = cvRefs.current[i];
+    const slot = S.slots[i];
+    const b = slot && slot.box ? slot.box[sel] : null;
+    if (!area || !cv || !b) { setInspPos((o) => (o ? null : o)); return; }
+    const ar = area.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+    if (!cr.width || !slot.w) return;
+    const k = cr.width / slot.w;
+    const ex = cr.left - ar.left + b.x * k, ey = cr.top - ar.top + b.y * k;
+    const ew = b.w * k, eh = b.h * k;
+    const W = 208, H = propsRef.current ? propsRef.current.offsetHeight : 220, gap = 14;
+    let left = ex + ew + gap, top = ey;
+    if (left + W > ar.width - 8) left = ex - W - gap;            // no room on the right -> left side
+    if (left < 8) {                                               // wide element -> below (or above) it
+      left = Math.min(Math.max(ex, 8), ar.width - W - 8);
+      top = ey + eh + gap;
+      if (top + H > ar.height - 8) top = ey - H - gap;
+    }
+    left = Math.round(Math.max(8, Math.min(left, ar.width - W - 8)));
+    top = Math.round(Math.max(8, Math.min(top, ar.height - H - 8)));
+    setInspPos((o) => (o && o.left === left && o.top === top ? o : { left, top }));
+  };
+  placeRef.current = placeInspector;
+
+  /* re-place on window resize and when panels / full screen change */
+  useEffect(() => {
+    const onR = () => placeRef.current && placeRef.current();
+    window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => placeRef.current && placeRef.current());
+    return () => cancelAnimationFrame(id);
+  }, [propsOpen, sideOpen, maxed, zoom]);
+
   /* preview: one canvas per artwork slot */
   useEffect(() => {
     if (running) return;
@@ -842,6 +883,7 @@ export default function CertificateNumbering() {
       }
       bind(actRef.current);
       if (S.clearBusy) { S.clearBusy = false; requestAnimationFrame(() => setBusy("")); }
+      placeInspector();
     })();
     return () => { dead = true; };
   }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, act, S]);
@@ -2093,7 +2135,7 @@ export default function CertificateNumbering() {
               </div>            </div>
           </div>
 
-          <div className="cn-canvas-area">
+          <div className="cn-canvas-area" ref={areaRef}>
           <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
             <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
               {[0, 1, 2].map((i) => (
@@ -2137,7 +2179,12 @@ export default function CertificateNumbering() {
 
           {/* floating inspector over the preview */}
           {propsOpen && (
-            <aside className="cn-props" aria-label="Element properties">
+            <aside
+              className="cn-props"
+              aria-label="Element properties"
+              ref={propsRef}
+              style={inspPos ? { left: inspPos.left, top: inspPos.top, right: "auto", bottom: "auto" } : undefined}
+            >
               <div className="cn-props-head">
                 <span className="cn-props-dot" />
                 <strong className="cn-props-n">{selName || "Nothing selected"}</strong>
