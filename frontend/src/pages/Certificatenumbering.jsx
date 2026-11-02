@@ -23,8 +23,8 @@ const DEFAULTS = {
   word: "S. No:", wc: "#222222", nc: "#f58220",
   from: "", to: "", digits: "6",
   font: "Arial", pt: "16", bold: true, nx: "196", ny: "12",
-  bar: true, bw: "50", bh: "10", qz: true, bx: "196", by: "24", benc: SERIAL,
-  qr: true, qs: "15", qx: "92", qy: "88", qenc: SERIAL,
+  bar: false, bw: "50", bh: "10", qz: true, bx: "196", by: "24", benc: SERIAL,
+  qr: false, qs: "15", qx: "92", qy: "88", qenc: SERIAL,
   cpre: "", cst: "1", cdg: "3",
   qpre: "", qst: "1", qdg: "3",
   per: "500",
@@ -624,6 +624,12 @@ export default function CertificateNumbering() {
   const areaRef = useRef(null);
   const propsRef = useRef(null);
   const placeRef = useRef(null);
+  const [inspManual, setInspManual] = useState(null);   // position chosen by dragging (null = follow element)
+  const manRef = useRef(null);
+  manRef.current = inspManual;
+  const inspDrag = useRef(null);
+  const workRef = useRef(null);
+  const [flyPos, setFlyPos] = useState(null);   // where the tool card opens (next to the clicked rail button)
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
   const [sheetView, setSheetView] = useState(false);   // Simplex: show the UPS sheet preview
   const shRef = useRef(null);
@@ -792,6 +798,7 @@ export default function CertificateNumbering() {
   /* put the inspector next to the selected element */
   const placeInspector = () => {
     const i = actRef.current;
+    if (manRef.current) return;
     const area = areaRef.current, cv = cvRefs.current[i];
     const slot = S.slots[i];
     const b = slot && slot.box ? slot.box[sel] : null;
@@ -814,6 +821,26 @@ export default function CertificateNumbering() {
     setInspPos((o) => (o && o.left === left && o.top === top ? o : { left, top }));
   };
   placeRef.current = placeInspector;
+
+  /* drag the inspector by its title bar */
+  const onInspDown = (e) => {
+    if (e.target.closest("button")) return;
+    const el = propsRef.current;
+    if (!el) return;
+    const er = el.getBoundingClientRect();
+    inspDrag.current = { dx: e.clientX - er.left, dy: e.clientY - er.top };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  const onInspMove = (e) => {
+    const d = inspDrag.current, area = areaRef.current, el = propsRef.current;
+    if (!d || !area || !el) return;
+    const ar = area.getBoundingClientRect();
+    const left = Math.round(Math.max(0, Math.min(e.clientX - ar.left - d.dx, ar.width - el.offsetWidth)));
+    const top = Math.round(Math.max(0, Math.min(e.clientY - ar.top - d.dy, ar.height - el.offsetHeight)));
+    setInspManual({ left, top });
+  };
+  const onInspUp = () => { inspDrag.current = null; };
 
   /* re-place on window resize and when panels / full screen change */
   useEffect(() => {
@@ -2047,7 +2074,7 @@ export default function CertificateNumbering() {
       )}
 
       {/* workspace grid: dynamically expands preview canvas */}
-      <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`}>
+      <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`} ref={workRef}>
         
        
 
@@ -2059,7 +2086,23 @@ export default function CertificateNumbering() {
               type="button"
               className={`cn-rb${tool === t.id ? " on" : ""}`}
               title={t.title}
-              onClick={() => setTool((cur) => (cur === t.id ? null : t.id))}
+              onClick={(e) => {
+                const w = workRef.current;
+                if (w && window.innerWidth > 880) {
+                  const wr = w.getBoundingClientRect(), br = e.currentTarget.getBoundingClientRect();
+                  const relTop = br.top - wr.top, relBottom = wr.bottom - br.bottom;
+                  if (relTop > wr.height / 2) {
+                    const b = Math.max(8, relBottom);
+                    setFlyPos({ top: "auto", bottom: b, maxHeight: wr.height - b - 8 });
+                  } else {
+                    const tp = Math.max(8, relTop);
+                    setFlyPos({ top: tp, bottom: "auto", maxHeight: wr.height - tp - 8 });
+                  }
+                } else {
+                  setFlyPos(null);
+                }
+                setTool((cur) => (cur === t.id ? null : t.id));
+              }}
             >
               <Ic n={t.icon} s={18} />
               <span>{t.label}</span>
@@ -2075,7 +2118,7 @@ export default function CertificateNumbering() {
 
         {/* floating tool card */}
         {sideOpen && activeTool && (
-          <div className="cn-fly" role="dialog" aria-label={activeTool.title}>
+          <div className="cn-fly" role="dialog" aria-label={activeTool.title} style={flyPos || undefined}>
             <div className="cn-fly-head">
               <strong>{activeTool.title}</strong>
               <button className="cn-icon-btn" type="button" title="Close" onClick={() => setTool(null)}>
@@ -2191,11 +2234,24 @@ export default function CertificateNumbering() {
               className="cn-props"
               aria-label="Element properties"
               ref={propsRef}
-              style={inspPos ? { left: inspPos.left, top: inspPos.top, right: "auto", bottom: "auto" } : undefined}
+              style={(inspManual || inspPos) ? { left: (inspManual || inspPos).left, top: (inspManual || inspPos).top, right: "auto", bottom: "auto" } : undefined}
             >
-              <div className="cn-props-head">
+              <div
+                className="cn-props-head cn-drag"
+                onPointerDown={onInspDown}
+                onPointerMove={onInspMove}
+                onPointerUp={onInspUp}
+                onPointerCancel={onInspUp}
+                title="Drag to move"
+              >
                 <span className="cn-props-dot" />
                 <strong className="cn-props-n">{selName || "Nothing selected"}</strong>
+                {inspManual && (
+                  <button className="cn-icon-btn" type="button" title="Follow the selected element again"
+                    onClick={() => { setInspManual(null); requestAnimationFrame(() => placeRef.current && placeRef.current()); }}>
+                    <Ic n="center" />
+                  </button>
+                )}
                 <button className="cn-icon-btn" type="button" title="Hide inspector" onClick={() => setPropsOpen(false)}>
                   <Ic n="close" />
                 </button>
@@ -2604,6 +2660,9 @@ const CSS = `
   .cn-props{width:180px}
   .cn-trio{grid-template-columns:1fr!important}
 }
+
+.cn-drag{cursor:grab;touch-action:none;user-select:none}
+.cn-drag:active{cursor:grabbing}
 
 @media (prefers-reduced-motion:reduce){
   .cn-root,.cn-root *,.cn-root *::before,.cn-root *::after{animation:none!important}
