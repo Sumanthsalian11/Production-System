@@ -603,6 +603,10 @@ export default function CertificateNumbering() {
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
   const [sheetView, setSheetView] = useState(false);   // Simplex: show the UPS sheet preview
   const shRef = useRef(null);
+  const rootRef = useRef(null);
+  const [maxed, setMaxed] = useState(false);
+  const maxedRef = useRef(false);
+  maxedRef.current = maxed;
 
   const cvRef = useRef(null);
   const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false }).current;
@@ -724,6 +728,19 @@ export default function CertificateNumbering() {
     l.href = FONT_LINK;
     document.head.appendChild(l);
     return () => { document.head.removeChild(l); };
+  }, []);
+
+  /* keep UI in sync when the browser exits fullscreen (Esc) */
+  useEffect(() => {
+    const onFs = () => {
+      if (!document.fullscreenElement && maxedRef.current) {
+        setMaxed(false);
+        setSideOpen(true);
+        setPropsOpen(true);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
   /* centre by default on first load */
@@ -1539,16 +1556,20 @@ export default function CertificateNumbering() {
   const zoomIn = () => setZoom((z) => (z === "fit" ? 110 : Math.min(250, z + 15)));
   const zoomOut = () => setZoom((z) => (z === "fit" ? 85 : Math.max(30, z - 15)));
   const zoomFit = () => setZoom("fit");
-  const isMaximized = !sideOpen && !propsOpen;
-  const toggleMaximize = () => {
-    if (isMaximized) {
-      setSideOpen(true);
-      setPropsOpen(true);
-    } else {
-      setSideOpen(false);
-      setPropsOpen(false);
-    }
+  const isMaximized = maxed;
+  const enterMax = async () => {
+    setMaxed(true);
+    setSideOpen(false);
+    setPropsOpen(false);
+    try { await rootRef.current?.requestFullscreen?.(); } catch { /* overlay fallback still applies */ }
   };
+  const exitMax = async () => {
+    setMaxed(false);
+    setSideOpen(true);
+    setPropsOpen(true);
+    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch { /* ignore */ }
+  };
+  const toggleMaximize = () => (maxed ? exitMax() : enterMax());
 
   const encOptions = (
     <>
@@ -1636,7 +1657,7 @@ export default function CertificateNumbering() {
   })();
 
   return (
-    <div className="cn-root">
+    <div className={`cn-root${maxed ? " cn-max" : ""}`} ref={rootRef}>
       <style>{CSS}</style>
 
       {toast && (
@@ -2081,6 +2102,8 @@ const CSS = `
   font:13px/1.4 "Figtree","Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
 .cn-root *,.cn-root *::before,.cn-root *::after{box-sizing:border-box}
+.cn-root.cn-max{position:fixed;inset:0;z-index:9999;width:100vw;height:100dvh;max-width:none;border-radius:0;border:none}
+.cn-root:fullscreen{width:100vw;height:100dvh;border-radius:0;border:none}
 .cn-ic{flex:0 0 auto}
 .cn-dlg-back{
   position:absolute;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
