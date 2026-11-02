@@ -28,6 +28,7 @@ const DEFAULTS = {
   cpre: "", cst: "1", cdg: "3",
   qpre: "", qst: "1", qdg: "3",
   per: "500",
+  mode: "normal", ups: "5", ucols: "2", ugap: "0",
 };
 
 const pad = (n, d) => String(n).padStart(d, "0");
@@ -48,6 +49,10 @@ const P = (f) => ({
   qpre: f.qpre || "", qst: parseInt(f.qst, 10) || 0, qdg: Math.max(1, parseInt(f.qdg, 10) || 1),
   dpi: Math.max(36, parseInt(f.dpi, 10) || 300),
   per: Math.max(1, parseInt(f.per, 10) || 500),
+  mode: f.mode,
+  ups: Math.max(1, parseInt(f.ups, 10) || 1),
+  ucols: Math.max(1, parseInt(f.ucols, 10) || 1),
+  ugap: Math.max(0, num(f.ugap)),
 });
 
 /* ---------- barcode ---------- */
@@ -588,12 +593,16 @@ export default function CertificateNumbering() {
   const [tplName, setTplName] = useState("");
   const [tplBusy, setTplBusy] = useState(false);
   const [measure, setMeasure] = useState(null);   // field whose edge distances are shown
-  const [busy, setBusy] = useState("");           // loading message while artwork is being processed
+  const [busy, setBusy] = useState("");
+  const [saveDlg, setSaveDlg] = useState(null);   // null | "choose" | "name"
+  const [newName, setNewName] = useState("");           // loading message while artwork is being processed
 
   /* Layout toggles & Zoom to maximize preview window */
   const [sideOpen, setSideOpen] = useState(true);
   const [propsOpen, setPropsOpen] = useState(true);
   const [zoom, setZoom] = useState("fit"); // "fit", or numeric percentage 50, 75, 100, 125, 150
+  const [sheetView, setSheetView] = useState(false);   // Simplex: show the UPS sheet preview
+  const shRef = useRef(null);
 
   const cvRef = useRef(null);
   const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false }).current;
@@ -786,6 +795,45 @@ export default function CertificateNumbering() {
     })();
     return () => { dead = true; };
   }, [f, cols, sheet, pv, dims, sel, measure, fonts, texts, S]);
+
+  /* ---------- Simplex: UPS sheet preview ---------- */
+  useEffect(() => {
+    if (f.mode !== "simplex" || !sheetView) return;
+    let dead = false;
+    (async () => {
+      const p = P(f);
+      try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
+      for (const t of S.texts || []) {
+        if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
+      }
+      if (dead || !shRef.current) return;
+      const u = p.dpi / 25.4, gap = p.ugap * u;
+      const SW = S.w * p.ucols + gap * (p.ucols - 1), SH = S.h * p.ups + gap * (p.ups - 1);
+      const k = Math.min(1, 2048 / SW);
+      const cv = shRef.current;
+      cv.width = Math.max(1, Math.round(SW * k));
+      cv.height = Math.max(1, Math.round(SH * k));
+      const ctx = cv.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, cv.width, cv.height);
+      const start = isFinite(p.from) ? p.from : 1;
+      const end = isFinite(p.to) ? p.to : start + p.ups * p.ucols - 1;
+      for (let i = 0; i < p.ups * p.ucols; i++) {
+        const n = start + i;
+        if (n > end) break;
+        const col = Math.floor(i / p.ups), row = i % p.ups;
+        ctx.save();
+        ctx.scale(k, k);
+        ctx.translate(col * (S.w + gap), row * (S.h + gap));
+        render(S, ctx, n, 1, p, false, S.rows[n - start]);
+        ctx.strokeStyle = "#0f7f96";
+        ctx.lineWidth = 3 / k;
+        ctx.strokeRect(0, 0, S.w, S.h);
+        ctx.restore();
+      }
+    })();
+    return () => { dead = true; };
+  }, [f, cols, sheet, pv, dims, texts, fonts, sheetView, S]);
 
   /* ---------- move variable matter ---------- */
   const toArt = (e) => {
@@ -988,11 +1036,19 @@ export default function CertificateNumbering() {
     }
   };
 
-  const saveTemplate = async () => {
-    const name = tplName.trim();
+  /* Save button: loaded template -> ask overwrite / new; otherwise ask for a name */
+  const saveTemplate = () => {
+    if (tplId && tpls.some((t) => t._id === tplId)) { setSaveDlg("choose"); return; }
+    setNewName(tplName);
+    setSaveDlg("name");
+  };
+
+  const doSave = async (rawName, replaceOk) => {
+    const name = String(rawName || "").trim();
     if (!name) { say("Type a template name first.", "err"); return; }
     const same = tpls.find((t) => t.name.toLowerCase() === name.toLowerCase());
-    if (same && !window.confirm(`A template named "${same.name}" already exists. Replace it?`)) return;
+    if (same && !replaceOk && !window.confirm(`A template named "${same.name}" already exists. Replace it?`)) return;
+    setSaveDlg(null);
     setTplBusy(true);
     try {
       let art = S.blob;
@@ -1167,8 +1223,85 @@ export default function CertificateNumbering() {
     return data;
   }
 
+  async function generateSimplex(kind) {
+    const p = P(f);
+    if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
+      say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
+    }
+    if (String(p.to).length > p.digits) {
+      say(`"To" needs ${String(p.to).length} digits. Raise Digits to match.`, "err"); return;
+    }
+    const total = p.to - p.from + 1;
+    if (sheet && total > S.rows.length) {
+      say(`Range has ${total.toLocaleString()} certificates but the Excel has only ${S.rows.length.toLocaleString()} rows.`, "err"); return;
+    }
+    const u = p.dpi / 25.4, gap = Math.round(p.ugap * u);
+    const per = p.ups * p.ucols;
+    const SW = S.w * p.ucols + gap * (p.ucols - 1), SH = S.h * p.ups + gap * (p.ups - 1);
+    if (SW * SH > 250e6) { say("Sheet is too large for this browser. Lower UPS / columns or the DPI.", "err"); return; }
+    const sheets = Math.ceil(total / per);
+    try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
+    for (const t of S.texts || []) {
+      if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
+    }
+    setRunning(true);
+    stopFlag.current = false;
+    setProgress(0);
+    let reprint = false;
+    try { reprint = !!(await reserve(p)).reprint; }
+    catch (err) { say(err.message, "err"); setRunning(false); return; }
+
+    const off = document.createElement("canvas");
+    off.width = SW; off.height = SH;
+    const ctx = off.getContext("2d", { alpha: false });
+    const PDF = kind === "pdf";
+    const wpt = (SW * 72) / p.dpi, hpt = (SH * 72) / p.dpi;
+    let cur = null, done = 0;
+    const closeFile = (c) => {
+      const go = (blob) => saveBlob(`sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}.${PDF ? "pdf" : "zip"}`, blob);
+      return PDF ? go(c.pdf.finish()) : c.zip.generateAsync({ type: "blob", compression: "STORE" }).then(go);
+    };
+    try {
+      S.bmp = S.img && !p.noArt && window.createImageBitmap ? await createImageBitmap(S.img) : null;
+      for (let si = 0; si < sheets && !stopFlag.current; si++) {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, SW, SH);
+        let last = p.from + si * per;
+        for (let i = 0; i < per; i++) {
+          const n = p.from + si * per + i;
+          if (n > p.to) break;
+          const col = Math.floor(i / p.ups), row = i % p.ups;   // fills down the column first
+          ctx.save();
+          ctx.translate(col * (S.w + gap), row * (S.h + gap));
+          render(S, ctx, n, 1, p, false, S.rows[n - p.from]);
+          ctx.restore();
+          last = n; done++;
+        }
+        const blob = await toBlob(off, "image/jpeg", JPG_Q);
+        if (!blob) throw new Error("Could not encode a sheet (too large for this browser).");
+        if (!cur) cur = { a: p.from + si * per, last, count: 0, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : new JSZip() };
+        if (PDF) cur.pdf.addPage([{ blob, x: 0, y: 0, w: SW, h: SH }], 72 / p.dpi);
+        else cur.zip.file(`sheet_${pad(si + 1, 3)}.jpg`, blob);
+        cur.last = last; cur.count++; cur.bytes += blob.size;
+        setProgress((done / total) * 100);
+        say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
+        await tick();
+        if (cur.count >= p.per || cur.bytes >= 1.9 * 1024 * 1024 * 1024) { const c = cur; cur = null; await closeFile(c); }
+      }
+      if (!stopFlag.current && cur) await closeFile(cur);
+      if (stopFlag.current) say("Stopped.");
+      else say(`Done. ${total.toLocaleString()} certificates on ${sheets.toLocaleString()} sheets${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
+    } catch (err) {
+      say("Failed: " + (err.message || err), "err");
+    } finally {
+      if (S.bmp) { try { S.bmp.close(); } catch { /* ignore */ } S.bmp = null; }
+      setRunning(false);
+    }
+  }
+
   async function generate(kind) {
     if (running) return;
+    if (f.mode === "simplex") return generateSimplex(kind);
     const p = P(f);
     if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
       say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
@@ -1393,6 +1526,7 @@ export default function CertificateNumbering() {
   /* ---------- view ---------- */
   const p = P(f);
   const okRange = Number.isInteger(p.from) && Number.isInteger(p.to) && p.to >= p.from;
+  const showSheet = f.mode === "simplex" && sheetView;
   const count = okRange ? p.to - p.from + 1 : 0;
   const rangeTxt = okRange ? `${pad(p.from, p.digits)} → ${pad(p.to, p.digits)}` : "Enter a valid range";
   const selCol = cols.find((c) => c.id === sel);
@@ -1508,6 +1642,40 @@ export default function CertificateNumbering() {
       {toast && (
         <div className={`cn-toast ${toast.cls}`} role="alert" onClick={() => setToast(null)}>
           {toast.msg}
+        </div>
+      )}
+
+      {saveDlg && (
+        <div className="cn-dlg-back" onClick={() => setSaveDlg(null)}>
+          <div className="cn-dlg" onClick={(e) => e.stopPropagation()}>
+            {saveDlg === "choose" ? (
+              <>
+                <p>Save your changes to "{(tpls.find((t) => t._id === tplId) || {}).name}"?</p>
+                <div className="cn-actions">
+                  <button className="cn-btn" type="button"
+                    onClick={() => doSave((tpls.find((t) => t._id === tplId) || {}).name, true)}>
+                    Overwrite
+                  </button>
+                  <button className="cn-btn ghost" type="button"
+                    onClick={() => { setNewName(""); setSaveDlg("name"); }}>
+                    New template
+                  </button>
+                </div>
+                <button className="cn-btn ghost sm" type="button" onClick={() => setSaveDlg(null)}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <p>Name for the new template</p>
+                <input type="text" autoFocus value={newName} placeholder="e.g. Certificate A4"
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") doSave(newName, false); if (e.key === "Escape") setSaveDlg(null); }} />
+                <div className="cn-actions">
+                  <button className="cn-btn" type="button" onClick={() => doSave(newName, false)}>Save</button>
+                  <button className="cn-btn ghost" type="button" onClick={() => setSaveDlg(null)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -1722,6 +1890,20 @@ export default function CertificateNumbering() {
               <summary><Ic n="down" /><em>09</em>Output</summary>
               <div className="cn-body">
                 <div className="cn-row">
+                  <Field span={12} label="Layout">
+                    <select value={f.mode} onChange={set("mode")}>
+                      <option value="normal">Normal (one per page)</option>
+                      <option value="simplex">Simplex (UPS sheet)</option>
+                      <option value="duplex">Duplex</option>
+                    </select>
+                  </Field>
+                  {f.mode === "simplex" && (
+                    <>
+                      <Field span={4} label="UPS (down)"><input type="number" min="1" max="50" value={f.ups} onChange={set("ups")} /></Field>
+                      <Field span={4} label="Columns"><input type="number" min="1" max="10" value={f.ucols} onChange={set("ucols")} /></Field>
+                      <Field span={4} label="Gap"><Mm><input type="number" min="0" step="0.5" value={f.ugap} onChange={set("ugap")} /></Mm></Field>
+                    </>
+                  )}
                   <Field span={12} label="Pages per output file">
                     <input type="number" min="1" value={f.per} onChange={set("per")} />
                   </Field>
@@ -1742,6 +1924,12 @@ export default function CertificateNumbering() {
                 </button>
               )}
               <strong>Preview</strong>
+              {f.mode === "simplex" && (
+                <>
+                  <button className={`cn-btn ghost sm ${!sheetView ? "active-mode" : ""}`} type="button" onClick={() => setSheetView(false)}>Design</button>
+                  <button className={`cn-btn ghost sm ${sheetView ? "active-mode" : ""}`} type="button" onClick={() => setSheetView(true)}>Sheet</button>
+                </>
+              )}
               <span className="cn-dim">{dims.w}×{dims.h}px</span>
 
 
@@ -1788,7 +1976,7 @@ export default function CertificateNumbering() {
               </div>            </div>
           </div>
 
-          <div className="cn-canvas-wrap">
+          <div className="cn-canvas-wrap" style={showSheet ? { display: "none" } : undefined}>
             <canvas
               ref={cvRef}
               tabIndex={0}
@@ -1802,6 +1990,10 @@ export default function CertificateNumbering() {
               onDoubleClick={onDbl}
               onKeyDown={onKey}
             />
+          </div>
+
+          <div className="cn-canvas-wrap" style={{ display: showSheet ? "flex" : "none" }}>
+            <canvas ref={shRef} className="cn-preview-canvas fit-mode" />
           </div>
 
           <div className="cn-hints">
