@@ -72,7 +72,7 @@ function InternalLogin() {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     let animationFrameId;
     let width = 0;
     let height = 0;
@@ -105,7 +105,7 @@ function InternalLogin() {
         };
 
     // Fibonacci sphere of dots
-    const NUM = 460;
+    const NUM = 240;
     const nodes = [];
     const golden = Math.PI * (3 - Math.sqrt(5));
     for (let i = 0; i < NUM; i++) {
@@ -184,6 +184,10 @@ function InternalLogin() {
     let time = 0;
 
     const render = () => {
+      if (!width || !height) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
       time += 1;
       ctx.clearRect(0, 0, width, height);
 
@@ -235,8 +239,7 @@ function InternalLogin() {
       const sx = Math.cos(sa) * R * 1.22;
       const sy = Math.sin(sa) * R * 0.34;
       ctx.fillStyle = `rgba(${pal.gold}, 0.95)`;
-      ctx.shadowColor = `rgba(${pal.gold}, 0.9)`;
-      ctx.shadowBlur = 14;
+
       ctx.beginPath();
       ctx.arc(sx, sy, 3, 0, Math.PI * 2);
       ctx.fill();
@@ -321,9 +324,10 @@ function InternalLogin() {
       animationFrameId = requestAnimationFrame(render);
     };
 
-    render();
+    const startTimer = setTimeout(render, 700);
 
     return () => {
+      clearTimeout(startTimer);
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", onMove);
