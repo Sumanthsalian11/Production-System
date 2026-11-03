@@ -131,6 +131,10 @@ const STAGE_OPTIONS = (() => {
   return [...seen.entries()];
 })();
 
+const LIVE_STAGES = ["New Indent", "Purchase Order", "Planner (Work Order)", "Production Entry", "QC", "Dispatch", "Completed"];
+
+
+
 const typeKey = (ind) => (ind.indentType === "sample" ? "sample" : "production");
 
 const getTrackLog = (ind) => {
@@ -818,10 +822,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       return (
         (!q || hay.includes(q)) &&
         (!typeFilter || t === typeFilter) &&
-        (!stageFilter || PIPE[t][getStageIdx(ind)][0] === stageFilter)
+        (!stageFilter || (flow[ind.indentNo]?.current || "") === stageFilter)
       );
     });
-  }, [indents, searchQ, stageFilter, typeFilter]);
+  }, [indents, searchQ, stageFilter, typeFilter, flow]);
 
   const clearTrackFilters = () => {
     setSearchQ("");
@@ -1870,6 +1874,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .trk-steps li.now{color:#000;font-weight:700}
         .trk-steps li.now span{border-color:#e4572e;color:#e4572e}
         .trk-steps small{display:block;color:#5b6676;font-weight:400}
+
+        .trk-boxes{display:flex;gap:4px;align-items:center;flex-wrap:nowrap}
+        .trk-box{padding:3px 8px;border-radius:4px;font-size:10.5px;font-weight:600;white-space:nowrap;color:#000;background:#f1f3f5;border:1px solid #d5dbe1}
+        .trk-box.trk-done{background:#d9f2e6;border-color:#1f9d6b}
+        .trk-box.trk-partial{background:#fff3d6;border-color:#d98a00}
+        .trk-box.trk-current{background:#fde3d8;border-color:#e4572e;box-shadow:0 0 0 2px rgba(228,87,46,.25)}
+        .trk-box.trk-stopped{background:#fbdcdc;border-color:#d64545}
+        .trk-box.trk-na{background:#f8f9fa;border-style:dashed;color:#6b7685}
 
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
@@ -3032,7 +3044,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <PoField className="col-6 col-lg-3" icon="bi-diagram-3" label="Stage" alwaysFloat caret>
                 <select className="po-input" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
                   <option value="">All stages</option>
-                  {STAGE_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  {LIVE_STAGES.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </PoField>
               <PoField className="col-6 col-lg-2" icon="bi-tag" label="Type" alwaysFloat caret>
@@ -3053,18 +3065,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <thead>
                 <tr>
                   <th>Indent</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th>
-                  <th>Due</th><th>Stage</th><th>Progress</th><th>WO No</th><th>Live Status</th><th></th>
+                  <th>Due</th><th>Stage</th><th>WO No</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {trackIndents.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-4">No indents match these filters.</td></tr>
+                  <tr><td colSpan={9} className="text-center py-4">No indents match these filters.</td></tr>
                 ) : (
                   trackIndents.map((ind) => {
                     const it = ind.items?.[0] || {};
                     const P = PIPE[typeKey(ind)];
                     const i = getStageIdx(ind);
-                    const fin = i === P.length - 1;
+                    const fin = flow[ind.indentNo]?.current === "Completed";
                     const due = it.deliveryDate ? String(it.deliveryDate).slice(0, 10) : "";
                     const overdue = !fin && due && due < new Date().toISOString().slice(0, 10);
                     return (
@@ -3080,12 +3092,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         </td>
                         <td>
                           <span className={`custom-badge ${ind.holdReason ? "badge-pending" : fin ? "badge-approved" : "badge-info"}`}>
-                            {ind.holdReason ? "On hold" : P[i][1]}
+                            {ind.holdReason ? "On hold" : (flow[ind.indentNo]?.current || "-")}
                           </span>
                         </td>
-                        <td><div className="trk-bar"><i style={{ width: `${Math.round(((i + 1) / P.length) * 100)}%` }} /></div></td>
+
                         <td className="fw-bold">{flow[ind.indentNo]?.woNo || "-"}</td>
-                        <td>{flow[ind.indentNo]?.current || "-"}</td>
+                        
                         <td>
                           <div className="d-flex gap-1">
                             <button type="button" className="btn-action-edit"
