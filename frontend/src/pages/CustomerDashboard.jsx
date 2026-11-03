@@ -1851,6 +1851,9 @@ const PAGE_SIZE = 30;
                         <tr key={indent._id}>
                           <td className="fw-bold text-primary">
                             #{indent.indentNo}
+                            {indent.indentType === "sample" && (
+                              <span className="badge bg-info ms-1">Sample</span>
+                            )}
                           </td>
                           <td className="fw-semibold">
                             {indent.items[0]?.productCode}

@@ -286,7 +286,7 @@ router.get("/", authMiddleware, async (req, res) => {
 router.get("/requests", authMiddleware, async (req, res) => {
   try {
     const indents = await IndentRequest.find({ 
-      status: "PENDING_PO"
+      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] }
     })
     .populate("location", "locationName")
     .sort({ createdAt: -1 });
@@ -334,7 +334,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Indent not found" });
     }
 
-    if (indent.status !== "PENDING_PO") {
+    if (!["PENDING_PO", "SAMPLE_REQUESTED"].includes(indent.status)) {
       return res.status(400).json({ message: "Indent already processed" });
     }
 
