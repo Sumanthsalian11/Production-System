@@ -165,6 +165,7 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
 
     const isSample = req.body.indentType === "sample";
     const { sampleRequestType, provisionalCustomerId } = req.body;
+    const { productFamily, physicalReference, expectedOrderValue } = req.body;
 
     if ((!isSample && !productCode) || !quantity || !location) {
       return res.status(400).json({ message: "Required fields missing" });
@@ -244,6 +245,9 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
     };
 
     if (latestArt) indentItem.artwork = latestArt;
+    indentItem.productFamily = productFamily || "";
+    indentItem.physicalReference = physicalReference || "";
+    indentItem.expectedOrderValue = expectedOrderValue || "";
 
     const newIndent = new IndentRequest({
       indentNo,
@@ -670,6 +674,7 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
     const artworkVersions = buildArtworkVersions(req, existingItem, editor && editor.name);
     const latestArt = pickLatestArtwork(artworkVersions);
     const { sampleRequestType, provisionalCustomerId } = req.body;
+    const { productFamily, physicalReference, expectedOrderValue } = req.body;
 
     const customerCopyFile = req.files?.customerCopy?.[0];
     const artworkFile = req.files?.artwork?.[0];
@@ -721,6 +726,9 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
         gsm,
         customerCopy,
         artwork: latestArt || artwork,
+        productFamily: productFamily || "",
+        physicalReference: physicalReference || "",
+        expectedOrderValue: expectedOrderValue || "",
         sampleRequestType: sampleRequestType || "",
         provisionalCustomerId:
           sampleRequestType === "new"

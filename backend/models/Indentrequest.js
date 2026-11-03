@@ -55,6 +55,9 @@ const IndentItemSchema = new mongoose.Schema({
   // ===== SAMPLE REQUEST =====
   sampleRequestType:     { type: String, default: "" },   // new | design | product
   provisionalCustomerId: { type: String, default: "" },
+  productFamily:         { type: String, default: "" },   // Secure cards (EMV/ metal) | VDP (cheque/statement)
+  physicalReference:     { type: String, default: "" },   // Yes | No
+  expectedOrderValue:    { type: String, default: "" },
 
   // ===== ARTWORK MANAGEMENT (versions) =====
   artworkVersions: [

@@ -213,6 +213,9 @@ function NewIndent() {
     // ===== SAMPLE REQUEST =====
     sampleRequestType: "",
     provisionalCustomerId: "",
+    productFamily: "",
+    physicalReference: "",
+    expectedOrderValue: "",
 
     productCode: "",
     materialType: "",
@@ -654,6 +657,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setForm({
       sampleRequestType: "",
       provisionalCustomerId: "",
+      productFamily: "",
+      physicalReference: "",
+      expectedOrderValue: "",
       productCode: "",
       materialType: "",
       description: "",
@@ -703,6 +709,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setForm({
       sampleRequestType: item.sampleRequestType || "",
       provisionalCustomerId: item.provisionalCustomerId || "",
+      productFamily: item.productFamily || "",
+      physicalReference: item.physicalReference || "",
+      expectedOrderValue: item.expectedOrderValue || "",
       productCode: item.productCode || "",
       materialType: item.materialType || "",
       description: item.description || "",
@@ -940,6 +949,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         ? new Date(ind.items[0].soDate).toLocaleDateString("en-IN")
         : "",
       "Sample Type": ind.items?.[0]?.sampleType,
+      "Product Family": ind.items?.[0]?.productFamily || "",
+      "Physical Reference": ind.items?.[0]?.physicalReference || "",
+      "Expected Order Value (₹)": ind.items?.[0]?.expectedOrderValue || "",
       "Costing Confirmation": ind.items?.[0]?.costingConfirmation,
       "Customer PO No": ind.items?.[0]?.customerPoNo,
       "Customer PO Date": ind.items?.[0]?.customerPoDate
@@ -971,7 +983,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     const touchesSample = searchMode === "sample" || m === "sample";
     setSearchMode(m);
     if (touchesSample) {
-      setForm((prev) => ({ ...prev, ...PRODUCT_FIELDS_BLANK, sampleRequestType: "", provisionalCustomerId: "" }));
+      setForm((prev) => ({ ...prev, ...PRODUCT_FIELDS_BLANK, sampleRequestType: "", provisionalCustomerId: "", productFamily: "", physicalReference: "", expectedOrderValue: "" }));
       setCustSearch("");
       setDescSearch("");
       setErrors({});
@@ -2426,6 +2438,51 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     <PoField className="col-12 col-md-4" icon="bi-person" label="Raised By" alwaysFloat>
                       <input className="po-input" value={loggedInUser} readOnly />
                     </PoField>
+
+                    <PoField className="col-12 col-md-4" icon="bi-diagram-2" label="Product Family" alwaysFloat caret>
+                      <select
+                        name="productFamily"
+                        className="po-input"
+                        value={form.productFamily || ""}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select Product Family</option>
+                        <option value="Secure cards (EMV/ metal)">Secure cards (EMV/ metal)</option>
+                        <option value="VDP (cheque/statement)">VDP (cheque/statement)</option>
+                      </select>
+                    </PoField>
+
+                    <PoField className="col-12 col-md-4" icon="bi-box-seam" label="Physical Reference Provided" alwaysFloat caret>
+                      <select
+                        name="physicalReference"
+                        className="po-input"
+                        value={form.physicalReference || ""}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                      </select>
+                    </PoField>
+
+                    <PoField className="col-12 col-md-4" icon="bi-currency-rupee" label="Expected Order Value (₹)" filled={has(form.expectedOrderValue)}>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        name="expectedOrderValue"
+                        className="po-input"
+                        value={form.expectedOrderValue || ""}
+                        title={form.expectedOrderValue}
+                        onChange={(e) =>
+                          handleChange({
+                            target: {
+                              name: "expectedOrderValue",
+                              value: e.target.value.replace(/[^0-9.]/g, "")
+                            }
+                          })
+                        }
+                      />
+                    </PoField>
                   </div>
                 </div>
               )}
@@ -2797,7 +2854,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             // rejected: show unless the indent is already processed (APPROVED)
             if (a.status === "Rejected") return ind.status !== "APPROVED";
             // approved: only while it is still waiting for PO processing
-            if (a.status === "Approved") return ind.status === "PENDING_PO";
+            if (a.status === "Approved") return ["PENDING_PO", "SAMPLE_REQUESTED"].includes(ind.status);
             return false;
           });
           if (!mine.length) return null;
@@ -2975,6 +3032,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th>SO No</th>
                   <th>SO Date</th>
                   <th>Sample Type</th>
+                  <th>Product Family</th>
+                  <th>Physical Reference</th>
+                  <th>Expected Order Value (₹)</th>
                   <th>Costing Confirmation</th>
                   <th>Customer PO No</th>
                   <th>Customer PO Date</th>
@@ -2992,7 +3052,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <tbody>
                 {filteredIndents.length === 0 ? (
                   <tr>
-                    <td colSpan={31} className="text-center text-muted py-4">
+                    <td colSpan={34} className="text-center text-muted py-4">
                       <div className="d-flex flex-column align-items-center gap-2">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10"></circle>
@@ -3085,6 +3145,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           : "-"}
                       </td>
                       <td>{ind.items[0]?.sampleType || "-"}</td>
+                      <td>{ind.items[0]?.productFamily || "-"}</td>
+                      <td>{ind.items[0]?.physicalReference || "-"}</td>
+                      <td>
+                        {ind.items[0]?.expectedOrderValue
+                          ? Number(ind.items[0].expectedOrderValue).toLocaleString("en-IN")
+                          : "-"}
+                      </td>
                       <td
                         style={{
                           maxWidth: "160px",
