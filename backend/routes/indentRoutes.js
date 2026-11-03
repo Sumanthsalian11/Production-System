@@ -31,8 +31,71 @@ const upload = multer({
 
 const indentUploadFields = upload.fields([
   { name: "customerCopy", maxCount: 1 },
-  { name: "artwork", maxCount: 1 }
+  { name: "artwork", maxCount: 1 },
+  { name: "artworkFiles", maxCount: 20 }
 ]);
+
+// =============================================
+// ARTWORK MANAGEMENT HELPERS (versions)
+// =============================================
+const ART_STATUSES = ["Pending", "Approved", "Rejected", "Superseded"];
+
+// Builds the artworkVersions array from the JSON the page sends (artworkMeta) + the uploaded files (artworkFiles)
+function buildArtworkVersions(req, existingItem, userName) {
+  // old clients that do not send artworkMeta: keep whatever is already saved
+  if (req.body.artworkMeta === undefined) {
+    return (existingItem && existingItem.artworkVersions) || [];
+  }
+
+  let meta = [];
+  try { meta = JSON.parse(req.body.artworkMeta || "[]"); } catch (e) { meta = []; }
+  if (!Array.isArray(meta)) meta = [];
+
+  const files = (req.files && req.files.artworkFiles) || [];
+  const out = [];
+
+  meta.forEach((m) => {
+    const status = ART_STATUSES.includes(m.status) ? m.status : "Pending";
+    const newFile = Number.isInteger(m.fileIndex) ? files[m.fileIndex] : null;
+    let fileName = "";
+    let filePath = "";
+
+    if (newFile) {
+      fileName = newFile.originalname;
+      filePath = "/api/newindent/files/" + newFile.filename;
+    } else {
+      // existing version: take the file from what is already saved (never trust a path sent by the browser)
+      let old = ((existingItem && existingItem.artworkVersions) || []).find((v) => v.version === m.version);
+      if (!old && existingItem && existingItem.artwork && existingItem.artwork.filePath && m.filePath === existingItem.artwork.filePath) {
+        old = existingItem.artwork;
+      }
+      if (!old) return;
+      fileName = old.fileName;
+      filePath = old.filePath;
+    }
+
+    out.push({
+      version: m.version,
+      fileName,
+      filePath,
+      note: m.note || "",
+      status,
+      comment: m.comment || "",
+      uploadedBy: m.uploadedBy || userName || "",
+      uploadedAt: m.uploadedAt ? new Date(m.uploadedAt) : new Date()
+    });
+  });
+
+  return out;
+}
+
+// the single "artwork" field (used by the table / other pages) follows the best version
+function pickLatestArtwork(versions) {
+  if (!versions || !versions.length) return null;
+  const live = versions.filter((v) => v.status !== "Superseded");
+  const v = [...live].reverse().find((x) => x.status === "Approved") || live[live.length - 1] || versions[versions.length - 1];
+  return v ? { fileName: v.fileName, filePath: v.filePath } : null;
+}
 
 // Serve uploaded indent files
 router.use("/files", express.static(uploadDir));
@@ -82,19 +145,24 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       gsm
     } = req.body;
 
-    if (!productCode || !quantity || !location) {
+    const isSample = req.body.indentType === "sample";
+    const { sampleRequestType, provisionalCustomerId } = req.body;
+
+    if ((!isSample && !productCode) || !quantity || !location) {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
     // Generate Indent Number (e.g., IND_001)
-    const lastIndent = await IndentRequest.findOne().sort({ createdAt: -1 });
+    const lastIndent = await IndentRequest.findOne(
+      isSample ? { indentType: "sample" } : { indentType: { $ne: "sample" } }
+    ).sort({ createdAt: -1 });
     let lastNumber = 0;
 
     if (lastIndent && lastIndent.indentNo) {
       const parts = lastIndent.indentNo.split("_");
       lastNumber = Number(parts[1]) || 0;
     }
-    const indentNo = `IND_${String(lastNumber + 1).padStart(3, "0")}`;
+    const indentNo = `${isSample ? "SMP" : "IND"}_${String(lastNumber + 1).padStart(3, "0")}`;
 
     // ===== Uploaded files =====
     const customerCopyFile = req.files?.customerCopy?.[0];
@@ -113,6 +181,10 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
           filePath: `/api/newindent/files/${artworkFile.filename}`
         }
       : { fileName: "", filePath: "" };
+
+    // ===== Artwork versions =====
+    const artworkVersions = buildArtworkVersions(req, {}, userData.name);
+    const latestArt = pickLatestArtwork(artworkVersions);
 
     // Create indent item
     const indentItem = {
@@ -145,9 +217,15 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       paperGroup: paperGroup || "",
       paperSize: paperSize || "",
       gsm: gsm || "",
+      sampleRequestType: sampleRequestType || "",
+      provisionalCustomerId:
+        sampleRequestType === "new" ? (provisionalCustomerId || "PRV-" + indentNo.split("_")[1]) : "",
+      artworkVersions,
       customerCopy,
       artwork
     };
+
+    if (latestArt) indentItem.artwork = latestArt;
 
     const newIndent = new IndentRequest({
       indentNo,
@@ -155,7 +233,8 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       location,
       user: userData.name,
       userEmail: userData.email,
-      status: "PENDING_PO",
+      status: isSample ? "SAMPLE_REQUESTED" : "PENDING_PO",
+      indentType: isSample ? "sample" : "production",
       orderType: ""
     });
 
@@ -355,6 +434,86 @@ router.put("/reject/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// =============================================
+// TRACKING (stage pipeline, hold / resume, undo)
+// =============================================
+const PIPE = {
+  production: [
+    ["raised", "Indent raised"], ["po", "PO received"], ["appr", "Approved for production"],
+    ["wo", "Work order generated"], ["print", "Printing"], ["post", "Finishing"],
+    ["qc", "Quality check"], ["disp", "Dispatched"], ["done", "Delivered"]
+  ],
+  sample: [
+    ["req", "Sample requested"], ["art", "Artwork approved"], ["cost", "Costing confirmed"],
+    ["wo", "Work order generated"], ["print", "Printing"], ["qc", "Quality check"],
+    ["sent", "Sample sent"], ["sign", "Customer sign-off"]
+  ]
+};
+const TRACK_EX = {
+  po: ["Customer PO no"], wo: ["Work order no"], print: ["Machine"],
+  disp: ["Challan / LR no"], sent: ["Courier / AWB no"], sign: ["Outcome"]
+};
+
+function baseTrackLog(indent) {
+  const item = (indent.items && indent.items[0]) || {};
+  const isSample = indent.indentType === "sample";
+  const P = PIPE[isSample ? "sample" : "production"];
+  const log = [{ stage: P[0][0], at: indent.createdAt || new Date(), by: indent.user || "", note: "" }];
+  if (!isSample) {
+    if (item.customerPoNo || indent.status === "APPROVED") {
+      log.push({ stage: "po", at: indent.createdAt || new Date(), by: indent.user || "",
+                 note: item.customerPoNo ? "Customer PO no: " + item.customerPoNo : "" });
+    }
+    if (indent.status === "APPROVED") {
+      log.push({ stage: "appr", at: indent.approvedAt || new Date(), by: indent.user || "", note: "" });
+    }
+  }
+  return log;
+}
+
+router.put("/:id/track", authMiddleware, async (req, res) => {
+  try {
+    const { action, details, note, reason } = req.body;
+    const indent = await IndentRequest.findById(req.params.id);
+    if (!indent) return res.status(404).json({ message: "Indent not found" });
+
+    const user = await User.findById(req.user.id);
+    const P = PIPE[indent.indentType === "sample" ? "sample" : "production"];
+
+    if (!indent.trackLog || !indent.trackLog.length) indent.trackLog = baseTrackLog(indent);
+    const curIdx = Math.max(0, P.findIndex((s) => s[0] === indent.trackLog[indent.trackLog.length - 1].stage));
+
+    if (action === "hold") {
+      indent.holdReason = (reason || "").trim() || "No reason given";
+    } else if (action === "resume") {
+      indent.holdReason = "";
+    } else if (action === "undo") {
+      if (indent.trackLog.length > 1) indent.trackLog.pop();
+    } else if (action === "advance") {
+      if (indent.holdReason) return res.status(400).json({ message: "Indent is on hold. Resume it first." });
+      const nx = P[curIdx + 1];
+      if (!nx) return res.status(400).json({ message: "Final stage already reached" });
+
+      const d = details || {};
+      const need = TRACK_EX[nx[0]] || [];
+      if (need.some((l) => !String(d[l] || "").trim())) {
+        return res.status(400).json({ message: "Fill every field marked * to move to this stage." });
+      }
+      const parts = need.map((l) => `${l}: ${String(d[l]).trim()}`);
+      if (note && note.trim()) parts.push(note.trim());
+      indent.trackLog.push({ stage: nx[0], at: new Date(), by: (user && user.name) || "", note: parts.join("; ") });
+    } else {
+      return res.status(400).json({ message: "Unknown tracking action" });
+    }
+
+    await indent.save();
+    res.status(200).json(indent);
+  } catch (err) {
+    console.error("TRACK ERROR:", err);
+    res.status(500).json({ message: "Error updating tracking" });
+  }
+});
+
 router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
   try {
     const {
@@ -401,6 +560,11 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
     indent.location = location;
 
     const existingItem = indent.items?.[0] || {};
+
+    const editor = await User.findById(req.user.id);
+    const artworkVersions = buildArtworkVersions(req, existingItem, editor && editor.name);
+    const latestArt = pickLatestArtwork(artworkVersions);
+    const { sampleRequestType, provisionalCustomerId } = req.body;
 
     const customerCopyFile = req.files?.customerCopy?.[0];
     const artworkFile = req.files?.artwork?.[0];
@@ -451,7 +615,13 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
         paperSize,
         gsm,
         customerCopy,
-        artwork
+        artwork: latestArt || artwork,
+        sampleRequestType: sampleRequestType || "",
+        provisionalCustomerId:
+          sampleRequestType === "new"
+            ? (provisionalCustomerId || "PRV-" + String(indent.indentNo || "").split("_")[1])
+            : "",
+        artworkVersions
       }
     ];
 

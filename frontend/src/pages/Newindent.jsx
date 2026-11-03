@@ -6,7 +6,7 @@ import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
 
 // Outlined floating-label field with a leading icon (Planner styling)
-function PoField({ icon, label, required, filled, alwaysFloat, caret, area, className = "", after, children }) {
+function PoField({ icon, label, required, hide, filled, alwaysFloat, caret, area, className = "", after, children }) { if (hide) return null;
   return (
     <div className={className}>
       <div className={`po-field ${filled || alwaysFloat ? "is-floated" : ""} ${area ? "po-area" : ""}`}>
@@ -25,6 +25,10 @@ function PoField({ icon, label, required, filled, alwaysFloat, caret, area, clas
 const has = (v) => v !== "" && v !== null && v !== undefined;
 const norm = (v) => String(v ?? "").trim();
 
+// Production indents (not samples) must have an approved artwork version before saving.
+// Set to false to switch that rule off.
+const REQUIRE_APPROVED_ARTWORK = true;
+
 // form key -> field name in the Materials master
 const PAPER_FIELDS = {
   millName: "mill",
@@ -32,6 +36,55 @@ const PAPER_FIELDS = {
   paperSize: "paperSize",
   gsm: "gsm",
 };
+
+// ===== TRACKING pipeline (same stages as the HTML page) =====
+const PIPE = {
+  production: [
+    ["raised", "Indent raised"], ["po", "PO received"], ["appr", "Approved for production"],
+    ["wo", "Work order generated"], ["print", "Printing"], ["post", "Finishing"],
+    ["qc", "Quality check"], ["disp", "Dispatched"], ["done", "Delivered"]
+  ],
+  sample: [
+    ["req", "Sample requested"], ["art", "Artwork approved"], ["cost", "Costing confirmed"],
+    ["wo", "Work order generated"], ["print", "Printing"], ["qc", "Quality check"],
+    ["sent", "Sample sent"], ["sign", "Customer sign-off"]
+  ]
+};
+const TRACK_EX = {
+  po: [["Customer PO no", "text"]],
+  wo: [["Work order no", "text"]],
+  print: [["Machine", "select", ["Web press", "Sheet-fed", "Digital"]]],
+  disp: [["Challan / LR no", "text"]],
+  sent: [["Courier / AWB no", "text"]],
+  sign: [["Outcome", "select", ["Approved for live production", "Changes needed"]]]
+};
+const STAGE_OPTIONS = (() => {
+  const seen = new Map();
+  [...PIPE.production, ...PIPE.sample].forEach(([k, l]) => { if (!seen.has(k)) seen.set(k, l); });
+  return [...seen.entries()];
+})();
+
+const typeKey = (ind) => (ind.indentType === "sample" ? "sample" : "production");
+
+const getTrackLog = (ind) => {
+  if (ind.trackLog?.length) return ind.trackLog;
+  const item = ind.items?.[0] || {};
+  const isSample = typeKey(ind) === "sample";
+  const log = [{ stage: PIPE[typeKey(ind)][0][0], at: ind.createdAt, by: ind.user || "", note: "" }];
+  if (!isSample) {
+    if (item.customerPoNo || ind.status === "APPROVED")
+      log.push({ stage: "po", at: ind.createdAt, by: ind.user || "", note: item.customerPoNo ? "Customer PO no: " + item.customerPoNo : "" });
+    if (ind.status === "APPROVED")
+      log.push({ stage: "appr", at: ind.approvedAt || ind.createdAt, by: ind.user || "", note: "" });
+  }
+  return log;
+};
+const getStageIdx = (ind) => {
+  const log = getTrackLog(ind);
+  const i = PIPE[typeKey(ind)].findIndex((s) => s[0] === log[log.length - 1].stage);
+  return i < 0 ? 0 : i;
+};
+const fmtWhen = (d) => (d ? new Date(d).toLocaleString("en-IN") : "");
 
 function NewIndent() {
   const [locations, setLocations] = useState([]);
@@ -49,10 +102,15 @@ function NewIndent() {
   const [editingId, setEditingId] = useState(null);
   // entry form is hidden until "Create New Indent" is clicked (or an indent is edited)
   const [showForm, setShowForm] = useState(false);
+  const [showTrack, setShowTrack] = useState(false);
   const quantityRef = useRef();
   const locationRef = useRef();
 
   const [form, setForm] = useState({
+    // ===== SAMPLE REQUEST =====
+    sampleRequestType: "",
+    provisionalCustomerId: "",
+
     productCode: "",
     materialType: "",
     description: "",
@@ -92,11 +150,29 @@ function NewIndent() {
   const [existingCustomerCopy, setExistingCustomerCopy] = useState(null);
   const [existingArtwork, setExistingArtwork] = useState(null);
 
+  // ===== ARTWORK MANAGEMENT (versions) =====
+  // each version: { version, file (new upload only), fileName, filePath, note, status, comment, uploadedBy, uploadedAt }
+  const [artworkVersions, setArtworkVersions] = useState([]);
+  const [awFile, setAwFile] = useState(null);
+  const [awNote, setAwNote] = useState("");
+  const [awReview, setAwReview] = useState("");
+  const awFileInputRef = useRef(null);
+
   // ===== FILTER STATES =====
   const [indentNoFilter, setIndentNoFilter] = useState("");
   const [productCodeFilter, setProductCodeFilter] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+
+  // ===== TRACK TABLE =====
+  const [searchQ, setSearchQ] = useState("");
+  const [stageFilter, setStageFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [trackId, setTrackId] = useState(null);
+  const [trackExtra, setTrackExtra] = useState({});
+  const [trackNote, setTrackNote] = useState("");
+  const [holdReason, setHoldReason] = useState("");
+  const [trackErr, setTrackErr] = useState("");
 
   // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
   const [searchMode, setSearchMode] = useState("code");
@@ -117,6 +193,15 @@ function NewIndent() {
   const customerNames = useMemo(
     () =>
       [...new Set(itemList.map((it) => norm(it.customerName)).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+      ),
+    [itemList]
+  );
+
+  // product types available in the Items master (used by the Sample Request dropdown)
+  const materialTypeOptions = useMemo(
+    () =>
+      [...new Set(itemList.map((it) => norm(it.materialType)).filter(Boolean))].sort((a, b) =>
         a.localeCompare(b, undefined, { sensitivity: "base" })
       ),
     [itemList]
@@ -231,6 +316,13 @@ function NewIndent() {
     if (name === "productCode") {
       newValue = onlyAlphaNumeric(value);
 
+      // Sample Request: product code is optional free text and must not overwrite customer / type
+      if (searchMode === "sample") {
+        setErrors(prev => ({ ...prev, productCode: "" }));
+        setForm(prev => ({ ...prev, productCode: newValue }));
+        return;
+      }
+
       if (!newValue) {
         setForm(prev => ({
           ...prev,
@@ -309,10 +401,22 @@ function NewIndent() {
 
   const validateForm = () => {
     let newErrors = {};
-    if (!form.productCode) newErrors.productCode = "Required";
+    if (searchMode !== "sample" && !form.productCode) newErrors.productCode = "Required";
     if (!form.quantity) newErrors.quantity = "Required";
     if (!form.location) newErrors.location = "Required";
 if (!form.deliveryDate) newErrors.deliveryDate = "Required";
+    if (searchMode === "sample") {
+      if (!form.sampleRequestType) newErrors.sampleRequestType = "Required";
+      if (!form.sampleType) newErrors.sampleType = "Required";
+    } else if (REQUIRE_APPROVED_ARTWORK && !artworkVersions.some((v) => v.status === "Approved")) {
+      newErrors.artwork = "This production indent needs an approved artwork version. Upload a version and click Approve.";
+      Swal.fire({
+        icon: "warning",
+        title: "Artwork approval needed",
+        text: "Upload an artwork version and approve it, or use Sample Request.",
+        confirmButtonColor: "#3085d6"
+      });
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -328,6 +432,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       });
       if (customerCopyFile) formData.append("customerCopy", customerCopyFile);
       if (artworkFile) formData.append("artwork", artworkFile);
+
+      // artwork versions: details as JSON, newly picked files appended in the same order
+      const newArtFiles = [];
+      const artMeta = artworkVersions.map((v) => {
+        let fileIndex = null;
+        if (v.file) { fileIndex = newArtFiles.length; newArtFiles.push(v.file); }
+        const { file, ...rest } = v;
+        return { ...rest, fileIndex };
+      });
+      formData.append("artworkMeta", JSON.stringify(artMeta));
+      newArtFiles.forEach((f) => formData.append("artworkFiles", f));
+      formData.append("indentType", searchMode === "sample" ? "sample" : "production");
 
       const res = editingId
         ? await axios.put(
@@ -376,6 +492,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   const resetForm = () => {
     setForm({
+      sampleRequestType: "",
+      provisionalCustomerId: "",
       productCode: "",
       materialType: "",
       description: "",
@@ -411,6 +529,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setArtworkFile(null);
     setExistingCustomerCopy(null);
     setExistingArtwork(null);
+    setArtworkVersions([]);
+    setAwFile(null);
+    setAwNote("");
+    setAwReview("");
+    if (awFileInputRef.current) awFileInputRef.current.value = "";
     setErrors({});
     setEditingId(null);
   };
@@ -419,6 +542,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   const handleEdit = (ind) => {
     const item = ind.items?.[0] || {};
     setForm({
+      sampleRequestType: item.sampleRequestType || "",
+      provisionalCustomerId: item.provisionalCustomerId || "",
       productCode: item.productCode || "",
       materialType: item.materialType || "",
       description: item.description || "",
@@ -458,6 +583,27 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setArtworkFile(null);
     setExistingCustomerCopy(item.customerCopy?.filePath ? item.customerCopy : null);
     setExistingArtwork(item.artwork?.filePath ? item.artwork : null);
+
+    // artwork versions (an old single artwork is shown as an approved v1 so it is not lost)
+    const vers = (item.artworkVersions || []).map((v) => ({ ...v, file: null }));
+    if (!vers.length && item.artwork?.filePath) {
+      vers.push({
+        version: 1,
+        file: null,
+        fileName: item.artwork.fileName,
+        filePath: item.artwork.filePath,
+        note: "Carried over (earlier upload)",
+        status: "Approved",
+        comment: "",
+        uploadedBy: ind.user || "",
+        uploadedAt: ind.createdAt
+      });
+    }
+    setArtworkVersions(vers);
+    setAwFile(null);
+    setAwNote("");
+    setAwReview("");
+    setSearchMode(ind.indentType === "sample" ? "sample" : "code");
     setEditingId(ind._id);
     setShowForm(true);
 
@@ -502,7 +648,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     });
   };
 
-  // ===== APPLY FILTERS =====
+  // ===== APPLY FILTERS (Create New Indent table) =====
   useEffect(() => {
     let result = [...indents];
 
@@ -560,6 +706,55 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
     fetchIndents();
   };
+
+  // ===== TRACK TABLE (separate list and filters) =====
+  const trackIndents = useMemo(() => {
+    const q = searchQ.trim().toLowerCase();
+    return indents.filter((ind) => {
+      const it = ind.items?.[0] || {};
+      const hay = [ind.indentNo, it.customerName, it.productCode, it.description].join(" ").toLowerCase();
+      const t = typeKey(ind);
+      return (
+        (!q || hay.includes(q)) &&
+        (!typeFilter || t === typeFilter) &&
+        (!stageFilter || PIPE[t][getStageIdx(ind)][0] === stageFilter)
+      );
+    });
+  }, [indents, searchQ, stageFilter, typeFilter]);
+
+  const clearTrackFilters = () => {
+    setSearchQ("");
+    setStageFilter("");
+    setTypeFilter("");
+    fetchIndents();
+  };
+
+  // ===== TRACKING actions =====
+  const runTrack = async (ind, payload) => {
+    try {
+      await axios.put(`${BASE_URL}/api/newindent/${ind._id}/track`, payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTrackExtra({});
+      setTrackNote("");
+      setHoldReason("");
+      setTrackErr("");
+      await fetchIndents();
+    } catch (err) {
+      setTrackErr(err.response?.data?.message || "Could not update tracking");
+    }
+  };
+
+  const advanceStage = (ind) => {
+    const nx = PIPE[typeKey(ind)][getStageIdx(ind) + 1];
+    if (!nx) return;
+    const need = TRACK_EX[nx[0]] || [];
+    if (need.some(([l]) => !norm(trackExtra[l]))) {
+      setTrackErr("Fill every field marked * to move to this stage.");
+      return;
+    }
+    runTrack(ind, { action: "advance", details: trackExtra, note: trackNote });
+  };
   const exportToExcel = () => {
     const data = filteredIndents.map((ind) => ({
       "Indent No": ind.indentNo,
@@ -571,6 +766,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       "Unit Rate": ind.items?.[0]?.unitRate,
       Location: ind.location?.locationName,
       Status: ind.status,
+      Stage: PIPE[typeKey(ind)][getStageIdx(ind)][1],
+      "On Hold": ind.holdReason || "",
       Remark: ind.items?.[0]?.remark,
 
       // ===== NEW FIELDS =====
@@ -605,6 +802,87 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
     XLSX.writeFile(wb, "Indent_Report.xlsx");
   };
+  // ===== SAMPLE REQUEST helpers =====
+  const PRODUCT_FIELDS_BLANK = {
+    productCode: "", materialType: "", description: "", customerName: "",
+    colorFront: "", colorBack: "", wasteQty: "", jobSize: "", inkDetails: "", itemPdfPath: ""
+  };
+
+  // switching to / from Sample Request starts the product block clean
+  const switchMode = (m) => {
+    const touchesSample = searchMode === "sample" || m === "sample";
+    setSearchMode(m);
+    if (touchesSample) {
+      setForm((prev) => ({ ...prev, ...PRODUCT_FIELDS_BLANK, sampleRequestType: "", provisionalCustomerId: "" }));
+      setCustSearch("");
+      setDescSearch("");
+      setErrors({});
+    }
+  };
+
+  const handleRequestTypeChange = (e) => {
+    const v = e.target.value;
+    setErrors((prev) => ({ ...prev, sampleRequestType: "" }));
+    setForm((prev) => ({
+      ...prev,
+      sampleRequestType: v,
+      // a brand-new customer is not in the master yet, so the name is typed instead of picked
+      customerName: v === "new" || prev.sampleRequestType === "new" ? "" : prev.customerName,
+      provisionalCustomerId: v === "new" ? prev.provisionalCustomerId : ""
+    }));
+  };
+
+  // customer is a master dropdown in Sample Request, except for a brand-new customer
+  const custIsSelect = searchMode === "sample" && form.sampleRequestType !== "new";
+
+  // ===== ARTWORK MANAGEMENT helpers =====
+  const awBadge = (s) =>
+    "custom-badge " +
+    (s === "Approved" ? "badge-approved" : s === "Rejected" ? "badge-rejected" : s === "Pending" ? "badge-pending" : "badge-secondary");
+
+  const liveArtwork = artworkVersions.filter((v) => v.status !== "Superseded");
+  const latestArtwork = liveArtwork[liveArtwork.length - 1] || artworkVersions[artworkVersions.length - 1] || null;
+
+  const addArtworkVersion = () => {
+    if (!awFile) { awFileInputRef.current?.focus(); return; }
+    setArtworkVersions((prev) => {
+      const nextNo = prev.length ? Math.max(...prev.map((v) => v.version)) + 1 : 1;
+      // a newer upload replaces the previous pending one
+      const older = prev.map((v) => (v.status === "Pending" ? { ...v, status: "Superseded" } : v));
+      return [
+        ...older,
+        {
+          version: nextNo,
+          file: awFile,
+          fileName: awFile.name,
+          filePath: "",
+          note: awNote,
+          status: "Pending",
+          comment: "",
+          uploadedBy: loggedInUser,
+          uploadedAt: new Date().toISOString()
+        }
+      ];
+    });
+    setErrors((prev) => ({ ...prev, artwork: "" }));
+    setAwFile(null);
+    setAwNote("");
+    if (awFileInputRef.current) awFileInputRef.current.value = "";
+  };
+
+  const reviewArtwork = (version, status) => {
+    setArtworkVersions((prev) =>
+      prev.map((v) => {
+        if (v.version === version) return { ...v, status, comment: awReview };
+        // only one approved version is live at a time
+        if (status === "Approved" && v.status === "Approved") return { ...v, status: "Superseded" };
+        return v;
+      })
+    );
+    setErrors((prev) => ({ ...prev, artwork: "" }));
+    setAwReview("");
+  };
+
   // ---- Double-click protection for Save Indent ----
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1488,6 +1766,21 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .indent-app-container .custom-table-container tbody tr:nth-child(8)  { animation-delay: 0.90s; }
         .indent-app-container .custom-table-container tbody tr:nth-child(n+9) { animation-delay: 0.95s; }
 
+        /* ---- tracking table ---- */
+        .custom-badge.badge-info{background:#fdeee8;border:1px solid #f5b9a1}
+        .trk-bar{width:90px;height:6px;border-radius:9px;background:#e3e7ec}
+        .trk-bar i{display:block;height:100%;border-radius:9px;background:#e4572e}
+        .custom-table-container tbody tr.trk-selected td{background:#fde3d8!important}
+        .trk-panel{border-top:1px solid #e3e7ec}
+        .trk-steps{list-style:none;display:flex;flex-wrap:wrap;gap:10px 18px;padding:0;margin:10px 0}
+        .trk-steps li{display:flex;gap:8px;align-items:flex-start;color:#5b6676;font-size:12.5px;min-width:130px}
+        .trk-steps span{width:22px;height:22px;border-radius:50%;border:2px solid #cfd6de;display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+        .trk-steps li.done{color:#000}
+        .trk-steps li.done span{background:#1f9d6b;border-color:#1f9d6b;color:#fff}
+        .trk-steps li.now{color:#000;font-weight:700}
+        .trk-steps li.now span{border-color:#e4572e;color:#e4572e}
+        .trk-steps small{display:block;color:#5b6676;font-weight:400}
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -1509,6 +1802,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             onClick={() => setShowForm((prev) => !prev)}
           >
             <i className="bi bi-plus-circle"></i> Create New Indent
+          </button>
+          <button
+            type="button"
+            className={`mode-pill-btn ${showTrack ? "active" : ""}`}
+            onClick={() => setShowTrack((prev) => !prev)}
+          >
+            <i className="bi bi-truck"></i> Track
           </button>
         </div>
 
@@ -1567,7 +1867,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         name="productSearchMode"
                         id="psm-code"
                         checked={searchMode === "code"}
-                        onChange={() => setSearchMode("code")}
+                        onChange={() => switchMode("code")}
                       />
                       <label className="form-check-label fw-bold" htmlFor="psm-code">
                         Product Code
@@ -1580,10 +1880,23 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         name="productSearchMode"
                         id="psm-customer"
                         checked={searchMode === "customer"}
-                        onChange={() => setSearchMode("customer")}
+                        onChange={() => switchMode("customer")}
                       />
                       <label className="form-check-label fw-bold" htmlFor="psm-customer">
                         Customer / Description
+                      </label>
+                    </div>
+                    <div className="form-check form-check-inline m-0">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="productSearchMode"
+                        id="psm-sample"
+                        checked={searchMode === "sample"}
+                        onChange={() => switchMode("sample")}
+                      />
+                      <label className="form-check-label fw-bold" htmlFor="psm-sample">
+                        Sample Request
                       </label>
                     </div>
                   </div>
@@ -1630,7 +1943,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4"
                     icon="bi-upc-scan"
                     label="Product Code"
-                    required
+                    required hide={searchMode === "sample"}
                     filled={has(form.productCode)}
                     after={
                     <>
@@ -1640,7 +1953,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   >
                     <input
                       ref={productCodeRef}
-                      readOnly={searchMode !== "code"}
+                      readOnly={searchMode === "customer"}
                       type="text"
                       name="productCode"
                       className="po-input"
@@ -1651,55 +1964,66 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       />
                   </PoField>
 
-                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Product Type" filled={has(form.materialType)}>
-                    <input
-                      className="po-input"
-                      value={form.materialType}
- title={form.materialType}
-                      readOnly
-                      />
+                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Product Type" filled={has(form.materialType)} alwaysFloat={searchMode === "sample"} caret={searchMode === "sample"}>
+                    {searchMode === "sample" ? (
+                      <select
+                        name="materialType"
+                        className="po-input"
+                        value={form.materialType}
+                        title={form.materialType}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select Product Type</option>
+                        {form.materialType && !materialTypeOptions.includes(form.materialType) && (
+                          <option value={form.materialType}>{form.materialType}</option>
+                        )}
+                        {materialTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : (
+                      <input className="po-input" value={form.materialType} title={form.materialType} readOnly />
+                    )}
                   </PoField>
 
-                  <PoField className="col-12 col-md-4" icon="bi-person" label="Customer" filled={has(form.customerName)}>
-                    <input
-                      className="po-input"
-                      value={form.customerName}
- title={form.customerName}
-                      readOnly
+                  <PoField className="col-12 col-md-4" icon="bi-person" label="Customer" filled={has(form.customerName)} alwaysFloat={custIsSelect} caret={custIsSelect}>
+                    {custIsSelect ? (
+                      <select
+                        name="customerName"
+                        className="po-input"
+                        value={form.customerName}
+                        title={form.customerName}
+                        onChange={handleChange}
+                      >
+                        <option value="">Select Customer</option>
+                        {form.customerName && !customerNames.includes(form.customerName) && (
+                          <option value={form.customerName}>{form.customerName}</option>
+                        )}
+                        {customerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    ) : searchMode === "sample" ? (
+                      <input
+                        name="customerName"
+                        className="po-input"
+                        value={form.customerName}
+                        title={form.customerName}
+                        placeholder="New customer name"
+                        onChange={handleChange}
                       />
+                    ) : (
+                      <input className="po-input" value={form.customerName} title={form.customerName} readOnly />
+                    )}
                   </PoField>
 
                   <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(form.description)}>
-                    <input
-                      className="po-input"
-                      value={form.description}
- title={form.description}
-                      readOnly
-                      />
+                    <input name="description" className="po-input" value={form.description} title={form.description} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                   <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" filled={has(form.colorFront)}>
-                    <input
-                      className="po-input"
-                      value={form.colorFront}
- title={form.colorFront}
-                      readOnly
-                      />
+                    <input name="colorFront" className="po-input" value={form.colorFront} title={form.colorFront} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                   <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(form.colorBack)}>
-                    <input
-                      className="po-input"
-                      value={form.colorBack}
- title={form.colorBack}
-                      readOnly
-                      />
+                    <input name="colorBack" className="po-input" value={form.colorBack} title={form.colorBack} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                   <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(form.jobSize)}>
-                    <input
-                      className="po-input"
-                      value={form.jobSize}
- title={form.jobSize}
-                      readOnly
-                      />
+                    <input name="jobSize" className="po-input" value={form.jobSize} title={form.jobSize} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                 </div>
               </div>
@@ -1714,7 +2038,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 <div className="row g-2">
                   <PoField className="col-6 col-md-3"
                     icon="bi-123"
-                    label="Order Quantity"
+                    label={searchMode === "sample" ? "Sample Quantity" : "Order Quantity"}
                     required
                     filled={has(form.quantity)}
                     after={
@@ -1762,7 +2086,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </select>
                   </PoField>
 
-                  <PoField className="col-6 col-md-3" icon="bi-currency-rupee" label="Unit Rate" filled={has(form.unitRate)}>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-3" icon="bi-currency-rupee" label="Unit Rate" filled={has(form.unitRate)}>
                     <input
                       type="number"
                       name="unitRate"
@@ -1772,11 +2097,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
 
                   <PoField
   className="col-6 col-md-3"
   icon="bi-calendar-event"
-  label="Delivery Date"
+  label={searchMode === "sample" ? "Required Date" : "Delivery Date"}
   required
   alwaysFloat
   after={
@@ -1839,11 +2165,55 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
               </div>
 
+              {/* SAMPLE DETAILS (Sample Request only) */}
+              {searchMode === "sample" && (
+                <div className="gl-inner">
+                  <div className="gl-group">
+                    <i className="bi bi-clipboard-check"></i>
+                    <span>Sample Details</span>
+                  </div>
+
+                  <div className="row g-2">
+                    <PoField
+                      className="col-12 col-md-4"
+                      icon="bi-person-plus"
+                      label="Request Type"
+                      required
+                      alwaysFloat
+                      caret
+                      after={errors.sampleRequestType && <small className="indent-error-text">{errors.sampleRequestType}</small>}
+                    >
+                      <select
+                        name="sampleRequestType"
+                        className="po-input"
+                        value={form.sampleRequestType || ""}
+                        onChange={handleRequestTypeChange}
+                      >
+                        <option value="">Select Request Type</option>
+                        <option value="new">New customer</option>
+                        <option value="design">Existing customer, design change</option>
+                        <option value="product">Existing customer, new product</option>
+                      </select>
+                    </PoField>
+
+                    {form.sampleRequestType === "new" && (
+                      <PoField className="col-12 col-md-4" icon="bi-hash" label="Provisional Customer ID" alwaysFloat>
+                        <input className="po-input" value={form.provisionalCustomerId || "Generated on save"} readOnly />
+                      </PoField>
+                    )}
+
+                    <PoField className="col-12 col-md-4" icon="bi-person" label="Raised By" alwaysFloat>
+                      <input className="po-input" value={loggedInUser} readOnly />
+                    </PoField>
+                  </div>
+                </div>
+              )}
+
               {/* SECTION 3: SALES ORDER / BILLING DETAILS (NEW) */}
               <div className="gl-inner">
                 <div className="gl-group">
                   <i className="bi bi-receipt-cutoff"></i>
-                  <span>Sales Order / Billing Details</span>
+                  <span>{searchMode === "sample" ? "Sample Costing" : "Sales Order / Billing Details"}</span>
                 </div>
 
                 <div className="row g-2">
@@ -1868,7 +2238,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-hash" label="Job No" filled={has(form.jobNo)}>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-hash" label="Job No" filled={has(form.jobNo)}>
                     <input
                       type="text"
                       name="jobNo"
@@ -1878,8 +2249,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
 
-                  <PoField className="col-6 col-md-4" icon="bi-file-earmark-text" label="SO No" filled={has(form.soNo)}>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-file-earmark-text" label="SO No" filled={has(form.soNo)}>
                     <input
                       type="text"
                       name="soNo"
@@ -1889,8 +2262,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
 
-                  <PoField className="col-6 col-md-4" icon="bi-calendar-date" label="SO Date" alwaysFloat>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-calendar-date" label="SO Date" alwaysFloat>
                     <input
                       type="date"
                       name="soDate"
@@ -1900,8 +2275,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
 
-                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Sample Type" alwaysFloat caret>
+                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Sample Type" required={searchMode === "sample"} alwaysFloat caret after={errors.sampleType && <small className="indent-error-text">{errors.sampleType}</small>}>
                     <select
                       name="sampleType"
                       className="po-input"
@@ -1926,7 +2302,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       />
                   </PoField>
 
-                  <PoField className="col-6 col-md-4" icon="bi-receipt" label="Type of Billing" alwaysFloat caret>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-receipt" label="Type of Billing" alwaysFloat caret>
                     <select
                       name="typeOfBilling"
                       className="po-input"
@@ -1939,8 +2316,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       <option value="Kit Billing">Kit Billing</option>
                       </select>
                   </PoField>
+)}
 
-                  <PoField className="col-6 col-md-4" icon="bi-receipt" label="Customer PO No" filled={has(form.customerPoNo)}>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-receipt" label="Customer PO No" filled={has(form.customerPoNo)}>
                     <input
                       type="text"
                       name="customerPoNo"
@@ -1950,8 +2329,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
 
-                  <PoField className="col-6 col-md-4" icon="bi-calendar-check" label="Customer PO Date" alwaysFloat>
+                  {searchMode !== "sample" && (
+<PoField className="col-6 col-md-4" icon="bi-calendar-check" label="Customer PO Date" alwaysFloat>
                     <input
                       type="date"
                       name="customerPoDate"
@@ -1961,6 +2342,125 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+)}
+                </div>
+              </div>
+
+              {/* ARTWORK MANAGEMENT */}
+              <div className="gl-inner">
+                <div className="gl-group">
+                  <i className="bi bi-palette"></i>
+                  <span>Artwork Management</span>
+                </div>
+
+                <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                  <span className="fw-semibold">Latest status:</span>
+                  <span className={awBadge(latestArtwork ? latestArtwork.status : "Pending")}>
+                    {latestArtwork ? "v" + latestArtwork.version + " " + latestArtwork.status : "No artwork"}
+                  </span>
+                  <small>
+                    {searchMode === "sample"
+                      ? "Sample can go ahead with pending artwork."
+                      : "Production indent needs an approved artwork version."}
+                  </small>
+                </div>
+
+                <div className="row g-2 mb-2">
+                  <PoField className="col-12 col-md-4" icon="bi-paperclip" label="Artwork File" alwaysFloat>
+                    <input
+                      ref={awFileInputRef}
+                      type="file"
+                      className="po-input"
+                      accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
+                      onChange={(e) => setAwFile(e.target.files?.[0] || null)}
+                    />
+                  </PoField>
+
+                  <PoField className="col-12 col-md-5" icon="bi-pencil" label="Version Note" filled={has(awNote)}>
+                    <input
+                      type="text"
+                      className="po-input"
+                      value={awNote}
+                      title={awNote}
+                      onChange={(e) => setAwNote(e.target.value)}
+                    />
+                  </PoField>
+
+                  <div className="col-12 col-md-3">
+                    <button type="button" className="btn btn-export w-100" onClick={addArtworkVersion}>
+                      Upload Version
+                    </button>
+                  </div>
+
+                  <PoField className="col-12" icon="bi-chat-left-text" label="Reviewer comment (used when approving or rejecting)" filled={has(awReview)}>
+                    <input
+                      type="text"
+                      className="po-input"
+                      value={awReview}
+                      title={awReview}
+                      onChange={(e) => setAwReview(e.target.value)}
+                    />
+                  </PoField>
+                </div>
+
+                {errors.artwork && <small className="indent-error-text mb-2">{errors.artwork}</small>}
+
+                <div className="table-responsive" style={{ fontSize: "12px" }}>
+                  <table className="table table-bordered table-sm align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Ver</th>
+                        <th>File</th>
+                        <th>Uploaded</th>
+                        <th>Note</th>
+                        <th>Status</th>
+                        <th>Reviewer comment</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {artworkVersions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center">
+                            No artwork uploaded yet. Add a file to start version 1.
+                          </td>
+                        </tr>
+                      ) : (
+                        artworkVersions.map((v) => (
+                          <tr key={v.version}>
+                            <td>v{v.version}</td>
+                            <td>
+                              {v.filePath ? (
+                                <a href={BASE_URL + v.filePath} target="_blank" rel="noreferrer">{v.fileName}</a>
+                              ) : (
+                                v.fileName
+                              )}
+                            </td>
+                            <td>
+                              {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
+                              <br />
+                              <small>{v.uploadedBy}</small>
+                            </td>
+                            <td>{v.note || "-"}</td>
+                            <td><span className={awBadge(v.status)}>{v.status}</span></td>
+                            <td>{v.comment || "-"}</td>
+                            <td>
+                              {v.status === "Pending" && (
+                                <div className="d-flex gap-1">
+                                  <button type="button" className="btn-action-edit" onClick={() => reviewArtwork(v.version, "Approved")}>
+                                    Approve
+                                  </button>
+                                  <button type="button" className="btn-action-delete" onClick={() => reviewArtwork(v.version, "Rejected")}>
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
 
@@ -1972,7 +2472,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
 
                 <div className="row g-2">
-                  <PoField className="col-md-6"
+                  {searchMode !== "sample" && (
+<PoField className="col-md-6"
                     icon="bi-paperclip"
                     label="PO Copy (Upload)"
                     alwaysFloat
@@ -1997,32 +2498,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                       />
                   </PoField>
-
-                  <PoField className="col-md-6"
-                    icon="bi-image"
-                    label="Artwork (Upload)"
-                    alwaysFloat
-                    after={
-                    <>
-    {artworkFile && (
-    <small className="text-muted d-block mt-1">Selected: {artworkFile.name}</small>
-    )}
-    {!artworkFile && existingArtwork?.filePath && (
-    <small className="d-block mt-1">
-    Current: <a href={`${BASE_URL}${existingArtwork.filePath}`} target="_blank" rel="noreferrer">{existingArtwork.fileName}</a>
-    </small>
-    )}
-                    </>
-                  }
-                  >
-                    <input
-                      type="file"
-                      name="artwork"
-                      className="po-input"
-                      onChange={handleFileChange}
-                      accept=".pdf,.jpg,.jpeg,.png,.ai,.psd,.doc,.docx"
-                      />
-                  </PoField>
+)}
 
                   <PoField className="col-12" icon="bi-chat-left-text" label="Remarks" filled={has(form.remark)} area>
                     <textarea
@@ -2052,8 +2528,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           )}
         </div>
 
-        {/* ===== FILTERS ===== */}
-        <div className="bar-card">
+        {/* ===== FILTERS (Saved Indents, shown by default) ===== */}
+        <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
           <div className="bar-head">
             <h5>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2153,8 +2629,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
         </div>
 
-        {/* ===== TABLE CONTAINER ===== */}
-        <div className="bar-card">
+        {/* ===== TABLE CONTAINER (Saved Indents, shown by default) ===== */}
+        <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
           <div className="bar-head">
             <h5>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -2412,6 +2888,189 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ===== SAVED INDENTS AND TRACKING ===== */}
+        <div className="bar-card" style={{ display: showTrack ? "block" : "none" }}>
+          <div className="bar-head">
+            <h5>Saved Indents and Tracking</h5>
+            <span className="bar-count">{trackIndents.length} / {indents.length} indents</span>
+          </div>
+
+          <div className="bar-body">
+            <div className="row g-2 align-items-end">
+              <PoField className="col-12 col-lg-4" icon="bi-search" label="Search indent, customer, product" filled={has(searchQ)}>
+                <input type="text" className="po-input" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
+              </PoField>
+              <PoField className="col-6 col-lg-3" icon="bi-diagram-3" label="Stage" alwaysFloat caret>
+                <select className="po-input" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+                  <option value="">All stages</option>
+                  {STAGE_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </PoField>
+              <PoField className="col-6 col-lg-2" icon="bi-tag" label="Type" alwaysFloat caret>
+                <select className="po-input" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                  <option value="">All types</option>
+                  <option value="production">Production</option>
+                  <option value="sample">Sample</option>
+                </select>
+              </PoField>
+              <div className="col-6 col-lg-2">
+                <button type="button" className="btn btn-clear-filters w-100" onClick={clearTrackFilters}>Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="custom-table-container">
+            <table className="table table-bordered table-hover align-middle bg-white">
+              <thead>
+                <tr>
+                  <th>Indent</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th>
+                  <th>Due</th><th>Stage</th><th>Progress</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {trackIndents.length === 0 ? (
+                  <tr><td colSpan={9} className="text-center py-4">No indents match these filters.</td></tr>
+                ) : (
+                  trackIndents.map((ind) => {
+                    const it = ind.items?.[0] || {};
+                    const P = PIPE[typeKey(ind)];
+                    const i = getStageIdx(ind);
+                    const fin = i === P.length - 1;
+                    const due = it.deliveryDate ? String(it.deliveryDate).slice(0, 10) : "";
+                    const overdue = !fin && due && due < new Date().toISOString().slice(0, 10);
+                    return (
+                      <tr key={ind._id} className={trackId === ind._id ? "trk-selected" : ""}>
+                        <td className="fw-bold">{ind.indentNo}</td>
+                        <td>{typeKey(ind) === "sample" ? "Sample" : "Production"}</td>
+                        <td>{it.customerName || "-"}</td>
+                        <td>{it.description || it.productCode || "-"}</td>
+                        <td>{it.quantity ?? "-"}</td>
+                        <td>
+                          {due ? new Date(due).toLocaleDateString("en-IN") : "-"}
+                          {overdue && <span className="custom-badge badge-rejected ms-1">Overdue</span>}
+                        </td>
+                        <td>
+                          <span className={`custom-badge ${ind.holdReason ? "badge-pending" : fin ? "badge-approved" : "badge-info"}`}>
+                            {ind.holdReason ? "On hold" : P[i][1]}
+                          </span>
+                        </td>
+                        <td><div className="trk-bar"><i style={{ width: `${Math.round(((i + 1) / P.length) * 100)}%` }} /></div></td>
+                        <td>
+                          <div className="d-flex gap-1">
+                            <button type="button" className="btn-action-edit"
+                              onClick={() => { setTrackId(ind._id); setTrackExtra({}); setTrackNote(""); setHoldReason(""); setTrackErr(""); }}>
+                              Track
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ---- Track detail panel ---- */}
+          {(() => {
+            const ind = indents.find((x) => x._id === trackId);
+            if (!ind) return null;
+            const it = ind.items?.[0] || {};
+            const P = PIPE[typeKey(ind)];
+            const i = getStageIdx(ind);
+            const nx = P[i + 1];
+            const log = getTrackLog(ind);
+            return (
+              <div className="bar-body trk-panel">
+                <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                  <b>{ind.indentNo}</b>
+                  <span>{it.customerName} - {it.description || it.productCode}</span>
+                  {!ind.holdReason && (
+                    <input type="text" className="custom-input" style={{ maxWidth: 200 }} placeholder="Hold reason"
+                      value={holdReason} onChange={(e) => setHoldReason(e.target.value)} />
+                  )}
+                  <button type="button" className="btn-action-edit"
+                    onClick={() => runTrack(ind, ind.holdReason ? { action: "resume" } : { action: "hold", reason: holdReason })}>
+                    {ind.holdReason ? "Resume" : "Put on hold"}
+                  </button>
+                  <button type="button" className="btn-action-delete ms-auto" onClick={() => setTrackId(null)}>Close</button>
+                </div>
+
+                <ol className="trk-steps">
+                  {P.map((s, k) => {
+                    const l = log.find((x) => x.stage === s[0]);
+                    return (
+                      <li key={s[0]} className={k < i ? "done" : k === i ? "now" : ""}>
+                        <span>{k <= i ? "✓" : k + 1}</span>
+                        <div>{s[1]}<small>{l ? fmtWhen(l.at) : ""}</small></div>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                {ind.holdReason ? (
+                  <p>On hold: {ind.holdReason}. Resume to continue.</p>
+                ) : nx ? (
+                  <>
+                    <div className="row g-2 mt-1">
+                      {(TRACK_EX[nx[0]] || []).map(([l, t, opts]) => (
+                        <PoField key={l} className="col-12 col-md-4" icon="bi-pencil" label={l} required
+                          filled={has(trackExtra[l])} alwaysFloat={t === "select"} caret={t === "select"}>
+                          {t === "select" ? (
+                            <select className="po-input" value={trackExtra[l] || ""}
+                              onChange={(e) => setTrackExtra((p) => ({ ...p, [l]: e.target.value }))}>
+                              <option value="">Select</option>
+                              {opts.map((v) => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          ) : (
+                            <input type="text" className="po-input" value={trackExtra[l] || ""}
+                              onChange={(e) => setTrackExtra((p) => ({ ...p, [l]: e.target.value }))} />
+                          )}
+                        </PoField>
+                      ))}
+                      <PoField className="col-12 col-md-4" icon="bi-chat-left-text" label="Remarks" filled={has(trackNote)}>
+                        <input type="text" className="po-input" value={trackNote} onChange={(e) => setTrackNote(e.target.value)} />
+                      </PoField>
+                      <div className="col-12 col-md-4">
+                        <button type="button" className="btn btn-export w-100" onClick={() => advanceStage(ind)}>
+                          Mark as {nx[1]}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p>Final stage reached.</p>
+                )}
+                {trackErr && <small className="indent-error-text">{trackErr}</small>}
+
+                <div className="d-flex align-items-center gap-2 mt-3 mb-1">
+                  <b>Stage history</b>
+                  {log.length > 1 && ind.trackLog?.length > 1 && (
+                    <button type="button" className="btn-action-delete" onClick={() => runTrack(ind, { action: "undo" })}>
+                      Undo last stage
+                    </button>
+                  )}
+                </div>
+                <div className="table-responsive">
+                  <table className="table table-bordered table-sm mb-0">
+                    <thead><tr><th>Stage</th><th>When</th><th>By</th><th>Details</th></tr></thead>
+                    <tbody>
+                      {log.slice().reverse().map((l, k) => (
+                        <tr key={k}>
+                          <td>{P.find((x) => x[0] === l.stage)?.[1] || l.stage}</td>
+                          <td>{fmtWhen(l.at)}</td>
+                          <td>{l.by}</td>
+                          <td>{l.note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </>

@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const IndentItemSchema = new mongoose.Schema({
-  productCode:  { type: String, required: true },
+  productCode:  { type: String, default: "" }, // optional for Sample Requests (the route checks it for production indents)
   materialType: { type: String, default: "" },
   description:  { type: String, default: "" },
   customerName: { type: String, default: "" },
@@ -51,6 +51,24 @@ const IndentItemSchema = new mongoose.Schema({
   paperGroup: { type: String, default: "" },
   paperSize:  { type: String, default: "" },
   gsm:        { type: String, default: "" },
+
+  // ===== SAMPLE REQUEST =====
+  sampleRequestType:     { type: String, default: "" },   // new | design | product
+  provisionalCustomerId: { type: String, default: "" },
+
+  // ===== ARTWORK MANAGEMENT (versions) =====
+  artworkVersions: [
+    {
+      version:    { type: Number },
+      fileName:   { type: String, default: "" },
+      filePath:   { type: String, default: "" },
+      note:       { type: String, default: "" },
+      status:     { type: String, enum: ["Pending", "Approved", "Rejected", "Superseded"], default: "Pending" },
+      comment:    { type: String, default: "" },
+      uploadedBy: { type: String, default: "" },
+      uploadedAt: { type: Date, default: Date.now },
+    },
+  ],
 });
 
 const IndentRequestSchema = new mongoose.Schema(
@@ -63,11 +81,24 @@ const IndentRequestSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["PENDING_PO", "APPROVED", "REJECTED"],
+      enum: ["PENDING_PO", "APPROVED", "REJECTED", "SAMPLE_REQUESTED"],
       default: "PENDING_PO",
     },
 
+    indentType: { type: String, enum: ["production", "sample"], default: "production" },
     orderType:  { type: String, default: "" },
+
+    // ===== TRACKING =====
+    trackLog: [
+      {
+        _id: false,
+        stage: { type: String },
+        at:    { type: Date, default: Date.now },
+        by:    { type: String, default: "" },
+        note:  { type: String, default: "" },
+      },
+    ],
+    holdReason: { type: String, default: "" },
     approvedAt: { type: Date },
   },
   { timestamps: true }
