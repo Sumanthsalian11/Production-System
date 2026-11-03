@@ -69,13 +69,34 @@ const FlowKV = ({ doc }) => {
   if (!doc) return <div className="py-2">No record yet for this stage.</div>;
   const rows = Object.entries(flatDoc(doc, "", {}))
     .filter(([k, v]) => !HIDE_RX.test(k) && v !== "");
+  // fields inside arrays (machines[1].x, materials[2].y) get their own section
+  const groups = [];
+  const map = {};
+  rows.forEach(([k, v]) => {
+    const m = k.match(/^(.*?\[\d+\])\.?(.*)$/);
+    const g = m ? prettyKey(m[1]) : "Details";
+    const label = m ? prettyKey(m[2] || m[1]) : prettyKey(k);
+    if (!map[g]) { map[g] = []; groups.push(g); }
+    map[g].push([k, label, String(v)]);
+  });
   return (
-    <div className="table-responsive">
-      <table className="table table-bordered table-sm mb-0 bg-white">
-        <thead><tr><th style={{ width: "30%" }}>Field</th><th>Value</th></tr></thead>
-        <tbody>{rows.map(([k, v]) => <tr key={k}><td>{prettyKey(k)}</td><td>{v}</td></tr>)}</tbody>
-      </table>
-    </div>
+    <>
+      {groups.map((g) => (
+        <div key={g} className="mb-3">
+          <div className="gl-group">
+            <i className="bi bi-info-circle"></i>
+            <span>{g}</span>
+          </div>
+          <div className="row g-2">
+            {map[g].map(([k, label, v]) => (
+              <PoField key={k} className={v.length > 45 ? "col-12" : "col-6 col-md-3"} icon="bi-dot" label={label} alwaysFloat>
+                <input className="po-input" value={v} title={v} readOnly />
+              </PoField>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
   );
 };
 const FlowMulti = ({ docs }) => {
@@ -93,16 +114,15 @@ const FlowMulti = ({ docs }) => {
 };
 const FlowList = ({ docs }) => {
   if (!docs || !docs.length) return <div className="py-2">No entries yet for this stage.</div>;
-  const flats = docs.map((d) => flatDoc(d, "", {}));
-  const cols = [];
-  flats.forEach((o) => Object.keys(o).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
   return (
-    <div className="table-responsive">
-      <table className="table table-bordered table-sm mb-0 bg-white">
-        <thead><tr><th>#</th>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
-        <tbody>{flats.map((o, i) => <tr key={i}><td>{i + 1}</td>{cols.map((c) => <td key={c}>{o[c] ?? ""}</td>)}</tr>)}</tbody>
-      </table>
-    </div>
+    <>
+      {docs.map((d, i) => (
+        <div key={i} className="mb-3 p-2" style={{ border: "1px solid #e3e7ec", borderRadius: 8 }}>
+          <b className="d-block mb-2">Entry {i + 1} of {docs.length}</b>
+          <FlowKV doc={d} />
+        </div>
+      ))}
+    </>
   );
 };
 const PIPE = {
@@ -3088,7 +3108,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         <td>{it.quantity ?? "-"}</td>
                         <td>
                           {due ? new Date(due).toLocaleDateString("en-IN") : "-"}
-                          {overdue && <span className="custom-badge badge-rejected ms-1">Overdue</span>}
+                          {/* {overdue && <span className="custom-badge badge-rejected ms-1">Overdue</span>} */}
                         </td>
                         <td>
                           <span className={`custom-badge ${ind.holdReason ? "badge-pending" : fin ? "badge-approved" : "badge-info"}`}>
