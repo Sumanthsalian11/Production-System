@@ -134,7 +134,7 @@ exports.internalLogin = async (req, res) => {
       isInternal: true,
       $or: [
         { email: identifier },
-        { name: { $regex: new RegExp(`^${identifier}$`, "i") } },
+        { name: { $regex: new RegExp(`^${identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
         {
           ldapUsername: {
             $regex: new RegExp(
