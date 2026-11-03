@@ -206,6 +206,7 @@ function NewIndent() {
   // entry form is hidden until "Create New Indent" is clicked (or an indent is edited)
   const [showForm, setShowForm] = useState(false);
   const [showTrack, setShowTrack] = useState(false);
+  const [showBell, setShowBell] = useState(false);
   const quantityRef = useRef();
   const locationRef = useRef();
 
@@ -1996,6 +1997,36 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .trk-d-stopped{background:#d64545;border-color:#d64545}
         .trk-d-na{border-style:dashed;background:#f8f9fa}
 
+        /* ---- bell (artwork updates) ---- */
+        .indent-app-container{position:relative}
+        .bell-btn{position:absolute;top:24px;right:28px;z-index:50;width:38px;height:38px;border-radius:50%;border:1px solid #e3e7ec;background:#fff;color:#0f5560;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(16,24,40,.1)}
+        .bell-btn:hover{background:#e8f3f6}
+        .bell-badge{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#d64545;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center}
+        .bell-backdrop{position:fixed;inset:0;z-index:1990}
+        .bell-panel{position:absolute;top:70px;right:28px;z-index:2000;width:min(460px,92vw);max-height:70vh;overflow:auto;background:#fff;border:1px solid #e3e7ec;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+        .bell-btn{z-index:1995}
+
+        /* ---- bigger entry form ---- */
+        .indent-app-container .gl-card.indent-split{max-width:1500px}
+        .indent-app-container .indent-split .po-side{flex:0 0 24%;padding:30px}
+        .indent-app-container .indent-split .po-side-hero h2{font-size:24px}
+        .indent-app-container .indent-split .po-side-hero h1{font-size:42px}
+        .indent-app-container .indent-split .po-side-hero p{font-size:13.5px;max-width:240px}
+        .indent-app-container .indent-split .po-main{padding:30px 40px}
+        .indent-app-container .indent-split .po-heading{font-size:20px;margin-bottom:20px}
+        .indent-app-container .indent-split .gl-group{font-size:15px;margin-bottom:14px}
+        .indent-app-container .indent-split .gl-inner{margin-top:22px}
+        .indent-app-container .indent-split .po-field{min-height:44px}
+        .indent-app-container .indent-split .po-field .po-input{font-size:.95rem;min-height:42px}
+        .indent-app-container .indent-split .po-field-label{font-size:.92rem}
+        .indent-app-container .indent-split .po-field:focus-within .po-field-label,
+        .indent-app-container .indent-split .po-field.is-floated .po-field-label{font-size:.7rem}
+        .indent-app-container .indent-split .po-field-icon{font-size:.95rem}
+        .indent-app-container .indent-split .btn-submit-indent{font-size:14px;padding:12px 44px;min-width:220px}
+        .indent-app-container .indent-split .btn-export{font-size:13.5px;min-height:42px}
+        .indent-app-container .indent-split .table{font-size:13px}
+        .indent-app-container .indent-split .form-check-label{font-size:14px}
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -2845,7 +2876,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
         )}
 
-        {/* ===== ARTWORK UPDATES ON MY INDENTS ===== */}
+        {/* ===== ARTWORK UPDATES BELL ===== */}
         {(() => {
           const mine = indents.filter((ind) => {
             if (ind.user !== loggedInUser) return false;
@@ -2857,36 +2888,60 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             if (a.status === "Approved") return ["PENDING_PO", "SAMPLE_REQUESTED"].includes(ind.status);
             return false;
           });
-          if (!mine.length) return null;
           return (
-            <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
-              <div className="bar-head">
-                <h5>Artwork updates on your indents</h5>
-                <span className="bar-count">{mine.length}</span>
-              </div>
-              <div className="bar-body">
-                {mine.map((ind) => {
-                  const a = latestArtOf(ind);
-                  return (
-                    <div key={ind._id} className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                      <b>{ind.indentNo}</b>
-                      <span className={awBadge(a.status)}>v{a.version} {a.status}</span>
-                      <span>
-                        {a.status === "Approved"
-                          ? "Approved" + (a.reviewedBy ? " by " + a.reviewedBy : "") + ". Waiting for PO processing."
-                          : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
-                        {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
-                      </span>
-                      {a.status === "Rejected" && (
-                        <button type="button" className="btn-action-edit ms-auto" onClick={() => handleEdit(ind)}>
-                          Edit &amp; upload new version
-                        </button>
+            <>
+              <button
+                type="button"
+                className="bell-btn"
+                title="Artwork updates on your indents"
+                onClick={() => setShowBell((p) => !p)}
+              >
+                <i className="bi bi-bell-fill"></i>
+                {mine.length > 0 && <span className="bell-badge">{mine.length}</span>}
+              </button>
+
+              {showBell && (
+                <>
+                  <div className="bell-backdrop" onClick={() => setShowBell(false)} />
+                  <div className="bell-panel">
+                    <div className="bar-head">
+                      <h5>Artwork updates on your indents</h5>
+                      <span className="bar-count">{mine.length}</span>
+                    </div>
+                    <div className="bar-body">
+                      {mine.length === 0 ? (
+                        <div className="text-center py-2">No artwork updates.</div>
+                      ) : (
+                        mine.map((ind) => {
+                          const a = latestArtOf(ind);
+                          return (
+                            <div key={ind._id} className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                              <b>{ind.indentNo}</b>
+                              <span className={awBadge(a.status)}>v{a.version} {a.status}</span>
+                              <span>
+                                {a.status === "Approved"
+                                  ? "Approved" + (a.reviewedBy ? " by " + a.reviewedBy : "") + ". Waiting for PO processing."
+                                  : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
+                                {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
+                              </span>
+                              {a.status === "Rejected" && (
+                                <button
+                                  type="button"
+                                  className="btn-action-edit ms-auto"
+                                  onClick={() => { setShowBell(false); handleEdit(ind); }}
+                                >
+                                  Edit &amp; upload new version
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                  </div>
+                </>
+              )}
+            </>
           );
         })()}
 
