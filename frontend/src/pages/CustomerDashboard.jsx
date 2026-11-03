@@ -51,6 +51,10 @@ function CustomerDashboard() {
 
   // ===== NEW INDENT REQUESTS =====
   const [indentRequests, setIndentRequests] = useState([]);
+  const [pendingArtworkIndents, setPendingArtworkIndents] = useState([]);
+  const [artworkComment, setArtworkComment] = useState("");
+  const [rowComments, setRowComments] = useState({});
+  const [reviewBusy, setReviewBusy] = useState(false);
   const [selectedIndent, setSelectedIndent] = useState(null);
   const [indentForm, setIndentForm] = useState({
     planningLocation: "",
@@ -141,6 +145,7 @@ const PAGE_SIZE = 30;
   useEffect(() => {
     fetchLocations();
     fetchIndentRequests();
+    fetchPendingArtworks();
     fetchSuppliers();
   }, []);
 
@@ -210,6 +215,17 @@ const PAGE_SIZE = 30;
       setCustomers(res.data || []);
     } catch {
       setCustomers([]);
+    }
+  };
+
+  const fetchPendingArtworks = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/newindent/artwork-pending`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPendingArtworkIndents(res.data || []);
+    } catch {
+      setPendingArtworkIndents([]);
     }
   };
 
@@ -666,6 +682,7 @@ const PAGE_SIZE = 30;
           expectedDeliveryDate: ""
         });
         fetchIndentRequests();
+        fetchPendingArtworks();
         fetchOrders();
       }
     } catch (err) {
@@ -712,6 +729,71 @@ const PAGE_SIZE = 30;
       type: "application/octet-stream"
     });
     saveAs(fileData, "Customer_Orders.xlsx");
+  };
+
+  // every pending artwork version across all indents
+  const pendingArtworks = pendingArtworkIndents.flatMap((ind) =>
+    ((ind.items && ind.items[0] && ind.items[0].artworkVersions) || [])
+      .filter((v) => v.status === "Pending")
+      .map((v) => ({ ind, v }))
+  );
+
+  // true when the indent may be processed (sample = exempt, old indents with only a legacy file = allowed)
+  const artworkApproved = (ind) => {
+    if (!ind) return false;
+    if (ind.indentType === "sample") return true;
+    const it = ind.items?.[0] || {};
+    const vers = it.artworkVersions || [];
+    if (!vers.length) return Boolean(it.artwork?.filePath);
+    return vers.some((v) => v.status === "Approved");
+  };
+
+  const reviewArtwork = async (ind, version, action, comment) => {
+    const c = String(comment || "").trim();
+    if (action === "reject" && !c) {
+      Swal.fire({
+        icon: "warning",
+        title: "Comment required",
+        text: "Please write why this artwork is rejected.",
+        width: "350px",
+        confirmButtonColor: "#3085d6"
+      });
+      return;
+    }
+    if (reviewBusy) return;
+    setReviewBusy(true);
+    try {
+      const res = await axios.put(
+        `${BASE_URL}/api/newindent/${ind._id}/artwork-review`,
+        { version, action, comment: c },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (selectedIndent && selectedIndent._id === ind._id) {
+        setSelectedIndent(res.data);
+        setArtworkComment("");
+      }
+      setRowComments((p) => {
+        const n = { ...p };
+        delete n[`${ind._id}-${version}`];
+        return n;
+      });
+      await Promise.all([fetchIndentRequests(), fetchPendingArtworks()]);
+      Swal.fire({
+        icon: "success",
+        title: action === "approve" ? "Approved" : "Rejected",
+        width: "350px",
+        confirmButtonColor: "#3085d6"
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Error reviewing artwork",
+        confirmButtonColor: "#d33"
+      });
+    } finally {
+      setReviewBusy(false);
+    }
   };
 
   const has = (v) => v !== "" && v !== null && v !== undefined;
@@ -1712,6 +1794,7 @@ const PAGE_SIZE = 30;
               setSelectedIndent(null);
             }
             fetchIndentRequests();
+            fetchPendingArtworks();
           }}
         >
           Order Requests
@@ -1728,6 +1811,105 @@ const PAGE_SIZE = 30;
           ====================================================================== */}
       {viewMode === "orderRequests" && (
         <>
+          {/* Pending Artwork Approvals */}
+          {!selectedIndent && (
+            <div className="card shadow-lg mb-4">
+              <div className="card-header text-center">
+                <strong>Pending Artwork Approvals</strong>
+                <span className="badge ms-2">{pendingArtworks.length}</span>
+              </div>
+              <div className="table-responsive" style={{ maxHeight: "320px", overflowY: "auto" }}>
+                <table className="table table-striped table-bordered table-hover align-middle text-center mb-0">
+                  <thead className="table-dark sticky-top">
+                    <tr>
+                      <th>Indent No</th>
+                      <th>Type</th>
+                      <th>Customer</th>
+                      <th>Product</th>
+                      <th>Ver</th>
+                      <th>File</th>
+                      <th>Uploaded</th>
+                      <th>Note</th>
+                      <th>Comment</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingArtworks.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="p-4 text-center text-muted">
+                          No artwork waiting for approval
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingArtworks.map(({ ind, v }) => {
+                        const key = `${ind._id}-${v.version}`;
+                        const it = ind.items?.[0] || {};
+                        return (
+                          <tr key={key}>
+                            <td className="fw-bold">#{ind.indentNo}</td>
+                            <td>{ind.indentType === "sample" ? "Sample" : "Production"}</td>
+                            <td>{truncateText(it.customerName)}</td>
+                            <td>{truncateText(it.description || it.productCode)}</td>
+                            <td>v{v.version}</td>
+                            <td>{truncateText(v.fileName, 22)}</td>
+                            <td>
+                              {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
+                              <br />
+                              <small className="text-muted">{v.uploadedBy}</small>
+                            </td>
+                            <td>{v.note || "-"}</td>
+                            <td style={{ minWidth: 180 }}>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                placeholder="Comment (required to reject)"
+                                value={rowComments[key] || ""}
+                                onChange={(e) =>
+                                  setRowComments((p) => ({ ...p, [key]: e.target.value }))
+                                }
+                              />
+                            </td>
+                            <td>
+                              <div className="d-flex gap-1 justify-content-center">
+                                {v.filePath && (
+                                  <a
+                                    href={`${BASE_URL}${v.filePath}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-sm btn-info"
+                                  >
+                                    Open
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  disabled={reviewBusy}
+                                  onClick={() => reviewArtwork(ind, v.version, "approve", rowComments[key])}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-danger"
+                                  disabled={reviewBusy}
+                                  onClick={() => reviewArtwork(ind, v.version, "reject", rowComments[key])}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* Indent Request List */}
           {!selectedIndent && (
             <div className="card shadow-lg mb-4">
@@ -1750,6 +1932,7 @@ const PAGE_SIZE = 30;
                       <th>Quantity</th>
                       <th>Location</th>
                       <th>Item PDF</th>
+                      <th>Artwork</th>
                       <th>Created By</th>
                       <th>Created Date</th>
                       <th>Action</th>
@@ -1758,7 +1941,7 @@ const PAGE_SIZE = 30;
                   <tbody>
                     {indentRequests.length === 0 ? (
                       <tr>
-                        <td colSpan="11" className="p-4 text-center text-muted">
+                        <td colSpan="12" className="p-4 text-center text-muted">
                           No New Indent Requests
                         </td>
                       </tr>
@@ -1811,6 +1994,29 @@ const PAGE_SIZE = 30;
                             ) : (
                               "-"
                             )}
+                          </td>
+                          <td>
+                            {(() => {
+                              const it = indent.items[0] || {};
+                              const vs = it.artworkVersions || [];
+                              if (!vs.length) return it.artwork?.filePath ? "Old file" : "-";
+                              const last =
+                                [...vs].reverse().find((x) => x.status !== "Superseded") ||
+                                vs[vs.length - 1];
+                              return (
+                                <span
+                                  className={`badge ${
+                                    last.status === "Approved"
+                                      ? "bg-primary"
+                                      : last.status === "Rejected"
+                                      ? "bg-danger"
+                                      : "bg-warning text-dark"
+                                  }`}
+                                >
+                                  v{last.version} {last.status}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td>{indent.user || "-"}</td>
                           <td>
@@ -1960,6 +2166,128 @@ const PAGE_SIZE = 30;
                   ))}
                 </div>
 
+                {!editingId && (() => {
+                  const vers = selectedIndent.items?.[0]?.artworkVersions || [];
+                  const pendingV = vers.find((v) => v.status === "Pending");
+                  return (
+                    <>
+                      <div className="po-section">Artwork Review</div>
+                      <div className="table-responsive" style={{ fontSize: "12px" }}>
+                        <table className="table table-bordered table-sm align-middle mb-2">
+                          <thead>
+                            <tr>
+                              <th>Ver</th>
+                              <th>File</th>
+                              <th>Uploaded</th>
+                              <th>Note</th>
+                              <th>Status</th>
+                              <th>Comment</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vers.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="text-center">
+                                  {selectedIndent.items?.[0]?.artwork?.filePath ? (
+                                    <>
+                                      Older indent:{" "}
+                                      <a
+                                        href={`${BASE_URL}${selectedIndent.items[0].artwork.filePath}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        View artwork
+                                      </a>{" "}
+                                      (no review needed)
+                                    </>
+                                  ) : (
+                                    "No artwork uploaded."
+                                  )}
+                                </td>
+                              </tr>
+                            ) : (
+                              vers.map((v) => (
+                                <tr key={v.version}>
+                                  <td>v{v.version}</td>
+                                  <td>
+                                    {v.filePath ? (
+                                      <a href={`${BASE_URL}${v.filePath}`} target="_blank" rel="noreferrer">
+                                        {v.fileName}
+                                      </a>
+                                    ) : (
+                                      v.fileName
+                                    )}
+                                  </td>
+                                  <td>
+                                    {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
+                                    <br />
+                                    <small>{v.uploadedBy}</small>
+                                  </td>
+                                  <td>{v.note || "-"}</td>
+                                  <td>{v.status}</td>
+                                  <td>
+                                    {v.comment || "-"}
+                                    {v.reviewedBy && (
+                                      <>
+                                        <br />
+                                        <small>{v.reviewedBy}</small>
+                                      </>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {pendingV && (
+                        <div className="row g-2 mb-2">
+                          <PoField
+                            className="col-12 col-md-6"
+                            icon="bi-chat-left-text"
+                            label="Review comment (required to reject)"
+                            filled={has(artworkComment)}
+                          >
+                            <input
+                              type="text"
+                              className="po-input"
+                              value={artworkComment}
+                              onChange={(e) => setArtworkComment(e.target.value)}
+                            />
+                          </PoField>
+                          <div className="col-6 col-md-3">
+                            <button
+                              type="button"
+                              className="btn btn-primary w-100"
+                              disabled={reviewBusy}
+                              onClick={() => reviewArtwork(selectedIndent, pendingV.version, "approve", artworkComment)}
+                            >
+                              Approve v{pendingV.version}
+                            </button>
+                          </div>
+                          <div className="col-6 col-md-3">
+                            <button
+                              type="button"
+                              className="btn btn-danger w-100"
+                              disabled={reviewBusy}
+                              onClick={() => reviewArtwork(selectedIndent, pendingV.version, "reject", artworkComment)}
+                            >
+                              Reject v{pendingV.version}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {!artworkApproved(selectedIndent) && (
+                        <small className="text-danger d-block mb-1">
+                          Approve an artwork version to enable processing.
+                        </small>
+                      )}
+                    </>
+                  );
+                })()}
+
                 <form onSubmit={handleProcessIndent}>
                   <div className="po-section">Order Information</div>
 
@@ -2096,7 +2424,7 @@ const PAGE_SIZE = 30;
                       type="submit"
                       className="po-submit"
                       style={{ width: "auto", minWidth: "190px", margin: 0, padding: "10px 28px" }}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (!editingId && !artworkApproved(selectedIndent))}
                     >
                       {isSubmitting
                         ? "Processing..."

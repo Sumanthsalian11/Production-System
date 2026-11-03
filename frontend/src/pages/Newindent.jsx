@@ -25,9 +25,9 @@ function PoField({ icon, label, required, hide, filled, alwaysFloat, caret, area
 const has = (v) => v !== "" && v !== null && v !== undefined;
 const norm = (v) => String(v ?? "").trim();
 
-// Production indents (not samples) must have an approved artwork version before saving.
-// Set to false to switch that rule off.
-const REQUIRE_APPROVED_ARTWORK = true;
+// Production indents (not samples) must have an uploaded artwork version before saving.
+// The PO reviewer approves it later. Set to false to switch that rule off.
+const REQUIRE_ARTWORK_UPLOAD = true;
 
 // form key -> field name in the Materials master
 const PAPER_FIELDS = {
@@ -127,6 +127,13 @@ const getStageIdx = (ind) => {
 };
 const fmtWhen = (d) => (d ? new Date(d).toLocaleString("en-IN") : "");
 
+// latest artwork version of an indent (ignores Superseded unless nothing else exists)
+const latestArtOf = (ind) => {
+  const vers = ind.items?.[0]?.artworkVersions || [];
+  const live = vers.filter((v) => v.status !== "Superseded");
+  return live[live.length - 1] || vers[vers.length - 1] || null;
+};
+
 function NewIndent() {
   const [locations, setLocations] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -196,7 +203,6 @@ function NewIndent() {
   const [artworkVersions, setArtworkVersions] = useState([]);
   const [awFile, setAwFile] = useState(null);
   const [awNote, setAwNote] = useState("");
-  const [awReview, setAwReview] = useState("");
   const awFileInputRef = useRef(null);
 
   // ===== FILTER STATES =====
@@ -318,6 +324,13 @@ function NewIndent() {
       setFlow({});
     }
   };
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden) fetchIndents();
+    }, 60000);
+    return () => clearInterval(t);
+  }, []);
+
   const truncateText = (text, length = 30) => {
     if (!text) return "-";
     return text.length > length ? text.substring(0, length) + "..." : text;
@@ -472,12 +485,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     if (searchMode === "sample") {
       if (!form.sampleRequestType) newErrors.sampleRequestType = "Required";
       if (!form.sampleType) newErrors.sampleType = "Required";
-    } else if (REQUIRE_APPROVED_ARTWORK && !artworkVersions.some((v) => v.status === "Approved")) {
-      newErrors.artwork = "This production indent needs an approved artwork version. Upload a version and click Approve.";
+    } else if (REQUIRE_ARTWORK_UPLOAD && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
+      newErrors.artwork = "Upload an artwork version. The PO reviewer will approve or reject it.";
       Swal.fire({
         icon: "warning",
-        title: "Artwork approval needed",
-        text: "Upload an artwork version and approve it, or use Sample Request.",
+        title: "Artwork needed",
+        text: "Upload an artwork version (the PO reviewer approves it), or use Sample Request.",
         confirmButtonColor: "#3085d6"
       });
     }
@@ -596,7 +609,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setArtworkVersions([]);
     setAwFile(null);
     setAwNote("");
-    setAwReview("");
     if (awFileInputRef.current) awFileInputRef.current.value = "";
     setErrors({});
     setEditingId(null);
@@ -666,7 +678,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setArtworkVersions(vers);
     setAwFile(null);
     setAwNote("");
-    setAwReview("");
     setSearchMode(ind.indentType === "sample" ? "sample" : "code");
     setEditingId(ind._id);
     setShowForm(true);
@@ -934,18 +945,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     if (awFileInputRef.current) awFileInputRef.current.value = "";
   };
 
-  const reviewArtwork = (version, status) => {
-    setArtworkVersions((prev) =>
-      prev.map((v) => {
-        if (v.version === version) return { ...v, status, comment: awReview };
-        // only one approved version is live at a time
-        if (status === "Approved" && v.status === "Approved") return { ...v, status: "Superseded" };
-        return v;
-      })
-    );
-    setErrors((prev) => ({ ...prev, artwork: "" }));
-    setAwReview("");
-  };
+
 
   // ---- Double-click protection for Save Indent ----
   const isSavingRef = useRef(false);
@@ -2425,7 +2425,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <small>
                     {searchMode === "sample"
                       ? "Sample can go ahead with pending artwork."
-                      : "Production indent needs an approved artwork version."}
+                      : "Production indent needs an artwork version. The PO reviewer approves or rejects it."}
                   </small>
                 </div>
 
@@ -2456,15 +2456,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     </button>
                   </div>
 
-                  <PoField className="col-12" icon="bi-chat-left-text" label="Reviewer comment (used when approving or rejecting)" filled={has(awReview)}>
-                    <input
-                      type="text"
-                      className="po-input"
-                      value={awReview}
-                      title={awReview}
-                      onChange={(e) => setAwReview(e.target.value)}
-                    />
-                  </PoField>
+
                 </div>
 
                 {errors.artwork && <small className="indent-error-text mb-2">{errors.artwork}</small>}
@@ -2478,14 +2470,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         <th>Uploaded</th>
                         <th>Note</th>
                         <th>Status</th>
-                        <th>Reviewer comment</th>
-                        <th></th>
+                        <th>PO reviewer comment</th>
                       </tr>
                     </thead>
                     <tbody>
                       {artworkVersions.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="text-center">
+                          <td colSpan={6} className="text-center">
                             No artwork uploaded yet. Add a file to start version 1.
                           </td>
                         </tr>
@@ -2507,17 +2498,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                             </td>
                             <td>{v.note || "-"}</td>
                             <td><span className={awBadge(v.status)}>{v.status}</span></td>
-                            <td>{v.comment || "-"}</td>
                             <td>
-                              {v.status === "Pending" && (
-                                <div className="d-flex gap-1">
-                                  <button type="button" className="btn-action-edit" onClick={() => reviewArtwork(v.version, "Approved")}>
-                                    Approve
-                                  </button>
-                                  <button type="button" className="btn-action-delete" onClick={() => reviewArtwork(v.version, "Rejected")}>
-                                    Reject
-                                  </button>
-                                </div>
+                              {v.comment || "-"}
+                              {v.reviewedBy && (
+                                <>
+                                  <br />
+                                  <small>{v.reviewedBy}</small>
+                                </>
                               )}
                             </td>
                           </tr>
@@ -2591,6 +2578,46 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
           )}
         </div>
+
+        {/* ===== ARTWORK UPDATES ON MY INDENTS ===== */}
+        {(() => {
+          const mine = indents.filter((ind) => {
+            if (ind.user !== loggedInUser || ind.indentType === "sample" || ind.status !== "PENDING_PO") return false;
+            const a = latestArtOf(ind);
+            return a && (a.status === "Rejected" || a.status === "Approved");
+          });
+          if (!mine.length) return null;
+          return (
+            <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
+              <div className="bar-head">
+                <h5>Artwork updates on your indents</h5>
+                <span className="bar-count">{mine.length}</span>
+              </div>
+              <div className="bar-body">
+                {mine.map((ind) => {
+                  const a = latestArtOf(ind);
+                  return (
+                    <div key={ind._id} className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                      <b>{ind.indentNo}</b>
+                      <span className={awBadge(a.status)}>v{a.version} {a.status}</span>
+                      <span>
+                        {a.status === "Approved"
+                          ? "Approved" + (a.reviewedBy ? " by " + a.reviewedBy : "") + ". Waiting for PO processing."
+                          : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
+                        {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
+                      </span>
+                      {a.status === "Rejected" && (
+                        <button type="button" className="btn-action-edit ms-auto" onClick={() => handleEdit(ind)}>
+                          Edit &amp; upload new version
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ===== FILTERS (Saved Indents, shown by default) ===== */}
         <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
@@ -2874,8 +2901,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           </a>
                         ) : "-"}
                       </td>
-                      <td>
-                        {ind.items[0]?.artwork?.filePath ? (
+                      <td style={{ minWidth: 170, textAlign: "left" }}>
+                        {(ind.items[0]?.artworkVersions || []).length ? (
+                          ind.items[0].artworkVersions.map((v) => (
+                            <div key={v.version} className="mb-1">
+                              <span className={awBadge(v.status)}>v{v.version} {v.status}</span>{" "}
+                              {v.filePath && (
+                                <a href={`${BASE_URL}${v.filePath}`} target="_blank" rel="noreferrer">View</a>
+                              )}
+                              {v.comment && <small className="d-block">{v.comment}</small>}
+                            </div>
+                          ))
+                        ) : ind.items[0]?.artwork?.filePath ? (
                           <a href={`${BASE_URL}${ind.items[0].artwork.filePath}`} target="_blank" rel="noreferrer">
                             View
                           </a>

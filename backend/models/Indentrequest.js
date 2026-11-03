@@ -67,6 +67,8 @@ const IndentItemSchema = new mongoose.Schema({
       comment:    { type: String, default: "" },
       uploadedBy: { type: String, default: "" },
       uploadedAt: { type: Date, default: Date.now },
+      reviewedBy: { type: String, default: "" },
+      reviewedAt: { type: Date },
     },
   ],
 });

@@ -40,49 +40,67 @@ const indentUploadFields = upload.fields([
 // =============================================
 const ART_STATUSES = ["Pending", "Approved", "Rejected", "Superseded"];
 
-// Builds the artworkVersions array from the JSON the page sends (artworkMeta) + the uploaded files (artworkFiles)
+// Builds the artworkVersions array. The browser can only ADD new versions (a new file in artworkFiles).
+// Status, comment, reviewer and version number always come from the database / server.
 function buildArtworkVersions(req, existingItem, userName) {
+  const existing = (existingItem && existingItem.artworkVersions) || [];
+
   // old clients that do not send artworkMeta: keep whatever is already saved
-  if (req.body.artworkMeta === undefined) {
-    return (existingItem && existingItem.artworkVersions) || [];
-  }
+  if (req.body.artworkMeta === undefined) return existing;
 
   let meta = [];
   try { meta = JSON.parse(req.body.artworkMeta || "[]"); } catch (e) { meta = []; }
   if (!Array.isArray(meta)) meta = [];
 
   const files = (req.files && req.files.artworkFiles) || [];
-  const out = [];
+  const added = meta.filter((m) => Number.isInteger(m.fileIndex) && files[m.fileIndex]);
+  if (!added.length) return existing; // nothing new uploaded
 
-  meta.forEach((m) => {
-    const status = ART_STATUSES.includes(m.status) ? m.status : "Pending";
-    const newFile = Number.isInteger(m.fileIndex) ? files[m.fileIndex] : null;
-    let fileName = "";
-    let filePath = "";
+  const out = existing.map((v) => ({
+    version: v.version,
+    fileName: v.fileName,
+    filePath: v.filePath,
+    note: v.note,
+    status: v.status,
+    comment: v.comment,
+    uploadedBy: v.uploadedBy,
+    uploadedAt: v.uploadedAt,
+    reviewedBy: v.reviewedBy || "",
+    reviewedAt: v.reviewedAt || null
+  }));
 
-    if (newFile) {
-      fileName = newFile.originalname;
-      filePath = "/api/newindent/files/" + newFile.filename;
-    } else {
-      // existing version: take the file from what is already saved (never trust a path sent by the browser)
-      let old = ((existingItem && existingItem.artworkVersions) || []).find((v) => v.version === m.version);
-      if (!old && existingItem && existingItem.artwork && existingItem.artwork.filePath && m.filePath === existingItem.artwork.filePath) {
-        old = existingItem.artwork;
-      }
-      if (!old) return;
-      fileName = old.fileName;
-      filePath = old.filePath;
-    }
-
+  // an old indent with only the single legacy artwork file: keep it as an approved v1
+  if (!out.length && existingItem && existingItem.artwork && existingItem.artwork.filePath) {
     out.push({
-      version: m.version,
-      fileName,
-      filePath,
-      note: m.note || "",
-      status,
-      comment: m.comment || "",
-      uploadedBy: m.uploadedBy || userName || "",
-      uploadedAt: m.uploadedAt ? new Date(m.uploadedAt) : new Date()
+      version: 1,
+      fileName: existingItem.artwork.fileName,
+      filePath: existingItem.artwork.filePath,
+      note: "Carried over (earlier upload)",
+      status: "Approved",
+      comment: "",
+      uploadedBy: userName || "",
+      uploadedAt: new Date(),
+      reviewedBy: "",
+      reviewedAt: null
+    });
+  }
+
+  added.forEach((m) => {
+    const f = files[m.fileIndex];
+    // a newer upload replaces the older pending one
+    out.forEach((v) => { if (v.status === "Pending") v.status = "Superseded"; });
+    const next = out.length ? Math.max(...out.map((v) => v.version || 0)) + 1 : 1;
+    out.push({
+      version: next,
+      fileName: f.originalname,
+      filePath: "/api/newindent/files/" + f.filename,
+      note: String(m.note || "").slice(0, 500),
+      status: "Pending",
+      comment: "",
+      uploadedBy: userName || "",
+      uploadedAt: new Date(),
+      reviewedBy: "",
+      reviewedAt: null
     });
   });
 
@@ -281,6 +299,24 @@ router.get("/requests", authMiddleware, async (req, res) => {
 });
 
 // =============================================
+// INDENTS WITH ARTWORK WAITING FOR REVIEW (production + sample)
+// =============================================
+router.get("/artwork-pending", authMiddleware, async (req, res) => {
+  try {
+    const indents = await IndentRequest.find({
+      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] },
+      "items.artworkVersions.status": "Pending"
+    })
+      .populate("location", "locationName")
+      .sort({ createdAt: -1 });
+    res.status(200).json(indents);
+  } catch (err) {
+    console.error("FETCH PENDING ARTWORK ERROR:", err);
+    res.status(500).json({ message: "Error fetching pending artwork" });
+  }
+});
+
+// =============================================
 // PROCESS INDENT -> CONVERT TO CUSTOMER ORDER
 // =============================================
 router.put("/process/:id", authMiddleware, async (req, res) => {
@@ -305,6 +341,17 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     // 2. Validate based on order type
     if (!orderType) {
       return res.status(400).json({ message: "Order type is required" });
+    }
+
+    // Production indents need an approved artwork version (samples are exempt).
+    // Old indents that only have the single legacy artwork file are allowed through.
+    if (indent.indentType !== "sample") {
+      const it0 = (indent.items && indent.items[0]) || {};
+      const vers0 = it0.artworkVersions || [];
+      const legacyOnly = !vers0.length && it0.artwork && it0.artwork.filePath;
+      if (!legacyOnly && !vers0.some((v) => v.status === "Approved")) {
+        return res.status(400).json({ message: "Artwork is not approved yet. Approve an artwork version first." });
+      }
     }
 
     // 3. Process each item in the indent
@@ -511,6 +558,64 @@ router.put("/:id/track", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error("TRACK ERROR:", err);
     res.status(500).json({ message: "Error updating tracking" });
+  }
+});
+
+// =============================================
+// ARTWORK REVIEW (PO reviewer approves / rejects one version)
+// =============================================
+router.put("/:id/artwork-review", authMiddleware, async (req, res) => {
+  try {
+    const { version, action, comment } = req.body;
+    const verdict = action === "approve" ? "Approved" : action === "reject" ? "Rejected" : null;
+    if (!verdict) return res.status(400).json({ message: "Unknown review action" });
+
+    const cmt = String(comment || "").trim();
+    if (verdict === "Rejected" && !cmt) {
+      return res.status(400).json({ message: "A comment is required to reject artwork" });
+    }
+
+    const reviewer = await User.findById(req.user.id);
+    if (!reviewer) return res.status(404).json({ message: "User not found" });
+    // TODO role check: allow only PO reviewers here, e.g.
+    // if (reviewer.role !== "PO") return res.status(403).json({ message: "Not allowed" });
+
+    const indent = await IndentRequest.findById(req.params.id);
+    if (!indent) return res.status(404).json({ message: "Indent not found" });
+    if (indent.status === "APPROVED" || indent.status === "REJECTED") {
+      return res.status(400).json({ message: "Indent already processed" });
+    }
+
+    const item = indent.items && indent.items[0];
+    const target = item && (item.artworkVersions || []).find((v) => Number(v.version) === Number(version));
+    if (!target) return res.status(404).json({ message: "Artwork version not found" });
+    if (target.status !== "Pending") {
+      return res.status(400).json({ message: "Only a pending version can be reviewed" });
+    }
+
+    // only one approved version is live at a time
+    if (verdict === "Approved") {
+      item.artworkVersions.forEach((v) => {
+        if (v !== target && v.status === "Approved") v.status = "Superseded";
+      });
+    }
+
+    target.status = verdict;
+    target.comment = cmt;
+    target.reviewedBy = reviewer.name;
+    target.reviewedAt = new Date();
+
+    const best = pickLatestArtwork(item.artworkVersions);
+    if (best) item.artwork = best;
+
+    indent.markModified("items");
+    await indent.save();
+
+    const fresh = await IndentRequest.findById(indent._id).populate("location", "locationName");
+    res.status(200).json(fresh);
+  } catch (err) {
+    console.error("ARTWORK REVIEW ERROR:", err);
+    res.status(500).json({ message: "Error reviewing artwork" });
   }
 });
 
