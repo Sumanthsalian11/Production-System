@@ -738,13 +738,18 @@ const PAGE_SIZE = 30;
       .map((v) => ({ ind, v }))
   );
 
-  // true when the indent may be processed (sample = exempt, old indents with only a legacy file = allowed)
+  // true when the indent may be processed.
+  // Production AND sample indents now both need an approved artwork version.
+  // Old indents with only a legacy file are allowed.
+  // A sample with no artwork uploaded at all is allowed, because there is nothing to approve.
   const artworkApproved = (ind) => {
     if (!ind) return false;
-    if (ind.indentType === "sample") return true;
     const it = ind.items?.[0] || {};
     const vers = it.artworkVersions || [];
-    if (!vers.length) return Boolean(it.artwork?.filePath);
+    if (!vers.length) {
+      if (ind.indentType === "sample") return true;
+      return Boolean(it.artwork?.filePath);
+    }
     return vers.some((v) => v.status === "Approved");
   };
 

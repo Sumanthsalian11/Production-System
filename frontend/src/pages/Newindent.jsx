@@ -2780,9 +2780,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         {/* ===== ARTWORK UPDATES ON MY INDENTS ===== */}
         {(() => {
           const mine = indents.filter((ind) => {
-            if (ind.user !== loggedInUser || ind.indentType === "sample" || ind.status !== "PENDING_PO") return false;
+            if (ind.user !== loggedInUser) return false;
             const a = latestArtOf(ind);
-            return a && (a.status === "Rejected" || a.status === "Approved");
+            if (!a) return false;
+            // rejected: show unless the indent is already processed (APPROVED)
+            if (a.status === "Rejected") return ind.status !== "APPROVED";
+            // approved: only while it is still waiting for PO processing
+            if (a.status === "Approved") return ind.status === "PENDING_PO";
+            return false;
           });
           if (!mine.length) return null;
           return (
