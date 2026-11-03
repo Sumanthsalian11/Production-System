@@ -1009,6 +1009,7 @@ export default function ProductionMachineStatusModule() {
     if (!form.activityId) return showAlert("Select activity", "warning");
     if (!form.machineId)  return showAlert("Select machine", "warning");
     if (filteredPrinters.length > 0 && !form.printerName) return showAlert("Select printer name", "warning");
+    if (!form.paperSize) return showAlert("Select paper size", "warning");
 
     if (isProduction) {
       if (!form.customerName)  return showAlert("Select customer", "warning");
@@ -1834,8 +1835,8 @@ export default function ProductionMachineStatusModule() {
                     </select>
                   </div>
                   <div className="pms-field">
-                    <label className="pms-label"><PIcon name="Paper Size" />Paper Size</label>
-                    <select className="pms-select" name="paperSize" value={form.paperSize} onChange={handleChange}>
+                    <label className="pms-label"><PIcon name="Paper Size" />Paper Size <span className="pms-req">*</span></label>
+                    <select className="pms-select" name="paperSize" value={form.paperSize} onChange={handleChange} required>
                       <option value="">Select paper size</option>
                       {paperSizes.map((ps) => <option key={ps._id} value={ps.name}>{ps.name}</option>)}
                     </select>
