@@ -1973,6 +1973,17 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .trk-box.trk-stopped{background:#fbdcdc;border-color:#d64545}
         .trk-box.trk-na{background:#f8f9fa;border-style:dashed;color:#6b7685}
 
+        .trk-line{display:flex;align-items:center}
+        .trk-step{display:inline-flex;align-items:center}
+        .trk-seg{display:inline-block;width:22px;height:3px;background:#d5dbe1}
+        .trk-seg.on{background:#1f9d6b}
+        .trk-dot{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid #b8c0cb;background:#fff;cursor:default}
+        .trk-d-done{background:#1f9d6b;border-color:#1f9d6b}
+        .trk-d-partial{background:#fff3d6;border-color:#d98a00}
+        .trk-d-current{background:#fff;border-color:#e4572e;box-shadow:0 0 0 3px rgba(228,87,46,.25)}
+        .trk-d-stopped{background:#d64545;border-color:#d64545}
+        .trk-d-na{border-style:dashed;background:#f8f9fa}
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -3256,9 +3267,25 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           {/* {overdue && <span className="custom-badge badge-rejected ms-1">Overdue</span>} */}
                         </td>
                         <td>
-                          <span className={`custom-badge ${ind.holdReason ? "badge-pending" : fin ? "badge-approved" : "badge-info"}`}>
-                            {ind.holdReason ? "On hold" : (flow[ind.indentNo]?.current || "-")}
-                          </span>
+                          {(() => {
+                            const fl = flow[ind.indentNo];
+                            if (!fl) return "-";
+                            return (
+                              <div>
+                                <div className="trk-line">
+                                  {fl.stages.map((st, k) => (
+                                    <span key={st.key} className="trk-step">
+                                      {k > 0 && <i className={`trk-seg ${fl.stages[k - 1].state === "done" ? "on" : ""}`} />}
+                                      <b className={`trk-dot trk-d-${st.state}`} title={`${st.label}: ${st.state}`} />
+                                    </span>
+                                  ))}
+                                </div>
+                                <small className="d-block mt-1">
+                                  {ind.holdReason ? "On hold" : fl.current}
+                                </small>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         <td className="fw-bold">{flow[ind.indentNo]?.woNo || "-"}</td>
