@@ -38,6 +38,47 @@ const PAPER_FIELDS = {
 };
 
 // ===== TRACKING pipeline (same stages as the HTML page) =====
+const QC_RX_UI = /(^|\W)(qc|quality)/i;
+const flatDoc = (v, p, out) => {
+  if (v === null || v === undefined) { out[p] = ""; return out; }
+  if (Array.isArray(v)) {
+    if (!v.length) out[p] = "";
+    v.forEach((x, i) => flatDoc(x, p + "[" + (i + 1) + "]", out));
+    return out;
+  }
+  if (typeof v === "object") {
+    Object.keys(v).forEach((k) => flatDoc(v[k], p ? p + "." + k : k, out));
+    return out;
+  }
+  out[p] = /^\d{4}-\d\d-\d\dT/.test(String(v)) ? new Date(v).toLocaleString("en-IN") : String(v);
+  return out;
+};
+const FlowKV = ({ doc }) => {
+  if (!doc) return <div className="py-2">No record yet for this stage.</div>;
+  const rows = Object.entries(flatDoc(doc, "", {}));
+  return (
+    <div className="table-responsive">
+      <table className="table table-bordered table-sm mb-0 bg-white">
+        <thead><tr><th style={{ width: "30%" }}>Field</th><th>Value</th></tr></thead>
+        <tbody>{rows.map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody>
+      </table>
+    </div>
+  );
+};
+const FlowList = ({ docs }) => {
+  if (!docs || !docs.length) return <div className="py-2">No entries yet for this stage.</div>;
+  const flats = docs.map((d) => flatDoc(d, "", {}));
+  const cols = [];
+  flats.forEach((o) => Object.keys(o).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
+  return (
+    <div className="table-responsive">
+      <table className="table table-bordered table-sm mb-0 bg-white">
+        <thead><tr><th>#</th>{cols.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+        <tbody>{flats.map((o, i) => <tr key={i}><td>{i + 1}</td>{cols.map((c) => <td key={c}>{o[c] ?? ""}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+};
 const PIPE = {
   production: [
     ["raised", "Indent raised"], ["po", "PO received"], ["appr", "Approved for production"],
@@ -174,6 +215,8 @@ function NewIndent() {
   const [holdReason, setHoldReason] = useState("");
   const [trackErr, setTrackErr] = useState("");
   const [flow, setFlow] = useState({});
+  const [flowSel, setFlowSel] = useState("");
+  const [flowData, setFlowData] = useState({});
 
   // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
   const [searchMode, setSearchMode] = useState("code");
@@ -254,6 +297,15 @@ function NewIndent() {
       fetchFlow();
     } catch {
       setIndents([]);
+    }
+  };
+  const fetchFlowDetail = async (indentNo) => {
+    if (flowData[indentNo] && !flowData[indentNo].error) return;
+    try {
+      const r = await axios.get(`${BASE_URL}/api/tracking/detail`, { headers: { Authorization: `Bearer ${token}` }, params: { indentNo } });
+      setFlowData((p) => ({ ...p, [indentNo]: r.data }));
+    } catch {
+      setFlowData((p) => ({ ...p, [indentNo]: { error: true } }));
     }
   };
   const fetchFlow = async () => {
@@ -3002,17 +3054,17 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <b>{ind.indentNo}</b>
                   <span>{it.customerName} - {it.description || it.productCode}</span>
                   {!ind.holdReason && (
-                    <input type="text" className="custom-input" style={{ maxWidth: 200 }} placeholder="Hold reason"
+                    <input type="text" className="custom-input" style={{ display: "none" }} placeholder="Hold reason"
                       value={holdReason} onChange={(e) => setHoldReason(e.target.value)} />
                   )}
                   <button type="button" className="btn-action-edit"
-                    onClick={() => runTrack(ind, ind.holdReason ? { action: "resume" } : { action: "hold", reason: holdReason })}>
+                    style={{ display: ind.holdReason ? "" : "none" }} onClick={() => runTrack(ind, ind.holdReason ? { action: "resume" } : { action: "hold", reason: holdReason })}>
                     {ind.holdReason ? "Resume" : "Put on hold"}
                   </button>
                   <button type="button" className="btn-action-delete ms-auto" onClick={() => setTrackId(null)}>Close</button>
                 </div>
 
-                <ol className="trk-steps">
+                <ol className="trk-steps" style={{ display: "none" }}>
                   {P.map((s, k) => {
                     const l = log.find((x) => x.stage === s[0]);
                     return (
@@ -3035,13 +3087,49 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         {fl.stages.map((st) => {
                           const c = CL[st.state] || ["#f4f6f8", "#b8c0cb"];
                           return (
-                            <div key={st.key} style={{ flex: "1 1 0", minWidth: 150, background: c[0], border: "1px solid " + c[1], borderRadius: 6, padding: "6px 10px" }}>
+                            <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); }} style={{ cursor: "pointer", flex: "1 1 0", minWidth: 150, background: c[0], border: "1px solid " + c[1], borderRadius: 6, padding: "6px 10px" }}>
                               <b style={{ color: c[1] }}>{st.label}</b>
                               {st.lines.map((ln, q) => <div key={q} style={{ fontSize: 11.5 }}>{ln}</div>)}
                             </div>
                           );
                         })}
                       </div>
+                      {(() => {
+                        if (!flowSel.startsWith(ind.indentNo + "|")) return null;
+                        const tab = flowSel.split("|")[1];
+                        const d = flowData[ind.indentNo];
+                        const isQc = (p) => (p.machiness || []).some((m) => QC_RX_UI.test(m.activityName || ""));
+                        let body = <div className="py-2">Loading...</div>;
+                        if (d && d.error) body = <div className="py-2">Could not load details.</div>;
+                        else if (d) {
+                          if (tab === "indent") body = <FlowKV doc={d.indent} />;
+                          else if (tab === "po") body = <FlowKV doc={d.order} />;
+                          else if (tab === "planner") body = <FlowKV doc={d.workOrder} />;
+                          else if (tab === "production") body = <FlowList docs={(d.production || []).filter((p) => !isQc(p))} />;
+                          else if (tab === "qc") body = <FlowList docs={(d.production || []).filter(isQc)} />;
+                          else if (tab === "dispatch") body = <FlowList docs={d.dispatch} />;
+                        }
+                        return (
+                          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setFlowSel("")}>
+                            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1400, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}>
+                              <div className="d-flex align-items-center gap-3 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                                <b style={{ fontSize: 15 }}>{ind.indentNo}</b>
+                                {fl.woNo ? <span>WO <b>{fl.woNo}</b></span> : null}
+                                {fl.poNo ? <span>PO <b>{fl.poNo}</b></span> : null}
+                                <span>{fl.customer}</span>
+                                <button type="button" className="btn-action-delete ms-auto" onClick={() => setFlowSel("")}>Close</button>
+                              </div>
+                              <div className="d-flex flex-wrap gap-1 px-3 pt-2 pb-2">
+                                {fl.stages.map((x) => (
+                                  <button key={x.key} type="button" className={"btn btn-sm " + (x.key === tab ? "btn-export" : "btn-outline-secondary")}
+                                    onClick={() => setFlowSel(ind.indentNo + "|" + x.key)}>{x.label}</button>
+                                ))}
+                              </div>
+                              <div className="px-3 pb-3" style={{ overflow: "auto", flex: 1 }}>{body}</div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -3050,7 +3138,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <p>On hold: {ind.holdReason}. Resume to continue.</p>
                 ) : nx ? (
                   <>
-                    <div className="row g-2 mt-1">
+                    <div className="row g-2 mt-1" style={{ display: "none" }}>
                       {(TRACK_EX[nx[0]] || []).map(([l, t, opts]) => (
                         <PoField key={l} className="col-12 col-md-4" icon="bi-pencil" label={l} required
                           filled={has(trackExtra[l])} alwaysFloat={t === "select"} caret={t === "select"}>
@@ -3080,30 +3168,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <p>Final stage reached.</p>
                 )}
                 {trackErr && <small className="indent-error-text">{trackErr}</small>}
-
-                <div className="d-flex align-items-center gap-2 mt-3 mb-1">
-                  <b>Stage history</b>
-                  {log.length > 1 && ind.trackLog?.length > 1 && (
-                    <button type="button" className="btn-action-delete" onClick={() => runTrack(ind, { action: "undo" })}>
-                      Undo last stage
-                    </button>
-                  )}
-                </div>
-                <div className="table-responsive">
-                  <table className="table table-bordered table-sm mb-0">
-                    <thead><tr><th>Stage</th><th>When</th><th>By</th><th>Details</th></tr></thead>
-                    <tbody>
-                      {log.slice().reverse().map((l, k) => (
-                        <tr key={k}>
-                          <td>{P.find((x) => x[0] === l.stage)?.[1] || l.stage}</td>
-                          <td>{fmtWhen(l.at)}</td>
-                          <td>{l.by}</td>
-                          <td>{l.note}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
               </div>
             );
           })()}

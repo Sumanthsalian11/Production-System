@@ -196,4 +196,39 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
+const clean = (v) => {
+  if (typeof v === "string") return v.length > 500 ? v.slice(0, 500) + "..." : v;
+  if (Array.isArray(v)) return v.map(clean);
+  if (v && typeof v === "object" && !(v instanceof Date) && !v._bsontype) {
+    const o = {};
+    Object.keys(v).forEach((k) => { if (k !== "__v") o[k] = clean(v[k]); });
+    return o;
+  }
+  return v;
+};
+
+router.get("/detail", authMiddleware, async (req, res) => {
+  try {
+    const indentNo = String(req.query.indentNo || "").trim();
+    if (!indentNo) return res.json({});
+    const indent = await IndentRequest.findOne({ indentNo }).lean();
+    const order = await CustomerOrder.findOne({ indentNo }).lean();
+    const wo = order ? await WorkOrder.findOne({ customerOrderId: order._id }).lean() : null;
+    let production = [];
+    let dispatch = [];
+    if (wo) {
+      production = await ProductionReal.find({ workOrder: wo.efiWoNumber }).sort({ productionDate: 1 }).lean();
+      dispatch = await Dispatch.find({ efiWoNumber: wo.efiWoNumber }).sort({ createdAt: 1 }).lean();
+      const ids = [...new Set(production.flatMap((p) => (p.machiness || []).map((m) => String(m.activityId || ""))).filter(Boolean))];
+      const acts = ids.length ? await mongoose.model("ActivityMaster").find({ _id: { $in: ids } }, "activityName").lean() : [];
+      const nm = new Map(acts.map((a) => [String(a._id), a.activityName]));
+      production.forEach((p) => (p.machiness || []).forEach((m) => { m.activityName = nm.get(String(m.activityId)) || ""; }));
+    }
+    res.json(clean({ indent, order, workOrder: wo, production, dispatch }));
+  } catch (err) {
+    console.error("TRACKING DETAIL ERROR:", err);
+    res.status(500).json({ message: "Error loading tracking detail" });
+  }
+});
+
 module.exports = router;
