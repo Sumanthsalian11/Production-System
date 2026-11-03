@@ -173,6 +173,7 @@ function NewIndent() {
   const [trackNote, setTrackNote] = useState("");
   const [holdReason, setHoldReason] = useState("");
   const [trackErr, setTrackErr] = useState("");
+  const [flow, setFlow] = useState({});
 
   // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
   const [searchMode, setSearchMode] = useState("code");
@@ -250,8 +251,19 @@ function NewIndent() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setIndents(res.data);
+      fetchFlow();
     } catch {
       setIndents([]);
+    }
+  };
+  const fetchFlow = async () => {
+    try {
+      const r = await axios.get(`${BASE_URL}/api/tracking`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 300 } });
+      const m = {};
+      (r.data || []).forEach((x) => { m[x.ref] = x; });
+      setFlow(m);
+    } catch {
+      setFlow({});
     }
   };
   const truncateText = (text, length = 30) => {
@@ -2926,12 +2938,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <thead>
                 <tr>
                   <th>Indent</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th>
-                  <th>Due</th><th>Stage</th><th>Progress</th><th></th>
+                  <th>Due</th><th>Stage</th><th>Progress</th><th>WO No</th><th>Live Status</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {trackIndents.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-4">No indents match these filters.</td></tr>
+                  <tr><td colSpan={11} className="text-center py-4">No indents match these filters.</td></tr>
                 ) : (
                   trackIndents.map((ind) => {
                     const it = ind.items?.[0] || {};
@@ -2957,6 +2969,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           </span>
                         </td>
                         <td><div className="trk-bar"><i style={{ width: `${Math.round(((i + 1) / P.length) * 100)}%` }} /></div></td>
+                        <td className="fw-bold">{flow[ind.indentNo]?.woNo || "-"}</td>
+                        <td>{flow[ind.indentNo]?.current || "-"}</td>
                         <td>
                           <div className="d-flex gap-1">
                             <button type="button" className="btn-action-edit"
@@ -3009,6 +3023,28 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     );
                   })}
                 </ol>
+
+                {(() => {
+                  const fl = flow[ind.indentNo];
+                  if (!fl) return null;
+                  const CL = { done: ["#d9f2e6", "#1f9d6b"], partial: ["#fff3d6", "#d98a00"], current: ["#fde3d8", "#e4572e"], stopped: ["#fbdcdc", "#d64545"] };
+                  return (
+                    <div className="mt-2 mb-2">
+                      <div className="mb-1"><b>Order flow</b>{fl.woNo ? <> &nbsp;WO <b>{fl.woNo}</b></> : null}{fl.poNo ? <> &nbsp;PO <b>{fl.poNo}</b></> : null} &nbsp;Now: <b>{fl.current}</b></div>
+                      <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                        {fl.stages.map((st) => {
+                          const c = CL[st.state] || ["#f4f6f8", "#b8c0cb"];
+                          return (
+                            <div key={st.key} style={{ flex: "1 1 0", minWidth: 150, background: c[0], border: "1px solid " + c[1], borderRadius: 6, padding: "6px 10px" }}>
+                              <b style={{ color: c[1] }}>{st.label}</b>
+                              {st.lines.map((ln, q) => <div key={q} style={{ fontSize: 11.5 }}>{ln}</div>)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {ind.holdReason ? (
                   <p>On hold: {ind.holdReason}. Resume to continue.</p>

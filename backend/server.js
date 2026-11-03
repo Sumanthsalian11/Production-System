@@ -117,6 +117,7 @@ app.use("/api/master/suppliers", supplierRoutes);
 app.use("/api/master/impression-waste", require("./routes/impressionWasteRoutes"));
 
 app.use("/api/master/item-stages", require("./routes/itemStages"));
+app.use("/api/tracking", require("./routes/tracking"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
