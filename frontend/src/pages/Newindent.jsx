@@ -184,6 +184,11 @@ const latestArtOf = (ind) => {
   return live[live.length - 1] || vers[vers.length - 1] || null;
 };
 
+const BLANK_ITEM = {
+  itemCode: "", uniqueCode: "", customerName: "", description: "", materialType: "",
+  colorFront: "", colorBack: "", wasteQty: "", jobSize: "", inkDetails: ""
+};
+
 function NewIndent() {
   const [locations, setLocations] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -279,6 +284,8 @@ function NewIndent() {
   const [itemList, setItemList] = useState([]);
   const [custSearch, setCustSearch] = useState("");
   const [descSearch, setDescSearch] = useState("");
+  const [showAddCust, setShowAddCust] = useState(false);
+  const [newItem, setNewItem] = useState(BLANK_ITEM);
 
   const itemCodeOf = (it) => String(it.productCode || it.itemCode || it.code || "");
   const descLabelOf = (it) => `${itemCodeOf(it)} - ${norm(it.description)}`;
@@ -429,6 +436,31 @@ function NewIndent() {
 
   const onlyAlphaNumeric = (value) => value.replace(/[^a-zA-Z0-9]/g, "");
 
+  // Sample Request: fills every product field from the Items master if the code exists.
+  // If the code is not found the form is left as typed.
+  const autofillSample = async (code) => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/master/items/${code}`);
+      const d = res.data || {};
+      setForm((prev) =>
+        prev.productCode !== code ? prev : {
+          ...prev,
+          materialType: d.materialType || "",
+          description: d.description || "",
+          customerName: d.customerName || "",
+          colorFront: d.colorFront ?? "",
+          colorBack: d.colorBack ?? "",
+          wasteQty: d.wasteQty ?? "",
+          jobSize: d.jobSize || "",
+          inkDetails: d.inkDetails || "",
+          itemPdfPath: d.pdfPath || ""
+        }
+      );
+    } catch {
+      /* code not in master: keep what the user typed */
+    }
+  };
+
   const handleFileChange = (e) => {
     const { name, files } = e.target;
     const file = files?.[0] || null;
@@ -447,6 +479,7 @@ function NewIndent() {
       if (searchMode === "sample") {
         setErrors(prev => ({ ...prev, productCode: "" }));
         setForm(prev => ({ ...prev, productCode: newValue }));
+        if (newValue) autofillSample(newValue);
         return;
       }
 
@@ -955,6 +988,43 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       customerName: v === "new" || prev.sampleRequestType === "new" ? "" : prev.customerName,
       provisionalCustomerId: v === "new" ? prev.provisionalCustomerId : ""
     }));
+  };
+
+  // ===== ADD CUSTOMER + ITEM TO THE ITEMS MASTER =====
+  const saveNewItem = async () => {
+    const code = onlyAlphaNumeric(newItem.itemCode);
+    if (!code || !norm(newItem.customerName)) {
+      Swal.fire({ icon: "warning", title: "Required", text: "Product code and customer name are required.", confirmButtonColor: "#3085d6" });
+      return;
+    }
+    try {
+      const payload = { ...newItem, itemCode: code };
+      payload.wasteQty = newItem.wasteQty === "" ? undefined : Number(newItem.wasteQty);
+      await axios.post(`${BASE_URL}/api/master/items`, payload);
+
+      // refresh the master lists so the customer / product type show up as normal
+      const res = await axios.get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } });
+      setItemList(Array.isArray(res.data) ? res.data : (res.data?.data || []));
+
+      // put the new item into the indent form
+      setForm((prev) => ({
+        ...prev,
+        productCode: code,
+        materialType: newItem.materialType,
+        description: newItem.description,
+        customerName: newItem.customerName,
+        colorFront: newItem.colorFront,
+        colorBack: newItem.colorBack,
+        wasteQty: newItem.wasteQty,
+        jobSize: newItem.jobSize,
+        inkDetails: newItem.inkDetails
+      }));
+      setShowAddCust(false);
+      setNewItem(BLANK_ITEM);
+      Swal.fire({ icon: "success", title: "Saved", text: "Customer item added to the master.", width: "350px", confirmButtonColor: "#3085d6" });
+    } catch (err) {
+      Swal.fire({ icon: "error", title: "Error", text: err.response?.data?.message || "Could not save the item", confirmButtonColor: "#d33" });
+    }
   };
 
   // customer is a master dropdown in Sample Request, except for a brand-new customer
@@ -2025,6 +2095,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
                   </div>
 
+                  {searchMode === "sample" && (
+                    <div className="col-12 d-flex justify-content-end">
+                      <button
+                        type="button"
+                        className="btn btn-export"
+                        onClick={() => { setNewItem({ ...BLANK_ITEM, customerName: form.customerName || "" }); setShowAddCust(true); }}
+                      >
+                        Add Customer +
+                      </button>
+                    </div>
+                  )}
+
                   {searchMode === "customer" && (
                     <>
                       <PoField className="col-12 col-md-4" icon="bi-person" label="Select Customer" alwaysFloat>
@@ -2065,7 +2147,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4"
                     icon="bi-upc-scan"
                     label="Product Code"
-                    required hide={searchMode === "sample"}
+                    required={searchMode !== "sample"}
                     filled={has(form.productCode)}
                     after={
                     <>
@@ -2146,6 +2228,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   </PoField>
                   <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(form.jobSize)}>
                     <input name="jobSize" className="po-input" value={form.jobSize} title={form.jobSize} readOnly={searchMode !== "sample"} onChange={handleChange} />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(form.wasteQty)}>
+                    <input type="number" name="wasteQty" className="po-input" value={form.wasteQty} title={form.wasteQty} readOnly={searchMode !== "sample"} onChange={handleChange} />
+                  </PoField>
+                  <PoField className="col-12 col-md-8" icon="bi-droplet" label="Ink Details" filled={has(form.inkDetails)}>
+                    <input name="inkDetails" className="po-input" value={form.inkDetails} title={form.inkDetails} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                 </div>
               </div>
@@ -2636,6 +2724,58 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
           )}
         </div>
+
+        {/* ===== ADD CUSTOMER POPUP ===== */}
+        {showAddCust && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setShowAddCust(false)}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 8, width: "92vw", maxWidth: 900, maxHeight: "90vh", overflow: "auto", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}>
+              <div className="d-flex align-items-center px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                <b style={{ fontSize: 15 }}>Add Customer</b>
+                <button type="button" className="btn-action-delete ms-auto" onClick={() => setShowAddCust(false)}>Close</button>
+              </div>
+              <div className="p-3">
+                <div className="row g-2">
+                  <PoField className="col-6 col-md-4" icon="bi-upc-scan" label="Product Code" required filled={has(newItem.itemCode)}>
+                    <input className="po-input" value={newItem.itemCode} onChange={(e) => setNewItem((p) => ({ ...p, itemCode: onlyAlphaNumeric(e.target.value) }))} />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-hash" label="Unique Code" filled={has(newItem.uniqueCode)}>
+                    <input className="po-input" value={newItem.uniqueCode} onChange={(e) => setNewItem((p) => ({ ...p, uniqueCode: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-12 col-md-4" icon="bi-person" label="Customer Name" required filled={has(newItem.customerName)}>
+                    <input className="po-input" value={newItem.customerName} onChange={(e) => setNewItem((p) => ({ ...p, customerName: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(newItem.description)}>
+                    <input className="po-input" value={newItem.description} onChange={(e) => setNewItem((p) => ({ ...p, description: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-12 col-md-4" icon="bi-tag" label="Product Type" filled={has(newItem.materialType)}>
+                    <input className="po-input" list="indent-newitem-types" value={newItem.materialType} onChange={(e) => setNewItem((p) => ({ ...p, materialType: e.target.value }))} />
+                    <datalist id="indent-newitem-types">
+                      {materialTypeOptions.map((t) => <option key={t} value={t} />)}
+                    </datalist>
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" filled={has(newItem.colorFront)}>
+                    <input className="po-input" value={newItem.colorFront} onChange={(e) => setNewItem((p) => ({ ...p, colorFront: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(newItem.colorBack)}>
+                    <input className="po-input" value={newItem.colorBack} onChange={(e) => setNewItem((p) => ({ ...p, colorBack: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(newItem.jobSize)}>
+                    <input className="po-input" value={newItem.jobSize} onChange={(e) => setNewItem((p) => ({ ...p, jobSize: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(newItem.wasteQty)}>
+                    <input type="number" className="po-input" value={newItem.wasteQty} onChange={(e) => setNewItem((p) => ({ ...p, wasteQty: e.target.value }))} />
+                  </PoField>
+                  <PoField className="col-12" icon="bi-droplet" label="Ink Details" filled={has(newItem.inkDetails)}>
+                    <input className="po-input" value={newItem.inkDetails} onChange={(e) => setNewItem((p) => ({ ...p, inkDetails: e.target.value }))} />
+                  </PoField>
+                </div>
+                <div className="text-center mt-3">
+                  <button type="button" className="btn btn-submit-indent" onClick={saveNewItem}>Save Customer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ===== ARTWORK UPDATES ON MY INDENTS ===== */}
         {(() => {
