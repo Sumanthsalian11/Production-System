@@ -212,19 +212,52 @@ router.get("/detail", authMiddleware, async (req, res) => {
     const indentNo = String(req.query.indentNo || "").trim();
     if (!indentNo) return res.json({});
     const indent = await IndentRequest.findOne({ indentNo }).lean();
-    const order = await CustomerOrder.findOne({ indentNo }).lean();
-    const wo = order ? await WorkOrder.findOne({ customerOrderId: order._id }).lean() : null;
+    const orders = await CustomerOrder.find({ indentNo }).sort({ createdAt: 1 }).lean();
+    const order = orders[0] || null;
+    const wos = orders.length
+      ? await WorkOrder.find({ customerOrderId: { $in: orders.map((o) => o._id) } }).sort({ createdAt: 1 }).lean()
+      : [];
+    const wo = wos[0] || null;
     let production = [];
     let dispatch = [];
-    if (wo) {
-      production = await ProductionReal.find({ workOrder: wo.efiWoNumber }).sort({ productionDate: 1 }).lean();
-      dispatch = await Dispatch.find({ efiWoNumber: wo.efiWoNumber }).sort({ createdAt: 1 }).lean();
+    if (wos.length) {
+      const woNums = wos.map((w) => w.efiWoNumber);
+      production = await ProductionReal.find({ workOrder: { $in: woNums } }).sort({ productionDate: 1 }).lean();
+      dispatch = await Dispatch.find({ efiWoNumber: { $in: woNums } }).sort({ createdAt: 1 }).lean();
       const ids = [...new Set(production.flatMap((p) => (p.machiness || []).map((m) => String(m.activityId || ""))).filter(Boolean))];
       const acts = ids.length ? await mongoose.model("ActivityMaster").find({ _id: { $in: ids } }, "activityName").lean() : [];
       const nm = new Map(acts.map((a) => [String(a._id), a.activityName]));
       production.forEach((p) => (p.machiness || []).forEach((m) => { m.activityName = nm.get(String(m.activityId)) || ""; }));
     }
-    res.json(clean({ indent, order, workOrder: wo, production, dispatch }));
+    const isOid = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
+const nameMap = async (modelName, ids, field) => {
+  try {
+    const list = [...new Set(ids.filter(isOid).map(String))];
+    if (!list.length) return new Map();
+    const docs = await mongoose.model(modelName).find({ _id: { $in: list } }, field).lean();
+    return new Map(docs.map((d) => [String(d._id), d[field]]));
+  } catch (e) {
+    return new Map(); // model name or field not found: leave ids as they are
+  }
+};
+
+// location (indent + PO store an ObjectId; the work order already has text)
+const locIds = [indent && indent.location, ...orders.map((o) => o.location)];
+const locNames = await nameMap("LocationMaster", locIds, "locationName");
+if (indent && locNames.has(String(indent.location))) indent.location = locNames.get(String(indent.location));
+orders.forEach((o) => { if (locNames.has(String(o.location))) o.location = locNames.get(String(o.location)); });
+
+for (const w of wos) {
+  if (!Array.isArray(w.machines)) continue;
+  const actNames = await nameMap("ActivityMaster", w.machines.map((m) => m.activityId), "activityName");
+  const machNames = await nameMap("MachineMaster", w.machines.map((m) => m.machineId), "machineName");
+  w.machines.forEach((m) => {
+    m.activity = actNames.get(String(m.activityId)) || "";
+    m.machine = machNames.get(String(m.machineId)) || "";
+  });
+}
+
+res.json(clean({ indent, order: orders[0] || null, orders, workOrder: wos[0] || null, workOrders: wos, production, dispatch }));
   } catch (err) {
     console.error("TRACKING DETAIL ERROR:", err);
     res.status(500).json({ message: "Error loading tracking detail" });

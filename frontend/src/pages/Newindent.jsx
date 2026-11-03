@@ -50,19 +50,45 @@ const flatDoc = (v, p, out) => {
     Object.keys(v).forEach((k) => flatDoc(v[k], p ? p + "." + k : k, out));
     return out;
   }
-  out[p] = /^\d{4}-\d\d-\d\dT/.test(String(v)) ? new Date(v).toLocaleString("en-IN") : String(v);
+  out[p] = /^\d{4}-\d\d-\d\dT/.test(String(v))
+  ? (/T00:00:00(\.000)?Z$/.test(String(v)) || /T18:30:00(\.000)?Z$/.test(String(v))
+      ? new Date(v).toLocaleDateString("en-IN")
+      : new Date(v).toLocaleString("en-IN"))
+  : String(v);
   return out;
 };
+const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|userLocations\[\d+\])$/;
+const prettyKey = (k) =>
+  k
+    .replace(/\[(\d+)\]/g, " $1")
+    .split(".")
+    .map((s) => s.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase()))
+    .join(" › ");
+
 const FlowKV = ({ doc }) => {
   if (!doc) return <div className="py-2">No record yet for this stage.</div>;
-  const rows = Object.entries(flatDoc(doc, "", {}));
+  const rows = Object.entries(flatDoc(doc, "", {}))
+    .filter(([k, v]) => !HIDE_RX.test(k) && v !== "");
   return (
     <div className="table-responsive">
       <table className="table table-bordered table-sm mb-0 bg-white">
         <thead><tr><th style={{ width: "30%" }}>Field</th><th>Value</th></tr></thead>
-        <tbody>{rows.map(([k, v]) => <tr key={k}><td>{k}</td><td>{v}</td></tr>)}</tbody>
+        <tbody>{rows.map(([k, v]) => <tr key={k}><td>{prettyKey(k)}</td><td>{v}</td></tr>)}</tbody>
       </table>
     </div>
+  );
+};
+const FlowMulti = ({ docs }) => {
+  if (!docs || !docs.length) return <div className="py-2">No record yet for this stage.</div>;
+  return (
+    <>
+      {docs.map((d, i) => (
+        <div key={i} className="mb-3">
+          {docs.length > 1 && <b className="d-block mb-1">Record {i + 1} of {docs.length}</b>}
+          <FlowKV doc={d} />
+        </div>
+      ))}
+    </>
   );
 };
 const FlowList = ({ docs }) => {
@@ -3140,8 +3166,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         if (d && d.error) body = <div className="py-2">Could not load details.</div>;
                         else if (d) {
                           if (tab === "indent") body = <FlowKV doc={d.indent} />;
-                          else if (tab === "po") body = <FlowKV doc={d.order} />;
-                          else if (tab === "planner") body = <FlowKV doc={d.workOrder} />;
+                          else if (tab === "po") body = <FlowMulti docs={d.orders || (d.order ? [d.order] : [])} />;
+                          else if (tab === "planner") body = <FlowMulti docs={d.workOrders || (d.workOrder ? [d.workOrder] : [])} />;
                           else if (tab === "production") body = <FlowList docs={(d.production || []).filter((p) => !isQc(p))} />;
                           else if (tab === "qc") body = <FlowList docs={(d.production || []).filter(isQc)} />;
                           else if (tab === "dispatch") body = <FlowList docs={d.dispatch} />;
