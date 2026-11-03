@@ -206,6 +206,7 @@ function NewIndent() {
   // entry form is hidden until "Create New Indent" is clicked (or an indent is edited)
   const [showForm, setShowForm] = useState(false);
   const [showTrack, setShowTrack] = useState(false);
+  const [chatId, setChatId] = useState(null);
   const [showBell, setShowBell] = useState(false);
   const quantityRef = useRef();
   const locationRef = useRef();
@@ -2876,6 +2877,109 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
         )}
 
+        {/* ===== ARTWORK CHAT POPUP ===== */}
+        {(() => {
+          const ind = indents.find((x) => x._id === chatId);
+          if (!ind) return null;
+          const it = ind.items?.[0] || {};
+          const vers = it.artworkVersions || [];
+          const fmt = (d) => (d ? new Date(d).toLocaleString("en-IN") : "");
+          const msgs = [];
+          vers.forEach((v) => {
+            msgs.push({ kind: "upload", v });
+            if (v.reviewedBy || v.status === "Approved" || v.status === "Rejected") {
+              msgs.push({ kind: "review", v });
+            } else if (v.status === "Superseded") {
+              msgs.push({ kind: "sys", v });
+            }
+          });
+          return (
+            <div
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+              onClick={() => setChatId(null)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 720, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+              >
+                <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                  <i className="bi bi-chat-dots" style={{ color: "#e4572e" }}></i>
+                  <b style={{ fontSize: 15 }}>Artwork conversation</b>
+                  <span>{ind.indentNo}</span>
+                  <span className="text-muted">{it.customerName || ""}</span>
+                  <button type="button" className="btn-action-delete ms-auto" onClick={() => setChatId(null)}>Close</button>
+                </div>
+
+                <div style={{ overflowY: "auto", padding: 16, background: "#f4f6f8", flex: 1 }}>
+                  {msgs.length === 0 ? (
+                    <div className="text-center py-3">No artwork conversation yet.</div>
+                  ) : (
+                    msgs.map((m, i) => {
+                      const v = m.v;
+                      if (m.kind === "sys") {
+                        return (
+                          <div key={i} className="text-center mb-3">
+                            <small style={{ background: "#e3e7ec", borderRadius: 10, padding: "3px 10px" }}>
+                              v{v.version} replaced by a newer version
+                            </small>
+                          </div>
+                        );
+                      }
+                      const isUpload = m.kind === "upload";
+                      return (
+                        <div key={i} className="d-flex mb-3" style={{ justifyContent: isUpload ? "flex-start" : "flex-end" }}>
+                          <div
+                            style={{
+                              maxWidth: "82%",
+                              padding: "8px 12px",
+                              borderRadius: 10,
+                              background: isUpload ? "#ffffff" : v.status === "Rejected" ? "#fbdcdc" : "#d9f2e6",
+                              border: "1px solid " + (isUpload ? "#e3e7ec" : v.status === "Rejected" ? "#f0b4b4" : "#a9dcc3")
+                            }}
+                          >
+                            <div className="d-flex align-items-center gap-2 mb-1">
+                              <b>{isUpload ? (v.uploadedBy || "Requester") : (v.reviewedBy || "PO reviewer")}</b>
+                              <small>{isUpload ? "uploaded" : "reviewed"} v{v.version}</small>
+                            </div>
+
+                            {isUpload ? (
+                              <>
+                                {v.filePath ? (
+                                  <a href={`${BASE_URL}${v.filePath}`} target="_blank" rel="noreferrer">
+                                    <i className="bi bi-paperclip"></i> {v.fileName}
+                                  </a>
+                                ) : (
+                                  <span>{v.fileName}</span>
+                                )}
+                                <div style={{ marginTop: 4 }}>
+                                  <small>Note:</small> {v.note || "-"}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <span className={awBadge(v.status === "Superseded" ? "Approved" : v.status)}>
+                                  {v.status === "Superseded" ? "Approved (later replaced)" : v.status}
+                                </span>
+                                <div style={{ marginTop: 4 }}>
+                                  <small>Comment:</small> {v.comment || "-"}
+                                </div>
+                              </>
+                            )}
+
+                            <div style={{ textAlign: "right", marginTop: 4 }}>
+                              <small>{fmt(isUpload ? v.uploadedAt : v.reviewedAt || v.uploadedAt)}</small>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ===== ARTWORK UPDATES BELL ===== */}
         {(() => {
           const mine = indents.filter((ind) => {
@@ -3239,15 +3343,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </td>
                       <td style={{ minWidth: 170, textAlign: "left" }}>
                         {(ind.items[0]?.artworkVersions || []).length ? (
-                          ind.items[0].artworkVersions.map((v) => (
-                            <div key={v.version} className="mb-1">
-                              <span className={awBadge(v.status)}>v{v.version} {v.status}</span>{" "}
-                              {v.filePath && (
-                                <a href={`${BASE_URL}${v.filePath}`} target="_blank" rel="noreferrer">View</a>
-                              )}
-                              {v.comment && <small className="d-block">{v.comment}</small>}
-                            </div>
-                          ))
+                          (() => {
+                            const a = latestArtOf(ind);
+                            const n = ind.items[0].artworkVersions.length;
+                            return (
+                              <div className="d-flex flex-column gap-1 align-items-start">
+                                {a && <span className={awBadge(a.status)}>v{a.version} {a.status}</span>}
+                                <button type="button" className="btn-action-edit" onClick={() => setChatId(ind._id)}>
+                                  <i className="bi bi-chat-dots"></i> Chat ({n})
+                                </button>
+                              </div>
+                            );
+                          })()
                         ) : ind.items[0]?.artwork?.filePath ? (
                           <a href={`${BASE_URL}${ind.items[0].artwork.filePath}`} target="_blank" rel="noreferrer">
                             View
