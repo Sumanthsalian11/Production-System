@@ -845,6 +845,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setSearchMode(ind.indentType === "sample" ? "sample" : "code");
     setEditingId(ind._id);
     setShowForm(true);
+    setShowTrack(false);
 
     // bring the whole form panel into view, then auto-focus first input field
     stageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2137,14 +2138,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           <button
             type="button"
             className={`mode-pill-btn ${showForm ? "active" : ""}`}
-            onClick={() => setShowForm((prev) => !prev)}
+            onClick={() => { setShowForm((prev) => !prev); setShowTrack(false); }}
           >
             <i className="bi bi-plus-circle"></i> Create New Indent
           </button>
           <button
             type="button"
             className={`mode-pill-btn ${showTrack ? "active" : ""}`}
-            onClick={() => setShowTrack((prev) => !prev)}
+            onClick={() => { setShowTrack((prev) => !prev); setShowForm(false); }}
           >
             <i className="bi bi-truck"></i> Track
           </button>
@@ -2559,7 +2560,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </PoField>
                     )}
 
-                    <PoField className="col-12 col-md-4" icon="bi-person" label="Raised By" alwaysFloat>
+                    <PoField className="col-12 col-md-4" icon="bi-person" label="Raised By" alwaysFloat hide>
                       <input className="po-input" value={loggedInUser} readOnly />
                     </PoField>
 
