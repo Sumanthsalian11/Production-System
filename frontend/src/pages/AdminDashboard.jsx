@@ -2863,9 +2863,9 @@ const [supplierFilter, setSupplierFilter] = useState("");
                             {i.jobSize}
                           </span>
                           <div style={{ display: "flex", gap: "8px" }}>
-                            {i.pdfPath && (
+                            {(i.artworkVersions?.length > 0 || i.pdfPath) && (
                               <a
-                                href={`${BASE_URL}${i.pdfPath}`}
+                                href={`${BASE_URL}${i.artworkVersions?.length ? i.artworkVersions[i.artworkVersions.length - 1].filePath : i.pdfPath}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="pro-btn"
