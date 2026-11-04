@@ -265,6 +265,11 @@ function NewIndent() {
   const [awNote, setAwNote] = useState("");
   const awFileInputRef = useRef(null);
 
+  // artwork saved against the item code (loads when a product code / description is picked)
+  const [masterArt, setMasterArt] = useState([]);
+  const masterArtInputRef = useRef(null);
+
+
   // ===== FILTER STATES =====
   const [indentNoFilter, setIndentNoFilter] = useState("");
   const [productCodeFilter, setProductCodeFilter] = useState("");
@@ -360,6 +365,50 @@ function NewIndent() {
     // several items match: pick the first only when both dropdowns are chosen
     return form.customerName && form.materialType ? codes[0] || "" : "";
   }, [itemList, form.customerName, form.materialType, form.productCode]);
+
+  // code used for artwork: the matched item in Sample Request, the typed code otherwise
+  const artCode = searchMode === "sample" ? sampleMatchCode : form.productCode;
+
+  useEffect(() => {
+    let live = true;
+    if (!artCode) { setMasterArt([]); return; }
+    axios
+      .get(`${BASE_URL}/api/master/items/${artCode}`)
+      .then((r) => { if (live) setMasterArt(r.data?.artworkVersions || []); })
+      .catch(() => { if (live) setMasterArt([]); });
+    return () => { live = false; };
+  }, [artCode]);
+
+  // Sample Request: Description dropdown options follow the selected Customer / Product Type
+  const sampleDescOptions = useMemo(
+    () =>
+      itemList.filter(
+        (it) =>
+          itemCodeOf(it) &&
+          norm(it.description) &&
+          (!form.customerName || norm(it.customerName) === norm(form.customerName)) &&
+          (!form.materialType || norm(it.materialType) === norm(form.materialType))
+      ),
+    [itemList, form.customerName, form.materialType]
+  );
+
+  const pickSampleDesc = (code) => {
+    const it = code ? itemList.find((x) => itemCodeOf(x) === code) : null;
+    if (!it) {
+      setForm((prev) => ({ ...prev, productCode: "", description: "" }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      productCode: code,
+      customerName: it.customerName || prev.customerName,
+      materialType: it.materialType || prev.materialType,
+      description: it.description || "",
+      colorFront: it.colorFront ?? "",
+      colorBack: it.colorBack ?? "",
+      jobSize: it.jobSize || ""
+    }));
+  };
 
   // Sample Request: fill Description, colours and job size from the matched item
   useEffect(() => {
@@ -642,7 +691,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     if (searchMode === "sample") {
       if (!form.sampleRequestType) newErrors.sampleRequestType = "Required";
       if (!form.sampleType) newErrors.sampleType = "Required";
-    } else if (REQUIRE_ARTWORK_UPLOAD && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
+    } else if (REQUIRE_ARTWORK_UPLOAD && !masterArt.length && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
       newErrors.artwork = "Upload an artwork version. The PO reviewer will approve or reject it.";
       Swal.fire({
         icon: "warning",
@@ -1144,8 +1193,57 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   const liveArtwork = artworkVersions.filter((v) => v.status !== "Superseded");
   const latestArtwork = liveArtwork[liveArtwork.length - 1] || artworkVersions[artworkVersions.length - 1] || null;
 
+  const nextMasterVer = masterArt.length ? Math.max(...masterArt.map((v) => v.version || 0)) + 1 : 1;
+
+  const changeMasterArtwork = async (file) => {
+    if (!file || !artCode) return;
+    const fd = new FormData();
+    fd.append("artwork", file);
+    fd.append("note", awNote || "");
+    try {
+      const res = await axios.post(`${BASE_URL}/api/master/items/${artCode}/artwork`, fd, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMasterArt(res.data?.artworkVersions || []);
+      setAwNote("");
+      Swal.fire({ icon: "success", title: "Artwork saved as V" + nextMasterVer, timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: "error", title: "Upload failed", text: err.response?.data?.message || "Could not save artwork" });
+    }
+    if (masterArtInputRef.current) masterArtInputRef.current.value = "";
+  };
+
   const addArtworkVersion = () => {
+    // item already has saved artwork: send its LATEST version with this indent (no new version is created)
+    if (artCode && masterArt.length > 0) {
+      const last = masterArt[masterArt.length - 1];
+      setArtworkVersions([
+        {
+          version: last.version,
+          file: null,
+          fileName: last.fileName,
+          filePath: last.filePath,
+          note: last.note || "From item artwork V" + last.version,
+          status: "Pending",
+          comment: "",
+          uploadedBy: last.uploadedBy || loggedInUser,
+          uploadedAt: last.uploadedAt || new Date().toISOString()
+        }
+      ]);
+      setErrors((prev) => ({ ...prev, artwork: "" }));
+      return;
+    }
     if (!awFile) { awFileInputRef.current?.focus(); return; }
+
+    // production indent with a product code: save the file against the item (V1, V2, V3...)
+    if (artCode) {
+      changeMasterArtwork(awFile).then(() => {
+        setAwFile(null);
+        if (awFileInputRef.current) awFileInputRef.current.value = "";
+        setErrors((prev) => ({ ...prev, artwork: "" }));
+      });
+      return;
+    }
     setArtworkVersions((prev) => {
       const nextNo = prev.length ? Math.max(...prev.map((v) => v.version)) + 1 : 1;
       // a newer upload replaces the previous pending one
@@ -2383,8 +2481,23 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     )}
                   </PoField>
 
-                  <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(form.description)}>
-                    <input name="description" className="po-input" value={form.description} title={form.description} readOnly={searchMode !== "sample"} onChange={handleChange} />
+                  <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(form.description)} alwaysFloat={custIsSelect} caret={custIsSelect}>
+                    {custIsSelect ? (
+                      <select
+                        name="description"
+                        className="po-input"
+                        value={sampleMatchCode && form.description ? sampleMatchCode : ""}
+                        title={form.description}
+                        onChange={(e) => pickSampleDesc(e.target.value)}
+                      >
+                        <option value="">Select Description</option>
+                        {sampleDescOptions.map((it) => (
+                          <option key={itemCodeOf(it)} value={itemCodeOf(it)}>{norm(it.description)}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input name="description" className="po-input" value={form.description} title={form.description} readOnly={searchMode !== "sample"} onChange={handleChange} />
+                    )}
                   </PoField>
                   <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" filled={has(form.colorFront)}>
                     <input name="colorFront" className="po-input" value={form.colorFront} title={form.colorFront} readOnly={searchMode !== "sample"} onChange={handleChange} />
@@ -2788,8 +2901,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
                 <div className="row g-2 mb-2">
                   <PoField className="col-12 col-md-4" icon="bi-paperclip" label="Artwork File" alwaysFloat>
+                    {artCode && masterArt.length > 0 && (
+                      <input
+                        type="text"
+                        className="po-input"
+                        readOnly
+                        value={`V${masterArt[masterArt.length - 1].version} - ${masterArt[masterArt.length - 1].fileName}`}
+                        title={masterArt[masterArt.length - 1].fileName}
+                      />
+                    )}
                     <input
                       ref={awFileInputRef}
+                      style={artCode && masterArt.length > 0 ? { display: "none" } : undefined}
                       type="file"
                       className="po-input"
                       accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
@@ -2817,6 +2940,52 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
 
                 {errors.artwork && <small className="indent-error-text mb-2">{errors.artwork}</small>}
+
+                {artCode && (
+                  <div className="mb-2 p-2" style={{ border: "1px dashed #b8c0cb", borderRadius: 8, fontSize: 12 }}>
+                    <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
+                      <b>Item artwork (saved against {form.productCode})</b>
+                      <span className={awBadge("Approved")}>
+                        {masterArt.length ? "Latest V" + masterArt[masterArt.length - 1].version : "No artwork yet"}
+                      </span>
+                      <span>{masterArt.length} version{masterArt.length === 1 ? "" : "s"}</span>
+                      <input
+                        ref={masterArtInputRef}
+                        type="file"
+                        style={{ display: "none" }}
+                        accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
+                        onChange={(e) => changeMasterArtwork(e.target.files?.[0])}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-export btn-sm"
+                        onClick={() => masterArtInputRef.current?.click()}
+                      >
+                        {masterArt.length ? "Change (upload V" + nextMasterVer + ")" : "Upload V1"}
+                      </button>
+                    </div>
+                    {masterArt.length > 0 && (
+                      <table className="table table-bordered table-sm align-middle mb-0">
+                        <thead className="table-light">
+                          <tr><th>Ver</th><th>File</th><th>Uploaded</th><th>Note</th></tr>
+                        </thead>
+                        <tbody>
+                          {[...masterArt].reverse().map((v) => (
+                            <tr key={v.version}>
+                              <td>V{v.version}</td>
+                              <td><a href={BASE_URL + v.filePath} target="_blank" rel="noreferrer">{v.fileName}</a></td>
+                              <td>
+                                {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
+                                <br /><small>{v.uploadedBy}</small>
+                              </td>
+                              <td>{v.note || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                )}
 
                 <div className="table-responsive" style={{ fontSize: "12px" }}>
                   <table className="table table-bordered table-sm align-middle mb-0">

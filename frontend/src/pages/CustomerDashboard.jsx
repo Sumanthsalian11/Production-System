@@ -1837,7 +1837,7 @@ const PAGE_SIZE = 30;
                       <th>Customer</th>
                       <th>Quantity</th>
                       <th>Location</th>
-                      <th>Item PDF</th>
+                     
                       <th>Artwork</th>
                       <th>Created By</th>
                       <th>Created Date</th>
@@ -1890,20 +1890,6 @@ const PAGE_SIZE = 30;
                           </td>
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
                           <td>{indent.location?.locationName || "-"}</td>
-                          <td>
-                            {indent.items[0]?.itemPdfPath ? (
-                              <a
-                                href={`${BASE_URL}${indent.items[0].itemPdfPath}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-sm btn-info"
-                              >
-                                View
-                              </a>
-                            ) : (
-                              "-"
-                            )}
-                          </td>
                           <td>
                             {(() => {
                               const it = indent.items[0] || {};

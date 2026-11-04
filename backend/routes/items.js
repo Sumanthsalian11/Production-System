@@ -6,6 +6,8 @@ const XLSX = require("xlsx");
 const path = require("path");
 const fs = require("fs");
 const upload = multer({ storage: multer.memoryStorage() });
+const authMiddleware = require("../middleware/authMiddleware");
+const User = require("../models/User");
 
 const pdfDir = path.join(__dirname, "..", "uploads", "pdfs");
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
@@ -15,6 +17,19 @@ const pdfStorage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `${req.params.itemCode}.pdf`),
 });
 const pdfUpload = multer({ storage: pdfStorage });
+
+// artwork files saved against an item code
+const artDir = path.join(__dirname, "..", "uploads", "artwork");
+if (!fs.existsSync(artDir)) fs.mkdirSync(artDir, { recursive: true });
+const artUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, artDir),
+    filename: (req, file, cb) =>
+      cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+router.use("/artwork-files", express.static(artDir));
 // BULK UPLOAD ITEMS VIA EXCEL
 router.post("/bulk-upload", upload.single("file"), async (req, res) => {
   try {
@@ -161,6 +176,46 @@ router.post("/:itemCode/pdf", pdfUpload.single("pdf"), async (req, res) => {
 /* ===========================
    UPDATE ITEM
 =========================== */
+/* ===========================
+   ARTWORK VERSIONS (saved against the item code)
+=========================== */
+router.post("/:itemCode/artwork", authMiddleware, artUpload.single("artwork"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No artwork file uploaded" });
+
+    const item = await Item.findOne({ itemCode: req.params.itemCode }).select("artworkVersions").lean();
+    if (!item) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ message: "Item not found" });
+    }
+
+    const user = await User.findById(req.user.id);
+    const list = item.artworkVersions || [];
+    const next = list.length ? Math.max(...list.map((v) => v.version || 0)) + 1 : 1;
+
+    const updated = await Item.findOneAndUpdate(
+      { itemCode: req.params.itemCode },
+      {
+        $push: {
+          artworkVersions: {
+            version: next,
+            fileName: req.file.originalname,
+            filePath: "/api/master/items/artwork-files/" + req.file.filename,
+            note: String(req.body.note || "").slice(0, 500),
+            uploadedBy: user ? user.name : "",
+            uploadedAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+    res.status(201).json(updated);
+  } catch (err) {
+    console.error("ITEM ARTWORK ERROR:", err);
+    res.status(500).json({ message: "Error saving artwork" });
+  }
+});
+
 router.put("/:id", async (req, res) => {
   try {
     const updated = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true });

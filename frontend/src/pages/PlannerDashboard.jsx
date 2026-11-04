@@ -153,6 +153,25 @@ function PlannerDashboard() {
   const [qtySaving, setQtySaving] = useState(false);
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
+
+  // latest saved artwork (else the old PDF) for each item code, from the Items master
+  const [itemFileMap, setItemFileMap] = useState({});
+  useEffect(() => {
+    axios
+      .get(`${BASE_URL}/api/master/items`)
+      .then((res) => {
+        const m = {};
+        (Array.isArray(res.data) ? res.data : []).forEach((it) => {
+          const av = it.artworkVersions || [];
+          const p = av.length ? av[av.length - 1].filePath : it.pdfPath;
+          if (p) m[String(it.itemCode)] = p;
+        });
+        setItemFileMap(m);
+      })
+      .catch(() => {});
+  }, []);
+  const itemFileOf = (o) =>
+    itemFileMap[String(o.products?.[0]?.productCode || o.productCode || "")] || o.itemPdfPath || "";
   const [workOrders, setWorkOrders] = useState([]);
 
   // ===== Server-side paging =====
@@ -4081,9 +4100,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                               <span className="badge-3d badge-3d-primary">{order.materialType || "-"}</span>
                             </td>
                             <td>
-                              {order.itemPdfPath ? (
+                              {itemFileOf(order) ? (
                                 <a
-                                  href={`${BASE_URL}${order.itemPdfPath}`}
+                                  href={`${BASE_URL}${itemFileOf(order)}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="btn-3d btn-3d-info btn-sm"
@@ -4197,7 +4216,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             <td>
                               {order.itemPdfPath ? (
                                 <a
-                                  href={`${BASE_URL}${order.itemPdfPath}`}
+                                  href={`${BASE_URL}${itemFileOf(order)}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="btn-3d btn-3d-info btn-sm"
@@ -5381,9 +5400,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                           </td>
                           <td className="text-center fw-bold">{wo.boxQty || "-"}</td>
                           <td className="text-center">
-                            {wo.itemPdfPath ? (
+                            {itemFileOf(wo) ? (
                               <a
-                                href={`${BASE_URL}${wo.itemPdfPath}`}
+                                href={`${BASE_URL}${itemFileOf(wo)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="btn-3d btn-3d-info btn-sm"

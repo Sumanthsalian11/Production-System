@@ -7,6 +7,7 @@ const IndentRequest = require("../models/Indentrequest");
 const CustomerOrder = require("../models/CustomerOrder");
 const authMiddleware = require("../middleware/authMiddleware");
 const User = require("../models/User");
+const Item = require("../models/Item");
 
 // =============================================
 // MULTER CONFIG (Customer Copy / Artwork uploads)
@@ -203,6 +204,26 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
 
     // ===== Artwork versions =====
     const artworkVersions = buildArtworkVersions(req, {}, userData.name);
+
+    // nothing uploaded with this indent: carry the item's latest saved artwork (PO reviewer still approves it)
+    if (!artworkVersions.length && productCode) {
+      const master = await Item.findOne({ itemCode: productCode }).select("artworkVersions").lean();
+      const last = master && (master.artworkVersions || []).slice(-1)[0];
+      if (last) {
+        artworkVersions.push({
+          version: last.version,
+          fileName: last.fileName,
+          filePath: last.filePath,
+          note: last.note || "From item artwork V" + last.version,
+          status: "Pending",
+          comment: "",
+          uploadedBy: last.uploadedBy || "",
+          uploadedAt: last.uploadedAt || new Date(),
+          reviewedBy: "",
+          reviewedAt: null
+        });
+      }
+    }
     const latestArt = pickLatestArtwork(artworkVersions);
 
     // Create indent item
