@@ -186,7 +186,7 @@ const latestArtOf = (ind) => {
 
 const BLANK_ITEM = {
   itemCode: "", uniqueCode: "", customerName: "", description: "", materialType: "",
-  colorFront: "", colorBack: "", wasteQty: "", jobSize: "", inkDetails: ""
+  colorFront: "", colorBack: "", wasteQty: "5", jobSize: "", inkDetails: "CMYK"
 };
 
 function NewIndent() {
@@ -309,6 +309,75 @@ function NewIndent() {
       ),
     [itemList]
   );
+
+  // next running product code: P01, P02, ... (looks at the Items master and saved indents)
+  const nextProductCode = useMemo(() => {
+    let max = 0;
+    [
+      ...itemList.map((it) => itemCodeOf(it)),
+      ...indents.map((x) => String(x.items?.[0]?.productCode || ""))
+    ].forEach((c) => {
+      const m = /^P(\d+)$/i.exec(c);
+      if (m) max = Math.max(max, Number(m[1]));
+    });
+    return "P" + String(max + 1).padStart(2, "0");
+  }, [itemList, indents]);
+
+  // Sample Request: Customer and Product Type dropdowns filter each other
+  const sampleCustomerNames = useMemo(
+    () =>
+      [...new Set(
+        itemList
+          .filter((it) => !form.materialType || norm(it.materialType) === norm(form.materialType))
+          .map((it) => norm(it.customerName))
+          .filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
+    [itemList, form.materialType]
+  );
+
+  const sampleTypeOptions = useMemo(
+    () =>
+      [...new Set(
+        itemList
+          .filter((it) => form.sampleRequestType === "new" || !form.customerName || norm(it.customerName) === norm(form.customerName))
+          .map((it) => norm(it.materialType))
+          .filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
+    [itemList, form.customerName, form.sampleRequestType]
+  );
+
+  // Sample Request: product code of the item that matches the selected Customer / Product Type
+  const sampleMatchCode = useMemo(() => {
+    if (!form.customerName && !form.materialType) return "";
+    const list = itemList.filter(
+      (it) =>
+        (!form.customerName || norm(it.customerName) === norm(form.customerName)) &&
+        (!form.materialType || norm(it.materialType) === norm(form.materialType))
+    );
+    const codes = [...new Set(list.map((it) => itemCodeOf(it)).filter(Boolean))];
+    if (form.productCode && codes.includes(form.productCode)) return form.productCode;
+    if (codes.length === 1) return codes[0];
+    // several items match: pick the first only when both dropdowns are chosen
+    return form.customerName && form.materialType ? codes[0] || "" : "";
+  }, [itemList, form.customerName, form.materialType, form.productCode]);
+
+  // Sample Request: fill Description, colours and job size from the matched item
+  useEffect(() => {
+    if (searchMode !== "sample" || editingId) return;
+    const it = sampleMatchCode ? itemList.find((x) => itemCodeOf(x) === sampleMatchCode) : null;
+    if (it) {
+      setForm((prev) => ({
+        ...prev,
+        description: it.description || "",
+        colorFront: it.colorFront ?? "",
+        colorBack: it.colorBack ?? "",
+        jobSize: it.jobSize || ""
+      }));
+    } else if (form.sampleRequestType !== "new") {
+      // no matching item: clear the auto-filled values
+      setForm((prev) => ({ ...prev, description: "", colorFront: "", colorBack: "", jobSize: "" }));
+    }
+  }, [sampleMatchCode, searchMode]);
 
   // product types available in the Items master (used by the Sample Request dropdown)
   const materialTypeOptions = useMemo(
@@ -595,6 +664,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       Object.entries(form).forEach(([key, value]) => {
         formData.append(key, value ?? "");
       });
+      if (searchMode === "sample") formData.set("productCode", sampleMatchCode);
       if (customerCopyFile) formData.append("customerCopy", customerCopyFile);
       if (artworkFile) formData.append("artwork", artworkFile);
 
@@ -668,9 +738,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       customerName: "",
       colorFront: "",
       colorBack: "",
-      wasteQty: "",
+      wasteQty: searchMode === "sample" ? "5" : "",
       jobSize: "",
-      inkDetails: "",
+      inkDetails: searchMode === "sample" ? "CMYK" : "",
       quantity: "",
       location: "",
       unitRate: "",
@@ -985,7 +1055,17 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     const touchesSample = searchMode === "sample" || m === "sample";
     setSearchMode(m);
     if (touchesSample) {
-      setForm((prev) => ({ ...prev, ...PRODUCT_FIELDS_BLANK, sampleRequestType: "", provisionalCustomerId: "", productFamily: "", physicalReference: "", expectedOrderValue: "" }));
+      setForm((prev) => ({
+        ...prev,
+        ...PRODUCT_FIELDS_BLANK,
+        wasteQty: m === "sample" ? "5" : "",
+        inkDetails: m === "sample" ? "CMYK" : "",
+        sampleRequestType: "",
+        provisionalCustomerId: "",
+        productFamily: "",
+        physicalReference: "",
+        expectedOrderValue: ""
+      }));
       setCustSearch("");
       setDescSearch("");
       setErrors({});
@@ -1006,13 +1086,24 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   // ===== ADD CUSTOMER + ITEM TO THE ITEMS MASTER =====
   const saveNewItem = async () => {
-    const code = onlyAlphaNumeric(newItem.itemCode);
-    if (!code || !norm(newItem.customerName)) {
-      Swal.fire({ icon: "warning", title: "Required", text: "Product code and customer name are required.", confirmButtonColor: "#3085d6" });
+    if (!norm(newItem.customerName)) {
+      Swal.fire({ icon: "warning", title: "Required", text: "Customer name is required.", confirmButtonColor: "#3085d6" });
       return;
     }
     try {
-      const payload = { ...newItem, itemCode: code };
+      // read the latest master so the serial continues correctly: P01, P02, P03 ...
+      const cur = await axios.get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } });
+      const curList = Array.isArray(cur.data) ? cur.data : (cur.data?.data || []);
+      let max = 0;
+      [...curList.map((it) => itemCodeOf(it)), ...indents.map((x) => String(x.items?.[0]?.productCode || ""))].forEach((c) => {
+        const m = /^P(\d+)$/i.exec(c);
+        if (m) max = Math.max(max, Number(m[1]));
+      });
+      const code = "P" + String(max + 1).padStart(2, "0");
+
+      // no unique code is sent; ink is always CMYK
+      const { uniqueCode, ...rest } = newItem;
+      const payload = { ...rest, itemCode: code, inkDetails: "CMYK" };
       payload.wasteQty = newItem.wasteQty === "" ? undefined : Number(newItem.wasteQty);
       await axios.post(`${BASE_URL}/api/master/items`, payload);
 
@@ -1020,7 +1111,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       const res = await axios.get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } });
       setItemList(Array.isArray(res.data) ? res.data : (res.data?.data || []));
 
-      // put the new item into the indent form
+      // put the new item into the sample form
       setForm((prev) => ({
         ...prev,
         productCode: code,
@@ -1031,11 +1122,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         colorBack: newItem.colorBack,
         wasteQty: newItem.wasteQty,
         jobSize: newItem.jobSize,
-        inkDetails: newItem.inkDetails
+        inkDetails: "CMYK"
       }));
       setShowAddCust(false);
       setNewItem(BLANK_ITEM);
-      Swal.fire({ icon: "success", title: "Saved", text: "Customer item added to the master.", width: "350px", confirmButtonColor: "#3085d6" });
+      Swal.fire({ icon: "success", title: "Saved", text: `Customer item added to the master as ${code}.`, width: "350px", confirmButtonColor: "#3085d6" });
     } catch (err) {
       Swal.fire({ icon: "error", title: "Error", text: err.response?.data?.message || "Could not save the item", confirmButtonColor: "#d33" });
     }
@@ -2202,7 +2293,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4"
                     icon="bi-upc-scan"
                     label="Product Code"
-                    required={searchMode !== "sample"}
+                    alwaysFloat
+                    
                     filled={has(form.productCode)}
                     after={
                     <>
@@ -2212,11 +2304,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   >
                     <input
                       ref={productCodeRef}
-                      readOnly={searchMode === "customer"}
+                      readOnly={searchMode !== "code"}
                       type="text"
                       name="productCode"
                       className="po-input"
-                      value={form.productCode}
+                      value={searchMode === "sample" ? sampleMatchCode : form.productCode}
  title={form.productCode}
                       onChange={handleChange}
                       onKeyDown={(e) => e.key === "Enter" && quantityRef.current.focus()}
@@ -2233,10 +2325,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         onChange={handleChange}
                       >
                         <option value="">Select Product Type</option>
-                        {form.materialType && !materialTypeOptions.includes(form.materialType) && (
+                        {form.materialType && !sampleTypeOptions.includes(form.materialType) && (
                           <option value={form.materialType}>{form.materialType}</option>
                         )}
-                        {materialTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                        {sampleTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
                     ) : (
                       <input className="po-input" value={form.materialType} title={form.materialType} readOnly />
@@ -2253,10 +2345,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         onChange={handleChange}
                       >
                         <option value="">Select Customer</option>
-                        {form.customerName && !customerNames.includes(form.customerName) && (
+                        {form.customerName && !sampleCustomerNames.includes(form.customerName) && (
                           <option value={form.customerName}>{form.customerName}</option>
                         )}
-                        {customerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                        {sampleCustomerNames.map((n) => <option key={n} value={n}>{n}</option>)}
                       </select>
                     ) : searchMode === "sample" ? (
                       <input
@@ -2287,7 +2379,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(form.wasteQty)}>
                     <input type="number" name="wasteQty" className="po-input" value={form.wasteQty} title={form.wasteQty} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
-                  <PoField className="col-12 col-md-8" icon="bi-droplet" label="Ink Details" filled={has(form.inkDetails)}>
+                  <PoField className="col-12 col-md-8" icon="bi-droplet" label="Ink Details" hide={searchMode === "sample"} filled={has(form.inkDetails)}>
                     <input name="inkDetails" className="po-input" value={form.inkDetails} title={form.inkDetails} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                 </div>
@@ -2835,10 +2927,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               </div>
               <div className="p-3">
                 <div className="row g-2">
-                  <PoField className="col-6 col-md-4" icon="bi-upc-scan" label="Product Code" required filled={has(newItem.itemCode)}>
-                    <input className="po-input" value={newItem.itemCode} onChange={(e) => setNewItem((p) => ({ ...p, itemCode: onlyAlphaNumeric(e.target.value) }))} />
+                  <PoField className="col-6 col-md-4" icon="bi-upc-scan" label="Product Code" alwaysFloat>
+                    <input className="po-input" value={nextProductCode} readOnly />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-hash" label="Unique Code" filled={has(newItem.uniqueCode)}>
+                  <PoField className="col-6 col-md-4" icon="bi-hash" label="Unique Code" hide>
                     <input className="po-input" value={newItem.uniqueCode} onChange={(e) => setNewItem((p) => ({ ...p, uniqueCode: e.target.value }))} />
                   </PoField>
                   <PoField className="col-12 col-md-4" icon="bi-person" label="Customer Name" required filled={has(newItem.customerName)}>
@@ -2865,7 +2957,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(newItem.wasteQty)}>
                     <input type="number" className="po-input" value={newItem.wasteQty} onChange={(e) => setNewItem((p) => ({ ...p, wasteQty: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-12" icon="bi-droplet" label="Ink Details" filled={has(newItem.inkDetails)}>
+                  <PoField className="col-12" icon="bi-droplet" label="Ink Details" hide>
                     <input className="po-input" value={newItem.inkDetails} onChange={(e) => setNewItem((p) => ({ ...p, inkDetails: e.target.value }))} />
                   </PoField>
                 </div>
