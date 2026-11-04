@@ -57,7 +57,7 @@ const flatDoc = (v, p, out) => {
   : String(v);
   return out;
 };
-const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|userLocations\[\d+\])$/;
+const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|updatedAt|userLocations\[\d+\])$|artworkVersions\[\d+\]\.filePath$|(^|\.)artwork\.filePath$/;
 const prettyKey = (k) =>
   k
     .replace(/\[(\d+)\]/g, " $1")
@@ -2120,6 +2120,24 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .indent-app-container .indent-split .table{font-size:13px}
         .indent-app-container .indent-split .form-check-label{font-size:14px}
 
+        /* ---- Track popup (style only) ---- */
+        .trk-overlay{position:fixed;inset:0;z-index:1996;display:flex;align-items:center;justify-content:center;background:rgba(11,58,69,.55);backdrop-filter:blur(3px);animation:pgfade .2s ease-out}
+        .trk-modal{width:94vw;max-width:1400px;max-height:90vh;overflow:auto;background:#fff;border-radius:12px;border-top:4px solid #e4572e!important;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:18px 24px 24px!important;animation:pgpop .3s cubic-bezier(.22,1,.36,1)}
+        .trk-modal>div:first-child{padding-bottom:12px;margin-bottom:16px!important;border-bottom:1px solid #e3e7ec}
+        .trk-modal>div:first-child>b{font-size:17px;font-weight:700;color:#0b3a45;background:#e3f1f4;border:1px solid #b9d6dd;border-radius:6px;padding:3px 12px}
+        .trk-modal>div:first-child>span{font-size:14px;font-weight:600}
+        .trk-modal .btn-action-delete{padding:6px 18px!important;font-size:12px!important}
+        .trk-flow-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+        .trk-flow-h{font-size:13px;text-transform:uppercase;letter-spacing:.6px;padding-left:8px;border-left:3px solid #e4572e;margin-right:6px}
+        .trk-chip{padding:3px 12px;border-radius:999px;background:#f4f6f8;border:1px solid #e3e7ec;font-size:12px}
+        .trk-chip.trk-now{background:#fde3d8;border-color:#f5b9a1}
+        .trk-cards{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 10px}
+        .trk-card{cursor:pointer;flex:1 1 0;min-width:170px;background:var(--c-bg,#f4f6f8);border:1px solid var(--c-bd,#b8c0cb);border-top:4px solid var(--c-bd,#b8c0cb);border-radius:8px;padding:10px 12px;transition:transform .15s ease,box-shadow .15s ease}
+        .trk-card:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(16,24,40,.15)}
+        .trk-card>b{display:block;font-size:13px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed rgba(0,0,0,.18)}
+        .trk-ln{font-size:12px;line-height:1.55;color:#000}
+        @media(max-width:768px){.trk-cards{flex-direction:column}.trk-card{min-width:0}}
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -3638,7 +3656,15 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             const nx = P[i + 1];
             const log = getTrackLog(ind);
             return (
-              <div className="bar-body trk-panel">
+              <div
+                className="trk-overlay"
+                onClick={() => setTrackId(null)}
+              >
+              <div
+                className="bar-body trk-panel trk-modal"
+                onClick={(e) => e.stopPropagation()}
+                
+              >
                 <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
                   <b>{ind.indentNo}</b>
                   <span>{it.customerName} - {it.description || it.productCode}</span>
@@ -3671,14 +3697,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   const CL = { done: ["#d9f2e6", "#1f9d6b"], partial: ["#fff3d6", "#d98a00"], current: ["#fde3d8", "#e4572e"], stopped: ["#fbdcdc", "#d64545"] };
                   return (
                     <div className="mt-2 mb-2">
-                      <div className="mb-1"><b>Order flow</b>{fl.woNo ? <> &nbsp;WO <b>{fl.woNo}</b></> : null}{fl.poNo ? <> &nbsp;PO <b>{fl.poNo}</b></> : null} &nbsp;Now: <b>{fl.current}</b></div>
-                      <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
+                      <div className="trk-flow-title"><b className="trk-flow-h">Order flow</b>{fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}{fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}<span className="trk-chip trk-now">Now: <b>{fl.current}</b></span></div>
+                      <div className="trk-cards">
                         {fl.stages.map((st) => {
                           const c = CL[st.state] || ["#f4f6f8", "#b8c0cb"];
                           return (
-                            <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); }} style={{ cursor: "pointer", flex: "1 1 0", minWidth: 150, background: c[0], border: "1px solid " + c[1], borderRadius: 6, padding: "6px 10px" }}>
+                            <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); }} className="trk-card" style={{ "--c-bg": c[0], "--c-bd": c[1] }}>
                               <b style={{ color: c[1] }}>{st.label}</b>
-                              {st.lines.map((ln, q) => <div key={q} style={{ fontSize: 11.5 }}>{ln}</div>)}
+                              {st.lines.map((ln, q) => <div key={q} className="trk-ln">{ln}</div>)}
                             </div>
                           );
                         })}
@@ -3710,7 +3736,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                               </div>
                               <div className="d-flex flex-wrap gap-1 px-3 pt-2 pb-2">
                                 {fl.stages.map((x) => (
-                                  <button key={x.key} type="button" className={"btn btn-sm " + (x.key === tab ? "btn-export" : "btn-outline-secondary")}
+                                  <button key={x.key} type="button" className="btn btn-sm"
+                    style={{
+                      fontWeight: 600,
+                      background: x.key === tab ? "#0f5560" : "#b9d6dd",
+                      color: x.key === tab ? "#fff" : "#000",
+                      border: "1px solid " + (x.key === tab ? "#0b3a45" : "#8fbcc7")
+                    }}
                                     onClick={() => setFlowSel(ind.indentNo + "|" + x.key)}>{x.label}</button>
                                 ))}
                               </div>
@@ -3757,6 +3789,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <p>Final stage reached.</p>
                 )}
                 {trackErr && <small className="indent-error-text">{trackErr}</small>}
+              </div>
               </div>
             );
           })()}
