@@ -3311,7 +3311,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th>Type of Billing</th>
                   <th>Customer Copy</th>
                   <th>Artwork</th>
-                  <th>Item PDF</th>
+                
                   <th>Status</th>
                   <th>Remarks</th>
                   <th>Requested By</th>
@@ -3472,13 +3472,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           </a>
                         ) : "-"}
                       </td>
-                      <td>
-                        {ind.items[0]?.itemPdfPath ? (
-                          <a href={`${BASE_URL}${ind.items[0].itemPdfPath}`} target="_blank" rel="noreferrer">
-                            View
-                          </a>
-                        ) : "-"}
-                      </td>
+                    
                       <td>
                         <span className={`custom-badge ${
                           ind.status === "PENDING_PO" ? "badge-pending" :
