@@ -256,6 +256,7 @@ function ProductionRealDashboard() {
   const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
   const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
+  const [hiddenSummaryPairs, setHiddenSummaryPairs] = useState([]); // "activityId__machineId" hidden in Summary Report
 
   const selectedMaterial =
     selectedMaterialIndex !== ""
@@ -750,6 +751,12 @@ function ProductionRealDashboard() {
     customerNames: uniqueList(serverOptions.customerNames),
   };
 
+  /* Machine filter options follow the selected User Location */
+  const machineOptions =
+    locationFilter && locationMachineNames
+      ? uniqueList(serverOptions.machineNames).filter((m) => locationMachineNames.has(m))
+      : uniqueList(serverOptions.machineNames);
+
     // ================= LAST USED PER ACTIVITY =================
   const lastUsedByActivity = useMemo(() => {
     const map = new Map();
@@ -1156,6 +1163,18 @@ const statusColumns = useMemo(() => {
   return [...seen].map(([key, label]) => ({ key, label: statusColLabel(label) }));
 }, [machineStatuses, productionList, summaryStatuses]);
 
+  // hidden pairs from Admin -> the "activityName__machineName" keys the summary rows use
+  const hiddenSummaryKeys = useMemo(() => {
+    const set = new Set();
+    hiddenSummaryPairs.forEach((p) => {
+      const [aId, mId] = String(p).split("__");
+      const a = activities.find((x) => String(x._id) === aId);
+      const m = machines.find((x) => String(x._id) === mId);
+      if (a && m) set.add(`${a.activityName || "-"}__${m.machineName || "-"}`);
+    });
+    return set;
+  }, [hiddenSummaryPairs, activities, machines]);
+
   const buildProductionSummary = () => {
 
 
@@ -1306,11 +1325,15 @@ const statusColumns = useMemo(() => {
 
     const locNames = locationMachineNames;
     return Array.from(groupMap.values())
-      .map((group) =>
-        locNames
-          ? { ...group, rows: new Map([...group.rows].filter(([, r]) => locNames.has(r.machineName))) }
-          : group
-      )
+      .map((group) => ({
+        ...group,
+        rows: new Map(
+          [...group.rows].filter(
+            ([key, r]) =>
+              (!locNames || locNames.has(r.machineName)) && !hiddenSummaryKeys.has(key)
+          )
+        ),
+      }))
       .filter((group) => group.rows.size > 0)
       .filter((group) =>
         !String(group.activityName || "")
@@ -1335,7 +1358,7 @@ const statusColumns = useMemo(() => {
   // still only computed while the Summary view is on screen
   const productionSummaryReport = useMemo(
     () => (recordsView === "summary" ? buildProductionSummary() : []),
-    [recordsView, summaryRows, activities, machines, statusColumns, locationMachineNames]
+    [recordsView, summaryRows, activities, machines, statusColumns, locationMachineNames, hiddenSummaryKeys]
   );
 
   // ================= JWT =================
@@ -1548,6 +1571,14 @@ const statusColumns = useMemo(() => {
     fetchItemStages();
     fetchProductionReal();
     fetchFilterOptions();
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get(`${BASE_URL}/api/summary-display`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setHiddenSummaryPairs((res.data.hidden || []).map(String)))
+      .catch((err) => console.error("Error fetching summary display:", err));
   }, [token]);
 
   useEffect(() => {
@@ -3706,7 +3737,14 @@ const statusColumns = useMemo(() => {
 
             <div className="col-6 col-md-4 col-xl-2">
               <label className="form-label text-black"><FieldIcon name="User Location" />User Location</label>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="form-select">
+              <select
+                value={locationFilter}
+                onChange={(e) => {
+                  setLocationFilter(e.target.value);
+                  setFilters((prev) => ({ ...prev, machine: "" }));
+                }}
+                className="form-select"
+              >
                 <option value="">All Locations</option>
                 {locationOptions.map((loc, i) => (
                   <option key={i} value={loc}>{loc}</option>
@@ -3727,7 +3765,7 @@ const statusColumns = useMemo(() => {
               <label className="form-label text-black"><FieldIcon name="Machines" />Machines</label>
               <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select">
                 <option value="">All Machines</option>
-                {dropdownOptions.machineNames.map((machine, i) => (
+                {machineOptions.map((machine, i) => (
                   <option key={i} value={machine}>{machine}</option>
                 ))}
               </select>

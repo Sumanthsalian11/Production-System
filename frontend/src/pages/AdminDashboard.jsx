@@ -613,6 +613,113 @@ const [supplierFilter, setSupplierFilter] = useState("");
     if (activeSection === "activityValidation") fetchActivityValidation();
   }, [activeSection]);
 
+  // ---- Summary Report Display (which activity / machine rows show) ----
+  const [summaryHidden, setSummaryHidden] = useState([]); // "activityId__machineId"
+
+  const fetchSummaryDisplay = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/summary-display`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSummaryHidden((res.data.hidden || []).map(String));
+    } catch (err) {
+      console.error("Error fetching summary display:", err);
+    }
+  };
+
+  const saveSummaryDisplay = async () => {
+    try {
+      await axios.put(
+        `${BASE_URL}/api/summary-display`,
+        { hidden: summaryHidden },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Summary report display saved successfully");
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save summary report display");
+    }
+  };
+
+  const activityMachineIds = (a) => (a.machines || []).map((m) => String(m._id || m));
+
+  const toggleSummaryPair = (aId, mId) => {
+    const key = `${aId}__${mId}`;
+    setSummaryHidden((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const setActivitySummary = (a, show) => {
+    const keys = activityMachineIds(a).map((mId) => `${a._id}__${mId}`);
+    setSummaryHidden((prev) => {
+      const rest = prev.filter((k) => !keys.includes(k));
+      return show ? rest : [...rest, ...keys];
+    });
+  };
+
+  // ---- Perso Summary Report Display (which machine / printer rows show) ----
+  const [persoHidden, setPersoHidden] = useState([]); // "machineName__printerName"
+  const [summaryTab, setSummaryTab] = useState("floor"); // "floor" | "perso"
+
+  // every machine of the Perso Printing activity (machines without printers get one "-" row)
+  const persoMachineList = (() => {
+    const list = activities.filter((a) => /perso/i.test(a.activityName || ""));
+    const act = list.find((a) => /print/i.test(a.activityName || "")) || list[0];
+    const ids = new Set((act?.machines || []).map((m) => String(m._id || m)));
+    return machines
+      .filter((m) => ids.has(String(m._id)))
+      .map((m) => {
+        const names = printers.find((pr) => pr.machineName === m.machineName)?.printerNames || [];
+        return { _id: m._id, machineName: m.machineName, printerNames: names.length ? names : ["-"] };
+      });
+  })();
+
+  const fetchPersoDisplay = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/summary-display/perso`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPersoHidden((res.data.hidden || []).map(String));
+    } catch (err) {
+      console.error("Error fetching perso summary display:", err);
+    }
+  };
+
+  const savePersoDisplay = async () => {
+    try {
+      await axios.put(
+        `${BASE_URL}/api/summary-display/perso`,
+        { hidden: persoHidden },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Perso summary display saved successfully");
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save perso summary display");
+    }
+  };
+
+  const togglePersoPair = (mName, pName) => {
+    const key = `${mName}__${pName}`;
+    setPersoHidden((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const setMachinePerso = (p, show) => {
+    const keys = (p.printerNames || []).map((n) => `${p.machineName}__${n}`);
+    setPersoHidden((prev) => {
+      const rest = prev.filter((k) => !keys.includes(k));
+      return show ? rest : [...rest, ...keys];
+    });
+  };
+
+  useEffect(() => {
+    if (activeSection === "summaryDisplay") {
+      setSummaryTab("floor");
+      fetchPersoDisplay();
+    }
+  }, [activeSection]);
+
   const fetchRoles = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/api/master/roles`, { headers: { Authorization: `Bearer ${token}` } });
@@ -1305,6 +1412,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "supplier", label: "Supplier Master", icon: Factory },
     { id: "impWaste", label: "Impression Waste %", icon: Activity },
     { id: "activityValidation", label: "Activity Validation", icon: Activity },
+    { id: "summaryDisplay", label: "Summary Report Display", icon: Layers },
+
     { id: "freightCharge", label: "Freight Charge Type", icon: Layers },
     { id: "freightType", label: "Freight Type", icon: Layers },
     { id: "machineStatus", label: "Machine Status", icon: Activity },
@@ -3053,6 +3162,152 @@ const [supplierFilter, setSupplierFilter] = useState("");
               Save
             </button>
           </div>
+        </motion.div>
+      )}
+
+
+      {activeSection === "summaryDisplay" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Layers size={18} /> Summary Report Display</span>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+            <button
+              type="button"
+              className={`pro-btn ${summaryTab === "floor" ? "primary" : ""}`}
+              onClick={() => setSummaryTab("floor")}
+            >
+              Production Summary
+            </button>
+            <button
+              type="button"
+              className={`pro-btn ${summaryTab === "perso" ? "primary" : ""}`}
+              onClick={() => setSummaryTab("perso")}
+            >
+              Perso Summary
+            </button>
+          </div>
+
+          {summaryTab === "floor" && (
+            <>
+              <p style={{ marginBottom: 10, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
+                Tick the machines that should appear under each activity in the Production Summary Report
+                (and its Excel export). Unticked machines are hidden. New activities and machines show by default.
+              </p>
+
+              <div style={scrollContainerStyle}>
+                {activities
+                  .filter(
+                    (a) =>
+                      !String(a.activityName || "")
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]/g, "")
+                        .includes("persoprinting")
+                  )
+                  .map((a) => {
+                  const ids = activityMachineIds(a);
+                  const shown = ids.filter((mId) => !summaryHidden.includes(`${a._id}__${mId}`)).length;
+                  return (
+                    <div key={a._id} className="machine-picker" style={{ marginBottom: 10 }}>
+                      <div className="picker-header">
+                        <span><b>{a.activityName}</b></span>
+                        <strong>{shown} / {ids.length} shown</strong>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, margin: "6px 0" }}>
+                        <button type="button" className="pro-btn" onClick={() => setActivitySummary(a, true)}>
+                          Show all
+                        </button>
+                        <button type="button" className="pro-btn" onClick={() => setActivitySummary(a, false)}>
+                          Hide all
+                        </button>
+                      </div>
+                      <div className="machine-grid">
+                        {ids.map((mId) => {
+                          const m = machines.find((x) => String(x._id) === mId);
+                          if (!m) return null;
+                          const visible = !summaryHidden.includes(`${a._id}__${mId}`);
+                          return (
+                            <label key={mId} className={`machine-tile ${visible ? "selected" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={visible}
+                                onChange={() => toggleSummaryPair(a._id, mId)}
+                              />
+                              <span>{m.machineName}</span>
+                            </label>
+                          );
+                        })}
+                        {ids.length === 0 && <span style={{ color: "#4a6f8c" }}>No machines in this activity</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {activities.length === 0 && (
+                  <div style={{ padding: 14, textAlign: "center", color: "#4a6f8c" }}>No activities found</div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <button className="pro-btn primary" onClick={saveSummaryDisplay}>Save</button>
+              </div>
+            </>
+          )}
+
+          {summaryTab === "perso" && (
+            <>
+              <p style={{ marginBottom: 10, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
+                Tick the printers that should appear under each machine in the Perso Production Summary Report
+                (and its Excel export). Unticked printers are hidden. New printers show by default.
+              </p>
+
+              <div style={scrollContainerStyle}>
+                {persoMachineList.map((p) => {
+                  const names = p.printerNames || [];
+                  const shown = names.filter((n) => !persoHidden.includes(`${p.machineName}__${n}`)).length;
+                  return (
+                    <div key={p._id} className="machine-picker" style={{ marginBottom: 10 }}>
+                      <div className="picker-header">
+                        <span><b>{p.machineName}</b></span>
+                        <strong>{shown} / {names.length} shown</strong>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, margin: "6px 0" }}>
+                        <button type="button" className="pro-btn" onClick={() => setMachinePerso(p, true)}>
+                          Show all
+                        </button>
+                        <button type="button" className="pro-btn" onClick={() => setMachinePerso(p, false)}>
+                          Hide all
+                        </button>
+                      </div>
+                      <div className="machine-grid">
+                        {names.map((n) => {
+                          const visible = !persoHidden.includes(`${p.machineName}__${n}`);
+                          return (
+                            <label key={n} className={`machine-tile ${visible ? "selected" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={visible}
+                                onChange={() => togglePersoPair(p.machineName, n)}
+                              />
+                              <span>{n === "-" ? "No printer" : n}</span>
+                            </label>
+                          );
+                        })}
+                        {names.length === 0 && <span style={{ color: "#4a6f8c" }}>No printers for this machine</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {persoMachineList.length === 0 && (
+                  <div style={{ padding: 14, textAlign: "center", color: "#4a6f8c" }}>No machines found</div>
+                )}
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <button className="pro-btn primary" onClick={savePersoDisplay}>Save</button>
+              </div>
+            </>
+          )}
         </motion.div>
       )}
 

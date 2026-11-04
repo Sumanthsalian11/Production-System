@@ -724,6 +724,7 @@ export default function ProductionMachineStatusModule() {
   });
   const [locationFilter, setLocationFilter] = useState("");
   const [locationMachineNames, setLocationMachineNames] = useState(null); // null = no location selected
+  const [hiddenPersoKeys, setHiddenPersoKeys] = useState([]); // "machineName__printerName" hidden in Summary Report
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [recordsView, setRecordsView] = useState("details");
@@ -766,6 +767,14 @@ export default function ProductionMachineStatusModule() {
     setUserLocations(locations);
     setForm((prev) => ({ ...prev, userLocations: locations }));
   }, []);
+    /* ── Hidden machine / printer rows (set in Admin) ── */
+  useEffect(() => {
+    if (!token) return;
+    axios
+      .get(`${BASE_URL}/api/summary-display/perso`, authHeaders)
+      .then((res) => setHiddenPersoKeys((res.data.hidden || []).map(String)))
+      .catch((err) => console.error("Error fetching perso summary display:", err));
+  }, [token, authHeaders]);
 
   /* ── Machines allowed for the user's location(s) ── */
   useEffect(() => {
@@ -1218,7 +1227,20 @@ export default function ProductionMachineStatusModule() {
 
   const filteredRecords = records; // the server already filtered and paged these
   const locationOptions = filterOpts.locations;
-  const printerOptions  = filterOpts.printers;
+
+  /* Machine / Printer filter options follow the selected User Location */
+  const machineOptions = locationFilter && locationMachineNames
+    ? filterOpts.machines.filter((m) => locationMachineNames.has(m))
+    : filterOpts.machines;
+
+  const printerOptions = (() => {
+    if (!locationFilter || !locationMachineNames) return filterOpts.printers;
+    const allowed = new Set();
+    printers
+      .filter((p) => locationMachineNames.has(p.machineName))
+      .forEach((p) => (p.printerNames || []).forEach((n) => allowed.add(n)));
+    return filterOpts.printers.filter((n) => allowed.has(n));
+  })();
 
   const totalPages = Math.max(1, Math.ceil(serverTotal / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -1325,7 +1347,11 @@ export default function ProductionMachineStatusModule() {
     const locNames = locationMachineNames;
     return Array.from(groupMap.values()).map((group) => {
       const rows = Array.from(group.rows.values())
-        .filter((r) => !locNames || locNames.has(r.machineName))
+        .filter(
+          (r) =>
+            (!locNames || locNames.has(r.machineName)) &&
+            !hiddenPersoKeys.includes(`${r.machineName}__${r.printerName}`)
+        )
         .map((r) => ({
         ...r,
         dayRemarks: Array.from(r.dayRemarks).join(", ") || "-",
@@ -1343,7 +1369,7 @@ export default function ProductionMachineStatusModule() {
 
   const summaryRows = useMemo(
     () => (recordsView === "summary" ? buildSummary() : []),
-    [recordsView, summaryData, activities, machines, printers, persoActivity, statusColumns, locationMachineNames]
+    [recordsView, summaryData, activities, machines, printers, persoActivity, statusColumns, locationMachineNames, hiddenPersoKeys]
   );
 
   const summarySizes = useMemo(
@@ -2006,7 +2032,11 @@ export default function ProductionMachineStatusModule() {
             </div>
             <div className="col-md-2">
               <label className="form-label"><PIcon name="User Location" />User Location</label>
-              <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+              <select value={locationFilter}
+                onChange={(e) => {
+                  setLocationFilter(e.target.value);
+                  setFilters((prev) => ({ ...prev, machine: "", printer: "" }));
+                }}
                 className="form-select">
                 <option value="">All Locations</option>
                 {locationOptions.map((loc, i) => <option key={i} value={loc}>{loc}</option>)}
@@ -2024,7 +2054,7 @@ export default function ProductionMachineStatusModule() {
               <label className="form-label"><PIcon name="Machine" />Machine</label>
               <select name="machine" value={filters.machine} onChange={handleFilterChange} className="form-select">
                 <option value="">All Machines</option>
-                {filterOpts.machines.map((machine, i) => <option key={i} value={machine}>{machine}</option>)}
+                {machineOptions.map((machine, i) => <option key={i} value={machine}>{machine}</option>)}
               </select>
             </div>
             <div className="col-md-2">
