@@ -37,6 +37,24 @@ router.post("/", authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
    
+    if (req.body.productionFromTime && req.body.productionFromTime === req.body.productionToTime) {
+      return res.status(400).json({ message: "From Time and To Time cannot be the same" });
+    }
+
+    // block the same entry being saved twice (double click / double submit)
+    const mIds = (req.body.machiness || []).map((p) => p.machineId).filter(Boolean);
+    if (mIds.length && req.body.productionDate && req.body.productionFromTime && req.body.productionToTime) {
+      const dup = await ProductionReal.findOne({
+        workOrder: req.body.workOrder,
+        productionDate: new Date(req.body.productionDate),
+        productionFromTime: req.body.productionFromTime,
+        productionToTime: req.body.productionToTime,
+        machineStatus: req.body.machineStatus,
+        "machiness.machineId": { $in: mIds },
+      }).select("_id").lean();
+      if (dup) return res.status(409).json({ message: "This entry is already saved" });
+    }
+
     const newEntry = new ProductionReal({
       ...req.body,
       enteredBy: user.name,
@@ -303,7 +321,7 @@ router.get("/summary", authMiddleware, async (req, res) => {
                           ],
                         },
                       },
-                      in: { $cond: [{ $lte: ["$$d", 0] }, { $add: ["$$d", 1440] }, "$$d"] },
+                      in: { $cond: [{ $lt: ["$$d", 0] }, { $add: ["$$d", 1440] }, "$$d"] },
                     },
                   },
                 ],
@@ -475,7 +493,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
         vars: { f: toMin("$productionFromTime"), t: toMin("$productionToTime") },
         in: {
           $cond: [
-            { $lte: ["$$t", "$$f"] },
+            { $lt: ["$$t", "$$f"] },
             { $subtract: [{ $add: ["$$t", 1440] }, "$$f"] },
             { $subtract: ["$$t", "$$f"] },
           ],

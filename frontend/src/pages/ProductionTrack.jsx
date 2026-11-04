@@ -138,7 +138,7 @@ const getDurationMins = (from, to) => {
   const [fh, fm] = from.split(":").map(Number);
   const [th, tm] = to.split(":").map(Number);
   let mins = (th * 60 + tm) - (fh * 60 + fm);
-  if (mins <= 0) mins += 24 * 60; // crosses midnight
+  if (mins < 0) mins += 24 * 60; // crosses midnight (equal times = 0 min)
   return mins;
 };
 
@@ -1943,7 +1943,18 @@ const statusColumns = useMemo(() => {
     }
   };
   // ================= SUBMIT =================
+  const submitLock = useRef(false);
   const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (submitLock.current) return; // already saving: ignore the second click
+    submitLock.current = true;
+    try {
+      await handleSubmitInner(e);
+    } finally {
+      submitLock.current = false;
+    }
+  };
+  const handleSubmitInner = async (e) => {
     e.preventDefault();
 
     if (!isOffDay && !workOrderDetails) return showAlert("Fetch Work Order first", "warning");
@@ -1956,6 +1967,12 @@ const statusColumns = useMemo(() => {
 
     if (!isOffDay && hasMaterials && !selectedMaterial) {
       showAlert("Select a Material Code", "warning");
+      return;
+    }
+
+    // From and To time can't be the same (0 minutes)
+    if (form.productionFromTime && form.productionToTime && form.productionFromTime === form.productionToTime) {
+      showAlert("From Time and To Time cannot be the same", "warning");
       return;
     }
 
@@ -2416,7 +2433,7 @@ const statusColumns = useMemo(() => {
 
     } catch (err) {
       console.error("Error saving Production :", err);
-      showAlert("Error saving Production", "error");
+      showAlert(err.response?.data?.message || "Error saving Production", "error");
     }
   };
   const formatTime12Hour = (time) => {
