@@ -3884,7 +3884,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 ["Notes", it.remark]
               ];
               return (
-                <div className="bar-body trk-panel">
+                <div className="trk-overlay" onClick={() => setRepoSel("")}>
+                <div className="bar-body trk-panel trk-modal" onClick={(e) => e.stopPropagation()}>
                   <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
                     <b>{it.customerName} - {it.description || it.productCode}</b>
                     <span className={awBadge(v.status)}>v{v.version} {v.status}</span>
@@ -3892,6 +3893,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       type="button"
                       className="btn-action-edit ms-auto"
                       onClick={() => {
+                        setRepoSel("");
                         setShowRepo(false);
                         setShowTrack(true);
                         setTrackId(ind._id);
@@ -3973,6 +3975,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       Reviewer comment: {v.comment}{v.reviewedBy ? " (" + v.reviewedBy + ")" : ""}
                     </p>
                   ) : null}
+                </div>
                 </div>
               );
             })()}
