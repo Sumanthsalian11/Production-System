@@ -1205,6 +1205,27 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         headers: { Authorization: `Bearer ${token}` }
       });
       setMasterArt(res.data?.artworkVersions || []);
+
+      // the new item version is also added to this indent as Pending (goes back to the PO reviewer on save)
+      const savedList = res.data?.artworkVersions || [];
+      const newest = savedList[savedList.length - 1];
+      if (newest) {
+        setArtworkVersions((prev) => [
+          ...prev.map((v) => (v.status === "Pending" ? { ...v, status: "Superseded" } : v)),
+          {
+            version: Math.max(0, ...prev.map((v) => v.version || 0)) + 1,
+            file: null,
+            fileName: newest.fileName,
+            filePath: newest.filePath,
+            note: newest.note || "From item artwork V" + newest.version,
+            status: "Pending",
+            comment: "",
+            uploadedBy: newest.uploadedBy || loggedInUser,
+            uploadedAt: newest.uploadedAt || new Date().toISOString()
+          }
+        ]);
+        setErrors((prev) => ({ ...prev, artwork: "" }));
+      }
       setAwNote("");
       Swal.fire({ icon: "success", title: "Artwork saved as V" + nextMasterVer, timer: 1500, showConfirmButton: false });
     } catch (err) {

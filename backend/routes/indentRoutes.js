@@ -43,7 +43,7 @@ const ART_STATUSES = ["Pending", "Approved", "Rejected", "Superseded"];
 
 // Builds the artworkVersions array. The browser can only ADD new versions (a new file in artworkFiles).
 // Status, comment, reviewer and version number always come from the database / server.
-function buildArtworkVersions(req, existingItem, userName) {
+function buildArtworkVersions(req, existingItem, userName, masterVersions) {
   const existing = (existingItem && existingItem.artworkVersions) || [];
 
   // old clients that do not send artworkMeta: keep whatever is already saved
@@ -55,7 +55,12 @@ function buildArtworkVersions(req, existingItem, userName) {
 
   const files = (req.files && req.files.artworkFiles) || [];
   const added = meta.filter((m) => Number.isInteger(m.fileIndex) && files[m.fileIndex]);
-  if (!added.length) return existing; // nothing new uploaded
+  // versions picked from the item's saved artwork (no file upload; checked against the item master)
+  const linked = meta
+    .filter((m) => !Number.isInteger(m.fileIndex) && m.filePath)
+    .map((m) => (masterVersions || []).find((mv) => mv.filePath === m.filePath))
+    .filter((mv, i, arr) => mv && arr.indexOf(mv) === i && !existing.some((v) => v.filePath === mv.filePath));
+  if (!added.length && !linked.length) return existing; // nothing new
 
   const out = existing.map((v) => ({
     version: v.version,
@@ -85,6 +90,23 @@ function buildArtworkVersions(req, existingItem, userName) {
       reviewedAt: null
     });
   }
+
+  linked.forEach((mv) => {
+    out.forEach((v) => { if (v.status === "Pending") v.status = "Superseded"; });
+    const next = out.length ? Math.max(...out.map((v) => v.version || 0)) + 1 : 1;
+    out.push({
+      version: next,
+      fileName: mv.fileName,
+      filePath: mv.filePath,
+      note: mv.note || "From item artwork V" + mv.version,
+      status: "Pending",
+      comment: "",
+      uploadedBy: mv.uploadedBy || userName || "",
+      uploadedAt: mv.uploadedAt || new Date(),
+      reviewedBy: "",
+      reviewedAt: null
+    });
+  });
 
   added.forEach((m) => {
     const f = files[m.fileIndex];
@@ -692,7 +714,10 @@ router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
     const existingItem = indent.items?.[0] || {};
 
     const editor = await User.findById(req.user.id);
-    const artworkVersions = buildArtworkVersions(req, existingItem, editor && editor.name);
+    const masterDoc = productCode
+      ? await Item.findOne({ itemCode: productCode }).select("artworkVersions").lean()
+      : null;
+    const artworkVersions = buildArtworkVersions(req, existingItem, editor && editor.name, (masterDoc && masterDoc.artworkVersions) || []);
     const latestArt = pickLatestArtwork(artworkVersions);
     const { sampleRequestType, provisionalCustomerId } = req.body;
     const { productFamily, physicalReference, expectedOrderValue } = req.body;
