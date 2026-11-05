@@ -112,10 +112,10 @@ function getQR(S, val, p) {
 
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
-const JPG_Q = 0.85;               // JPEG quality used for simplex PDF pages
+const JPG_Q = 1;                  // preserve artwork quality in simplex PDF pages
 const PATCH_Q = 1;                      // quality of the number / Excel-text patches
-const BG_MAX = 1.2 * 1024 * 1024;       // artwork stays lossless only if it compresses below this
-const BG_Q = 0.85;                      // otherwise it is stored as a JPEG at this quality
+const BG_MAX = 1.2 * 1024 * 1024;       // retained for existing size decisions
+const BG_Q = 1;                         // preserve artwork quality when JPEG encoding is required
 const PDF_TARGET = 6 * 1024 * 1024;   // target size of each PDF file (5-6 MB)
 const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
@@ -131,19 +131,9 @@ const loadImg = (blob) =>
     img.src = url;
   });
 
-/* small copy of the artwork (max 2048 px wide) used only for the on-screen preview */
-const PREVIEW_W = 2048;
-function makePreviewImg(img) {
-  const w = img.naturalWidth, h = img.naturalHeight;
-  if (!w || w <= PREVIEW_W) return null;
-  const k = PREVIEW_W / w;
-  const c = document.createElement("canvas");
-  c.width = PREVIEW_W;
-  c.height = Math.max(1, Math.round(h * k));
-  const x = c.getContext("2d");
-  x.imageSmoothingQuality = "high";
-  x.drawImage(img, 0, 0, c.width, c.height);
-  return c;
+/* Keep the full-resolution decoded artwork as the preview source so zoom remains sharp. */
+function makePreviewImg(_img) {
+  return null;
 }
 /* Streaming PDF writer: pages are JPEG blobs appended to a Blob list, so the PDF is never one giant string
    (jsPDF fails with "Invalid string length" past ~512 MB; this has no such limit). */
@@ -326,7 +316,7 @@ async function rasterPdf(file, dpi) {
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
   const page = await pdf.getPage(1);
   const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(dpi / 72, 7000 / Math.max(base.width, base.height));
+  const scale = Math.min(dpi / 72, 12000 / Math.max(base.width, base.height));
   const vp = page.getViewport({ scale });
   const cv = document.createElement("canvas");
   cv.width = Math.round(vp.width);
@@ -336,7 +326,7 @@ async function rasterPdf(file, dpi) {
   cx.fillRect(0, 0, cv.width, cv.height);
   await page.render({ canvasContext: cx, viewport: vp }).promise;
   let blob = await toBlob(cv, "image/png");
-  if (!blob || blob.size > MAX_ART) blob = await toBlob(cv, "image/jpeg", 0.92);
+  if (!blob || blob.size > MAX_ART) blob = await toBlob(cv, "image/jpeg", 1.00);
   const pages = pdf.numPages;
   try { page.cleanup(); } catch { /* ignore */ }
   cv.width = 1; cv.height = 1;
@@ -916,10 +906,13 @@ export default function CertificateNumbering() {
         const cv = cvRefs.current[i];
         if (!cv) continue;
         bind(i);
-        const s = Math.min(1, 1600 / S.w);
+        const s = zoom === "fit" ? Math.min(1, 1600 / S.w) : 1;
         cv.width = Math.round(S.w * s);
         cv.height = Math.round(S.h * s);
         const ctx = cv.getContext("2d");
+        // Use high-quality browser resampling when Fit mode scales the source.
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         const idx = Math.min(Math.max((parseInt(pv, 10) || 1) - 1, 0), Math.max(0, S.rows.length - 1));
         const n = (isFinite(p.from) ? p.from : 1) + idx;
         S.box = { num: null, bar: null, qr: null };
@@ -961,7 +954,7 @@ export default function CertificateNumbering() {
       placeInspector();
     })();
     return () => { dead = true; };
-  }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, act, S]);
+  }, [f, cols, sheet, pv, dims, artNames, sel, measure, fonts, texts, running, act, zoom, S]);
 
   /* ---------- Simplex: UPS sheet preview ---------- */
   useEffect(() => {
@@ -2224,6 +2217,7 @@ export default function CertificateNumbering() {
                 <button className={`cn-zoom-btn ${zoom === "fit" ? "active" : ""}`} type="button" onClick={zoomFit} title="Fit to screen">
                   <Ic n="fit" /> Fit
                 </button>
+                <button className={`cn-zoom-btn ${zoom === 100 ? "active" : ""}`} type="button" onClick={() => setZoom(100)} title="Show artwork at 1:1 pixel size">100%</button>
                 <button className="cn-zoom-btn" type="button" onClick={zoomIn} title="Zoom in">
                   <Ic n="plus" />
                 </button>
@@ -2252,7 +2246,7 @@ export default function CertificateNumbering() {
 
           <div className="cn-canvas-area" ref={areaRef}>
           <div className={`cn-canvas-wrap${zoom === "fit" ? " cn-fit" : ""}`} style={showSheet ? { display: "none" } : undefined}>
-            <div className="cn-trio" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, "--n": visible.length, "--ar": fitAr, ...(zoom !== "fit" ? { width: `${zoom * visible.length}%` } : {}) }}>
+            <div className={`cn-trio${zoom !== "fit" ? " cn-native-zoom" : ""}`} style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0,1fr))`, "--n": visible.length, "--ar": fitAr, ...(zoom !== "fit" ? { width: `${visible.reduce((w, i) => Math.max(w, dims[i].w), 0) * Number(zoom) / 100 * visible.length + 8 * (visible.length - 1) + 4 * visible.length}px` } : {}) }}>
               {[0, 1, 2].map((i) => (
                 <figure key={i} hidden={!visible.includes(i)} className={`cn-card${act === i ? " act" : ""}`}
                   onClick={() => { setAct(i); actRef.current = i; bind(i); }}>
@@ -2275,6 +2269,7 @@ export default function CertificateNumbering() {
                     ref={(el) => { cvRefs.current[i] = el; }}
                     tabIndex={0}
                     className="cn-preview-canvas"
+                    style={zoom !== "fit" ? { width: `${dims[i].w * Number(zoom) / 100}px`, maxWidth: "none", flex: "none", imageRendering: Number(zoom) > 100 ? "pixelated" : "auto" } : undefined}
                     aria-label={`Artwork ${i + 1} preview. Click and drag elements to position them.`}
                     onPointerDown={onDown(i)}
                     onPointerMove={onMove(i)}
@@ -2575,6 +2570,9 @@ const CSS = `
 }
 .cn-preview-canvas:not(.fit-mode){flex:none}
 .cn-preview-canvas.fit-mode{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+.cn-trio.cn-native-zoom{display:flex;width:max-content;max-width:none;gap:8px}
+.cn-native-zoom .cn-card{flex:0 0 auto;width:max-content;overflow:visible}
+.cn-native-zoom .cn-card canvas{display:block;height:auto;width:auto;margin:0;max-width:none}
 
 .cn-hints{
   display:flex;flex-wrap:wrap;gap:4px 14px;padding:5px 10px;border-top:1px solid var(--line);
