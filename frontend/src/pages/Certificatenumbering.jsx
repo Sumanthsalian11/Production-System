@@ -113,10 +113,10 @@ function getQR(S, val, p) {
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
 const JPG_Q = 0.85;               // JPEG quality used for simplex PDF pages
-const PATCH_Q = 0.8;                    // quality of the number / Excel-text patches
+const PATCH_Q = 1;                      // quality of the number / Excel-text patches
 const BG_MAX = 1.2 * 1024 * 1024;       // artwork stays lossless only if it compresses below this
 const BG_Q = 0.85;                      // otherwise it is stored as a JPEG at this quality
-const PDF_TARGET = 3.5 * 1024 * 1024;   // target size of each PDF file             // PDF export: quality of the small number/barcode/QR patches
+const PDF_TARGET = 6 * 1024 * 1024;   // target size of each PDF file (5-6 MB)
 const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
   new Promise((res, rej) => {
@@ -296,11 +296,12 @@ function makeZipWriter() {
 
 /* text -> shared 1-bit mask, drawn at 3x so the edges stay sharp (used by the compact PDF) */
 async function makeMask(lines, font, px, ul) {
-  const SS = 3, pd = Math.ceil(px * 0.25);
+  const pd = Math.ceil(px * 0.25);
   const mc = document.createElement("canvas").getContext("2d");
   mc.font = font;
   const wd = Math.max(1, ...lines.map((l) => mc.measureText(l).width));
   const W = Math.ceil(wd + 2 * pd), H = Math.ceil(px * 1.2 * lines.length + 2 * pd);
+  const SS = Math.max(3, Math.min(8, Math.floor(16000 / Math.max(W, H))));
   const c = document.createElement("canvas");
   c.width = W * SS; c.height = H * SS;
   const x = c.getContext("2d", { alpha: false });
