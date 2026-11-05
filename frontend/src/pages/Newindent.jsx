@@ -3424,7 +3424,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                                   : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
                                 {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
                               </span>
-                              {a.status === "Rejected" && (
+                              {a.status === "Rejected" && ind.user === loggedInUser && (
                                 <button
                                   type="button"
                                   className="btn-action-edit ms-auto"
