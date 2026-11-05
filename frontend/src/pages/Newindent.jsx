@@ -1081,7 +1081,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         ...all.map((x) => x.ind.indentNo + " " + x.v.fileName)].join(" ").toLowerCase();
       if (q && !hay.includes(q)) return;
       const latest = shown[shown.length - 1];
-      out.push({ ...latest, it: g.it, all, count: all.length });
+      const indentKeys = {};
+      g.list.forEach((x) => { indentKeys[x.ind.indentNo] = x.key; });
+      out.push({ ...latest, it: g.it, all, list: g.list, count: all.length, indentKeys });
     });
     return out;
   }, [indents, repoQ, repoStatus, repoAll]);
@@ -3884,7 +3886,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   {repoRows.length === 0 ? (
                     <tr><td colSpan={9} className="text-center py-4">No artwork matches.</td></tr>
                   ) : (
-                    repoRows.map(({ ind, v, key, count, usedIn }) => {
+                    repoRows.map(({ ind, v, key, count, indentKeys }) => {
                       const it = ind.items?.[0] || {};
                       return (
                         <tr
@@ -3909,7 +3911,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           <td>{it.materialType || "-"}</td>
                           <td style={{ textAlign: "left" }}>{truncateText(it.description, 50)}</td>
                           <td className="fw-bold">{count}</td>
-                          <td className="fw-bold">{(usedIn || [ind.indentNo]).join(", ")}</td>
+                          <td onClick={(e) => e.stopPropagation()}>
+                            <select className="form-select form-select-sm" style={{ minWidth: 120, fontSize: 12 }} value="" onChange={(e) => { if (e.target.value) setRepoSel(indentKeys[e.target.value]); }}>
+                              <option value="">{Object.keys(indentKeys).length} indent{Object.keys(indentKeys).length === 1 ? "" : "s"}</option>
+                              {Object.keys(indentKeys).map((n) => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                          </td>
                           <td>v{v.version}</td>
                           <td><span className={awBadge(v.status)}>{v.status}</span></td>
                         </tr>
@@ -3922,10 +3931,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
             {(() => {
               if (!repoSel) return null;
-              const grp = repoRows.find((r) => r.all.some((x) => x.key === repoSel));
-              const cur = grp?.all.find((x) => x.key === repoSel);
+              const grp = repoRows.find((r) => r.list.some((x) => x.key === repoSel));
+              const cur = grp?.list.find((x) => x.key === repoSel);
               const ind = cur?.ind;
-              const all = grp ? grp.all : [];
+              const all = cur ? grp.list.filter((x) => x.ind._id === cur.ind._id) : [];
               const v = cur?.v;
               if (!ind || !v) return null;
               const it = ind.items?.[0] || {};
