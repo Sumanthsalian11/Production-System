@@ -3069,13 +3069,15 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
                         onChange={(e) => changeMasterArtwork(e.target.files?.[0])}
                       />
-                      <button
-                        type="button"
-                        className="btn btn-export btn-sm"
-                        onClick={() => masterArtInputRef.current?.click()}
-                      >
-                        {masterArt.length ? "Change (upload V" + nextMasterVer + ")" : "Upload V1"}
-                      </button>
+                      {editingId && (
+                        <button
+                          type="button"
+                          className="btn btn-export btn-sm"
+                          onClick={() => masterArtInputRef.current?.click()}
+                        >
+                          {masterArt.length ? "Change (upload V" + nextMasterVer + ")" : "Upload V1"}
+                        </button>
+                      )}
                     </div>
                     {masterArt.length > 0 && (
                       <table className="table table-bordered table-sm align-middle mb-0">
@@ -3422,15 +3424,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                                   : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
                                 {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
                               </span>
-                              {a.status === "Rejected" && (
-                                <button
-                                  type="button"
-                                  className="btn-action-edit ms-auto"
-                                  onClick={() => { setShowBell(false); handleEdit(ind); }}
-                                >
-                                  Edit &amp; upload new version
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                className="btn-action-edit ms-auto"
+                                onClick={() => { setShowBell(false); handleEdit(ind); }}
+                              >
+                                {a.status === "Rejected" ? "Edit & upload new version" : "Change artwork"}
+                              </button>
                             </div>
                           );
                         })
