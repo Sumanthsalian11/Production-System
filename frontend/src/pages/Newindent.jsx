@@ -833,6 +833,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   // ===== EDIT ACTION =====
   const handleEdit = (ind) => {
+    if (ind.user !== loggedInUser) {
+      Swal.fire({ icon: "warning", title: "Not allowed", text: "Only the user who raised this indent can edit it.", confirmButtonColor: "#3085d6" });
+      return;
+    }
     const item = ind.items?.[0] || {};
     setForm({
       sampleRequestType: item.sampleRequestType || "",
@@ -910,6 +914,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   // ===== DELETE ACTION =====
   const handleDelete = async (id) => {
+    const target = indents.find((x) => x._id === id);
+    if (target && target.user !== loggedInUser) {
+      Swal.fire({ icon: "warning", title: "Not allowed", text: "Only the user who raised this indent can delete it.", confirmButtonColor: "#3085d6" });
+      return;
+    }
     Swal.fire({
       title: "Are you sure?",
       text: "You won't be able to revert this!",
@@ -1052,15 +1061,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     const out = [];
     Object.values(groups).forEach((g) => {
       const sorted = g.list.sort((a, b) => new Date(a.v.uploadedAt || 0) - new Date(b.v.uploadedAt || 0));
-      const seen = new Set();
-      const all = [...sorted].reverse()
-        .filter((x) => {
-          const k = x.v.filePath || x.v.fileName;
-          if (seen.has(k)) return false;
-          seen.add(k);
-          return true;
-        })
-        .reverse();
+      const rank = { Approved: 3, Rejected: 2, Pending: 1, Superseded: 0 };
+      const best = new Map();
+      const usedIn = {};
+      sorted.forEach((x) => {
+        const k = x.v.filePath || x.v.fileName;
+        (usedIn[k] = usedIn[k] || []).push(x.ind.indentNo);
+        const cur = best.get(k);
+        if (!cur || (rank[x.v.status] ?? 0) >= (rank[cur.v.status] ?? 0)) best.set(k, x);
+      });
+      const all = sorted
+        .filter((x) => best.get(x.v.filePath || x.v.fileName) === x)
+        .map((x) => ({ ...x, usedIn: usedIn[x.v.filePath || x.v.fileName] }));
       const shown = all
         .filter((x) => repoAll || repoStatus === "Superseded" || x.v.status !== "Superseded")
         .filter((x) => !repoStatus || x.v.status === repoStatus);
@@ -2106,6 +2118,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .indent-app-container .btn-clear-filters{font-size:12px;min-height:34px;color:#000}
         .btn-action-edit{background-color:#e8f3f6!important;color:#000!important;border:1px solid #b9d6dd!important}
         .btn-action-edit:hover{background-color:#d5e9ee!important;color:#000!important}
+        .btn-action-edit:disabled,.btn-action-delete:disabled{opacity:.45;cursor:not-allowed!important}
         .btn-action-delete{background-color:#fbdcdc!important;color:#000!important;border:1px solid #f0b4b4!important}
         .btn-action-delete:hover{background-color:#f7c7c7!important;color:#000!important;border-color:#f0b4b4!important}
 
@@ -3802,6 +3815,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           <button
                             type="button"
                             className="btn-action-edit"
+                            disabled={ind.user !== loggedInUser}
+                            title={ind.user !== loggedInUser ? "Only the user who raised this indent can edit it" : ""}
                             onClick={() => handleEdit(ind)}
                           >
                             Edit
@@ -3810,6 +3825,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           <button
                             type="button"
                             className="btn-action-delete"
+                            disabled={ind.user !== loggedInUser}
+                            title={ind.user !== loggedInUser ? "Only the user who raised this indent can delete it" : ""}
                             onClick={() => handleDelete(ind._id)}
                           >
                             Delete
@@ -3867,7 +3884,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   {repoRows.length === 0 ? (
                     <tr><td colSpan={9} className="text-center py-4">No artwork matches.</td></tr>
                   ) : (
-                    repoRows.map(({ ind, v, key, count }) => {
+                    repoRows.map(({ ind, v, key, count, usedIn }) => {
                       const it = ind.items?.[0] || {};
                       return (
                         <tr
@@ -3892,7 +3909,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           <td>{it.materialType || "-"}</td>
                           <td style={{ textAlign: "left" }}>{truncateText(it.description, 50)}</td>
                           <td className="fw-bold">{count}</td>
-                          <td className="fw-bold">{ind.indentNo}</td>
+                          <td className="fw-bold">{(usedIn || [ind.indentNo]).join(", ")}</td>
                           <td>v{v.version}</td>
                           <td><span className={awBadge(v.status)}>{v.status}</span></td>
                         </tr>
