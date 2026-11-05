@@ -1039,6 +1039,43 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   );
   const repoRows = useMemo(() => {
     const q = repoQ.trim().toLowerCase();
+    const groups = {};
+    indents.forEach((ind) => {
+      const it = ind.items?.[0] || {};
+      const gk = [it.customerName, it.productCode, it.materialType, it.description]
+        .map((x) => norm(x).toLowerCase()).join("|");
+      repoVersionsOf(ind).forEach((v, idx) => {
+        if (!groups[gk]) groups[gk] = { it, list: [] };
+        groups[gk].list.push({ ind, v, key: ind._id + "|" + idx });
+      });
+    });
+    const out = [];
+    Object.values(groups).forEach((g) => {
+      const sorted = g.list.sort((a, b) => new Date(a.v.uploadedAt || 0) - new Date(b.v.uploadedAt || 0));
+      const seen = new Set();
+      const all = [...sorted].reverse()
+        .filter((x) => {
+          const k = x.v.filePath || x.v.fileName;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        })
+        .reverse();
+      const shown = all
+        .filter((x) => repoAll || repoStatus === "Superseded" || x.v.status !== "Superseded")
+        .filter((x) => !repoStatus || x.v.status === repoStatus);
+      if (!shown.length) return;
+      const hay = [g.it.customerName, g.it.description, g.it.productCode, g.it.materialType,
+        ...all.map((x) => x.ind.indentNo + " " + x.v.fileName)].join(" ").toLowerCase();
+      if (q && !hay.includes(q)) return;
+      const latest = shown[shown.length - 1];
+      out.push({ ...latest, it: g.it, all, count: all.length });
+    });
+    return out;
+  }, [indents, repoQ, repoStatus, repoAll]);
+
+  const repoRowsOld = useMemo(() => {
+    const q = repoQ.trim().toLowerCase();
     const out = [];
     indents.forEach((ind) => {
       const it = ind.items?.[0] || {};
@@ -1766,7 +1803,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         /* ============ Table ============ */
         .custom-table-container {
           width: 100%;
-          max-height: 400px;
+          max-height: 560px;
           overflow-y: auto;
           overflow-x: auto;
           background: #ffffff;
@@ -3820,15 +3857,15 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <table className="table table-bordered table-hover align-middle text-center bg-white">
                 <thead>
                   <tr>
-                    <th></th><th>Customer</th><th>Product code</th><th>Description</th>
+                    <th></th><th>Customer</th><th>Product code</th><th>Product type</th><th>Description</th><th>Versions</th>
                     <th>Indent</th><th>Ver</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {repoRows.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center py-4">No artwork matches.</td></tr>
+                    <tr><td colSpan={9} className="text-center py-4">No artwork matches.</td></tr>
                   ) : (
-                    repoRows.map(({ ind, v, key }) => {
+                    repoRows.map(({ ind, v, key, count }) => {
                       const it = ind.items?.[0] || {};
                       return (
                         <tr
@@ -3850,7 +3887,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           </td>
                           <td>{it.customerName || "-"}</td>
                           <td className="fw-semibold">{it.productCode || "-"}</td>
+                          <td>{it.materialType || "-"}</td>
                           <td style={{ textAlign: "left" }}>{truncateText(it.description, 50)}</td>
+                          <td className="fw-bold">{count}</td>
                           <td className="fw-bold">{ind.indentNo}</td>
                           <td>v{v.version}</td>
                           <td><span className={awBadge(v.status)}>{v.status}</span></td>
@@ -3864,10 +3903,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
             {(() => {
               if (!repoSel) return null;
-              const [sid, sidx] = repoSel.split("|");
-              const ind = indents.find((x) => x._id === sid);
-              const all = ind ? repoVersionsOf(ind) : [];
-              const v = all[Number(sidx)];
+              const grp = repoRows.find((r) => r.all.some((x) => x.key === repoSel));
+              const cur = grp?.all.find((x) => x.key === repoSel);
+              const ind = cur?.ind;
+              const all = grp ? grp.all : [];
+              const v = cur?.v;
               if (!ind || !v) return null;
               const it = ind.items?.[0] || {};
               const rows = [
@@ -3876,8 +3916,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 ["Product type", it.materialType],
                 ["Description", it.description],
                 ["Job size", it.jobSize],
-                ["Color front / back", [it.colorFront, it.colorBack].filter(has).join(" / ")],
-                ["Paper (Group / Size / GSM)", [it.paperGroup, it.paperSize, it.gsm].filter(has).join(" / ")],
+                ["Color front", it.colorFront],
+["Color back", it.colorBack],
+                ["Paper group", it.paperGroup],
+["Paper size", it.paperSize],
+["GSM", it.gsm],
                 ["Quantity", it.quantity],
                 ["Delivery date", it.deliveryDate ? new Date(it.deliveryDate).toLocaleDateString("en-IN") : ""],
                 ["Location", ind.location?.locationName],
@@ -3963,9 +4006,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         key={i}
                         type="button"
                         className="btn-action-edit"
-                        onClick={() => setRepoSel(ind._id + "|" + i)}
+                        onClick={() => setRepoSel(x.key)}
                       >
-                        v{x.version} {x.status}
+                        v{x.v.version} {x.v.status}
                       </button>
                     ))}
                   </div>
