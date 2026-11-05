@@ -208,6 +208,8 @@ function NewIndent() {
   const [showTrack, setShowTrack] = useState(false);
   const [chatId, setChatId] = useState(null);
   const [showBell, setShowBell] = useState(false);
+  // Lamination to Customer Copy columns are collapsed by default
+  const [showExtraCols, setShowExtraCols] = useState(false);
   // ===== ARTWORK REPOSITORY (view only) =====
   const [showRepo, setShowRepo] = useState(false);
   const [repoQ, setRepoQ] = useState("");
@@ -2354,6 +2356,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         .trk-ln{font-size:12px;line-height:1.55;color:#000}
         @media(max-width:768px){.trk-cards{flex-direction:column}.trk-card{min-width:0}}
 
+        /* collapse Lamination (col 10) to Customer Copy (col 26) */
+        .saved-indents-table.collapse-extra thead th:nth-child(n+10):nth-child(-n+26),
+        .saved-indents-table.collapse-extra tbody td:nth-child(n+10):nth-child(-n+26) {
+          display: none;
+        }
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -3576,13 +3584,23 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               </svg>
               Saved Indents
             </h5>
-            <span className="bar-count">
-              Showing {Math.min(filteredIndents.length, 50)} of {filteredIndents.length} entries
-            </span>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn-action-edit"
+                onClick={() => setShowExtraCols((p) => !p)}
+              >
+                <i className={`bi ${showExtraCols ? "bi-chevron-double-left" : "bi-chevron-double-right"}`}></i>{" "}
+                {showExtraCols ? "Collapse columns" : "Expand columns"}
+              </button>
+              <span className="bar-count">
+                Showing {Math.min(filteredIndents.length, 50)} of {filteredIndents.length} entries
+              </span>
+            </div>
           </div>
 
           <div className="custom-table-container">
-            <table className="table border-black table-bordered table-hover align-middle text-center bg-white">
+            <table className={`table border-black table-bordered table-hover align-middle text-center bg-white saved-indents-table ${showExtraCols ? "" : "collapse-extra"}`}>
               <thead className="table-dark sticky-top">
                 <tr>
                   <th>Indent No</th>

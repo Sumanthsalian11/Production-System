@@ -559,6 +559,7 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
             totalProduction: { $sum: "$p" },
             totalWastage: { $sum: "$w" },
             totalOrders: { $sum: "$prod" },
+            oqList: { $push: { w: "$_id", oq: "$oq" } },
           },
         },
       ]),
@@ -624,13 +625,32 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
     const macName = new Map(macDocs.map((m) => [String(m._id), m.machineName]));
     const nameOf = (id) => macName.get(String(id)) || "Unassigned";
 
+    // live Order Qty from the Work Order (so "Edit Qty" shows in this report)
+    const liveQty = new Map();
+    {
+      const woIds = [
+        ...new Set([
+          ...jobsRaw.map((r) => r._id),
+          ...((kpiRaw[0] && kpiRaw[0].oqList) || []).map((x) => x.w),
+        ]),
+      ].filter((x) => x !== null && x !== undefined);
+      const CH = 5000;
+      for (let i = 0; i < woIds.length; i += CH) {
+        const list = await WorkOrder.find(
+          { efiWoNumber: { $in: woIds.slice(i, i + CH) } },
+          { efiWoNumber: 1, orderQty: 1, _id: 0 }
+        ).lean();
+        list.forEach((w) => liveQty.set(w.efiWoNumber, w.orderQty));
+      }
+    }
+
     // jobs
     const jobs = new Map();
     for (const r of jobsRaw) {
       jobs.set(r._id, {
         workOrder: r._id,
         customer: r.c,
-        orderQty: r.oq,
+        orderQty: liveQty.get(r._id) ?? r.oq,
         productType: (r.latest && r.latest.pt) || r.pt,
         jobDescription: r.jd || "",
         latestProduction: Number(r.latest?.p) || 0,
@@ -675,7 +695,10 @@ router.get("/report-summary", authMiddleware, async (req, res) => {
     const k0 = kpiRaw[0] || {};
     const body = JSON.stringify({
       kpi: {
-        totalOrderQty: k0.totalOrderQty || 0,
+        totalOrderQty: (k0.oqList || []).reduce(
+          (s, x) => s + (Number(liveQty.get(x.w) ?? x.oq) || 0),
+          0
+        ),
         totalOrders: k0.totalOrders || 0,
         totalProduction: k0.totalProduction || 0,
         totalWastage: k0.totalWastage || 0,
