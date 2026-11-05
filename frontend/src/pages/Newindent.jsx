@@ -3424,13 +3424,15 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                                   : (a.comment || "-") + (a.reviewedBy ? " (" + a.reviewedBy + ")" : "")}
                                 {a.status === "Approved" && a.comment ? " Comment: " + a.comment : ""}
                               </span>
-                              <button
-                                type="button"
-                                className="btn-action-edit ms-auto"
-                                onClick={() => { setShowBell(false); handleEdit(ind); }}
-                              >
-                                {a.status === "Rejected" ? "Edit & upload new version" : "Change artwork"}
-                              </button>
+                              {a.status === "Rejected" && (
+                                <button
+                                  type="button"
+                                  className="btn-action-edit ms-auto"
+                                  onClick={() => { setShowBell(false); handleEdit(ind); }}
+                                >
+                                  Edit &amp; upload new version
+                                </button>
+                              )}
                             </div>
                           );
                         })
