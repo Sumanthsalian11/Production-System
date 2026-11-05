@@ -214,6 +214,8 @@ function NewIndent() {
   const [repoStatus, setRepoStatus] = useState("");
   const [repoAll, setRepoAll] = useState(false);
   const [repoSel, setRepoSel] = useState("");
+  const [repoTotal, setRepoTotal] = useState(false);
+  useEffect(() => { if (!repoSel) setRepoTotal(false); }, [repoSel]);
   const [repoIndentQ, setRepoIndentQ] = useState("");
   const repoOn = showRepo && !showForm && !showTrack;
   const quantityRef = useRef();
@@ -3085,15 +3087,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
                         onChange={(e) => changeMasterArtwork(e.target.files?.[0])}
                       />
-                      {editingId && (
-                        <button
-                          type="button"
-                          className="btn btn-export btn-sm"
-                          onClick={() => masterArtInputRef.current?.click()}
-                        >
-                          {masterArt.length ? "Change (upload V" + nextMasterVer + ")" : "Upload V1"}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="btn btn-export btn-sm"
+                        onClick={() => masterArtInputRef.current?.click()}
+                      >
+                        {masterArt.length ? "Change (upload V" + nextMasterVer + ")" : "Upload V1"}
+                      </button>
                     </div>
                     {masterArt.length > 0 && (
                       <table className="table table-bordered table-sm align-middle mb-0">
@@ -4022,6 +4022,124 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
                       </small>
                       {v.note ? <small className="d-block">Note: {v.note}</small> : null}
+
+                      {(() => {
+                        const chipsOf = (st) => {
+                          const s = new Set();
+                          return grp.list
+                            .filter((x) => x.v.status === st)
+                            .filter((x) => {
+                              const k = x.v.version + "|" + (x.v.filePath || x.v.fileName);
+                              if (s.has(k)) return false;
+                              s.add(k);
+                              return true;
+                            })
+                            .sort((a, b) => (a.v.version || 0) - (b.v.version || 0));
+                        };
+                        const total = new Set(grp.list.map((x) => x.v.filePath || x.v.fileName)).size;
+                        const Row = ({ title, st }) => {
+                          const list = chipsOf(st);
+                          if (!list.length) return null;
+                          return (
+                            <div className="mt-3">
+                              <b style={{ textDecoration: "underline" }}>{title}</b>
+                              <div className="d-flex flex-wrap align-items-center mt-2">
+                                {list.map((x, i) => (
+                                  <span key={x.key} className="d-inline-flex align-items-center">
+                                    {i > 0 && <span style={{ width: 22, height: 2, background: "#8fbcc7" }} />}
+                                    <button
+                                      type="button"
+                                      title={"Indent " + x.ind.indentNo}
+                                      onClick={() => setRepoSel(x.key)}
+                                      style={{
+                                        width: 38, height: 38, borderRadius: "50%", fontWeight: 700, fontSize: 12,
+                                        cursor: "pointer", color: "#000",
+                                        border: "2px solid " + (x.key === repoSel ? "#1f9d6b" : st === "Rejected" ? "#d64545" : "#0f5560"),
+                                        background: x.key === repoSel ? "#d9f2e6" : st === "Rejected" ? "#fbdcdc" : "#fff"
+                                      }}
+                                    >
+                                      V{x.v.version}
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        };
+                        return (
+                          <>
+                            <Row title="Approved" st="Approved" />
+                            <Row title="Rejected" st="Rejected" />
+                            <Row title="Pending" st="Pending" />
+                            <div
+                              className="mt-3"
+                              style={{ cursor: "pointer", userSelect: "none" }}
+                              title="Double-click to see all version details"
+                              onDoubleClick={() => setRepoTotal(true)}
+                            >
+                              <b style={{ textDecoration: "underline" }}>Total version count</b>
+                              <div style={{ fontSize: 22, fontWeight: 700 }}>{total}</div>
+                            </div>
+
+                            {repoTotal && (
+                              <div
+                                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center" }}
+                                onClick={(e) => { e.stopPropagation(); setRepoTotal(false); }}
+                              >
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1200, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.35)" }}
+                                >
+                                  <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                                    <b style={{ fontSize: 15 }}>All versions: {it.customerName} - {it.description || it.productCode}</b>
+                                    <span className="bar-count">{total} version{total === 1 ? "" : "s"}</span>
+                                    <button type="button" className="btn-action-delete ms-auto" onClick={() => setRepoTotal(false)}>Close</button>
+                                  </div>
+                                  <div style={{ overflow: "auto", padding: 12 }}>
+                                    <table className="table table-bordered table-sm align-middle mb-0" style={{ fontSize: 12 }}>
+                                      <thead>
+                                        <tr>
+                                          <th>Ver</th><th>File</th><th>Indent</th><th>Status</th>
+                                          <th>Uploaded by</th><th>Uploaded at</th>
+                                          <th>Reviewed by</th><th>Reviewed at</th>
+                                          <th>Reviewer comment</th><th>Note</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {[...grp.all]
+                                          .sort((a, b) => (a.v.version || 0) - (b.v.version || 0))
+                                          .map((x) => (
+                                            <tr
+                                              key={x.key}
+                                              style={{ cursor: "pointer" }}
+                                              title="Click to open this version"
+                                              onClick={() => { setRepoSel(x.key); setRepoTotal(false); }}
+                                            >
+                                              <td className="fw-bold">V{x.v.version}</td>
+                                              <td>
+                                                {x.v.filePath ? (
+                                                  <a href={BASE_URL + x.v.filePath} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{x.v.fileName}</a>
+                                                ) : x.v.fileName}
+                                              </td>
+                                              <td>{x.ind.indentNo}</td>
+                                              <td><span className={awBadge(x.v.status)}>{x.v.status}</span></td>
+                                              <td>{x.v.uploadedBy || "-"}</td>
+                                              <td>{x.v.uploadedAt ? new Date(x.v.uploadedAt).toLocaleString("en-IN") : "-"}</td>
+                                              <td>{x.v.reviewedBy || "-"}</td>
+                                              <td>{x.v.reviewedAt ? new Date(x.v.reviewedAt).toLocaleString("en-IN") : "-"}</td>
+                                              <td>{x.v.comment || "-"}</td>
+                                              <td>{x.v.note || "-"}</td>
+                                            </tr>
+                                          ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="col-12 col-md-6">
@@ -4035,6 +4153,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           ))}
                         </tbody>
                       </table>
+
+
                     </div>
                   </div>
 
