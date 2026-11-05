@@ -258,6 +258,8 @@ function ProductionRealDashboard() {
   const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
   const [hiddenSummaryPairs, setHiddenSummaryPairs] = useState([]); // "activityId__machineId" hidden in Summary Report
 
+  const [skipSheetFedDivide, setSkipSheetFedDivide] = useState(false); // tick = no "/ 2" for Sheet Fed
+
   const selectedMaterial =
     selectedMaterialIndex !== ""
       ? workOrderDetails?.materials?.[selectedMaterialIndex] ?? null
@@ -378,6 +380,7 @@ function ProductionRealDashboard() {
   };
 
   const getSheetFedDivisor = () => {
+    if (skipSheetFedDivide) return 1;
     return isFourByZero() ? 1 : 2;
   };
 
@@ -427,6 +430,22 @@ function ProductionRealDashboard() {
       };
     });
   }, [selectedPages, selectedMaterial, activityMachinePairs, activities]);
+  const firstSkipRun = useRef(true);
+  useEffect(() => {
+    if (firstSkipRun.current) { firstSkipRun.current = false; return; }
+    const prodImp = Number(form.productionImpression) || 0;
+    const ups = Number(form.productionUps) || 0;
+    const rawProdQty = prodImp > 0 && ups > 0 ? prodImp * ups : 0;
+    const prodQty = getProductionQty(rawProdQty);
+    const waste = Number(form.wastageQty) || 0;
+    setForm((prev) => ({
+      ...prev,
+      productionQty: prodQty,
+      quantity2: getQuantity2(rawProdQty, Number(prev.pages) || 0)
+    }));
+    setWastePercent(Number(prodQty) > 0 ? ((waste / Number(prodQty)) * 100).toFixed(2) : 0);
+  }, [skipSheetFedDivide]);
+
   const handleEdit = (item) => {
     setShowEntryModal(true);
     setEditingId(item._id);
@@ -546,6 +565,7 @@ function ProductionRealDashboard() {
     setShowEntryModal(false);
     setFetchedWoNo("");
     setIsOffDay(false);
+    setSkipSheetFedDivide(false);
     setWorkOrderDetails(null);
     setSelectedMaterialIndex("");
     setEditingId(null);
@@ -3625,6 +3645,20 @@ const statusColumns = useMemo(() => {
                           <div className="col-6 col-md-4 col-xl-3">
                             <label className="form-label"><FieldIcon name="Production Qty" />Production Qty</label>
                             <input type="number" value={form.productionQty} readOnly className="form-control" placeholder=" " />
+                            {isSheetFedSelected() && (
+                              <div className="form-check mt-1">
+                                <input
+                                  type="checkbox"
+                                  className="form-check-input"
+                                  id="skipSheetFedDivide"
+                                  checked={skipSheetFedDivide}
+                                  onChange={(e) => setSkipSheetFedDivide(e.target.checked)}
+                                />
+                                <label className="form-check-label" htmlFor="skipSheetFedDivide" style={{ fontSize: 12, fontWeight: 600 }}>
+                                  Don't divide by 2 (Sheet Fed)
+                                </label>
+                              </div>
+                            )}
                           </div>
 
                           {Number(form.pages) > 0 && (
