@@ -214,6 +214,7 @@ function NewIndent() {
   const [repoStatus, setRepoStatus] = useState("");
   const [repoAll, setRepoAll] = useState(false);
   const [repoSel, setRepoSel] = useState("");
+  const [repoIndentQ, setRepoIndentQ] = useState("");
   const repoOn = showRepo && !showForm && !showTrack;
   const quantityRef = useRef();
   const locationRef = useRef();
@@ -3912,12 +3913,22 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           <td style={{ textAlign: "left" }}>{truncateText(it.description, 50)}</td>
                           <td className="fw-bold">{count}</td>
                           <td onClick={(e) => e.stopPropagation()}>
-                            <select className="form-select form-select-sm" style={{ minWidth: 120, fontSize: 12 }} value="" onChange={(e) => { if (e.target.value) setRepoSel(indentKeys[e.target.value]); }}>
-                              <option value="">{Object.keys(indentKeys).length} indent{Object.keys(indentKeys).length === 1 ? "" : "s"}</option>
+                            <input
+                              className="form-control form-control-sm"
+                              style={{ minWidth: 130, fontSize: 12 }}
+                              list={"repo-ind-" + key}
+                              placeholder={Object.keys(indentKeys).length + " indent" + (Object.keys(indentKeys).length === 1 ? "" : "s") + " - search"}
+                              value=""
+                              onChange={(e) => {
+                                const n = e.target.value.trim();
+                                if (indentKeys[n]) setRepoSel(indentKeys[n]);
+                              }}
+                            />
+                            <datalist id={"repo-ind-" + key}>
                               {Object.keys(indentKeys).map((n) => (
-                                <option key={n} value={n}>{n}</option>
+                                <option key={n} value={n} />
                               ))}
-                            </select>
+                            </datalist>
                           </td>
                           <td>v{v.version}</td>
                           <td><span className={awBadge(v.status)}>{v.status}</span></td>
