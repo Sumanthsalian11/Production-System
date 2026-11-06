@@ -556,6 +556,10 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const token = localStorage.getItem("token");
 
   const [roles, setRoles] = useState([]);
+  const [routingUsers, setRoutingUsers] = useState([]);
+  const [routingRules, setRoutingRules] = useState([]);
+  const [routingUser, setRoutingUser] = useState("");
+  const [routingLocs, setRoutingLocs] = useState([]);
   const [newRole, setNewRole] = useState({ name: "", modules: [] });
   const [showRoleList, setShowRoleList] = useState(false);
 
@@ -717,6 +721,56 @@ const [supplierFilter, setSupplierFilter] = useState("");
     if (activeSection === "summaryDisplay") {
       setSummaryTab("floor");
       fetchPersoDisplay();
+    }
+  }, [activeSection]);
+
+  const fetchRouting = async () => {
+    try {
+      const [u, r] = await Promise.all([
+        axios.get(`${BASE_URL}/api/indent-routing/users`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${BASE_URL}/api/indent-routing`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      setRoutingUsers(u.data || []);
+      setRoutingRules(r.data || []);
+    } catch (err) {
+      console.error("Error fetching indent routing:", err);
+    }
+  };
+
+  const saveRouting = async () => {
+    if (!routingUser) return showAlert("Select a user");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/indent-routing/${routingUser}`,
+        { locations: routingLocs },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      showAlert("Indent routing saved successfully");
+      setRoutingUser("");
+      setRoutingLocs([]);
+      fetchRouting();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save indent routing");
+    }
+  };
+
+  const deleteRouting = async (userId) => {
+    if (!(await askConfirm("Remove this rule? The user will receive indents from all locations again."))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/indent-routing/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchRouting();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "indentRouting") {
+      setRoutingUser("");
+      setRoutingLocs([]);
+      fetchRouting();
     }
   }, [activeSection]);
 
@@ -1428,6 +1482,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "inspection", label: "RM-IQC Specs", icon: Layers },
     { id: "gstMaster", label: "GST Master", icon: Layers },
     { id: "indentMail", label: "Mail Settings", icon: Activity },
+    { id: "indentRouting", label: "Indent Routing", icon: MapPin },
     { id: "roles", label: "Roles", icon: Activity },
   ];
 
@@ -4334,6 +4389,122 @@ const [supplierFilter, setSupplierFilter] = useState("");
           )}
         </motion.div>
       )}
+      {/* INDENT ROUTING */}
+      {activeSection === "indentRouting" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><MapPin size={18} /> Indent Routing</span>
+          </div>
+
+          <p style={{ marginBottom: 10, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
+            Choose which locations' indents a user receives in Purchase Order &gt; Order Requests.
+            Users without a rule receive indents from all locations.
+          </p>
+
+          <div className="activity-builder">
+            <div className="activity-name-field">
+              <label>User</label>
+              <select
+                className="pro-input"
+                value={routingUser}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setRoutingUser(id);
+                  const rule = routingRules.find((r) => String(r.user) === id);
+                  setRoutingLocs(rule ? (rule.locations || []).map(String) : []);
+                }}
+              >
+                <option value="">Select User</option>
+                {routingUsers.map((u) => (
+                  <option key={u._id} value={u._id}>
+                    {u.name}
+                    {routingRules.some((r) => String(r.user) === String(u._id)) ? " (rule set)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="machine-picker">
+              <div className="picker-header">
+                <span>Locations this user receives indents from</span>
+                <strong>{routingLocs.length} selected</strong>
+              </div>
+              <div style={{ display: "flex", gap: 8, margin: "6px 0" }}>
+                <button
+                  type="button"
+                  className="pro-btn"
+                  onClick={() => setRoutingLocs(locations.map((l) => String(l._id)))}
+                >
+                  Select All
+                </button>
+                <button type="button" className="pro-btn" onClick={() => setRoutingLocs([])}>
+                  Clear
+                </button>
+              </div>
+              <div className="machine-grid">
+                {locations.map((l) => {
+                  const id = String(l._id);
+                  const selected = routingLocs.includes(id);
+                  return (
+                    <label key={id} className={`machine-tile ${selected ? "selected" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() =>
+                          setRoutingLocs((prev) =>
+                            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+                          )
+                        }
+                      />
+                      <span>{l.locationName}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <button className="pro-btn primary" onClick={saveRouting}>
+            Save Routing
+          </button>
+
+          <div style={scrollContainerStyle}>
+            <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+              {routingRules.map((r) => (
+                <li key={r._id} className="d-flex justify-content-between align-items-center">
+                  <span>
+                    <strong>{r.userName}</strong> •{" "}
+                    {(r.locations || [])
+                      .map((id) => locations.find((l) => String(l._id) === String(id))?.locationName)
+                      .filter(Boolean)
+                      .join(", ") || "No locations (receives nothing)"}
+                  </span>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      className="pro-btn"
+                      onClick={() => {
+                        setRoutingUser(String(r.user));
+                        setRoutingLocs((r.locations || []).map(String));
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button className="pro-btn" onClick={() => deleteRouting(r.user)}>
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {routingRules.length === 0 && (
+                <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+                  No routing rules yet. Every user receives all locations.
+                </li>
+              )}
+            </ul>
+          </div>
+        </motion.div>
+      )}
+
       {/* ROLES MASTER */}
       {activeSection === "roles" && (
         <motion.div className="pro-card">

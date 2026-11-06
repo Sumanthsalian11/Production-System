@@ -8,6 +8,19 @@ const CustomerOrder = require("../models/CustomerOrder");
 const authMiddleware = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Item = require("../models/Item");
+const IndentRouting = require("../models/IndentRouting");
+
+// no rule for a user = sees every location (old behaviour);
+// a rule = only the locations the admin assigned
+async function allowedLocationFilter(userId) {
+  try {
+    const rule = await IndentRouting.findOne({ user: userId }).lean();
+    if (!rule) return {};
+    return { location: { $in: rule.locations } };
+  } catch (e) {
+    return {};
+  }
+}
 
 // =============================================
 // MULTER CONFIG (Customer Copy / Artwork uploads)
@@ -330,10 +343,13 @@ router.get("/", authMiddleware, async (req, res) => {
 // =============================================
 // GET PENDING INDENTS (For Purchase Order Page)
 // =============================================
+
 router.get("/requests", authMiddleware, async (req, res) => {
   try {
-    const indents = await IndentRequest.find({ 
-      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] }
+    const locFilter = await allowedLocationFilter(req.user.id);
+    const indents = await IndentRequest.find({
+      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] },
+      ...locFilter
     })
     .populate("location", "locationName")
     .sort({ createdAt: -1 });
@@ -344,7 +360,6 @@ router.get("/requests", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Error fetching pending indents" });
   }
 });
-
 // =============================================
 // INDENTS WITH ARTWORK WAITING FOR REVIEW (production + sample)
 // =============================================
@@ -352,7 +367,8 @@ router.get("/artwork-pending", authMiddleware, async (req, res) => {
   try {
     const indents = await IndentRequest.find({
       status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] },
-      "items.artworkVersions.status": "Pending"
+      "items.artworkVersions.status": "Pending",
+      ...(await allowedLocationFilter(req.user.id))
     })
       .populate("location", "locationName")
       .sort({ createdAt: -1 });
@@ -379,6 +395,14 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     
     if (!indent) {
       return res.status(404).json({ message: "Indent not found" });
+    }
+
+    const routingRule = await IndentRouting.findOne({ user: userId }).lean();
+    if (
+      routingRule &&
+      !(routingRule.locations || []).map(String).includes(String(indent.location?._id || indent.location))
+    ) {
+      return res.status(403).json({ message: "This indent location is not assigned to you" });
     }
 
     if (!["PENDING_PO", "SAMPLE_REQUESTED"].includes(indent.status)) {

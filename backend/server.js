@@ -121,6 +121,7 @@ app.use("/api/tracking", require("./routes/tracking"));
 
 const summaryDisplayRoutes = require("./routes/summaryDisplay");
 app.use("/api/summary-display", summaryDisplayRoutes);
+app.use("/api/indent-routing", require("./routes/indentRouting"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
