@@ -49,7 +49,7 @@ const ReceivingInspectionDashboard = lazy(() => import("./pages/ReceivingInspect
 const NewInspectionForm = lazy(() => import("./pages/NewInspectionForm"));
 const ClickReport = lazy(() => import("./pages/Clickreport"));
 const CustomerSatisfaction = lazy(() => import("./pages/CustomerSatisfaction"));
-const CustomerOnboarding = lazy(() => import("./pages/CustomerOnboarding"));
+const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
 
 const RolesCtx = createContext([]);
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)

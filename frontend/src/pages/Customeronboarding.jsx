@@ -290,7 +290,7 @@ export default function CustomerOnboarding() {
       `}</style>
 
       <div className="co-head">
-        <h4><FiUser /> Customer Onboarding</h4>
+       
         <div className="d-flex gap-2">
           <div className="input-group input-group-sm" style={{ width: 240 }}>
             <span className="input-group-text"><FiSearch /></span>
