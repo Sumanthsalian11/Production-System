@@ -4383,7 +4383,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           else if (tab === "planner") body = <FlowMulti docs={d.workOrders || (d.workOrder ? [d.workOrder] : [])} />;
                           else if (tab === "production") body = <FlowList docs={(d.production || []).filter((p) => !isQc(p))} />;
                           else if (tab === "qc") body = <FlowList docs={(d.production || []).filter(isQc)} />;
-                          else if (tab === "dispatch") body = <FlowList docs={d.dispatch} />;
+                          else if (tab === "dispatch") body = <FlowList docs={(d.dispatch || []).map((x) => ({ ...x, location: locations.find((l) => String(l._id) === String(x.location))?.locationName || x.location }))} />;
                         }
                         return (
                           <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setFlowSel("")}>
