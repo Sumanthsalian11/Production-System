@@ -149,7 +149,7 @@ router.get("/converted", authMiddleware, async (req, res) => {
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { status, orderType, source, po, productCode, date, customer, all } = req.query;
+    const { status, orderType, source, po, productCode, date, customer, all, from, to } = req.query;
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 30, 200);
 
@@ -164,6 +164,18 @@ router.get("/", authMiddleware, async (req, res) => {
       const start = new Date(date);
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
       filter.poDate = { $gte: start, $lt: end };
+    }
+    if (from || to) {
+      const range = {};
+      if (from) {
+        const s = new Date(`${from}T00:00:00+05:30`);
+        if (!isNaN(s)) range.$gte = s;
+      }
+      if (to) {
+        const e = new Date(`${to}T23:59:59.999+05:30`);
+        if (!isNaN(e)) range.$lte = e;
+      }
+      if (Object.keys(range).length) filter.createdAt = range;
     }
 
     let q = CustomerOrder.find(filter)
