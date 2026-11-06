@@ -62,7 +62,8 @@ function CustomerDashboard() {
     remarks: "",
     purchaseOrderNo: "",
     poDate: "",
-    expectedDeliveryDate: ""
+    expectedDeliveryDate: "",
+    wastePct: ""
   });
 
   // ===== NORMAL PO STATES =====
@@ -482,7 +483,8 @@ const PAGE_SIZE = 30;
             l.locationName?.toLowerCase() ===
             (order.userLocations?.[0] || loginLocation || "").toLowerCase()
         )?.locationName || "",
-      expectedDeliveryDate: order.expectedDeliveryDate?.slice(0, 10) || ""
+      expectedDeliveryDate: order.expectedDeliveryDate?.slice(0, 10) || "",
+      wastePct: order.orderWastePct ?? ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -575,7 +577,8 @@ const PAGE_SIZE = 30;
       purchaseOrderNo: "",
       poDate: "",
       planningLocation: "",
-      expectedDeliveryDate: indent.items[0]?.deliveryDate?.slice(0, 10) || ""
+      expectedDeliveryDate: indent.items[0]?.deliveryDate?.slice(0, 10) || "",
+      wastePct: ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -590,6 +593,11 @@ const PAGE_SIZE = 30;
   const validateIndentForm = () => {
     let newErrors = {};
     if (!indentForm.orderType) newErrors.orderType = "Required";
+    if (indentForm.wastePct === "" || indentForm.wastePct === null || indentForm.wastePct === undefined) {
+      newErrors.wastePct = "Required";
+    } else if (!Number.isFinite(Number(indentForm.wastePct)) || Number(indentForm.wastePct) < 0) {
+      newErrors.wastePct = "Enter a valid non-negative percentage";
+    }
 
     if (indentForm.orderType) {
       if (!indentForm.expectedDeliveryDate)
@@ -641,6 +649,7 @@ const PAGE_SIZE = 30;
         if (indentForm.purchaseOrderNo)
           fd.append("purchaseOrderNo", indentForm.purchaseOrderNo);
         if (indentForm.poDate) fd.append("poDate", indentForm.poDate);
+        fd.append("orderWastePct", indentForm.wastePct);
         if (indentForm.expectedDeliveryDate)
           fd.append("expectedDeliveryDate", indentForm.expectedDeliveryDate);
 
@@ -685,7 +694,8 @@ const PAGE_SIZE = 30;
           remarks: "",
           purchaseOrderNo: "",
           poDate: "",
-          expectedDeliveryDate: ""
+          expectedDeliveryDate: "",
+          wastePct: ""
         });
         fetchIndentRequests();
         fetchPendingArtworks();
@@ -810,11 +820,8 @@ const PAGE_SIZE = 30;
 
   const has = (v) => v !== "" && v !== null && v !== undefined;
 
-  // waste % shown in the Process Indent form (read from the saved order while editing)
-  const shownWaste = () =>
-    editingId
-      ? orders.find((x) => x._id === editingId)?.orderWastePct || ""
-      : indentForm.wastePct || "";
+  // Waste % is entered on the indent form and prefilled from saved orders when editing.
+  const shownWaste = () => indentForm.wastePct ?? "";
 
   // indent quantity + waste %, rounded up (same maths the server uses)
   const orderQtyWithWaste = () => {
@@ -2293,8 +2300,41 @@ const PAGE_SIZE = 30;
                       </PoField>
                     )}
 
-                    {indentForm.orderType &&
-                      indentForm.orderType !== "Inhouse" && (
+                    {indentForm.orderType && (
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-percent"
+                        label="Waste %"
+                        required
+                        filled={has(shownWaste())}
+                        error={errors.wastePct}
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          name="wastePct"
+                          className="po-input"
+                          value={shownWaste()}
+                          onChange={handleIndentFormChange}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          aria-required="true"
+                        />
+                      </PoField>
+                    )}
+
+                    {indentForm.orderType && (
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-123"
+                        label="Order Quantity (with waste)"
+                        alwaysFloat
+                      >
+                        <input className="po-input" value={orderQtyWithWaste()} readOnly />
+                      </PoField>
+                    )}
+
+                    {indentForm.orderType && indentForm.orderType !== "Inhouse" && (
                         <PoField
                           className="col-12"
                           icon="bi-truck"
@@ -2335,35 +2375,6 @@ const PAGE_SIZE = 30;
                     </PoField>
                   </div>
 
-                  <div className="row g-2 mt-1">
-                    <PoField
-                      className="col-md-4"
-                      icon="bi-percent"
-                      label="Waste %"
-                      filled={has(shownWaste())}
-                    >
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        name="wastePct"
-                        className="po-input"
-                        value={shownWaste()}
-                        onChange={handleIndentFormChange}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        disabled={editingId !== null}
-                      />
-                    </PoField>
-
-                    <PoField
-                      className="col-md-4"
-                      icon="bi-123"
-                      label="Order Quantity (with waste)"
-                      alwaysFloat
-                    >
-                      <input className="po-input" value={orderQtyWithWaste()} readOnly />
-                    </PoField>
-                  </div>
 
                   <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
                     <button
@@ -2997,7 +3008,9 @@ const PAGE_SIZE = 30;
                             : truncateText(order.customerName)}
                         </td>
                         <td className="fw-bold">{order.quantity}</td>
-                        <td>{order.orderWastePct ? `${order.orderWastePct}%` : "-"}</td>
+                        <td>{order.orderWastePct !== null && order.orderWastePct !== undefined && order.orderWastePct !== ""
+                          ? `${order.orderWastePct}%`
+                          : "-"}</td>
                         <td>{order.location?.locationName || "-"}</td>
                         <td>
                           <span
