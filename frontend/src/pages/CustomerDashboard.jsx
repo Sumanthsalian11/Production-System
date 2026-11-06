@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import axios from "axios";
 import BASE_URL from "../config/api";
+import WoStageChartModal, { fetchWoStageTree } from "./Wostagechart";
 
 // Outlined floating-label field with a leading icon (entry form styling)
 function PoField({
@@ -39,6 +40,92 @@ function PoField({
     </div>
   );
 }
+
+const flatDoc = (v, p, out) => {
+  if (v === null || v === undefined) { out[p] = ""; return out; }
+  if (Array.isArray(v)) {
+    if (!v.length) out[p] = "";
+    v.forEach((x, i) => flatDoc(x, p + "[" + (i + 1) + "]", out));
+    return out;
+  }
+  if (typeof v === "object") {
+    Object.keys(v).forEach((k) => flatDoc(v[k], p ? p + "." + k : k, out));
+    return out;
+  }
+  out[p] = /^\d{4}-\d\d-\d\dT/.test(String(v))
+    ? (/T00:00:00(\.000)?Z$/.test(String(v)) || /T18:30:00(\.000)?Z$/.test(String(v))
+        ? new Date(v).toLocaleDateString("en-IN")
+        : new Date(v).toLocaleString("en-IN"))
+    : String(v);
+  return out;
+};
+const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|updatedAt|userLocations\[\d+\])$|artworkVersions\[\d+\]\.filePath$|(^|\.)artwork\.filePath$/;
+const prettyKey = (k) =>
+  k
+    .replace(/\[(\d+)\]/g, " $1")
+    .split(".")
+    .map((s) => s.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (c) => c.toUpperCase()))
+    .join(" › ");
+
+const FlowKV = ({ doc }) => {
+  if (!doc) return <div className="py-2">No record yet for this stage.</div>;
+  const rows = Object.entries(flatDoc(doc, "", {}))
+    .filter(([k, v]) => !HIDE_RX.test(k) && v !== "");
+  const groups = [];
+  const map = {};
+  rows.forEach(([k, v]) => {
+    const m = k.match(/^(.*?\[\d+\])\.?(.*)$/);
+    const g = m ? prettyKey(m[1]) : "Details";
+    const label = m ? prettyKey(m[2] || m[1]) : prettyKey(k);
+    if (!map[g]) { map[g] = []; groups.push(g); }
+    map[g].push([k, label, String(v)]);
+  });
+  return (
+    <>
+      {groups.map((g) => (
+        <div key={g} className="mb-3">
+          <div className="gl-group">
+            <i className="bi bi-info-circle"></i>
+            <span>{g}</span>
+          </div>
+          <div className="row g-2">
+            {map[g].map(([k, label, v]) => (
+              <PoField key={k} className={v.length > 45 ? "col-12" : "col-6 col-md-3"} icon="bi-dot" label={label} alwaysFloat>
+                <input className="po-input" value={v} title={v} readOnly />
+              </PoField>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+};
+const FlowMulti = ({ docs }) => {
+  if (!docs || !docs.length) return <div className="py-2">No record yet for this stage.</div>;
+  return (
+    <>
+      {docs.map((d, i) => (
+        <div key={i} className="mb-3">
+          {docs.length > 1 && <b className="d-block mb-1">Record {i + 1} of {docs.length}</b>}
+          <FlowKV doc={d} />
+        </div>
+      ))}
+    </>
+  );
+};
+const FlowList = ({ docs }) => {
+  if (!docs || !docs.length) return <div className="py-2">No entries yet for this stage.</div>;
+  return (
+    <>
+      {docs.map((d, i) => (
+        <div key={i} className="mb-3 p-2" style={{ border: "1px solid #e3e7ec", borderRadius: 8 }}>
+          <b className="d-block mb-2">Entry {i + 1} of {docs.length}</b>
+          <FlowKV doc={d} />
+        </div>
+      ))}
+    </>
+  );
+};
 
 function CustomerDashboard() {
   const navigate = useNavigate();
@@ -90,6 +177,13 @@ const PAGE_SIZE = 30;
   const [attachment, setAttachment] = useState(null);
   const [convertedOrderIds, setConvertedOrderIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [trackOrder, setTrackOrder] = useState(null);
+  const [trackInfo, setTrackInfo] = useState(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [woTrees, setWoTrees] = useState({});
+  const [chartWo, setChartWo] = useState(null);
+  const [flowSel, setFlowSel] = useState("");
+  const [flowData, setFlowData] = useState({});
   const submitLockRef = useRef(false);
 
 
@@ -859,6 +953,59 @@ const PAGE_SIZE = 30;
     return Math.ceil(b + (b * p) / 100);
   };
 
+  const detailKeyOf = (o) => o.indentNo || o._id;
+
+  const fetchFlowDetail = async (o) => {
+    const key = detailKeyOf(o);
+    if (flowData[key] && !flowData[key].error) return;
+    try {
+      const r = await axios.get(`${BASE_URL}/api/tracking/detail`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: o.indentNo ? { indentNo: o.indentNo } : { orderId: o._id }
+      });
+      setFlowData((p) => ({ ...p, [key]: r.data }));
+    } catch {
+      setFlowData((p) => ({ ...p, [key]: { error: true } }));
+    }
+  };
+
+  const openTrack = async (order) => {
+    const ref = order.indentNo || order.ticketNo || order.purchaseOrderNo || "";
+    setTrackOrder(order);
+    setTrackInfo(null);
+    setFlowSel("");
+    setTrackLoading(true);
+    try {
+      const r = await axios.get(`${BASE_URL}/api/tracking`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { q: ref, limit: 50 }
+      });
+      const row = (r.data || []).find((x) => String(x.ref) === String(ref));
+      if (row) {
+        setTrackInfo({
+          ...row,
+          stages: (row.stages || []).filter((s) => s.key !== "qc")
+        });
+      } else {
+        setTrackInfo({ notFound: true });
+      }
+    } catch {
+      setTrackInfo({ error: true });
+    }
+    setTrackLoading(false);
+  };
+
+  useEffect(() => {
+    const wo = trackInfo?.woNo;
+    if (!wo) return;
+    let live = true;
+    fetchWoStageTree(wo, token)
+      .then((t) => { if (live) setWoTrees((p) => ({ ...p, [wo]: t })); })
+      .catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackInfo?.woNo]);
+
   const truncateText = (text, length = 25) => {
     if (!text) return "-";
     return text.length > length ? text.substring(0, length) + "..." : text;
@@ -1535,6 +1682,21 @@ const PAGE_SIZE = 30;
           appearance: textfield;
         }
 
+        /* ---------- Track popup ---------- */
+        .trk-overlay{position:fixed;inset:0;z-index:1996;display:flex;align-items:center;justify-content:center;background:rgba(11,58,69,.55);backdrop-filter:blur(3px)}
+        .trk-modal{width:94vw;max-width:1400px;max-height:90vh;overflow:auto;background:#fff;border-radius:12px;border-top:4px solid #e4572e;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:18px 24px 24px}
+        .trk-flow-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+        .trk-flow-h{font-size:13px;text-transform:uppercase;letter-spacing:.6px;padding-left:8px;border-left:3px solid #e4572e;margin-right:6px}
+        .trk-chip{padding:3px 12px;border-radius:999px;background:#f4f6f8;border:1px solid #e3e7ec;font-size:12px}
+        .trk-chip.trk-now{background:#fde3d8;border-color:#f5b9a1}
+        .trk-cards{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 10px}
+        .trk-card{cursor:pointer;flex:1 1 0;min-width:170px;background:var(--c-bg,#f4f6f8);border:1px solid var(--c-bd,#b8c0cb);border-top:4px solid var(--c-bd,#b8c0cb);border-radius:8px;padding:10px 12px}
+        .trk-card>b{display:block;font-size:13px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px dashed rgba(0,0,0,.18)}
+        .trk-ln{font-size:12px;line-height:1.55;color:#000}
+        .customer-dashboard-universe .gl-group{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;font-weight:700;padding-left:8px;border-left:3px solid #e4572e}
+        .customer-dashboard-universe .gl-group i{color:#e4572e}
+        @media(max-width:768px){.trk-cards{flex-direction:column}.trk-card{min-width:0}}
+
         /* ---------- Scrollbars ---------- */
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar { height: 8px; width: 8px; }
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar-thumb { background: #c5ccd5; border-radius: 8px; }
@@ -1800,6 +1962,181 @@ const PAGE_SIZE = 30;
           }
         }
       `}</style>
+
+      {/* Track popup */}
+      {trackOrder && (
+        <div className="trk-overlay" onClick={() => setTrackOrder(null)}>
+          <div className="trk-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+              <b>
+                {trackOrder.indentNo ||
+                  trackOrder.ticketNo ||
+                  trackOrder.purchaseOrderNo ||
+                  "-"}
+              </b>
+              <span>
+                {trackOrder.customerName} -{" "}
+                {trackOrder.description || trackOrder.productCode}
+              </span>
+              {trackInfo?.woNo ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-success ms-auto"
+                  onClick={() => setChartWo(trackInfo.woNo)}
+                >
+                  Chart
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={`btn btn-sm btn-danger ${trackInfo?.woNo ? "" : "ms-auto"}`}
+                onClick={() => setTrackOrder(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            {trackLoading ? (
+              <div className="py-3">Loading...</div>
+            ) : trackInfo?.error ? (
+              <div className="py-3">Could not load tracking.</div>
+            ) : !trackInfo || trackInfo.notFound ? (
+              <div className="py-3">No tracking found for this order.</div>
+            ) : (
+              (() => {
+                const fl = trackInfo;
+                const CL = {
+                  done: ["#d9f2e6", "#1f9d6b"],
+                  partial: ["#fff3d6", "#d98a00"],
+                  current: ["#fde3d8", "#e4572e"],
+                  stopped: ["#fbdcdc", "#d64545"]
+                };
+                return (
+                  <div>
+                    {chartWo && chartWo === fl.woNo && (
+                      <WoStageChartModal
+                        woNo={chartWo}
+                        tree={woTrees[chartWo]}
+                        onClose={() => setChartWo(null)}
+                      />
+                    )}
+                    <div className="trk-flow-title">
+                      <b className="trk-flow-h">Order flow</b>
+                      {fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}
+                      {fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}
+                      <span className="trk-chip trk-now">Now: <b>{fl.current}</b></span>
+                    </div>
+                    {(() => {
+                      const dk = detailKeyOf(trackOrder);
+                      if (!flowSel.startsWith(dk + "|")) return null;
+                      const tab = flowSel.split("|")[1];
+                      const d = flowData[dk];
+                      let body = <div className="py-2">Loading...</div>;
+                      if (d && d.error) body = <div className="py-2">Could not load details.</div>;
+                      else if (d) {
+                        if (tab === "indent") body = <FlowKV doc={d.indent} />;
+                        else if (tab === "po") body = <FlowMulti docs={d.orders || (d.order ? [d.order] : [])} />;
+                        else if (tab === "planner") body = <FlowMulti docs={d.workOrders || (d.workOrder ? [d.workOrder] : [])} />;
+                        else if (tab === "production") body = <FlowList docs={d.production} />;
+                        else if (tab === "dispatch")
+                          body = (
+                            <FlowList
+                              docs={(d.dispatch || []).map((x) => ({
+                                ...x,
+                                location:
+                                  locations.find((l) => String(l._id) === String(x.location))?.locationName ||
+                                  x.location
+                              }))}
+                            />
+                          );
+                      }
+                      return (
+                        <div
+                          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}
+                          onClick={() => setFlowSel("")}
+                        >
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1400, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+                          >
+                            <div className="d-flex align-items-center gap-3 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                              <b style={{ fontSize: 15 }}>{trackOrder.indentNo || trackOrder.ticketNo || trackOrder.purchaseOrderNo || "-"}</b>
+                              {fl.woNo ? <span>WO <b>{fl.woNo}</b></span> : null}
+                              {fl.poNo ? <span>PO <b>{fl.poNo}</b></span> : null}
+                              <span>{fl.customer}</span>
+                              <button type="button" className="btn btn-sm btn-danger ms-auto" onClick={() => setFlowSel("")}>
+                                Close
+                              </button>
+                            </div>
+                            <div className="d-flex flex-wrap gap-1 px-3 pt-2 pb-2">
+                              {fl.woNo ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-success"
+                                  style={{ fontWeight: 700 }}
+                                  onClick={() => setChartWo(fl.woNo)}
+                                >
+                                  Chart
+                                </button>
+                              ) : null}
+                              {fl.stages.map((x) => (
+                                <button
+                                  key={x.key}
+                                  type="button"
+                                  className="btn btn-sm"
+                                  style={{
+                                    fontWeight: 600,
+                                    background: x.key === tab ? "#0f5560" : "#b9d6dd",
+                                    color: x.key === tab ? "#fff" : "#000",
+                                    border: "1px solid " + (x.key === tab ? "#0b3a45" : "#8fbcc7")
+                                  }}
+                                  onClick={() => {
+                                    setFlowSel(dk + "|" + x.key);
+                                    fetchFlowDetail(trackOrder);
+                                  }}
+                                >
+                                  {x.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="px-3 pb-3" style={{ overflow: "auto", flex: 1 }}>{body}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="trk-cards">
+                      {fl.stages.map((st) => {
+                        const stS =
+                          st.key === "production" && woTrees[fl.woNo]?.complete
+                            ? "done"
+                            : st.state;
+                        const c = CL[stS] || ["#f4f6f8", "#b8c0cb"];
+                        return (
+                          <div
+                            key={st.key}
+                            className="trk-card"
+                            title="Double-click for details"
+                            onDoubleClick={() => {
+                              setFlowSel(detailKeyOf(trackOrder) + "|" + st.key);
+                              fetchFlowDetail(trackOrder);
+                            }}
+                            style={{ "--c-bg": c[0], "--c-bd": c[1] }}
+                          >
+                            <b style={{ color: c[1] }}>{st.label}</b>
+                            {st.lines.map((ln, q) => (
+                              <div key={q} className="trk-ln">{ln}</div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       <div
@@ -2977,13 +3314,14 @@ const PAGE_SIZE = 30;
                     <th>Attachment</th>
                     <th>User</th>
                     <th>User Location</th>
+                    <th>Track</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="18" className="p-4 text-center text-muted">
+                      <td colSpan="19" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3189,6 +3527,15 @@ const PAGE_SIZE = 30;
                           {order.userLocations?.length > 0
                             ? order.userLocations.join(", ")
                             : "-"}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-info"
+                            onClick={() => openTrack(order)}
+                          >
+                            Track
+                          </button>
                         </td>
                         <td className="text-center align-middle">
                           {order.user === loggedInUser ? (

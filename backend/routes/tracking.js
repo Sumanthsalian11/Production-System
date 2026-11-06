@@ -210,9 +210,12 @@ const clean = (v) => {
 router.get("/detail", authMiddleware, async (req, res) => {
   try {
     const indentNo = String(req.query.indentNo || "").trim();
-    if (!indentNo) return res.json({});
-    const indent = await IndentRequest.findOne({ indentNo }).lean();
-    const orders = await CustomerOrder.find({ indentNo }).sort({ createdAt: 1 }).lean();
+    const orderId = String(req.query.orderId || "").trim();
+    if (!indentNo && !orderId) return res.json({});
+    const indent = indentNo ? await IndentRequest.findOne({ indentNo }).lean() : null;
+    const orders = indentNo
+      ? await CustomerOrder.find({ indentNo }).sort({ createdAt: 1 }).lean()
+      : (/^[a-f0-9]{24}$/i.test(orderId) ? await CustomerOrder.find({ _id: orderId }).lean() : []);
     const order = orders[0] || null;
     const wos = orders.length
       ? await WorkOrder.find({ customerOrderId: { $in: orders.map((o) => o._id) } }).sort({ createdAt: 1 }).lean()
