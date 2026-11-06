@@ -358,6 +358,100 @@ function AddableSelect({ value, onChange, options, placeholder, disabled, noAdd 
   );
 }
 
+function SearchableSelect({ value, onChange, options, placeholder = "Select" }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const selected = options.find((o) => String(o.value) === String(value));
+  const list = options.filter((o) =>
+    o.label.toLowerCase().includes(query.trim().toLowerCase())
+  );
+
+  const pick = (val) => {
+    onChange(val);
+    setOpen(false);
+    setQuery("");
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        className="pro-input"
+        style={{ width: "100%" }}
+        placeholder={placeholder}
+        value={open ? query : selected ? selected.label : ""}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+      />
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            maxHeight: 220,
+            overflowY: "auto",
+            background: "#fff",
+            border: "1.5px solid #9ccbe6",
+            borderRadius: 12,
+            boxShadow: "0 10px 24px rgba(40,120,170,0.22)",
+          }}
+        >
+          <div
+            style={{ padding: "8px 12px", cursor: "pointer", color: "#8fb0c8", fontWeight: 600, fontSize: 13 }}
+            onMouseDown={(e) => { e.preventDefault(); pick(""); }}
+          >
+            {placeholder}
+          </div>
+          {list.map((o) => (
+            <div
+              key={o.value}
+              onMouseDown={(e) => { e.preventDefault(); pick(o.value); }}
+              style={{
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#0b2f4f",
+                background: String(o.value) === String(value) ? "#d9f2fc" : "#fff",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf7ff")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background =
+                  String(o.value) === String(value) ? "#d9f2fc" : "#fff")
+              }
+            >
+              {o.label}
+            </div>
+          ))}
+          {list.length === 0 && (
+            <div style={{ padding: "10px 12px", color: "#4a6f8c", textAlign: "center", fontSize: 13 }}>
+              No users found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(null); // which master form popup is open
@@ -4405,24 +4499,21 @@ const [supplierFilter, setSupplierFilter] = useState("");
           <div className="activity-builder">
             <div className="activity-name-field">
               <label>User</label>
-              <select
-                className="pro-input"
+              <SearchableSelect
+                placeholder="Select User"
                 value={routingUser}
-                onChange={(e) => {
-                  const id = e.target.value;
+                options={routingUsers.map((u) => ({
+                  value: String(u._id),
+                  label:
+                    u.name +
+                    (routingRules.some((r) => String(r.user) === String(u._id)) ? " (rule set)" : ""),
+                }))}
+                onChange={(id) => {
                   setRoutingUser(id);
                   const rule = routingRules.find((r) => String(r.user) === id);
                   setRoutingLocs(rule ? (rule.locations || []).map(String) : []);
                 }}
-              >
-                <option value="">Select User</option>
-                {routingUsers.map((u) => (
-                  <option key={u._id} value={u._id}>
-                    {u.name}
-                    {routingRules.some((r) => String(r.user) === String(u._id)) ? " (rule set)" : ""}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div className="machine-picker">
