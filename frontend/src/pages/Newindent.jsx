@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { jwtDecode } from "jwt-decode";
+import WoStageChartModal, { fetchWoStageTree } from "./WoStageChart";
 import Swal from "sweetalert2";
 import axios from "axios";
 import * as XLSX from "xlsx";
@@ -191,6 +192,8 @@ const BLANK_ITEM = {
 
 function NewIndent() {
   const [locations, setLocations] = useState([]);
+  const [woTrees, setWoTrees] = useState({}); // stage tree + completion per work order
+  const [chartWo, setChartWo] = useState(null); // work order whose chart is open
   const [materials, setMaterials] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState("");
   const [errors, setErrors] = useState({});
@@ -509,6 +512,21 @@ function NewIndent() {
       setFlowData((p) => ({ ...p, [indentNo]: { error: true } }));
     }
   };
+  // work order of the indent whose Track popup is open
+  const trackWoNo = (() => {
+    const i = indents.find((x) => x._id === trackId);
+    return i ? flow[i.indentNo]?.woNo : null;
+  })();
+  useEffect(() => {
+    if (!trackWoNo) return;
+    let live = true;
+    fetchWoStageTree(trackWoNo, token)
+      .then((t) => { if (live) setWoTrees((p) => ({ ...p, [trackWoNo]: t })); })
+      .catch(() => {});
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackWoNo, trackId]);
+
   const fetchFlow = async () => {
     try {
       const r = await axios.get(`${BASE_URL}/api/tracking`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 300 } });
@@ -4382,10 +4400,14 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   const CL = { done: ["#d9f2e6", "#1f9d6b"], partial: ["#fff3d6", "#d98a00"], current: ["#fde3d8", "#e4572e"], stopped: ["#fbdcdc", "#d64545"] };
                   return (
                     <div className="mt-2 mb-2">
+                      {chartWo && chartWo === fl.woNo && (
+                        <WoStageChartModal woNo={chartWo} tree={woTrees[chartWo]} onClose={() => setChartWo(null)} />
+                      )}
                       <div className="trk-flow-title"><b className="trk-flow-h">Order flow</b>{fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}{fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}<span className="trk-chip trk-now">Now: <b>{fl.current}</b></span></div>
                       <div className="trk-cards">
                         {fl.stages.map((st) => {
-                          const c = CL[st.state] || ["#f4f6f8", "#b8c0cb"];
+                          const stS = st.key === "production" && woTrees[fl.woNo]?.complete ? "done" : st.state;
+                          const c = CL[stS] || ["#f4f6f8", "#b8c0cb"];
                           return (
                             <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); }} className="trk-card" style={{ "--c-bg": c[0], "--c-bd": c[1] }}>
                               <b style={{ color: c[1] }}>{st.label}</b>
@@ -4420,6 +4442,12 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                                 <button type="button" className="btn-action-delete ms-auto" onClick={() => setFlowSel("")}>Close</button>
                               </div>
                               <div className="d-flex flex-wrap gap-1 px-3 pt-2 pb-2">
+                                {fl.woNo ? (
+                                  <button type="button" className="btn btn-sm btn-success" style={{ fontWeight: 700 }}
+                                    onClick={() => setChartWo(fl.woNo)}>
+                                    Chart
+                                  </button>
+                                ) : null}
                                 {fl.stages.map((x) => (
                                   <button key={x.key} type="button" className="btn btn-sm"
                     style={{
