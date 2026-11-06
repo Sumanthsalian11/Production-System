@@ -41,11 +41,20 @@ const IconSearch = (p) => (
   </svg>
 );
 
+const CLEARED = {
+  purchaseOrderNo: "", poDate: "", customer: "", productName: "",
+  totalQty: "", dispatchQty: "", balanceQty: "", dispatchDate: "",
+  location: "", deliveryAddress: "", expectedDeliveryDate: "",
+  delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
+  invoiceNo: "", invoiceDate: "", extraQty: "", remarks: ""
+};
+
 export default function DispatchManagement() {
 
 const [transportations, setTransportations] = useState([]);
 const [dispatchList, setDispatchList] = useState([]);
 const [editingId, setEditingId] = useState(null);
+const [fetchBy, setFetchBy] = useState("wo"); // "wo" | "ticket"
 const [loggedInUser, setLoggedInUser] = useState("");
 const [expandedCell, setExpandedCell] = useState(null);
 const [originalBalance, setOriginalBalance] = useState(0);
@@ -55,7 +64,9 @@ const [locationOptions, setLocationOptions] = useState([]);
 const [filters, setFilters] = useState({
   woNumber: "",
   customer: "",
-  dispatchDate: ""
+  dispatchDate: "",
+  fromDate: "",
+  toDate: ""
 });
 
 const showAlert = (message, icon = "warning") => {
@@ -85,6 +96,7 @@ const showAlert = (message, icon = "warning") => {
 
 const [form, setForm] = useState({
 efiWoNumber:"",
+ticketNo:"",
 purchaseOrderNo:"",
 poDate:"", 
 customer:"",
@@ -193,8 +205,10 @@ const fetchDispatches = async () => {
 // EDIT
 const handleEdit = (dispatch)=>{
 
+setFetchBy(dispatch.ticketNo ? "ticket" : "wo");
 setForm({
-efiWoNumber:dispatch.efiWoNumber,
+efiWoNumber: dispatch.efiWoNumber ?? "",
+ticketNo: dispatch.ticketNo || "",
 customer:dispatch.customer,
 productName:dispatch.productName,
 totalQty:dispatch.totalQty,
@@ -268,6 +282,49 @@ showAlert("Error fetching Work Order","error");
 
 };
 
+const switchFetchBy = (mode) => {
+  setFetchBy(mode);
+  setEditingId(null);
+  setOriginalBalance(0);
+  setForm(prev => ({ ...prev, ...CLEARED, efiWoNumber: "", ticketNo: "" }));
+};
+
+// FETCH BY TICKET (Out Source / PMS)
+const fetchByTicket = async () => {
+  const t = String(form.ticketNo || "").trim();
+  if (!t) {
+    showAlert("Please enter Ticket ID", "warning");
+    return;
+  }
+  try {
+    const res = await axios.get(
+      `${BASE_URL}/api/dispatch/ticket/${encodeURIComponent(t)}`
+    );
+    const o = res.data;
+
+    setForm(prev => ({
+      ...prev,
+      ticketNo: o.ticketNo,
+      customer: o.customer,
+      productName: o.productName,
+      totalQty: o.totalQty,
+      dispatchQty: "",
+      balanceQty: o.balanceQty || 0,
+      purchaseOrderNo: o.purchaseOrderNo || "",
+      poDate: o.poDate ? String(o.poDate).split("T")[0] : "",
+      expectedDeliveryDate: o.expectedDeliveryDate
+        ? String(o.expectedDeliveryDate).split("T")[0]
+        : ""
+    }));
+    setOriginalBalance(o.balanceQty || 0);
+  } catch (err) {
+    if (err.response?.status === 404) showAlert("Ticket not found", "warning");
+    else if (err.response?.status === 400)
+      showAlert(err.response.data.message, "warning");
+    else showAlert("Error fetching Ticket", "error");
+  }
+};
+
 // VALIDATION
 const isValidInput = (value)=>{
 const regex = /^[a-zA-Z0-9\s.,]*$/;
@@ -287,15 +344,13 @@ const handleChange = (e) => {
   }
 
   // WO number changed -> clear fetched details, Fetch Details must be clicked again
-  if (name === "efiWoNumber") {
+  if (name === "efiWoNumber" || name === "ticketNo") {
+    const clean = name === "ticketNo" ? value.replace(/[^a-zA-Z0-9_]/g, "") : value;
     setForm(prev => ({
       ...prev,
-      efiWoNumber: value,
-      purchaseOrderNo: "", poDate: "", customer: "", productName: "",
-      totalQty: "", dispatchQty: "", balanceQty: "", dispatchDate: "",
-      location: "", deliveryAddress: "", expectedDeliveryDate: "",
-      delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
-      invoiceNo: "", invoiceDate: "", extraQty: "", remarks: ""
+      ...CLEARED,
+      efiWoNumber: name === "efiWoNumber" ? clean : "",
+      ticketNo: name === "ticketNo" ? clean : ""
     }));
     setEditingId(null);
     setOriginalBalance(0);
@@ -399,10 +454,7 @@ if(!form.extraQty)
 return;
 } 
 
-if (!form.remarks) {
-  showAlert("Remarks is required","warning");
-  return;
-}
+
 if(!loggedInUser){
 showAlert("Session expired. Please login again.","warning");
 return;
@@ -430,6 +482,8 @@ dispatchDate: form.dispatchDate
 ? new Date(form.dispatchDate).toISOString().split("T")[0]
 : "",
 enteredBy: loggedInUser,
+efiWoNumber: form.efiWoNumber || undefined,
+ticketNo: form.ticketNo || undefined,
 userLocations: form.userLocations || [] 
 };
 
@@ -457,6 +511,8 @@ showAlert("Dispatch Created Successfully","success");
 
 setForm({
 efiWoNumber:"",
+ticketNo:"",
+userLocations: form.userLocations || [],
 customer:"",
 productName:"",
 totalQty:"",
@@ -493,7 +549,7 @@ if(dispatchList.length===0) return showAlert("No records to export","warning");
 const excelData = filteredDispatchList.map((item,index)=>({
 
 "SL NO": index+1,
-"Work Order": item.efiWoNumber,
+"Work Order": item.efiWoNumber || item.ticketNo,
 "Customer": item.customer,
 "Product": item.productName,
 "Total Qty": item.totalQty,
@@ -529,10 +585,8 @@ saveAs(data,"DispatchList.xlsx");
 const today = new Date().toISOString().split("T")[0];
 
 const filteredDispatchList = dispatchList.filter((item) => {
-  if (
-    filters.woNumber &&
-    !String(item.efiWoNumber).includes(filters.woNumber)
-  ) {
+  const jobKey = String(item.efiWoNumber ?? item.ticketNo ?? "").toLowerCase();
+  if (filters.woNumber && !jobKey.includes(filters.woNumber.toLowerCase())) {
     return false;
   }
 
@@ -549,6 +603,14 @@ const filteredDispatchList = dispatchList.filter((item) => {
     filters.dispatchDate &&
     item.dispatchDate?.split("T")[0] !== filters.dispatchDate
   ) {
+    return false;
+  }
+
+  const dDate = item.dispatchDate?.split("T")[0] || "";
+  if (filters.fromDate && (!dDate || dDate < filters.fromDate)) {
+    return false;
+  }
+  if (filters.toDate && (!dDate || dDate > filters.toDate)) {
     return false;
   }
    if (locationFilter) {
@@ -635,6 +697,10 @@ return(
     background: radial-gradient(circle at 30% 25%, #b6ecff, #2a9be0 70%);
     box-shadow: 0 0 0 3px rgba(42, 155, 224, 0.2);
   }
+
+  /* fetch-by switch */
+  .dm-fetchby { display: flex; gap: 18px; margin: 0 0 10px; }
+  .dm-fetchby label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 
   /* lookup */
   .dm-lookup { display: flex; gap: 12px; align-items: flex-end; max-width: 620px; flex-wrap: wrap; }
@@ -897,31 +963,51 @@ return(
 
 <div className="dm-card">
 
-<div className="dm-pill">Search Work Order</div>
+<div className="dm-pill">Search Work Order / Ticket</div>
 
-<div className="dm-lookup">
-
-<div className="dm-field">
-
-<label className="dm-label">Work Order Number</label>
-
-<input
-type="number"
-name="efiWoNumber"
-value={form.efiWoNumber}
-onChange={handleChange}
-className="dm-input"
-/>
-
+<div className="dm-fetchby">
+  <label>
+    <input type="radio" checked={fetchBy === "wo"} onChange={() => switchFetchBy("wo")} />
+    Work Order No
+  </label>
+  <label>
+    <input type="radio" checked={fetchBy === "ticket"} onChange={() => switchFetchBy("ticket")} />
+    Ticket ID (Out Source / PMS)
+  </label>
 </div>
 
-<button
-className="dm-btn dm-btn-blue"
-type="button"
-onClick={fetchWorkOrder}>
-<IconSearch width={14} height={14} /> Fetch Details
-</button>
+<div className="dm-lookup">
+  {fetchBy === "wo" ? (
+    <div className="dm-field">
+      <label className="dm-label">Work Order Number</label>
+      <input
+        type="number"
+        name="efiWoNumber"
+        value={form.efiWoNumber}
+        onChange={handleChange}
+        className="dm-input"
+      />
+    </div>
+  ) : (
+    <div className="dm-field">
+      <label className="dm-label">Ticket ID</label>
+      <input
+        type="text"
+        name="ticketNo"
+        value={form.ticketNo}
+        onChange={handleChange}
+        placeholder="e.g. OS_01 or PMS_01"
+        className="dm-input"
+      />
+    </div>
+  )}
 
+  <button
+    className="dm-btn dm-btn-blue"
+    type="button"
+    onClick={fetchBy === "wo" ? fetchWorkOrder : fetchByTicket}>
+    <IconSearch width={14} height={14} /> Fetch Details
+  </button>
 </div>
 </div>
 
@@ -938,8 +1024,8 @@ onClick={fetchWorkOrder}>
     </div>
 
     <div className="dm-left-hero">
-      <div className="dm-left-kicker">Active WO</div>
-      <div className="dm-left-big">#{form.efiWoNumber}</div>
+      <div className="dm-left-kicker">{form.ticketNo ? "Active Ticket" : "Active WO"}</div>
+      <div className="dm-left-big">#{form.efiWoNumber || form.ticketNo}</div>
       <div className="dm-left-sub">{form.customer}</div>
     </div>
 
@@ -974,7 +1060,7 @@ onClick={fetchWorkOrder}>
     <div className="dm-right-rule"></div>
 
     {editingId && (
-      <div className="dm-edit-chip">✎ Editing dispatch {form.efiWoNumber}</div>
+      <div className="dm-edit-chip">✎ Editing dispatch {form.efiWoNumber || form.ticketNo}</div>
     )}
 
     <div className="dm-sub-head">Dispatch Details</div>
@@ -1168,7 +1254,7 @@ type="text"
 name="woNumber"
 value={filters.woNumber}
 onChange={handleFilterChange}
-placeholder="Search WO"
+placeholder="Search WO / Ticket"
 className="dm-input"
 />
 </div>
@@ -1203,6 +1289,30 @@ className="dm-input"
 </div>
 
 <div className="dm-field">
+<label className="dm-label">From Date</label>
+<input
+type="date"
+name="fromDate"
+value={filters.fromDate}
+max={filters.toDate || undefined}
+onChange={handleFilterChange}
+className="dm-input"
+/>
+</div>
+
+<div className="dm-field">
+<label className="dm-label">To Date</label>
+<input
+type="date"
+name="toDate"
+value={filters.toDate}
+min={filters.fromDate || undefined}
+onChange={handleFilterChange}
+className="dm-input"
+/>
+</div>
+
+<div className="dm-field">
   <label className="dm-label">User Location</label>
   <select
     className="dm-select"
@@ -1226,7 +1336,9 @@ onClick={() => {
   setFilters({
     woNumber: "",
     customer: "",
-    dispatchDate: ""
+    dispatchDate: "",
+    fromDate: "",
+    toDate: ""
   });
   setLocationFilter(""); // ✅ ADD THIS
 }}
@@ -1255,7 +1367,7 @@ Export Excel
       <table className="dm-table">
 <thead>
       <tr>
-        <th>WO</th>
+        <th>WO / Ticket</th>
         <th>PO No</th> 
         <th>Order Date</th>
         <th>Customer</th>
@@ -1287,7 +1399,7 @@ Export Excel
           .slice(0, 30)
           .map((d) => (
             <tr key={d._id}>
-              <td>{d.efiWoNumber}</td>
+              <td>{d.efiWoNumber || d.ticketNo}</td>
               <td>{d.purchaseOrderNo || "-"}</td> 
            <td>
 {d.poDate ? new Date(d.poDate).toLocaleDateString("en-IN") : "-"}

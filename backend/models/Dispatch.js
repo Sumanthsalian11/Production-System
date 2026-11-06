@@ -3,7 +3,12 @@ const dispatchSchema = new mongoose.Schema({
 
   efiWoNumber: {
     type: Number,
-    required: true
+    required: function () { return !this.ticketNo; }
+  },
+  ticketNo: {
+    type: String,
+    trim: true,
+    index: true
   },
     purchaseOrderNo: {        // ⭐ ADD THIS
     type: String

@@ -1,5 +1,6 @@
 const WorkOrder = require("../models/WorkOrder");
 const Dispatch = require("../models/Dispatch");
+const CustomerOrder = require("../models/CustomerOrder");
 
 // 🔹 Fetch Work Order by WO Number
 exports.getWorkOrderByNumber = async (req, res) => {
@@ -41,6 +42,47 @@ exports.getWorkOrderByNumber = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+// 🔹 Fetch Out Source / PMS order by Ticket No
+exports.getOrderByTicketNo = async (req, res) => {
+  try {
+    const ticketNo = String(req.params.ticketNo || "").trim().toUpperCase();
+
+    const order = await CustomerOrder.findOne({ ticketNo }).lean();
+    if (!order) {
+      return res.status(404).json({ message: "Ticket not found" });
+    }
+
+    if (!["Out Source", "PMS"].includes(order.orderType)) {
+      return res.status(400).json({
+        message: "Ticket fetch is only for Out Source and PMS orders"
+      });
+    }
+
+    const dispatches = await Dispatch.find({ ticketNo });
+    const dispatchedQty = dispatches.reduce(
+      (sum, d) => sum + Number(d.dispatchQty || 0),
+      0
+    );
+    const totalQty = Number(order.quantity) || 0;
+
+    res.json({
+      ticketNo: order.ticketNo,
+      orderType: order.orderType,
+      customer: order.customerName,
+      productName: order.description,
+      totalQty,
+      dispatchedQty,
+      balanceQty: totalQty - dispatchedQty,
+      purchaseOrderNo: order.purchaseOrderNo || "",
+      poDate: order.poDate || "",
+      expectedDeliveryDate: order.expectedDeliveryDate || ""
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 // 🔹 Create Dispatch
 exports.createDispatch = async (req, res) => {
   try {
@@ -110,16 +152,27 @@ exports.updateDispatch = async (req, res) => {
       return res.status(404).json({ message: "Dispatch not found" });
     }
 
-    // 🔹 Get Work Order
-    const workOrder = await WorkOrder.findOne({
-      efiWoNumber: existingDispatch.efiWoNumber
-    });
+    let totalQty = 0;
+    let sameJobFilter;
 
-    const totalQty = Number(workOrder.qtyInLvs) || 0;
+    if (existingDispatch.ticketNo) {
+      const order = await CustomerOrder.findOne({ ticketNo: existingDispatch.ticketNo });
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      totalQty = Number(order.quantity) || 0;
+      sameJobFilter = { ticketNo: existingDispatch.ticketNo };
+    } else {
+      const workOrder = await WorkOrder.findOne({
+        efiWoNumber: existingDispatch.efiWoNumber
+      });
+      totalQty = Number(workOrder.qtyInLvs) || 0;
+      sameJobFilter = { efiWoNumber: existingDispatch.efiWoNumber };
+    }
 
     // 🔹 Sum all OTHER dispatches (exclude current)
     const otherDispatches = await Dispatch.find({
-      efiWoNumber: existingDispatch.efiWoNumber,
+      ...sameJobFilter,
       _id: { $ne: req.params.id } // 🔥 KEY FIX
     });
 

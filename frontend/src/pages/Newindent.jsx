@@ -58,7 +58,7 @@ const flatDoc = (v, p, out) => {
   : String(v);
   return out;
 };
-const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|updatedAt|userLocations\[\d+\])$|artworkVersions\[\d+\]\.filePath$|(^|\.)artwork\.filePath$/;
+const HIDE_RX = /(^|\.)(_id|__v|slNo|rowIndex|isBooklet|isPerfecting|schedulerHidden|sentToPrepress|printingId|activityId|machineId|customerOrderId|updatedAt|delayDays|delayLabel|userLocations\[\d+\])$|artworkVersions\[\d+\]\.filePath$|(^|\.)artwork\.filePath$/;
 const prettyKey = (k) =>
   k
     .replace(/\[(\d+)\]/g, " $1")
@@ -155,6 +155,25 @@ const STAGE_OPTIONS = (() => {
 const LIVE_STAGES = ["New Indent", "Purchase Order", "Planner (Work Order)", "Production Entry", "QC", "Dispatch", "Completed"];
 
 
+
+const isExtOrder = (ind) => ["Out Source", "PMS"].includes(ind?.orderType);
+
+// Out Source / PMS: progress bar and stage follow the ticket dispatches
+const withExt = (fl, ind, ext) => {
+  if (!fl || !isExtOrder(ind) || !ext || !ext.totalQty) return fl;
+  const sent = ext.dispatchedQty || 0;
+  if (sent <= 0) return fl;
+  const all = sent >= ext.totalQty;
+  return {
+    ...fl,
+    current: all ? "Completed" : "Dispatch",
+    stages: (fl.stages || []).map((st) => {
+      if (st.key === "dispatch") return { ...st, state: all ? "done" : "partial" };
+      if (st.state === "current") return { ...st, state: "done" };
+      return st;
+    })
+  };
+};
 
 const typeKey = (ind) => (ind.indentType === "sample" ? "sample" : "production");
 
@@ -301,11 +320,21 @@ function NewIndent() {
   const [trackNote, setTrackNote] = useState("");
   const [holdReason, setHoldReason] = useState("");
   const [trackErr, setTrackErr] = useState("");
-  const [flow, setFlow] = useState({});
+  const [flowRaw, setFlow] = useState({});
   const [flowSel, setFlowSel] = useState("");
   const [flowData, setFlowData] = useState({});
+  const [extTickets, setExtTickets] = useState({}); // indentNo -> [ticketNo]
+  const [extDetail, setExtDetail] = useState({});   // indentNo -> { orders } | { error }
 
   // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
+  const flow = useMemo(() => {
+    const out = { ...flowRaw };
+    indents.forEach((ind) => {
+      if (out[ind.indentNo]) out[ind.indentNo] = withExt(out[ind.indentNo], ind, extTickets[ind.indentNo]);
+    });
+    return out;
+  }, [flowRaw, indents, extTickets]);
+
   const [searchMode, setSearchMode] = useState("code");
   const [itemList, setItemList] = useState([]);
   const [custSearch, setCustSearch] = useState("");
@@ -499,8 +528,30 @@ function NewIndent() {
       });
       setIndents(res.data);
       fetchFlow();
+      fetchExtTickets();
     } catch {
       setIndents([]);
+    }
+  };
+  const fetchExtTickets = async () => {
+    try {
+      const r = await axios.get(`${BASE_URL}/api/newindent/external-tickets`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExtTickets(r.data || {});
+    } catch {
+      setExtTickets({});
+    }
+  };
+  const fetchExtDetail = async (indentNo) => {
+    try {
+      const r = await axios.get(
+        `${BASE_URL}/api/newindent/external-track/${encodeURIComponent(indentNo)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setExtDetail((p) => ({ ...p, [indentNo]: r.data }));
+    } catch {
+      setExtDetail((p) => ({ ...p, [indentNo]: { error: true } }));
     }
   };
   const fetchFlowDetail = async (indentNo) => {
@@ -526,6 +577,12 @@ function NewIndent() {
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackWoNo, trackId]);
+
+  useEffect(() => {
+    const ind = indents.find((x) => x._id === trackId);
+    if (ind && isExtOrder(ind)) fetchExtDetail(ind.indentNo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId]);
 
   const fetchFlow = async () => {
     try {
@@ -4284,7 +4341,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <thead>
                 <tr>
                   <th>Indent</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th>
-                  <th>Due</th><th>Stage</th><th>WO No</th><th></th>
+                  <th>Due</th><th>Stage</th><th>WO / Ticket</th><th></th>
                 </tr>
               </thead>
               <tbody>
@@ -4331,7 +4388,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           })()}
                         </td>
 
-                        <td className="fw-bold">{flow[ind.indentNo]?.woNo || "-"}</td>
+                        <td className="fw-bold">
+  {flow[ind.indentNo]?.woNo || (extTickets[ind.indentNo]?.tickets || []).join(", ") || "-"}
+</td>
                         
                         <td>
                           <div className="d-flex gap-1">
@@ -4406,12 +4465,33 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       <div className="trk-flow-title"><b className="trk-flow-h">Order flow</b>{fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}{fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}<span className="trk-chip trk-now">Now: <b>{fl.current}</b></span></div>
                       <div className="trk-cards">
                         {fl.stages.map((st) => {
-                          const stS = st.key === "production" && woTrees[fl.woNo]?.complete ? "done" : st.state;
+                          let stS = st.key === "production" && woTrees[fl.woNo]?.complete ? "done" : st.state;
+
+// Out Source / PMS: dispatch card follows the ticket dispatches
+const extD = isExtOrder(ind) && st.key === "dispatch" ? extDetail[ind.indentNo] : null;
+const extOrders = extD && !extD.error && extD.orders && extD.orders.length ? extD.orders : null;
+let extLines = null;
+if (extOrders) {
+  const allDone = extOrders.every((o) => o.totalQty > 0 && o.balanceQty <= 0);
+  const anyDone = extOrders.some((o) => o.dispatchedQty > 0);
+  if (allDone) stS = "done";
+  else if (anyDone) stS = "partial";
+  extLines = extOrders.flatMap((o) => {
+    const last = o.dispatches[o.dispatches.length - 1];
+    return [
+      `Ticket ${o.ticketNo}: ${o.dispatchedQty} of ${o.totalQty} dispatched`,
+      `Balance: ${o.balanceQty}`,
+      last
+        ? `Last: ${last.dispatchDate ? new Date(last.dispatchDate).toLocaleDateString("en-IN") : "-"}${last.courier ? " via " + last.courier : ""}`
+        : "Not dispatched yet"
+    ];
+  });
+}
                           const c = CL[stS] || ["#f4f6f8", "#b8c0cb"];
                           return (
-                            <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); }} className="trk-card" style={{ "--c-bg": c[0], "--c-bd": c[1] }}>
+                            <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); if (isExtOrder(ind)) fetchExtDetail(ind.indentNo); }} className="trk-card" style={{ "--c-bg": c[0], "--c-bd": c[1] }}>
                               <b style={{ color: c[1] }}>{st.label}</b>
-                              {st.lines.map((ln, q) => <div key={q} className="trk-ln">{ln}</div>)}
+                              {(extLines || st.lines).map((ln, q) => <div key={q} className="trk-ln">{ln}</div>)}
                             </div>
                           );
                         })}
@@ -4422,7 +4502,26 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         const d = flowData[ind.indentNo];
                         const isQc = (p) => (p.machiness || []).some((m) => QC_RX_UI.test(m.activityName || ""));
                         let body = <div className="py-2">Loading...</div>;
-                        if (d && d.error) body = <div className="py-2">Could not load details.</div>;
+                        const extMode = tab === "dispatch" && isExtOrder(ind);
+if (extMode) {
+  const ex = extDetail[ind.indentNo];
+  if (!ex) body = <div className="py-2">Loading...</div>;
+  else if (ex.error) body = <div className="py-2">Could not load details.</div>;
+  else
+    body = (
+      <FlowList
+        docs={ex.orders.flatMap((o) =>
+          o.dispatches.map((x) => ({
+            ticketNo: o.ticketNo,
+            ...x,
+            location:
+              locations.find((l) => String(l._id) === String(x.location))?.locationName ||
+              x.location
+          }))
+        )}
+      />
+    );
+} else if (d && d.error) body = <div className="py-2">Could not load details.</div>;
                         else if (d) {
                           if (tab === "indent") body = <FlowKV doc={d.indent} />;
                           else if (tab === "po") body = <FlowMulti docs={d.orders || (d.order ? [d.order] : [])} />;

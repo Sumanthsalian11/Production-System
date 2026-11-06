@@ -9,6 +9,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Item = require("../models/Item");
 const IndentRouting = require("../models/IndentRouting");
+const Dispatch = require("../models/Dispatch");
 
 const mongoose = require("mongoose");
 
@@ -579,6 +580,77 @@ router.put("/reject/:id", authMiddleware, async (req, res) => {
 // =============================================
 // TRACKING (stage pipeline, hold / resume, undo)
 // =============================================
+// =============================================
+// OUT SOURCE / PMS TRACKING (ticket + dispatches)
+// =============================================
+// indentNo -> ticket numbers, for the Track table
+router.get("/external-tickets", authMiddleware, async (req, res) => {
+  try {
+    const orders = await CustomerOrder.find({
+      orderType: { $in: ["Out Source", "PMS"] },
+      indentNo: { $exists: true, $ne: "" },
+      ticketNo: { $exists: true, $ne: "" }
+    }).select("indentNo ticketNo quantity").lean();
+
+    const sent = await Dispatch.aggregate([
+      { $match: { ticketNo: { $in: orders.map((o) => o.ticketNo) } } },
+      { $group: { _id: "$ticketNo", qty: { $sum: "$dispatchQty" } } }
+    ]);
+    const sentBy = {};
+    sent.forEach((s) => { sentBy[s._id] = s.qty; });
+
+    const map = {};
+    orders.forEach((o) => {
+      const m = (map[o.indentNo] = map[o.indentNo] || { tickets: [], totalQty: 0, dispatchedQty: 0 });
+      m.tickets.push(o.ticketNo);
+      m.totalQty += Number(o.quantity) || 0;
+      m.dispatchedQty += Number(sentBy[o.ticketNo]) || 0;
+    });
+    res.status(200).json(map);
+  } catch (err) {
+    console.error("EXTERNAL TICKETS ERROR:", err);
+    res.status(500).json({ message: "Error fetching tickets" });
+  }
+});
+
+// one indent: its Out Source / PMS ticket(s) with the dispatch entries
+router.get("/external-track/:indentNo", authMiddleware, async (req, res) => {
+  try {
+    const orders = await CustomerOrder.find({
+      indentNo: req.params.indentNo,
+      orderType: { $in: ["Out Source", "PMS"] },
+      ticketNo: { $exists: true, $ne: "" }
+    })
+      .select("ticketNo orderType quantity remarks purchaseOrderNo poDate expectedDeliveryDate createdAt")
+      .lean();
+
+    const result = [];
+    for (const o of orders) {
+      const dispatches = await Dispatch.find({ ticketNo: o.ticketNo })
+        .sort({ dispatchDate: 1, createdAt: 1 })
+        .lean();
+      const dispatchedQty = dispatches.reduce((s, d) => s + Number(d.dispatchQty || 0), 0);
+      const totalQty = Number(o.quantity) || 0;
+      result.push({
+        ticketNo: o.ticketNo,
+        orderType: o.orderType,
+        supplier: o.remarks || "",
+        purchaseOrderNo: o.purchaseOrderNo || "",
+        poDate: o.poDate || null,
+        expectedDeliveryDate: o.expectedDeliveryDate || null,
+        totalQty,
+        dispatchedQty,
+        balanceQty: Math.max(0, totalQty - dispatchedQty),
+        dispatches
+      });
+    }
+    res.status(200).json({ orders: result });
+  } catch (err) {
+    console.error("EXTERNAL TRACK ERROR:", err);
+    res.status(500).json({ message: "Error fetching tracking" });
+  }
+});
+
 const PIPE = {
   production: [
     ["raised", "Indent raised"], ["po", "PO received"], ["appr", "Approved for production"],
