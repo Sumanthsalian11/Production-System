@@ -88,8 +88,7 @@ const PAGE_SIZE = 30;
   const [convertedOrderIds, setConvertedOrderIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
-  const [wastePct, setWastePct] = useState("");
-  const [baseQty, setBaseQty] = useState("");
+
 
   const poDateRef = useRef();
   const productCodeRef = useRef();
@@ -301,29 +300,11 @@ const PAGE_SIZE = 30;
       fetchProductDetails(newValue);
     }
     if (name === "quantity" && value < 0) return;
-    if (name === "quantity") {
-      setBaseQty(value);
-      setWastePct("");
-    }
+
+
 
     setErrors((prev) => ({ ...prev, [name]: "" }));
     setForm((prev) => ({ ...prev, [name]: newValue }));
-  };
-
-  const handleWastePctChange = (e) => {
-    const v = e.target.value;
-    if (v !== "" && Number(v) < 0) return;
-
-    const base = baseQty !== "" ? baseQty : form.quantity;
-    if (baseQty === "") setBaseQty(form.quantity);
-    setWastePct(v);
-
-    const b = Number(base);
-    const p = Number(v);
-    if (base === "" || base === null || isNaN(b)) return;
-
-    const finalQty = v === "" || isNaN(p) || p === 0 ? b : Math.ceil(b + (b * p) / 100);
-    setForm((prev) => ({ ...prev, quantity: String(finalQty) }));
   };
 
   const validateForm = () => {
@@ -372,7 +353,7 @@ const PAGE_SIZE = 30;
       formData.append("remarks", form.remarks);
       formData.append("remarks2", form.remarks2);
       formData.append("itemPdfPath", form.itemPdfPath || "");
-      formData.append("orderWastePct", wastePct || "0");
+
       formData.append("user", loggedInUser);
 
       if (attachment) formData.append("attachment", attachment);
@@ -459,8 +440,6 @@ const PAGE_SIZE = 30;
     });
     setAttachment(null);
     if (fileRef.current) fileRef.current.value = "";
-    setWastePct("");
-    setBaseQty("");
     setEditingId(null);
     setErrors({});
   };
@@ -518,13 +497,7 @@ const PAGE_SIZE = 30;
     setSelectedIndent(null);
     setEditingId(order._id);
     setShowEntryForm(true);
-    const wp = Number(order.orderWastePct) || 0;
-    setWastePct(wp ? String(wp) : "");
-    setBaseQty(
-      wp
-        ? String(Math.floor(Number(order.quantity) / (1 + wp / 100) + 1e-9))
-        : ""
-    );
+
     if (!order.purchaseOrderNo) {
       setOrderCategory("Security");
     } else {
@@ -836,6 +809,20 @@ const PAGE_SIZE = 30;
   };
 
   const has = (v) => v !== "" && v !== null && v !== undefined;
+
+  // waste % shown in the Process Indent form (read from the saved order while editing)
+  const shownWaste = () =>
+    editingId
+      ? orders.find((x) => x._id === editingId)?.orderWastePct || ""
+      : indentForm.wastePct || "";
+
+  // indent quantity + waste %, rounded up (same maths the server uses)
+  const orderQtyWithWaste = () => {
+    const b = Number(selectedIndent?.items?.[0]?.quantity) || 0;
+    const p = Number(indentForm.wastePct) || 0;
+    if (editingId || p <= 0) return b;
+    return Math.ceil(b + (b * p) / 100);
+  };
 
   const truncateText = (text, length = 25) => {
     if (!text) return "-";
@@ -2348,6 +2335,36 @@ const PAGE_SIZE = 30;
                     </PoField>
                   </div>
 
+                  <div className="row g-2 mt-1">
+                    <PoField
+                      className="col-md-4"
+                      icon="bi-percent"
+                      label="Waste %"
+                      filled={has(shownWaste())}
+                    >
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        name="wastePct"
+                        className="po-input"
+                        value={shownWaste()}
+                        onChange={handleIndentFormChange}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        disabled={editingId !== null}
+                      />
+                    </PoField>
+
+                    <PoField
+                      className="col-md-4"
+                      icon="bi-123"
+                      label="Order Quantity (with waste)"
+                      alwaysFloat
+                    >
+                      <input className="po-input" value={orderQtyWithWaste()} readOnly />
+                    </PoField>
+                  </div>
+
                   <div className="d-flex justify-content-center align-items-center gap-3 mt-3">
                     <button
                       type="submit"
@@ -2554,22 +2571,7 @@ const PAGE_SIZE = 30;
                       />
                     </PoField>
 
-                    <PoField
-                      className="col-md-4"
-                      icon="bi-percent"
-                      label="Waste %"
-                      filled={has(wastePct)}
-                    >
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        className="po-input"
-                        value={wastePct}
-                        onChange={handleWastePctChange}
-                        onWheel={(e) => e.currentTarget.blur()}
-                      />
-                    </PoField>
+
 
                     <PoField
                       className="col-md-4"

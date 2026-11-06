@@ -405,6 +405,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
     const { orderType, remarks, purchaseOrderNo, poDate, expectedDeliveryDate, planningLocation } = req.body;
+    const wastePct = Math.max(0, Number(req.body.wastePct) || 0);
     
     const userId = req.user.id;
     const userData = await User.findById(userId);
@@ -459,7 +460,10 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         wasteQty: item.wasteQty,
         jobSize: item.jobSize,
         inkDetails: item.inkDetails,
-        quantity: item.quantity,
+        quantity: wastePct > 0
+          ? Math.ceil(Number(item.quantity) + (Number(item.quantity) * wastePct) / 100)
+          : item.quantity,
+        orderWastePct: wastePct,
         location: indent.location?._id || indent.location,
         orderType: orderType,
         remarks: remarks || "",
