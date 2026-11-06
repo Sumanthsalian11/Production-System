@@ -471,7 +471,7 @@ router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
       return res.status(403).json({ message: "Not allowed for this location" });
     }
 
-    const { orderQty, totalQty, impFront, impBack, totalImp, machinesImp = [] } = req.body;
+    const { orderQty, totalQty, impFront, impBack, totalImp, machinesImp = [], colorFront, colorBack } = req.body;
 
     if (!(Number(orderQty) > 0)) {
       return res.status(400).json({ message: "Invalid quantity" });
@@ -479,6 +479,9 @@ router.patch("/:id/order-qty", authMiddleware, async (req, res) => {
     if (Number(workOrder.boxQty) > Number(orderQty)) {
       return res.status(400).json({ message: "Quantity in Box cannot exceed Order Qty" });
     }
+
+    if (colorFront !== undefined) workOrder.colorFront = Number(colorFront) || 0;
+    if (colorBack !== undefined) workOrder.colorBack = Number(colorBack) || 0;
 
     workOrder.orderQty = Number(orderQty);
     workOrder.totalQty = Number(totalQty) || 0;

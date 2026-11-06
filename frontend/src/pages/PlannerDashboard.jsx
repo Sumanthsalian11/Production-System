@@ -150,6 +150,8 @@ function PlannerDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [qtyEditWo, setQtyEditWo] = useState(null);
   const [qtyEditValue, setQtyEditValue] = useState("");
+  const [qtyColorFront, setQtyColorFront] = useState("");
+  const [qtyColorBack, setQtyColorBack] = useState("");
   const [qtySaving, setQtySaving] = useState(false);
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -747,9 +749,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     isAdmin && (wo.userLocations || []).some((loc) => userLocations.includes(loc));
 
   // same impression rules as the work order form
-  const calcQtyChange = (wo, newQty) => {
-    const colorFront = Number(wo.colorFront) || 0;
-    const colorBack = Number(wo.colorBack) || 0;
+  const calcQtyChange = (wo, newQty, cf = wo.colorFront, cb = wo.colorBack) => {
+    const colorFront = Number(cf) || 0;
+    const colorBack = Number(cb) || 0;
     const waste = Number(wo.wasteQty) || 0;
     const totalQty = Math.round(newQty + newQty * (waste / 100));
 
@@ -775,6 +777,8 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
 
     const sum = (k) => machinesImp.reduce((s, r) => s + r[k], 0);
     return {
+      colorFront,
+      colorBack,
       orderQty: newQty,
       totalQty,
       impFront: sum("impFront"),
@@ -787,6 +791,8 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
   const openQtyEdit = (wo) => {
     setQtyEditWo(wo);
     setQtyEditValue(String(wo.orderQty ?? ""));
+    setQtyColorFront(String(wo.colorFront ?? ""));
+    setQtyColorBack(String(wo.colorBack ?? ""));
   };
 
   const handleSaveQty = async () => {
@@ -794,16 +800,18 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     if (!newQty || newQty <= 0) return showAlert("Enter a valid Order Quantity");
     if (Number(qtyEditWo.boxQty) > newQty)
       return showAlert("Quantity in Box cannot be greater than Order Qty");
+    if (qtyColorFront === "" || qtyColorBack === "")
+      return showAlert("Color Front and Color Back are required");
     if (qtySaving) return;
 
     setQtySaving(true);
     try {
       await axios.patch(
         `${BASE_URL}/api/workorders/${qtyEditWo._id}/order-qty`,
-        calcQtyChange(qtyEditWo, newQty),
+        calcQtyChange(qtyEditWo, newQty, qtyColorFront, qtyColorBack),
         { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
       );
-      showAlert("Success", `Order Qty updated for WO ${qtyEditWo.efiWoNumber} ✅`, "success");
+      showAlert("Success", `Order Qty / Colors updated for WO ${qtyEditWo.efiWoNumber} ✅`, "success");
       setQtyEditWo(null);
       await fetchWorkOrders();
     } catch (err) {
@@ -5050,22 +5058,49 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                   <div className="wo-info-grid" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))", marginBottom: 12 }}>
                     <div className="wo-info"><span>Current qty</span><b>{qtyEditWo.orderQty}</b></div>
                     <div className="wo-info"><span>Waste %</span><b>{qtyEditWo.wasteQty}%</b></div>
+                    <div className="wo-info"><span>Current color F / B</span><b>{qtyEditWo.colorFront ?? "-"} / {qtyEditWo.colorBack ?? "-"}</b></div>
                     <div className="wo-info wide">
                       <span>New total qty (after waste)</span>
                       <b>{calcQtyChange(qtyEditWo, Number(qtyEditValue) || 0).totalQty}</b>
                     </div>
                   </div>
 
-                  <PoField icon="bi-123" label="New Order Quantity" required filled={has(qtyEditValue)}>
-                    <input
-                      type="number"
-                      min="1"
-                      className="po-input"
-                      value={qtyEditValue}
-                      onChange={(e) => setQtyEditValue(e.target.value)}
-                      autoFocus
-                    />
-                  </PoField>
+                  <div className="row g-2">
+                    <PoField className="col-12" icon="bi-123" label="New Order Quantity" required filled={has(qtyEditValue)}>
+                      <input
+                        type="number"
+                        min="1"
+                        className="po-input"
+                        value={qtyEditValue}
+                        onChange={(e) => setQtyEditValue(e.target.value)}
+                        autoFocus
+                      />
+                    </PoField>
+
+                    <PoField className="col-6" icon="bi-palette" label="Color Front" required filled={has(qtyColorFront)}>
+                      <input
+                        type="text"
+                        className="po-input"
+                        value={qtyColorFront}
+                        onChange={(e) => {
+                          if (!/^[0-9]?$/.test(e.target.value)) return showAlert("Only 1 digit allowed");
+                          setQtyColorFront(e.target.value);
+                        }}
+                      />
+                    </PoField>
+
+                    <PoField className="col-6" icon="bi-palette2" label="Color Back" required filled={has(qtyColorBack)}>
+                      <input
+                        type="text"
+                        className="po-input"
+                        value={qtyColorBack}
+                        onChange={(e) => {
+                          if (!/^[0-9]?$/.test(e.target.value)) return showAlert("Only 1 digit allowed");
+                          setQtyColorBack(e.target.value);
+                        }}
+                      />
+                    </PoField>
+                  </div>
 
                   <div className="wo-foot" style={{ marginTop: 16 }}>
                     <button type="button" className="wo-btn wo-btn-ghost" onClick={() => setQtyEditWo(null)}>
