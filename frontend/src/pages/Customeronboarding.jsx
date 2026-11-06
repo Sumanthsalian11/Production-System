@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import BASE_URL from "../config/api";
 import {
-  FiPlus, FiEdit2, FiTrash2, FiSave, FiX, FiSearch, FiPaperclip, FiUser, FiDownload
+  FiPlus, FiEdit2, FiTrash2, FiSave, FiX, FiSearch, FiPaperclip, FiUser, FiDownload, FiFileText
 } from "react-icons/fi";
 
 /* ------------------------------------------------------------------
@@ -217,7 +221,7 @@ export default function CustomerOnboarding() {
 
   /* ---------------- helpers ---------------- */
   const progressOf = (rec) => {
-    const done = (rec.items || []).filter((i) => i.slNo > 1 && i.status).length;
+    const done = (rec.items || []).filter((i) => i.slNo > 1 && (i.status || i.attachment?.url)).length;
     return `${done} / ${ROWS.length - 1}`;
   };
 
@@ -225,6 +229,58 @@ export default function CustomerOnboarding() {
     if (!v) return <span className="text-muted">-</span>;
     const cls = v === "Closed" ? "bg-success" : v === "Pending" ? "bg-warning text-dark" : "bg-secondary";
     return <span className={`badge ${cls}`}>{v}</span>;
+  };
+
+  /* ---------------- export (Excel / PDF) ---------------- */
+  const EXPORT_HEAD = ["SL No.", "Particulars", "Status", "Pending From", "Additional Requirement"];
+
+  // every checklist row of one record -> [sl, particulars, status, pending from, additional]
+  const rowsOf = (rec) =>
+    ROWS.map((r) => {
+      const it = (rec.items || []).find((i) => i.slNo === r.sl) || {};
+      const status = r.type === "keyin" ? it.keyIn : it.status;
+      const extra = [
+        r.keyIn && it.keyIn ? `${r.keyIn}: ${it.keyIn}` : "",
+        it.attachment?.name ? `Attachment: ${it.attachment.name}` : "",
+      ].filter(Boolean).join(" | ");
+      return [r.sl, r.label, status || "-", it.pendingFrom || "-", extra || "-"];
+    });
+
+  const safeName = (s) => String(s || "Customer").replace(/[^a-zA-Z0-9]+/g, "_");
+
+  const exportExcel = (recs, fileName) => {
+    if (!recs.length) return showAlert("No records to export", "warning");
+    const aoa = [["Customer", ...EXPORT_HEAD, "Last Updated"]];
+    recs.forEach((rec) => {
+      const upd = rec.updatedAt ? new Date(rec.updatedAt).toLocaleDateString("en-IN") : "-";
+      rowsOf(rec).forEach((row) => aoa.push([rec.customerName, ...row, upd]));
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 26 }, { wch: 8 }, { wch: 48 }, { wch: 28 }, { wch: 16 }, { wch: 50 }, { wch: 14 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Customer Onboarding");
+    const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([buf], { type: "application/octet-stream" }), `${fileName}.xlsx`);
+  };
+
+  const exportPdf = (recs, fileName) => {
+    if (!recs.length) return showAlert("No records to export", "warning");
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    recs.forEach((rec, idx) => {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(15);
+      doc.text(`Customer Onboarding - ${rec.customerName}`, 40, 36);
+      autoTable(doc, {
+        startY: 50,
+        head: [EXPORT_HEAD],
+        body: rowsOf(rec),
+        theme: "grid",
+        styles: { fontSize: 9, cellPadding: 4, valign: "middle", textColor: [0, 0, 0] },
+        headStyles: { fillColor: [6, 76, 115], textColor: 255 },
+        columnStyles: { 0: { cellWidth: 45, halign: "center" }, 1: { cellWidth: 230 } },
+      });
+    });
+    doc.save(`${fileName}.pdf`);
   };
 
   /* ---------------- additional requirement cell ---------------- */
@@ -290,7 +346,7 @@ export default function CustomerOnboarding() {
       `}</style>
 
       <div className="co-head">
-       
+      
         <div className="d-flex gap-2">
           <div className="input-group input-group-sm" style={{ width: 240 }}>
             <span className="input-group-text"><FiSearch /></span>
@@ -301,6 +357,12 @@ export default function CustomerOnboarding() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <button className="btn btn-sm btn-success" onClick={() => exportExcel(filtered, "Customer_Onboarding")} title="Export all listed customers">
+            <FiDownload /> Excel
+          </button>
+          <button className="btn btn-sm btn-danger" onClick={() => exportPdf(filtered, "Customer_Onboarding")} title="Export all listed customers">
+            <FiFileText /> PDF
+          </button>
           {!showForm && (
             <button className="btn btn-sm btn-primary" onClick={openNew}>
               <FiPlus /> New Onboarding
@@ -416,36 +478,29 @@ export default function CustomerOnboarding() {
                 <th>Customer Name</th>
                 <th>Progress</th>
                 <th>CRM Code</th>
-                <th>Pending With (open items)</th>
                 <th>Updated</th>
-                <th style={{ width: 110 }}>Action</th>
+                <th style={{ width: 190 }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-3">Loading...</td></tr>
+                <tr><td colSpan={6} className="text-center py-3">Loading...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-3 text-muted">No records found</td></tr>
+                <tr><td colSpan={6} className="text-center py-3 text-muted">No records found</td></tr>
               ) : (
                 filtered.map((rec, idx) => {
                   const crm = rec.items?.find((i) => i.slNo === 8)?.status || "-";
 
-                  const pendingSet = [...new Set(
-                    (rec.items || [])
-                      .filter((i) => i.slNo > 1 && i.pendingFrom && i.pendingFrom !== "Closed")
-                      .map((i) => i.pendingFrom)
-                  )];
                   return (
                     <tr key={rec._id}>
                       <td className="co-sl">{idx + 1}</td>
                       <td className="fw-semibold">{rec.customerName}</td>
                       <td>{progressOf(rec)}</td>
                       <td>{crm}</td>
-                      <td className="d-flex gap-1 flex-wrap">
-                        {pendingSet.length ? pendingSet.map((p) => <span key={p}>{pendingBadge(p)}</span>) : "-"}
-                      </td>
                       <td>{rec.updatedAt ? new Date(rec.updatedAt).toLocaleDateString("en-IN") : "-"}</td>
                       <td>
+                        <button className="btn btn-sm btn-outline-success me-1" onClick={() => exportExcel([rec], `Onboarding_${safeName(rec.customerName)}`)} title="Export Excel"><FiDownload /></button>
+                        <button className="btn btn-sm btn-outline-secondary me-1" onClick={() => exportPdf([rec], `Onboarding_${safeName(rec.customerName)}`)} title="Export PDF"><FiFileText /></button>
                         <button className="btn btn-sm btn-outline-primary me-1" onClick={() => openEdit(rec)} title="Edit"><FiEdit2 /></button>
                         <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(rec._id)} title="Delete"><FiTrash2 /></button>
                       </td>
