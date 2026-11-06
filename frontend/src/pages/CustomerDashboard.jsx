@@ -75,7 +75,9 @@ function CustomerDashboard() {
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [poSearch, setPoSearch] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [orderTypeFilter, setOrderTypeFilter] = useState("");
   const [expandedCell, setExpandedCell] = useState(null);
   const [customerFilter, setCustomerFilter] = useState("");
   const [filteredOrders, setFilteredOrders] = useState([]);
@@ -181,7 +183,9 @@ const PAGE_SIZE = 30;
           limit: PAGE_SIZE,
           po: poSearch,
           productCode: productCodeSearch,
-          date: dateFilter,
+          from: fromDate,
+          to: toDate,
+          orderType: orderTypeFilter,
           customer: customerFilter
         }
       });
@@ -247,7 +251,7 @@ const PAGE_SIZE = 30;
     fetchCustomers();
   }, []);
 
-  const filterKey = `${poSearch}|${productCodeSearch}|${dateFilter}|${customerFilter}`;
+  const filterKey = `${poSearch}|${productCodeSearch}|${fromDate}|${toDate}|${orderTypeFilter}|${customerFilter}`;
   const prevKey = useRef(filterKey);
   useEffect(() => {
     let p = page;
@@ -715,8 +719,32 @@ const PAGE_SIZE = 30;
     }
   };
 
-  const exportToExcel = () => {
-    const data = filteredOrders.map((order) => ({
+  const exportToExcel = async () => {
+    let allRows = [];
+    try {
+      const res = await axios.get(`${BASE_URL}/api/customer-orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          all: "1",
+          po: poSearch,
+          productCode: productCodeSearch,
+          from: fromDate,
+          to: toDate,
+          orderType: orderTypeFilter,
+          customer: customerFilter
+        }
+      });
+      allRows = Array.isArray(res.data) ? res.data : [];
+    } catch {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Could not export orders"
+      });
+      return;
+    }
+
+    const data = allRows.map((order) => ({
       "PO Number": order.purchaseOrderNo,
       "Ticket Number": order.ticketNo,
       "PO Date": new Date(order.poDate).toLocaleDateString(),
@@ -2807,15 +2835,50 @@ const PAGE_SIZE = 30;
               <PoField
                 className="col-6 col-lg-2"
                 icon="bi-calendar-event"
-                label="Date"
+                label="From Date"
                 alwaysFloat
               >
                 <input
                   type="date"
                   className="po-input"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
+                  value={fromDate}
+                  max={toDate || undefined}
+                  onChange={(e) => setFromDate(e.target.value)}
                 />
+              </PoField>
+
+              <PoField
+                className="col-6 col-lg-2"
+                icon="bi-calendar-check"
+                label="To Date"
+                alwaysFloat
+              >
+                <input
+                  type="date"
+                  className="po-input"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </PoField>
+
+              <PoField
+                className="col-6 col-lg-2"
+                icon="bi-diagram-3"
+                label="Order Type"
+                alwaysFloat
+                caret
+              >
+                <select
+                  className="po-input"
+                  value={orderTypeFilter}
+                  onChange={(e) => setOrderTypeFilter(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  <option value="Inhouse">Inhouse</option>
+                  <option value="Out Source">Out Source</option>
+                  <option value="PMS">PMS</option>
+                </select>
               </PoField>
 
               <PoField
@@ -2867,7 +2930,9 @@ const PAGE_SIZE = 30;
                   onClick={() => {
                     setPoSearch("");
                     setProductCodeSearch("");
-                    setDateFilter("");
+                    setFromDate("");
+                    setToDate("");
+                    setOrderTypeFilter("");
                     setCustomerFilter("");
                   }}
                 >
