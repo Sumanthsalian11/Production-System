@@ -27,7 +27,7 @@ const artUpload = multer({
     filename: (req, file, cb) =>
       cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`),
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 router.use("/artwork-files", express.static(artDir));
 // BULK UPLOAD ITEMS VIA EXCEL

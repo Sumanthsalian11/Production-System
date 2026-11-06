@@ -27,7 +27,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB per file
 });
 
 const indentUploadFields = upload.fields([
