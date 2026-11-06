@@ -91,6 +91,25 @@ router.get("/", authMiddleware, async (req, res) => {
       dispByWo.set(d.efiWoNumber, e);
     });
 
+    // 5b. Out Source / PMS: dispatches are saved against the ticket, not a work order
+    const ticketNos = orders
+      .filter((o) => ["Out Source", "PMS"].includes(o.orderType) && o.ticketNo)
+      .map((o) => o.ticketNo);
+    const dispT = ticketNos.length
+      ? await Dispatch.find({ ticketNo: { $in: ticketNos } })
+          .select("ticketNo dispatchQty dispatchDate invoiceNo createdAt")
+          .sort({ createdAt: 1 })
+          .lean()
+      : [];
+    const dispByTicket = new Map();
+    dispT.forEach((d) => {
+      const e = dispByTicket.get(d.ticketNo) || { qty: 0, balance: 0, last: null, invoices: [] };
+      e.qty += Number(d.dispatchQty) || 0;
+      e.last = d.dispatchDate;
+      if (d.invoiceNo) e.invoices.push(d.invoiceNo);
+      dispByTicket.set(d.ticketNo, e);
+    });
+
     const build = (indent, order) => {
       const item = (indent && indent.items && indent.items[0]) || {};
       const wo = order ? woByOrder.get(String(order._id)) : null;
@@ -99,7 +118,12 @@ router.get("/", authMiddleware, async (req, res) => {
       const prodActs = acts.filter((a) => !QC_RX.test(a.name));
       const prodQty = prodActs.reduce((m, a) => Math.max(m, a.qty), 0);
       const orderQty = wo ? Number(wo.orderQty) || 0 : Number(order?.quantity || item.quantity) || 0;
-      const dsp = wo ? dispByWo.get(wo.efiWoNumber) : null;
+      const isExt = !!(order && ["Out Source", "PMS"].includes(order.orderType) && order.ticketNo && !wo);
+      let dsp = wo ? dispByWo.get(wo.efiWoNumber) : null;
+      if (isExt) {
+        const t = dispByTicket.get(order.ticketNo);
+        dsp = t ? { ...t, balance: Math.max(0, orderQty - t.qty) } : null;
+      }
 
       const stages = [];
 
@@ -138,7 +162,7 @@ router.get("/", authMiddleware, async (req, res) => {
       );
 
       // Production
-      let pState = "pending";
+      let pState = isExt ? "na" : "pending";
       if (wo && acts.length && prodActs.some((a) => a.entries > 0)) pState = orderQty && prodQty >= orderQty ? "done" : "partial";
       stages.push({
         key: "production", label: "Production Entry", state: pState,
@@ -162,6 +186,11 @@ router.get("/", authMiddleware, async (req, res) => {
           ? [`Dispatched: ${dsp.qty.toLocaleString("en-IN")}`, `Balance: ${dsp.balance.toLocaleString("en-IN")}`, `Last: ${fd(dsp.last)}`, dsp.invoices.length ? `Invoice: ${dsp.invoices.join(", ")}` : ""].filter(Boolean)
           : ["Not dispatched yet"],
       });
+
+      if (isExt) {
+        const ps = stages.find((s) => s.key === "production");
+        if (ps) ps.lines = [`${order.orderType} order, produced by supplier`];
+      }
 
       // current stage = first one not done / na
       const qcIdx = stages.findIndex((s) => s.key === "qc");
@@ -234,6 +263,15 @@ router.get("/detail", authMiddleware, async (req, res) => {
       const nm = new Map(acts.map((a) => [String(a._id), a.activityName]));
       production.forEach((p) => (p.machiness || []).forEach((m) => { m.activityName = nm.get(String(m.activityId)) || ""; }));
     }
+    // Out Source / PMS: dispatches are saved against the ticket
+    const tNos = orders
+      .filter((o) => ["Out Source", "PMS"].includes(o.orderType) && o.ticketNo)
+      .map((o) => o.ticketNo);
+    if (tNos.length) {
+      const tDisp = await Dispatch.find({ ticketNo: { $in: tNos } }).sort({ createdAt: 1 }).lean();
+      dispatch = [...dispatch, ...tDisp];
+    }
+
     const isOid = (v) => /^[a-f0-9]{24}$/i.test(String(v || ""));
 const nameMap = async (modelName, ids, field) => {
   try {
