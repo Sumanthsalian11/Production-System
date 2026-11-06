@@ -21,7 +21,7 @@ const APP_CATEGORIES = [
     color: "#1cbb8c",
     bgLight: "#e8f8f3",
     borderGlow: "#b5ead9",
-    routes: ["/customer-dashboard", "/planner", "/scheduler", "/print", "/preprocess", "/plate-request", "/kas"]
+    routes: ["/customer-dashboard", "/customer-onboarding", "/planner", "/scheduler", "/print", "/preprocess", "/plate-request", "/kas"]
   },
   {
     title: "Production",

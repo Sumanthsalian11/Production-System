@@ -49,6 +49,7 @@ const ReceivingInspectionDashboard = lazy(() => import("./pages/ReceivingInspect
 const NewInspectionForm = lazy(() => import("./pages/NewInspectionForm"));
 const ClickReport = lazy(() => import("./pages/Clickreport"));
 const CustomerSatisfaction = lazy(() => import("./pages/CustomerSatisfaction"));
+const CustomerOnboarding = lazy(() => import("./pages/CustomerOnboarding"));
 
 const RolesCtx = createContext([]);
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
@@ -410,6 +411,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CustomerSatisfaction />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/customer-onboarding"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <CustomerOnboarding />
                   </ProtectedRoute>
                 }
               />

@@ -112,6 +112,7 @@ app.use("/api/numbering-templates", require("./routes/Numberingtemplates"));
 
 app.use("/api/mail-settings", require("./routes/mailSettingsRoutes"));
 app.use("/api/csat", require("./routes/csatRoutes"));
+app.use("/api/customer-onboarding", require("./routes/customerOnboarding"));
 const supplierRoutes = require("./routes/supplierRoutes");
 app.use("/api/master/suppliers", supplierRoutes);
 app.use("/api/master/impression-waste", require("./routes/impressionWasteRoutes"));
