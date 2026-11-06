@@ -207,7 +207,7 @@ function NewIndent() {
   const [showForm, setShowForm] = useState(false);
   const [showTrack, setShowTrack] = useState(false);
   const [chatId, setChatId] = useState(null);
-  const [showBell, setShowBell] = useState(false);
+  const [showBell, setShowBell] = useState(true);
   // Lamination to Customer Copy columns are collapsed by default
   const [showExtraCols, setShowExtraCols] = useState(false);
   // ===== ARTWORK REPOSITORY (view only) =====
@@ -3402,7 +3402,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
         {/* ===== ARTWORK UPDATES BELL ===== */}
         {(() => {
-          if (!showForm) return null; // bell is only for the Create New Indent view
+
+          if (showTrack || repoOn) return null; // hide bell on Track and Artwork Repository
           const mine = indents.filter((ind) => {
             if (ind.user !== loggedInUser) return false;
             const a = latestArtOf(ind);
