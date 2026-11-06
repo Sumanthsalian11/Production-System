@@ -513,7 +513,7 @@ function NewIndent() {
     try {
       const r = await axios.get(`${BASE_URL}/api/tracking`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 300 } });
       const m = {};
-      (r.data || []).forEach((x) => { m[x.ref] = x; });
+      (r.data || []).forEach((x) => { m[x.ref] = { ...x, stages: (x.stages || []).filter((s) => s.key !== "qc") }; });
       setFlow(m);
     } catch {
       setFlow({});
@@ -4405,7 +4405,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           if (tab === "indent") body = <FlowKV doc={d.indent} />;
                           else if (tab === "po") body = <FlowMulti docs={d.orders || (d.order ? [d.order] : [])} />;
                           else if (tab === "planner") body = <FlowMulti docs={d.workOrders || (d.workOrder ? [d.workOrder] : [])} />;
-                          else if (tab === "production") body = <FlowList docs={(d.production || []).filter((p) => !isQc(p))} />;
+                          else if (tab === "production") body = <FlowList docs={d.production} />;
                           else if (tab === "qc") body = <FlowList docs={(d.production || []).filter(isQc)} />;
                           else if (tab === "dispatch") body = <FlowList docs={(d.dispatch || []).map((x) => ({ ...x, location: locations.find((l) => String(l._id) === String(x.location))?.locationName || x.location }))} />;
                         }
