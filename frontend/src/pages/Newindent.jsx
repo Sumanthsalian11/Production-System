@@ -287,6 +287,7 @@ function NewIndent() {
   const [productCodeFilter, setProductCodeFilter] = useState("");
   const [customerFilter, setCustomerFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
+  const [indenterFilter, setIndenterFilter] = useState("");
 
   // ===== TRACK TABLE =====
   const [searchQ, setSearchQ] = useState("");
@@ -480,6 +481,8 @@ function NewIndent() {
     if (token) {
       const decoded = jwtDecode(token);
       setLoggedInUser(decoded.name || decoded.username);
+      setIndenterFilter(decoded.name || decoded.username);
+      setIndenterFilter(decoded.name || decoded.username);
     }
     fetchLocations();
     fetchIndents();
@@ -998,15 +1001,23 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       );
     }
 
+    if (indenterFilter) {
+      result = result.filter(ind => ind.user === indenterFilter);
+    }
+
     if (locationFilter) {
       result = result.filter(ind => ind.location?._id === locationFilter);
     }
 
     setFilteredIndents(result);
-  }, [indents, indentNoFilter, productCodeFilter, customerFilter, locationFilter, fromDate, toDate]);
+  }, [indents, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+
+  // everyone who has raised an indent (plus the logged-in user, so the default is always in the list)
+  const indenterOptions = [...new Set([loggedInUser, ...indents.map((i) => i.user)].filter(Boolean))].sort();
 
   const clearFilters = () => {
     setIndentNoFilter("");
+    setIndenterFilter("");
     setProductCodeFilter("");
     setCustomerFilter("");
     setLocationFilter("");
@@ -3515,6 +3526,19 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
  title={customerFilter}
                   onChange={(e) => setCustomerFilter(e.target.value)}
                   />
+              </PoField>
+
+              <PoField className="col-6 col-lg-2" icon="bi-person-badge" label="Indenter" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={indenterFilter}
+                  onChange={(e) => setIndenterFilter(e.target.value)}
+                >
+                  <option value="">All Indenters</option>
+                  {indenterOptions.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
               </PoField>
 
               <PoField className="col-6 col-lg-2" icon="bi-geo-alt" label="Location" alwaysFloat caret>
