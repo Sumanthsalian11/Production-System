@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { jwtDecode } from "jwt-decode";
-import WoStageChartModal, { fetchWoStageTree } from "./WoStageChart";
+import WoStageChartModal, { fetchWoStageTree } from "./Wostagechart";
 import Swal from "sweetalert2";
 import axios from "axios";
 import * as XLSX from "xlsx";
@@ -39,7 +39,7 @@ const PAPER_FIELDS = {
 };
 
 // ===== TRACKING pipeline (same stages as the HTML page) =====
-const QC_RX_UI = /(^|\W)(qc|quality)/i;
+
 const flatDoc = (v, p, out) => {
   if (v === null || v === undefined) { out[p] = ""; return out; }
   if (Array.isArray(v)) {
@@ -152,7 +152,7 @@ const STAGE_OPTIONS = (() => {
   return [...seen.entries()];
 })();
 
-const LIVE_STAGES = ["New Indent", "Purchase Order", "Planner (Work Order)", "Production Entry", "QC", "Dispatch", "Completed"];
+const LIVE_STAGES = ["New Indent", "Purchase Order", "Planner (Work Order)", "Production Entry", "Dispatch", "Completed"];
 
 
 
@@ -4500,7 +4500,7 @@ if (extOrders) {
                         if (!flowSel.startsWith(ind.indentNo + "|")) return null;
                         const tab = flowSel.split("|")[1];
                         const d = flowData[ind.indentNo];
-                        const isQc = (p) => (p.machiness || []).some((m) => QC_RX_UI.test(m.activityName || ""));
+                        
                         let body = <div className="py-2">Loading...</div>;
                         const extMode = tab === "dispatch" && isExtOrder(ind);
 if (extMode) {
@@ -4527,7 +4527,7 @@ if (extMode) {
                           else if (tab === "po") body = <FlowMulti docs={d.orders || (d.order ? [d.order] : [])} />;
                           else if (tab === "planner") body = <FlowMulti docs={d.workOrders || (d.workOrder ? [d.workOrder] : [])} />;
                           else if (tab === "production") body = <FlowList docs={d.production} />;
-                          else if (tab === "qc") body = <FlowList docs={(d.production || []).filter(isQc)} />;
+                          
                           else if (tab === "dispatch") body = <FlowList docs={(d.dispatch || []).map((x) => ({ ...x, location: locations.find((l) => String(l._id) === String(x.location))?.locationName || x.location }))} />;
                         }
                         return (

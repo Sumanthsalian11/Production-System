@@ -164,6 +164,8 @@ router.get("/", authMiddleware, async (req, res) => {
       });
 
       // current stage = first one not done / na
+      const qcIdx = stages.findIndex((s) => s.key === "qc");
+      if (qcIdx >= 0) stages.splice(qcIdx, 1);
       const cur = stages.find((s) => s.state !== "done" && s.state !== "na");
       if (cur && cur.state === "pending") cur.state = "current";
 
