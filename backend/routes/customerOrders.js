@@ -96,6 +96,7 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
       orderType,
       ticketNo,
       attachment,
+      orderWastePct: Number(req.body.orderWastePct) || 0,
       itemPdfPath: itemPdfPath || "",
       remarks,
       remarks2,
@@ -296,6 +297,10 @@ router.put("/:id", authMiddleware, upload.single("attachment"), async (req, res)
         remarks,
         remarks2,
         itemPdfPath: itemPdfPath !== undefined ? itemPdfPath : undefined,
+        orderWastePct:
+          req.body.orderWastePct !== undefined
+            ? Number(req.body.orderWastePct) || 0
+            : undefined,
 
         user,
         userLocations: userData?.locations || [],

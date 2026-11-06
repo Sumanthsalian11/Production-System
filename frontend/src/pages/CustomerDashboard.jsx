@@ -88,9 +88,12 @@ const PAGE_SIZE = 30;
   const [convertedOrderIds, setConvertedOrderIds] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitLockRef = useRef(false);
+  const [wastePct, setWastePct] = useState("");
+  const [baseQty, setBaseQty] = useState("");
 
   const poDateRef = useRef();
   const productCodeRef = useRef();
+  
   const quantityRef = useRef();
   const locationRef = useRef();
   const fileRef = useRef();
@@ -298,9 +301,29 @@ const PAGE_SIZE = 30;
       fetchProductDetails(newValue);
     }
     if (name === "quantity" && value < 0) return;
+    if (name === "quantity") {
+      setBaseQty(value);
+      setWastePct("");
+    }
 
     setErrors((prev) => ({ ...prev, [name]: "" }));
     setForm((prev) => ({ ...prev, [name]: newValue }));
+  };
+
+  const handleWastePctChange = (e) => {
+    const v = e.target.value;
+    if (v !== "" && Number(v) < 0) return;
+
+    const base = baseQty !== "" ? baseQty : form.quantity;
+    if (baseQty === "") setBaseQty(form.quantity);
+    setWastePct(v);
+
+    const b = Number(base);
+    const p = Number(v);
+    if (base === "" || base === null || isNaN(b)) return;
+
+    const finalQty = v === "" || isNaN(p) || p === 0 ? b : Math.ceil(b + (b * p) / 100);
+    setForm((prev) => ({ ...prev, quantity: String(finalQty) }));
   };
 
   const validateForm = () => {
@@ -349,6 +372,7 @@ const PAGE_SIZE = 30;
       formData.append("remarks", form.remarks);
       formData.append("remarks2", form.remarks2);
       formData.append("itemPdfPath", form.itemPdfPath || "");
+      formData.append("orderWastePct", wastePct || "0");
       formData.append("user", loggedInUser);
 
       if (attachment) formData.append("attachment", attachment);
@@ -435,6 +459,8 @@ const PAGE_SIZE = 30;
     });
     setAttachment(null);
     if (fileRef.current) fileRef.current.value = "";
+    setWastePct("");
+    setBaseQty("");
     setEditingId(null);
     setErrors({});
   };
@@ -492,6 +518,13 @@ const PAGE_SIZE = 30;
     setSelectedIndent(null);
     setEditingId(order._id);
     setShowEntryForm(true);
+    const wp = Number(order.orderWastePct) || 0;
+    setWastePct(wp ? String(wp) : "");
+    setBaseQty(
+      wp
+        ? String(Math.floor(Number(order.quantity) / (1 + wp / 100) + 1e-9))
+        : ""
+    );
     if (!order.purchaseOrderNo) {
       setOrderCategory("Security");
     } else {
@@ -712,6 +745,7 @@ const PAGE_SIZE = 30;
       "Description": order.description,
       "Customer": order.customerName,
       "Quantity": order.quantity,
+      "Waste %": order.orderWastePct || 0,
       "Location": order.location?.locationName || "",
       "Order Type": order.orderType || "",
       "Supplier Name": order.remarks || "",
@@ -2522,6 +2556,23 @@ const PAGE_SIZE = 30;
 
                     <PoField
                       className="col-md-4"
+                      icon="bi-percent"
+                      label="Waste %"
+                      filled={has(wastePct)}
+                    >
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="po-input"
+                        value={wastePct}
+                        onChange={handleWastePctChange}
+                        onWheel={(e) => e.currentTarget.blur()}
+                      />
+                    </PoField>
+
+                    <PoField
+                      className="col-md-4"
                       icon="bi-geo-alt"
                       label="Location"
                       required
@@ -2840,6 +2891,7 @@ const PAGE_SIZE = 30;
                     <th>Description</th>
                     <th>Customer</th>
                     <th>Order Qty</th>
+                    <th>Waste %</th>
                     <th>Location</th>
                     <th>Order Type</th>
                     <th>Supplier Name</th>
@@ -2853,7 +2905,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="17" className="p-4 text-center text-muted">
+                      <td colSpan="18" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -2943,6 +2995,7 @@ const PAGE_SIZE = 30;
                             : truncateText(order.customerName)}
                         </td>
                         <td className="fw-bold">{order.quantity}</td>
+                        <td>{order.orderWastePct ? `${order.orderWastePct}%` : "-"}</td>
                         <td>{order.location?.locationName || "-"}</td>
                         <td>
                           <span

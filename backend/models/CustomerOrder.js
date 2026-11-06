@@ -45,6 +45,10 @@ const customerOrderSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+    orderWastePct: {
+      type: Number,
+      default: 0
+    },
     location: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LocationMaster",
