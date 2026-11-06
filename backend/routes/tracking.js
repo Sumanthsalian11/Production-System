@@ -300,6 +300,14 @@ for (const w of wos) {
   });
 }
 
+// hide delay fields from the tracking popup
+const HIDE_DISPATCH_FIELDS = ["delayDays", "delayLabel"];
+dispatch = dispatch.map((d) => {
+  const c = { ...d };
+  HIDE_DISPATCH_FIELDS.forEach((k) => delete c[k]);
+  return c;
+});
+
 res.json(clean({ indent, order: orders[0] || null, orders, workOrder: wos[0] || null, workOrders: wos, production, dispatch }));
   } catch (err) {
     console.error("TRACKING DETAIL ERROR:", err);
