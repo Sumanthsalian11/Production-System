@@ -83,6 +83,7 @@ const IndentRequestSchema = new mongoose.Schema(
     location:   { type: mongoose.Schema.Types.ObjectId, ref: "LocationMaster" },
     user:       { type: String },
     userEmail: { type: String, default: "" },
+    userLocations: [{ type: String }],
 
     status: {
       type: String,

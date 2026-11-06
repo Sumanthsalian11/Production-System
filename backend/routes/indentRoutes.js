@@ -10,13 +10,30 @@ const User = require("../models/User");
 const Item = require("../models/Item");
 const IndentRouting = require("../models/IndentRouting");
 
-// no rule for a user = sees every location (old behaviour);
-// a rule = only the locations the admin assigned
+const mongoose = require("mongoose");
+
+// no rule for a user = sees every indent (old behaviour);
+// a rule = only indents raised by users in the locations the admin assigned
+// returns null when there is no rule, otherwise the list of location names
+async function allowedLocationNames(userId) {
+  const rule = await IndentRouting.findOne({ user: userId }).lean();
+  if (!rule) return null;
+  const LocationMaster = mongoose.model("LocationMaster");
+  const locs = await LocationMaster.find({ _id: { $in: rule.locations || [] } })
+    .select("locationName")
+    .lean();
+  return locs.map((l) => l.locationName).filter(Boolean);
+}
+
+const escapeRx = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 async function allowedLocationFilter(userId) {
   try {
-    const rule = await IndentRouting.findOne({ user: userId }).lean();
-    if (!rule) return {};
-    return { location: { $in: rule.locations } };
+    const names = await allowedLocationNames(userId);
+    if (names === null) return {};
+    return {
+      userLocations: { $in: names.map((n) => new RegExp("^" + escapeRx(n.trim()) + "$", "i")) }
+    };
   } catch (e) {
     return {};
   }
@@ -311,7 +328,9 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
       location,
       user: userData.name,
       userEmail: userData.email,
+      userLocations: Array.isArray(userData.locations) ? userData.locations : [],
       status: isSample ? "SAMPLE_REQUESTED" : "PENDING_PO",
+
       indentType: isSample ? "sample" : "production",
       orderType: ""
     });
@@ -397,12 +416,13 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Indent not found" });
     }
 
-    const routingRule = await IndentRouting.findOne({ user: userId }).lean();
-    if (
-      routingRule &&
-      !(routingRule.locations || []).map(String).includes(String(indent.location?._id || indent.location))
-    ) {
-      return res.status(403).json({ message: "This indent location is not assigned to you" });
+    const allowedNames = await allowedLocationNames(userId);
+    if (allowedNames !== null) {
+      const mine = (indent.userLocations || []).map((s) => String(s).trim().toLowerCase());
+      const ok = allowedNames.some((n) => mine.includes(String(n).trim().toLowerCase()));
+      if (!ok) {
+        return res.status(403).json({ message: "This indent's user location is not assigned to you" });
+      }
     }
 
     if (!["PENDING_PO", "SAMPLE_REQUESTED"].includes(indent.status)) {

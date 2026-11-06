@@ -1182,6 +1182,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       "Artwork": ind.items?.[0]?.artwork?.fileName || "",
 
       "Saved By": ind.user,
+      "User Location": (ind.userLocations || []).join(", "),
       "Saved At": new Date(ind.createdAt).toLocaleString("en-IN")
     }));
 
@@ -3635,6 +3636,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th>Remarks</th>
                   <th>Requested By</th>
                   <th>Requested At</th>
+                  <th>User Location</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -3831,6 +3833,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                           {ind.createdAt ? new Date(ind.createdAt).toLocaleString("en-IN") : ""}
                         </span>
                       </td>
+                      <td>{ind.userLocations?.length ? ind.userLocations.join(", ") : "-"}</td>
                       <td>
                         <div className="d-flex gap-2">
                           <button

@@ -4397,7 +4397,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
           </div>
 
           <p style={{ marginBottom: 10, fontSize: 13, color: "#4a6f8c", fontWeight: 600 }}>
-            Choose which locations' indents a user receives in Purchase Order &gt; Order Requests.
+            Choose which user locations' indents a user receives in Purchase Order &gt; Order Requests.
+            This is the location of the person who raised the indent, not the requested location.
             Users without a rule receive indents from all locations.
           </p>
 
@@ -4426,7 +4427,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
             <div className="machine-picker">
               <div className="picker-header">
-                <span>Locations this user receives indents from</span>
+                <span>User locations this user receives indents from</span>
                 <strong>{routingLocs.length} selected</strong>
               </div>
               <div style={{ display: "flex", gap: 8, margin: "6px 0" }}>
