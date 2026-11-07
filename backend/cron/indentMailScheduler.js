@@ -33,6 +33,7 @@ cron.schedule("* * * * *", async () => {
 
     const indents = await IndentRequest.find({
       createdAt: { $gte: fromTime, $lte: toTime },
+      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] },
     }).populate("location", "locationName");
 
     if (!indents.length) {
@@ -63,7 +64,7 @@ cron.schedule("* * * * *", async () => {
         <td>${item.customerName || ""}</td>
         <td>${item.description || ""}</td>
         <td style="text-align:center;">${item.quantity || 0}</td>
-        <td>${item.unitRate || ""}</td>
+
         <td>${
           item.deliveryDate
             ? new Date(item.deliveryDate).toLocaleDateString("en-GB").replace(/\//g, "-")
@@ -78,7 +79,7 @@ cron.schedule("* * * * *", async () => {
 
     const html = `
     <div style="font-family:Arial,sans-serif">
-      <h2 style="color:#1976d2;">Daily Indent Summary</h2>
+      <h2 style="color:#1976d2;">Pending Indent Summary</h2>
       <p>
         <strong>From :</strong> ${fromTime.toLocaleString("en-IN")}<br>
         <strong>To :</strong> ${toTime.toLocaleString("en-IN")}
@@ -93,7 +94,7 @@ cron.schedule("* * * * *", async () => {
             <th>Customer</th>
             <th>Description</th>
             <th>Qty</th>
-            <th>Unit Rate</th>
+
             
             <th>Expected Dispatch Date</th>
               <th>Status</th>
@@ -121,7 +122,7 @@ cron.schedule("* * * * *", async () => {
     await sendMail({
       to: toEmails,
       cc: ccEmails,
-      subject: `Indent Summary`,
+      subject: `Pending Indent Summary`,
       html,
     });
 

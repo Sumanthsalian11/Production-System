@@ -10,6 +10,7 @@ const User = require("../models/User");
 const Item = require("../models/Item");
 const IndentRouting = require("../models/IndentRouting");
 const Dispatch = require("../models/Dispatch");
+const sendIndentRequestMail = require("../utils/indentRequestMail");
 
 const mongoose = require("mongoose");
 
@@ -338,6 +339,9 @@ router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
 
     const savedIndent = await newIndent.save();
     res.status(201).json(savedIndent);
+
+    // mail for every new request (creator in CC). No await: saving is never delayed by mail errors
+    sendIndentRequestMail(savedIndent._id);
 
   } catch (err) {
     console.error("CREATE INDENT ERROR:", err);
