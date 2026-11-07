@@ -301,6 +301,8 @@ function NewIndent() {
   // confirm-before-upload popup for artwork files
   const [artConfirm, setArtConfirm] = useState(null); // { file, kind, url, isPdf, isImg }
   const [artRead, setArtRead] = useState(false);
+  const artReviewedRef = useRef(false); // true once the user ticked the checkbox on any artwork popup
+  const artSubmitOkRef = useRef(false); // true once the user confirmed the latest artwork before Save Indent
 
 
   // ===== FILTER STATES =====
@@ -805,7 +807,16 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const okToSave = artSubmitOkRef.current;
+    artSubmitOkRef.current = false;
     if (!validateForm()) return;
+
+    // no artwork version was added by the user: the item's latest saved artwork goes with the indent,
+    // so show it first and save only after the confirm checkbox + Save
+    if (!okToSave && !artReviewedRef.current && artCode && masterArt.length > 0) {
+      openLatestConfirm("savelatest");
+      return;
+    }
 
     try {
       const formData = new FormData();
@@ -851,6 +862,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           );
 
       if (res.status === 201 || res.status === 200) {
+        artReviewedRef.current = false;
         Swal.fire({
           icon: "success",
           title: "Success",
@@ -997,6 +1009,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setAwFile(null);
     setAwNote("");
     setSearchMode(ind.indentType === "sample" ? "sample" : "code");
+    artReviewedRef.current = false;
     setEditingId(ind._id);
     setShowForm(true);
     setShowTrack(false);
@@ -1224,6 +1237,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   // switching to / from Sample Request starts the product block clean
   const switchMode = (m) => {
+    artReviewedRef.current = false;
     const touchesSample = true; // always start the product block clean on every mode switch
 
     // full refresh of the rest of the form on every mode switch
@@ -1404,13 +1418,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     });
   };
 
-  const openLatestConfirm = () => {
+  const openLatestConfirm = (kindArg) => {
     const last = masterArt[masterArt.length - 1];
     if (!last) return;
     setArtRead(false);
     setArtConfirm({
       file: { name: "V" + last.version + " - " + last.fileName },
-      kind: "latest",
+      kind: kindArg || "latest",
       url: BASE_URL + last.filePath,
       isPdf: /\.pdf$/i.test(last.fileName || ""),
       isImg: /\.(png|jpe?g)$/i.test(last.fileName || "")
@@ -1426,7 +1440,15 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   const saveArtConfirm = () => {
     if (!artConfirm || !artRead) return;
+    artReviewedRef.current = true;
     const { file, kind } = artConfirm;
+    if (kind === "savelatest") {
+      artSubmitOkRef.current = true;
+      setArtConfirm(null);
+      setArtRead(false);
+      handleSafeSubmit({ preventDefault() {} });
+      return;
+    }
     if (kind === "master") changeMasterArtwork(file, awNote);
     else addArtworkVersion(true);
     if (artConfirm.url) URL.revokeObjectURL(artConfirm.url);
