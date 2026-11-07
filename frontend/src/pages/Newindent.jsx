@@ -246,6 +246,7 @@ function NewIndent() {
     productFamily: "",
     physicalReference: "",
     expectedOrderValue: "",
+    specification: "",
 
     productCode: "",
     materialType: "",
@@ -881,6 +882,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       customerName: "",
       colorFront: "",
       colorBack: "",
+      specification: "",
       wasteQty: searchMode === "sample" ? "5" : "",
       jobSize: "",
       inkDetails: searchMode === "sample" ? "CMYK" : "",
@@ -931,6 +933,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       productFamily: item.productFamily || "",
       physicalReference: item.physicalReference || "",
       expectedOrderValue: item.expectedOrderValue || "",
+      specification: item.specification || "",
       productCode: item.productCode || "",
       materialType: item.materialType || "",
       description: item.description || "",
@@ -1171,6 +1174,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       Stage: PIPE[typeKey(ind)][getStageIdx(ind)][1],
       "On Hold": ind.holdReason || "",
       Remark: ind.items?.[0]?.remark,
+      Specification: ind.items?.[0]?.specification,
 
       // ===== NEW FIELDS =====
       Lamination: ind.items?.[0]?.lamination,
@@ -3194,6 +3198,25 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
               </div>
 
+              {/* SPECIFICATION */}
+              <div className="gl-inner">
+                <div className="gl-group">
+                  <i className="bi bi-card-checklist"></i>
+                  <span>Specification</span>
+                </div>
+                <div className="row g-2">
+                  <PoField className="col-12" icon="bi-card-checklist" label="Specification" filled={has(form.specification)} area>
+                    <textarea
+                      name="specification"
+                      className="po-input"
+                      value={form.specification}
+                      title={form.specification}
+                      onChange={handleChange}
+                    />
+                  </PoField>
+                </div>
+              </div>
+
               {/* SECTION 4: ADDITIONAL INFO */}
               <div className="gl-inner">
                 <div className="gl-group">
@@ -3683,6 +3706,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 
                   <th>Status</th>
                   <th>Remarks</th>
+                  <th>Specification</th>
                   <th>Requested By</th>
                   <th>Requested At</th>
                   <th>User Location</th>
@@ -3867,6 +3891,22 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         {expandedCell === `rem-${ind._id}`
                           ? ind.items[0]?.remark || "-"
                           : truncateText(ind.items[0]?.remark)}
+                      </td>
+                      <td
+                        style={{
+                          maxWidth: "200px",
+                          cursor: "pointer",
+                          whiteSpace: expandedCell === `spec-${ind._id}` ? "normal" : "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis"
+                        }}
+                        onClick={() =>
+                          setExpandedCell(expandedCell === `spec-${ind._id}` ? null : `spec-${ind._id}`)
+                        }
+                      >
+                        {expandedCell === `spec-${ind._id}`
+                          ? ind.items[0]?.specification || "-"
+                          : truncateText(ind.items[0]?.specification)}
                       </td>
                       <td>
                         <div className="d-flex align-items-center gap-1 justify-content-center">

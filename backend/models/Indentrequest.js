@@ -14,6 +14,7 @@ const IndentItemSchema = new mongoose.Schema({
   deliveryDate: { type: Date },
   unitRate:     { type: Number, default: 0 },
   remark:       { type: String, default: "" },
+  specification: { type: String, default: "" },
 
   // ===== NEW FIELDS =====
   lamination:          { type: String, default: "" },

@@ -249,6 +249,7 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     } = req.body;
 
     const isSample = req.body.indentType === "sample";
+    const specification = req.body.specification || "";
     const { sampleRequestType, provisionalCustomerId } = req.body;
     const { productFamily, physicalReference, expectedOrderValue } = req.body;
 
@@ -350,6 +351,7 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     };
 
     if (latestArt) indentItem.artwork = latestArt;
+    indentItem.specification = specification;
     indentItem.productFamily = productFamily || "";
     indentItem.physicalReference = physicalReference || "";
     indentItem.expectedOrderValue = expectedOrderValue || "";
@@ -865,6 +867,7 @@ router.put("/:id", authMiddleware, indentUploadFields, watermarkUploadedPdfs, as
     }
 
     indent.location = location;
+    const specification = req.body.specification || "";
 
     const existingItem = indent.items?.[0] || {};
 
@@ -927,6 +930,7 @@ router.put("/:id", authMiddleware, indentUploadFields, watermarkUploadedPdfs, as
         gsm,
         customerCopy,
         artwork: latestArt || artwork,
+        specification,
         productFamily: productFamily || "",
         physicalReference: physicalReference || "",
         expectedOrderValue: expectedOrderValue || "",
