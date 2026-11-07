@@ -52,10 +52,12 @@ const ClickReport = lazy(() => import("./pages/Clickreport"));
 const CustomerSatisfaction = lazy(() => import("./pages/CustomerSatisfaction"));
 const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
 
-const RolesCtx = createContext([]);
+const RolesCtx = createContext({ extra: [], ready: true });
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
 const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
-  const extra = useContext(RolesCtx);
+  const { extra, ready } = useContext(RolesCtx);
+  // wait until the roles for the current token are loaded, otherwise a custom role is rejected right after login
+  if (!ready) return <LoadingOverlay />;
   return <BaseProtectedRoute {...props} allowedRoles={allowedRoles.length > 1 ? [...allowedRoles, ...extra] : allowedRoles} />;
 };
 
@@ -110,7 +112,12 @@ function App() {
     <>
       <Toaster position="top-right" />
 
-      <RolesCtx.Provider value={extraRoles}>
+      <RolesCtx.Provider
+        value={{
+          extra: extraRoles,
+          ready: !localStorage.getItem("token") || rolesToken === localStorage.getItem("token"),
+        }}
+      >
         <Suspense fallback={<LoadingOverlay />}>
           <Routes>
             {/* 🔐 LOGIN ROUTES */}
