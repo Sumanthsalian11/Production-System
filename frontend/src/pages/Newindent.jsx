@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { jwtDecode } from "jwt-decode";
 import WoStageChartModal, { fetchWoStageTree } from "./Wostagechart";
 import Swal from "sweetalert2";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import BASE_URL from "../config/api";
@@ -232,16 +233,8 @@ function NewIndent() {
   const [showBell, setShowBell] = useState(true);
   // Lamination to Customer Copy columns are collapsed by default
   const [showExtraCols, setShowExtraCols] = useState(false);
-  // ===== ARTWORK REPOSITORY (view only) =====
-  const [showRepo, setShowRepo] = useState(false);
-  const [repoQ, setRepoQ] = useState("");
-  const [repoStatus, setRepoStatus] = useState("");
-  const [repoAll, setRepoAll] = useState(false);
-  const [repoSel, setRepoSel] = useState("");
-  const [repoTotal, setRepoTotal] = useState(false);
-  useEffect(() => { if (!repoSel) setRepoTotal(false); }, [repoSel]);
-  const [repoIndentQ, setRepoIndentQ] = useState("");
-  const repoOn = showRepo && !showForm && !showTrack;
+  const routerLoc = useLocation();
+  const navigate = useNavigate();
   const quantityRef = useRef();
   const locationRef = useRef();
 
@@ -583,6 +576,16 @@ function NewIndent() {
     if (ind && isExtOrder(ind)) fetchExtDetail(ind.indentNo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId]);
+
+  useEffect(() => {
+    const id = routerLoc.state?.openTrack;
+    if (!id) return;
+    setShowTrack(true);
+    setShowForm(false);
+    setTrackId(id);
+    setTrackExtra({}); setTrackNote(""); setHoldReason(""); setTrackErr("");
+    navigate(routerLoc.pathname, { replace: true, state: null });
+  }, [routerLoc.state]);
 
   const fetchFlow = async () => {
     try {
@@ -1118,82 +1121,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     });
   }, [indents, searchQ, stageFilter, typeFilter, flow]);
 
-  // ===== ARTWORK REPOSITORY data =====
-  const isImgFile = (p) => /\.(png|jpe?g|gif|webp|svg|bmp)(\?.*)?$/i.test(String(p || ""));
-  const isPdfFile = (p) => /\.pdf(\?.*)?$/i.test(String(p || ""));
-  const repoVersionsOf = (ind) => {
-    const it = ind.items?.[0] || {};
-    const vers = it.artworkVersions || [];
-    if (vers.length) return vers;
-    if (it.artwork?.filePath) {
-      return [{
-        version: 1, fileName: it.artwork.fileName, filePath: it.artwork.filePath,
-        note: "Earlier upload", status: "Approved", comment: "",
-        uploadedBy: ind.user || "", uploadedAt: ind.createdAt
-      }];
-    }
-    return [];
-  };
-  const repoPending = indents.reduce(
-    (a, ind) => a + repoVersionsOf(ind).filter((v) => v.status === "Pending").length, 0
-  );
-  const repoRows = useMemo(() => {
-    const q = repoQ.trim().toLowerCase();
-    const groups = {};
-    indents.forEach((ind) => {
-      const it = ind.items?.[0] || {};
-      const gk = [it.customerName, it.productCode, it.materialType, it.description]
-        .map((x) => norm(x).toLowerCase()).join("|");
-      repoVersionsOf(ind).forEach((v, idx) => {
-        if (!groups[gk]) groups[gk] = { it, list: [] };
-        groups[gk].list.push({ ind, v, key: ind._id + "|" + idx });
-      });
-    });
-    const out = [];
-    Object.values(groups).forEach((g) => {
-      const sorted = g.list.sort((a, b) => new Date(a.v.uploadedAt || 0) - new Date(b.v.uploadedAt || 0));
-      const rank = { Approved: 3, Rejected: 2, Pending: 1, Superseded: 0 };
-      const best = new Map();
-      const usedIn = {};
-      sorted.forEach((x) => {
-        const k = x.v.filePath || x.v.fileName;
-        (usedIn[k] = usedIn[k] || []).push(x.ind.indentNo);
-        const cur = best.get(k);
-        if (!cur || (rank[x.v.status] ?? 0) >= (rank[cur.v.status] ?? 0)) best.set(k, x);
-      });
-      const all = sorted
-        .filter((x) => best.get(x.v.filePath || x.v.fileName) === x)
-        .map((x) => ({ ...x, usedIn: usedIn[x.v.filePath || x.v.fileName] }));
-      const shown = all
-        .filter((x) => repoAll || repoStatus === "Superseded" || x.v.status !== "Superseded")
-        .filter((x) => !repoStatus || x.v.status === repoStatus);
-      if (!shown.length) return;
-      const hay = [g.it.customerName, g.it.description, g.it.productCode, g.it.materialType,
-        ...all.map((x) => x.ind.indentNo + " " + x.v.fileName)].join(" ").toLowerCase();
-      if (q && !hay.includes(q)) return;
-      const latest = shown[shown.length - 1];
-      const indentKeys = {};
-      g.list.forEach((x) => { indentKeys[x.ind.indentNo] = x.key; });
-      out.push({ ...latest, it: g.it, all, list: g.list, count: all.length, indentKeys });
-    });
-    return out;
-  }, [indents, repoQ, repoStatus, repoAll]);
 
-  const repoRowsOld = useMemo(() => {
-    const q = repoQ.trim().toLowerCase();
-    const out = [];
-    indents.forEach((ind) => {
-      const it = ind.items?.[0] || {};
-      repoVersionsOf(ind).forEach((v, idx) => {
-        if (!(repoAll || repoStatus === "Superseded" || v.status !== "Superseded")) return;
-        if (repoStatus && v.status !== repoStatus) return;
-        const hay = [it.customerName, it.description, it.productCode, ind.indentNo, v.fileName].join(" ").toLowerCase();
-        if (q && !hay.includes(q)) return;
-        out.push({ ind, v, key: ind._id + "|" + idx });
-      });
-    });
-    return out;
-  }, [indents, repoQ, repoStatus, repoAll]);
 
   const clearTrackFilters = () => {
     setSearchQ("");
@@ -2467,29 +2395,16 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           <button
             type="button"
             className={`mode-pill-btn ${showForm ? "active" : ""}`}
-            onClick={() => { setShowForm((prev) => !prev); setShowTrack(false); setShowRepo(false); }}
+            onClick={() => { setShowForm((prev) => !prev); setShowTrack(false); }}
           >
             <i className="bi bi-plus-circle"></i> Create New Indent
           </button>
           <button
             type="button"
             className={`mode-pill-btn ${showTrack ? "active" : ""}`}
-            onClick={() => { setShowTrack((prev) => !prev); setShowForm(false); setShowRepo(false); }}
+            onClick={() => { setShowTrack((prev) => !prev); setShowForm(false); }}
           >
             <i className="bi bi-truck"></i> Track
-          </button>
-          <button
-            type="button"
-            className={`mode-pill-btn ${repoOn ? "active" : ""}`}
-            title="Badge: artwork waiting for review"
-            onClick={() => { setShowRepo((prev) => !prev); setShowForm(false); setShowTrack(false); }}
-          >
-            <i className="bi bi-images"></i> Artwork Repository
-            {repoPending > 0 && (
-              <span className="bell-badge" style={{ position: "static", display: "inline-flex", marginLeft: 6 }}>
-                {repoPending}
-              </span>
-            )}
           </button>
         </div>
 
@@ -3489,7 +3404,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         {/* ===== ARTWORK UPDATES BELL ===== */}
         {(() => {
 
-          if (showTrack || repoOn) return null; // hide bell on Track and Artwork Repository
+          if (showTrack) return null; // hide bell on Track
           const mine = indents.filter((ind) => {
             if (ind.user !== loggedInUser) return false;
             const a = latestArtOf(ind);
@@ -3558,7 +3473,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         })()}
 
         {/* ===== FILTERS (Saved Indents, shown by default) ===== */}
-        <div className="bar-card" style={{ display: showTrack || repoOn ? "none" : "block" }}>
+        <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
           <div className="bar-head">
             <h5>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -3672,7 +3587,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         </div>
 
         {/* ===== TABLE CONTAINER (Saved Indents, shown by default) ===== */}
-        <div className="bar-card" style={{ display: showTrack || repoOn ? "none" : "block" }}>
+        <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
           <div className="bar-head">
             <h5>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -3965,345 +3880,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
           </div>
         </div>
 
-        {/* ===== ARTWORK REPOSITORY ===== */}
-        {repoOn && (
-          <div className="bar-card">
-            <div className="bar-head">
-              <h5>Artwork Repository</h5>
-              <span className="bar-count">{repoRows.length} artwork file{repoRows.length === 1 ? "" : "s"}</span>
-            </div>
 
-            <div className="bar-body">
-              <div className="row g-2 align-items-center">
-                <PoField className="col-12 col-lg-5" icon="bi-search" label="Search customer, description or product code" filled={has(repoQ)}>
-                  <input type="text" className="po-input" value={repoQ} onChange={(e) => setRepoQ(e.target.value)} />
-                </PoField>
-                <PoField className="col-6 col-lg-3" icon="bi-flag" label="Status" alwaysFloat caret>
-                  <select className="po-input" value={repoStatus} onChange={(e) => setRepoStatus(e.target.value)}>
-                    <option value="">All status</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Superseded">Superseded</option>
-                  </select>
-                </PoField>
-                <div className="col-6 col-lg-4">
-                  <label className="d-flex align-items-center gap-2" style={{ fontSize: 12 }}>
-                    <input type="checkbox" checked={repoAll} onChange={(e) => setRepoAll(e.target.checked)} />
-                    Include superseded versions
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="custom-table-container">
-              <table className="table table-bordered table-hover align-middle text-center bg-white">
-                <thead>
-                  <tr>
-                    <th></th><th>Customer</th><th>Product code</th><th>Product type</th><th>Description</th><th>Versions</th>
-                    <th>Indent</th><th>Ver</th><th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {repoRows.length === 0 ? (
-                    <tr><td colSpan={9} className="text-center py-4">No artwork matches.</td></tr>
-                  ) : (
-                    repoRows.map(({ ind, v, key, count, indentKeys }) => {
-                      const it = ind.items?.[0] || {};
-                      return (
-                        <tr
-                          key={key}
-                          className={repoSel === key ? "trk-selected" : ""}
-                          style={{ cursor: "pointer" }}
-                          onClick={() => setRepoSel(key)}
-                        >
-                          <td>
-                            {isImgFile(v.filePath) || isImgFile(v.fileName) ? (
-                              <img
-                                src={BASE_URL + v.filePath}
-                                alt=""
-                                style={{ width: 80, height: 50, objectFit: "contain", borderRadius: 4, background: "#f4f6f8", border: "1px solid #e3e7ec" }}
-                              />
-                            ) : (
-                              <i className="bi bi-file-earmark-image" style={{ fontSize: 22 }}></i>
-                            )}
-                          </td>
-                          <td>{it.customerName || "-"}</td>
-                          <td className="fw-semibold">{it.productCode || "-"}</td>
-                          <td>{it.materialType || "-"}</td>
-                          <td style={{ textAlign: "left" }}>{truncateText(it.description, 50)}</td>
-                          <td className="fw-bold">{count}</td>
-                          <td onClick={(e) => e.stopPropagation()}>
-                            <input
-                              className="form-control form-control-sm"
-                              style={{ minWidth: 130, fontSize: 12 }}
-                              list={"repo-ind-" + key}
-                              placeholder={Object.keys(indentKeys).length + " indent" + (Object.keys(indentKeys).length === 1 ? "" : "s") + " - search"}
-                              value=""
-                              onChange={(e) => {
-                                const n = e.target.value.trim();
-                                if (indentKeys[n]) setRepoSel(indentKeys[n]);
-                              }}
-                            />
-                            <datalist id={"repo-ind-" + key}>
-                              {Object.keys(indentKeys).map((n) => (
-                                <option key={n} value={n} />
-                              ))}
-                            </datalist>
-                          </td>
-                          <td>v{v.version}</td>
-                          <td><span className={awBadge(v.status)}>{v.status}</span></td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {(() => {
-              if (!repoSel) return null;
-              const grp = repoRows.find((r) => r.list.some((x) => x.key === repoSel));
-              const cur = grp?.list.find((x) => x.key === repoSel);
-              const ind = cur?.ind;
-              const all = cur ? grp.list.filter((x) => x.ind._id === cur.ind._id) : [];
-              const v = cur?.v;
-              if (!ind || !v) return null;
-              const it = ind.items?.[0] || {};
-              const rows = [
-                ["Customer", it.customerName],
-                ["Product code", it.productCode],
-                ["Product type", it.materialType],
-                ["Description", it.description],
-                ["Job size", it.jobSize],
-                ["Color front", it.colorFront],
-["Color back", it.colorBack],
-                ["Paper group", it.paperGroup],
-["Paper size", it.paperSize],
-["GSM", it.gsm],
-                ["Quantity", it.quantity],
-                ["Delivery date", it.deliveryDate ? new Date(it.deliveryDate).toLocaleDateString("en-IN") : ""],
-                ["Location", ind.location?.locationName],
-                ["Notes", it.remark]
-              ];
-              return (
-                <div className="trk-overlay" onClick={() => setRepoSel("")}>
-                <div className="bar-body trk-panel trk-modal" onClick={(e) => e.stopPropagation()}>
-                  <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                    <b>{it.customerName} - {it.description || it.productCode}</b>
-                    <span className={awBadge(v.status)}>v{v.version} {v.status}</span>
-                    <button
-                      type="button"
-                      className="btn-action-edit ms-auto"
-                      onClick={() => {
-                        setRepoSel("");
-                        setShowRepo(false);
-                        setShowTrack(true);
-                        setTrackId(ind._id);
-                        setTrackExtra({}); setTrackNote(""); setHoldReason(""); setTrackErr("");
-                      }}
-                    >
-                      Open indent {ind.indentNo}
-                    </button>
-                    <button type="button" className="btn-action-delete" onClick={() => setRepoSel("")}>Close</button>
-                  </div>
-
-                  <div className="row g-3">
-                    <div className="col-12 col-md-6">
-                      {isImgFile(v.filePath) || isImgFile(v.fileName) ? (
-                        <a href={BASE_URL + v.filePath} target="_blank" rel="noreferrer" title="Click to open full size">
-                          <img
-                            src={BASE_URL + v.filePath}
-                            alt="Artwork preview"
-                            style={{ width: "100%", maxHeight: 420, objectFit: "contain", border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }}
-                          />
-                        </a>
-                      ) : isPdfFile(v.filePath) || isPdfFile(v.fileName) ? (
-                        <iframe
-                          title="Artwork preview"
-                          src={BASE_URL + v.filePath}
-                          style={{ width: "100%", height: 420, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }}
-                        />
-                      ) : (
-                        <div
-                          className="d-flex flex-column align-items-center justify-content-center"
-                          style={{ height: 200, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }}
-                        >
-                          <i className="bi bi-file-earmark-image" style={{ fontSize: 42 }}></i>
-                          <small>Browsers cannot preview this file type. Use the file link below to download it.</small>
-                        </div>
-                      )}
-                      <small className="d-block mt-1">
-                        {v.filePath ? (
-                          <a href={BASE_URL + v.filePath} target="_blank" rel="noreferrer">{v.fileName}</a>
-                        ) : (
-                          v.fileName
-                        )}
-                        {" | "}{v.uploadedBy || "-"}{" | "}
-                        {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
-                      </small>
-                      {v.note ? <small className="d-block">Note: {v.note}</small> : null}
-
-                      {(() => {
-                        const chipsOf = (st) => {
-                          const s = new Set();
-                          return grp.list
-                            .filter((x) => x.v.status === st)
-                            .filter((x) => {
-                              const k = x.v.version + "|" + (x.v.filePath || x.v.fileName);
-                              if (s.has(k)) return false;
-                              s.add(k);
-                              return true;
-                            })
-                            .sort((a, b) => (a.v.version || 0) - (b.v.version || 0));
-                        };
-                        const total = new Set(grp.list.map((x) => x.v.filePath || x.v.fileName)).size;
-                        const Row = ({ title, st }) => {
-                          const list = chipsOf(st);
-                          if (!list.length) return null;
-                          return (
-                            <div className="mt-3">
-                              <b style={{ textDecoration: "underline" }}>{title}</b>
-                              <div className="d-flex flex-wrap align-items-center mt-2">
-                                {list.map((x, i) => (
-                                  <span key={x.key} className="d-inline-flex align-items-center">
-                                    {i > 0 && <span style={{ width: 22, height: 2, background: "#8fbcc7" }} />}
-                                    <button
-                                      type="button"
-                                      title={"Indent " + x.ind.indentNo}
-                                      onClick={() => setRepoSel(x.key)}
-                                      style={{
-                                        width: 38, height: 38, borderRadius: "50%", fontWeight: 700, fontSize: 12,
-                                        cursor: "pointer", color: "#000",
-                                        border: "2px solid " + (x.key === repoSel ? "#1f9d6b" : st === "Rejected" ? "#d64545" : "#0f5560"),
-                                        background: x.key === repoSel ? "#d9f2e6" : st === "Rejected" ? "#fbdcdc" : "#fff"
-                                      }}
-                                    >
-                                      V{x.v.version}
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        };
-                        return (
-                          <>
-                            <Row title="Approved" st="Approved" />
-                            <Row title="Rejected" st="Rejected" />
-                            <Row title="Pending" st="Pending" />
-                            <div
-                              className="mt-3"
-                              style={{ cursor: "pointer", userSelect: "none" }}
-                              title="Double-click to see all version details"
-                              onDoubleClick={() => setRepoTotal(true)}
-                            >
-                              <b style={{ textDecoration: "underline" }}>Total version count</b>
-                              <div style={{ fontSize: 22, fontWeight: 700 }}>{total}</div>
-                            </div>
-
-                            {repoTotal && (
-                              <div
-                                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center" }}
-                                onClick={(e) => { e.stopPropagation(); setRepoTotal(false); }}
-                              >
-                                <div
-                                  onClick={(e) => e.stopPropagation()}
-                                  style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1200, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.35)" }}
-                                >
-                                  <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
-                                    <b style={{ fontSize: 15 }}>All versions: {it.customerName} - {it.description || it.productCode}</b>
-                                    <span className="bar-count">{total} version{total === 1 ? "" : "s"}</span>
-                                    <button type="button" className="btn-action-delete ms-auto" onClick={() => setRepoTotal(false)}>Close</button>
-                                  </div>
-                                  <div style={{ overflow: "auto", padding: 12 }}>
-                                    <table className="table table-bordered table-sm align-middle mb-0" style={{ fontSize: 12 }}>
-                                      <thead>
-                                        <tr>
-                                          <th>Ver</th><th>File</th><th>Indent</th><th>Status</th>
-                                          <th>Uploaded by</th><th>Uploaded at</th>
-                                          <th>Reviewed by</th><th>Reviewed at</th>
-                                          <th>Reviewer comment</th><th>Note</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {[...grp.all]
-                                          .sort((a, b) => (a.v.version || 0) - (b.v.version || 0))
-                                          .map((x) => (
-                                            <tr
-                                              key={x.key}
-                                              style={{ cursor: "pointer" }}
-                                              title="Click to open this version"
-                                              onClick={() => { setRepoSel(x.key); setRepoTotal(false); }}
-                                            >
-                                              <td className="fw-bold">V{x.v.version}</td>
-                                              <td>
-                                                {x.v.filePath ? (
-                                                  <a href={BASE_URL + x.v.filePath} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>{x.v.fileName}</a>
-                                                ) : x.v.fileName}
-                                              </td>
-                                              <td>{x.ind.indentNo}</td>
-                                              <td><span className={awBadge(x.v.status)}>{x.v.status}</span></td>
-                                              <td>{x.v.uploadedBy || "-"}</td>
-                                              <td>{x.v.uploadedAt ? new Date(x.v.uploadedAt).toLocaleString("en-IN") : "-"}</td>
-                                              <td>{x.v.reviewedBy || "-"}</td>
-                                              <td>{x.v.reviewedAt ? new Date(x.v.reviewedAt).toLocaleString("en-IN") : "-"}</td>
-                                              <td>{x.v.comment || "-"}</td>
-                                              <td>{x.v.note || "-"}</td>
-                                            </tr>
-                                          ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <table className="table table-bordered table-sm mb-0" style={{ fontSize: 12 }}>
-                        <tbody>
-                          {rows.map(([l, val]) => (
-                            <tr key={l}>
-                              <th style={{ width: "40%" }}>{l}</th>
-                              <td>{has(val) && val !== "" ? String(val) : "-"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
-
-                    </div>
-                  </div>
-
-                  <div className="d-flex flex-wrap align-items-center gap-2 mt-3">
-                    <b>Versions</b>
-                    {all.map((x, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        className="btn-action-edit"
-                        onClick={() => setRepoSel(x.key)}
-                      >
-                        v{x.v.version} {x.v.status}
-                      </button>
-                    ))}
-                  </div>
-
-                  {v.comment ? (
-                    <p className="mt-2 mb-0">
-                      Reviewer comment: {v.comment}{v.reviewedBy ? " (" + v.reviewedBy + ")" : ""}
-                    </p>
-                  ) : null}
-                </div>
-                </div>
-              );
-            })()}
-          </div>
-        )}
 
         {/* ===== SAVED INDENTS AND TRACKING ===== */}
         <div className="bar-card" style={{ display: showTrack ? "block" : "none" }}>

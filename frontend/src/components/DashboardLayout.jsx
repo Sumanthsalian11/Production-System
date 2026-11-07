@@ -29,7 +29,7 @@ const APP_CATEGORIES = [
     color: "#f59f00",
     bgLight: "#fff6e5",
     borderGlow: "#fde3a7",
-    routes: ["/new-in", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
+    routes: ["/new-in", "/artwork-repository", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
   },
   {
     title: "Reports & Analytics",

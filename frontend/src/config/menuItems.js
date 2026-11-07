@@ -6,6 +6,7 @@ const menuItems = [
   { to: "/internal-register", icon: "bi-person-plus", label: "User Register", roles: ["admin"] },
   { to: "/admin", icon: "bi-grid", label: "Masters", roles: ["admin"] },
   { to: "/new-in", icon: "bi-grid", label: "Secure Printings", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
+   { to: "/artwork-repository", icon: "bi-images", label: "Artwork Repository", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/customer-dashboard", icon: "bi-card-list", label: "Purchase Orders", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/planner", icon: "bi-calendar-check", label: "Planning", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/production", icon: "bi-receipt-cutoff", label: "Reel Register", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },

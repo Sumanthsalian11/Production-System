@@ -39,6 +39,7 @@ const PersoReport = lazy(() => import("./pages/Persoreport"));
 const ShreddingDashboard = lazy(() => import("./pages/ShreddingDashboard"));
 const InwardRegister = lazy(() => import("./pages/Inwardregister"));
 const NewIndent = lazy(() => import("./pages/Newindent"));
+const ArtworkRepository = lazy(() => import("./pages/ArtworkRepository"));
 const PreprocessDashboard = lazy(() => import("./pages/Preprocessdashboard"));
 const PlateRequestform = lazy(() => import("./pages/Platerequestform"));
 const WelcomeBoardGenerator = lazy(() => import("./pages/Welcomeboardgenerator"));
@@ -191,6 +192,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <NewIndent />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/artwork-repository"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <ArtworkRepository />
                   </ProtectedRoute>
                 }
               />
