@@ -230,6 +230,7 @@ function NewIndent() {
   const [showForm, setShowForm] = useState(false);
   const [showTrack, setShowTrack] = useState(false);
   const [chatId, setChatId] = useState(null);
+  const [pdfPreview, setPdfPreview] = useState(null); // { url, name } for the watermarked PDF viewer
   const [showBell, setShowBell] = useState(true);
   // Lamination to Customer Copy columns are collapsed by default
   const [showExtraCols, setShowExtraCols] = useState(false);
@@ -2386,7 +2387,18 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         }
 `}</style>
 
-      <div className="indent-app-container">
+      <div
+        className="indent-app-container"
+        onClickCapture={(e) => {
+          const a = e.target.closest && e.target.closest("a[href]");
+          if (!a) return;
+          const href = a.getAttribute("href") || "";
+          if (!/\.pdf($|\?|#)/i.test(href)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setPdfPreview({ url: a.href, name: (a.textContent || "").trim() });
+        }}
+      >
 
         {/* HEADER SECTION */}
 
@@ -3292,6 +3304,51 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
                 <div className="text-center mt-3">
                   <button type="button" className="btn btn-submit-indent" onClick={saveNewItem}>Save Customer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== PDF VIEWER WITH SPECIMEN WATERMARK ===== */}
+        {pdfPreview && (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={() => setPdfPreview(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1100, height: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+            >
+              <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                <i className="bi bi-file-earmark-pdf" style={{ color: "#e4572e" }}></i>
+                <b style={{ fontSize: 14 }}>{pdfPreview.name || "PDF"}</b>
+                <button type="button" className="btn-action-delete ms-auto" onClick={() => setPdfPreview(null)}>Close</button>
+              </div>
+              <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
+                <iframe title="PDF" src={pdfPreview.url} style={{ width: "100%", height: "100%", border: "none" }} />
+                <div
+                  style={{
+                    position: "absolute", inset: 0, pointerEvents: "none",
+                    display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden"
+                  }}
+                >
+                  <span
+                    style={{
+                      transform: "rotate(-35deg)",
+                      fontSize: "clamp(60px, 14vw, 150px)",
+                      fontWeight: 800,
+                      letterSpacing: "10px",
+                      color: "rgba(214, 69, 69, 0.22)",
+                      border: "8px solid rgba(214, 69, 69, 0.22)",
+                      padding: "0 28px",
+                      borderRadius: 16,
+                      userSelect: "none",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    SPECIMEN
+                  </span>
                 </div>
               </div>
             </div>
