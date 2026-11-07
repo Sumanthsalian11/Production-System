@@ -802,6 +802,29 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       });
     }
     setErrors(newErrors);
+    const fieldLabels = {
+      productCode: "Product Code",
+      quantity: "Quantity",
+      location: "Location",
+      deliveryDate: searchMode === "sample" ? "Required Date" : "Delivery Date",
+      sampleRequestType: "Request Type",
+      sampleType: "Sample Type",
+      artwork: "Artwork (upload a version)"
+    };
+    const missingKeys = Object.keys(newErrors).filter((k) => fieldLabels[k]);
+    if (missingKeys.length) {
+      const fillMsgs = {};
+      missingKeys.forEach((k) => { if (k !== "artwork") fillMsgs[k] = "Please fill this field"; });
+      setErrors({ ...newErrors, ...fillMsgs });
+      Swal.fire({
+        icon: "warning",
+        title: "Please fill the mandatory fields",
+        html: "<ul style='text-align:left;margin:0 auto;display:inline-block'>" +
+          missingKeys.map((k) => "<li>" + fieldLabels[k] + "</li>").join("") +
+          "</ul>",
+        confirmButtonColor: "#3085d6"
+      });
+    }
     return Object.keys(newErrors).length === 0;
   };
 
