@@ -16,9 +16,16 @@ async function sendIndentRequestMail(indentId) {
     const adminTo = settings?.toEmails || [];
     const adminCc = settings?.ccEmails || [];
 
-    const toEmails = adminTo.length ? adminTo : CC;
-    const ccEmails = [...new Set([indent.userEmail, ...adminCc].filter(Boolean))]
+    const toArr = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+
+    const toEmails = adminTo.length ? toArr(adminTo) : toArr(CC);
+    const ccEmails = [...new Set([indent.userEmail, ...toArr(adminCc)].filter(Boolean))]
       .filter((e) => !toEmails.includes(e));
+
+    if (!toEmails.length) {
+      console.error("❌ Indent request mail: no TO recipients (set Indent Summary TO in Admin > Mail Settings)");
+      return;
+    }
 
     const item = indent.items?.[0] || {};
     const deliveryDate = item.deliveryDate
