@@ -298,6 +298,10 @@ function NewIndent() {
   const [masterArt, setMasterArt] = useState([]);
   const masterArtInputRef = useRef(null);
 
+  // confirm-before-upload popup for artwork files
+  const [artConfirm, setArtConfirm] = useState(null); // { file, kind, url, isPdf, isImg }
+  const [artRead, setArtRead] = useState(false);
+
 
   // ===== FILTER STATES =====
   const [indentNoFilter, setIndentNoFilter] = useState("");
@@ -1313,11 +1317,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   const nextMasterVer = masterArt.length ? Math.max(...masterArt.map((v) => v.version || 0)) + 1 : 1;
 
-  const changeMasterArtwork = async (file) => {
+  const changeMasterArtwork = async (file, noteText) => {
     if (!file || !artCode) return;
     const fd = new FormData();
     fd.append("artwork", file);
-    fd.append("note", awNote || "");
+    fd.append("note", (noteText !== undefined ? noteText : awNote) || "");
     try {
       const res = await axios.post(`${BASE_URL}/api/master/items/${artCode}/artwork`, fd, {
         headers: { Authorization: `Bearer ${token}` }
@@ -1352,9 +1356,55 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     if (masterArtInputRef.current) masterArtInputRef.current.value = "";
   };
 
-  const addArtworkVersion = () => {
+  // opens the preview window; nothing is saved until the user confirms
+  const openArtConfirm = (file, kind) => {
+    if (!file) return;
+    setArtRead(false);
+    if (kind === "master") setAwNote("");
+    setArtConfirm({
+      file,
+      kind,
+      url: URL.createObjectURL(file),
+      isPdf: /\.pdf$/i.test(file.name),
+      isImg: /\.(png|jpe?g)$/i.test(file.name)
+    });
+  };
+
+  const openLatestConfirm = () => {
+    const last = masterArt[masterArt.length - 1];
+    if (!last) return;
+    setArtRead(false);
+    setArtConfirm({
+      file: { name: "V" + last.version + " - " + last.fileName },
+      kind: "latest",
+      url: BASE_URL + last.filePath,
+      isPdf: /\.pdf$/i.test(last.fileName || ""),
+      isImg: /\.(png|jpe?g)$/i.test(last.fileName || "")
+    });
+  };
+
+  const closeArtConfirm = () => {
+    if (artConfirm?.url) URL.revokeObjectURL(artConfirm.url);
+    setArtConfirm(null);
+    setArtRead(false);
+    if (masterArtInputRef.current) masterArtInputRef.current.value = "";
+  };
+
+  const saveArtConfirm = () => {
+    if (!artConfirm || !artRead) return;
+    const { file, kind } = artConfirm;
+    if (kind === "master") changeMasterArtwork(file, awNote);
+    else addArtworkVersion(true);
+    if (artConfirm.url) URL.revokeObjectURL(artConfirm.url);
+    setArtConfirm(null);
+    setArtRead(false);
+  };
+
+  const addArtworkVersion = (confirmed) => {
     // item already has saved artwork: send its LATEST version with this indent (no new version is created)
     if (artCode && masterArt.length > 0) {
+      // show the latest saved artwork first; attach it only after the confirm checkbox + Save
+      if (confirmed !== true) { openLatestConfirm(); return; }
       const last = masterArt[masterArt.length - 1];
       setArtworkVersions([
         {
@@ -1373,6 +1423,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       return;
     }
     if (!awFile) { awFileInputRef.current?.focus(); return; }
+
+    // show the file first; the real save runs only after the confirm checkbox + Save
+    if (confirmed !== true) { openArtConfirm(awFile, "version"); return; }
 
     // production indent with a product code: save the file against the item (V1, V2, V3...)
     if (artCode) {
@@ -3111,7 +3164,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                         type="file"
                         style={{ display: "none" }}
                         accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
-                        onChange={(e) => changeMasterArtwork(e.target.files?.[0])}
+                        onChange={(e) => openArtConfirm(e.target.files?.[0], "master")}
                       />
                       <button
                         type="button"
@@ -3328,6 +3381,76 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 <div className="text-center mt-3">
                   <button type="button" className="btn btn-submit-indent" onClick={saveNewItem}>Save Customer</button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===== ARTWORK CONFIRM POPUP (preview before upload) ===== */}
+        {artConfirm && (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2200, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={closeArtConfirm}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1100, height: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+            >
+              <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                <i className="bi bi-file-earmark-pdf" style={{ color: "#e4572e" }}></i>
+                <b style={{ fontSize: 14 }}>Review artwork before upload</b>
+                <span>{artConfirm.file.name}</span>
+                <button type="button" className="btn-action-delete ms-auto" onClick={closeArtConfirm}>Cancel</button>
+              </div>
+
+              <div style={{ flex: 1, overflow: "hidden", background: "#f4f6f8" }}>
+                {artConfirm.isPdf ? (
+                  <iframe title="Artwork preview" src={artConfirm.url} style={{ width: "100%", height: "100%", border: "none" }} />
+                ) : artConfirm.isImg ? (
+                  <div style={{ width: "100%", height: "100%", overflow: "auto", textAlign: "center", padding: 12 }}>
+                    <img src={artConfirm.url} alt="Artwork preview" style={{ maxWidth: "100%" }} />
+                  </div>
+                ) : (
+                  <div className="d-flex align-items-center justify-content-center h-100 text-center p-4">
+                    Preview is not available for this file type ({artConfirm.file.name}).
+                    <br />
+                    You can still confirm and save it.
+                  </div>
+                )}
+              </div>
+
+              <div className="px-3 py-3 d-flex flex-wrap align-items-center gap-3" style={{ borderTop: "1px solid #e3e7ec" }}>
+                {artConfirm.kind === "master" && (
+                  <input
+                    type="text"
+                    placeholder="Version note (optional)"
+                    value={awNote}
+                    onChange={(e) => setAwNote(e.target.value)}
+                    style={{ flex: "1 1 260px", minWidth: 220, height: 40, padding: "6px 12px", border: "1px solid #cfd6de", borderRadius: 6, fontSize: 14, color: "#000", background: "#fff" }}
+                  />
+                )}
+                <div className="form-check m-0">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="art-read-check"
+                    style={{ width: 22, height: 22, minWidth: 22, float: "none", margin: "0 10px 0 0", cursor: "pointer", appearance: "auto", WebkitAppearance: "checkbox", accentColor: "#e4572e", border: "2px solid #000", opacity: 1, display: "inline-block", verticalAlign: "middle" }}
+                    checked={artRead}
+                    onChange={(e) => setArtRead(e.target.checked)}
+                  />
+                  <label className="form-check-label fw-bold" htmlFor="art-read-check">
+                    I have read and checked this artwork file.
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-submit-indent ms-auto"
+                  style={{ opacity: artRead ? 1 : 0.5, cursor: artRead ? "pointer" : "not-allowed" }}
+                  disabled={!artRead}
+                  onClick={saveArtConfirm}
+                >
+                  Save
+                </button>
               </div>
             </div>
           </div>
