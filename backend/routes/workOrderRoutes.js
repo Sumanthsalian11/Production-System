@@ -380,9 +380,14 @@ router.put("/:id", authMiddleware, async (req, res) => {
     const workOrder = await WorkOrder.findById(req.params.id);
     if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
 
-    if (workOrder.planningUser !== req.user.name) {
+    const isAdminUser = String(req.user.role || "").toUpperCase() === "ADMIN";
+
+    if (!isAdminUser && workOrder.planningUser !== req.user.name) {
       return res.status(403).json({ message: "Not authorized to edit this work order" });
     }
+
+    // only admin may change the planner name
+    if (!isAdminUser) delete req.body.planningUser;
 
     Object.assign(workOrder, req.body);
     await workOrder.save();
@@ -429,6 +434,32 @@ router.patch("/:id/send-to-prepress", authMiddleware, async (req, res) => {
     res.json(workOrder);
   } catch (err) {
     console.error("SEND TO PREPRESS ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// ADMIN: CHANGE PLANNER NAME (from the table)
+// =============================================
+router.patch("/:id/planning-user", authMiddleware, async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const name = String(req.body.planningUser || "").trim();
+    if (!name) return res.status(400).json({ message: "Planner name is required" });
+
+    const workOrder = await WorkOrder.findByIdAndUpdate(
+      req.params.id,
+      { planningUser: name },
+      { new: true }
+    );
+    if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
+
+    metaCache.t = 0; // refresh the planner filter list
+    res.json({ planningUser: workOrder.planningUser });
+  } catch (err) {
+    console.error("PLANNER CHANGE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });

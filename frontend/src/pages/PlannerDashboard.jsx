@@ -149,6 +149,7 @@ function PlannerDashboard() {
   const [statusFilter, setStatusFilter] = useState("ORDER_RECEIVED");
   const [isAdmin, setIsAdmin] = useState(false);
   const [qtyEditWo, setQtyEditWo] = useState(null);
+  const [planningUserEdit, setPlanningUserEdit] = useState("");
   const [qtyEditValue, setQtyEditValue] = useState("");
   const [qtyColorFront, setQtyColorFront] = useState("");
   const [qtyColorBack, setQtyColorBack] = useState("");
@@ -822,6 +823,24 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     }
   };
 
+  const handleChangePlanner = async (wo, newName) => {
+    if (!newName || newName === wo.planningUser) return;
+    if (!window.confirm(`Change planner of WO ${wo.efiWoNumber} from "${wo.planningUser || "-"}" to "${newName}"?`)) return;
+    try {
+      await axios.patch(
+        `${BASE_URL}/api/workorders/${wo._id}/planning-user`,
+        { planningUser: newName },
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+      setWorkOrders(prev => prev.map(w => (w._id === wo._id ? { ...w, planningUser: newName } : w)));
+      fetchMeta();
+      showAlert("Planner updated ✅", "", "success");
+    } catch (err) {
+      console.error(err);
+      showAlert("Error", err.response?.data?.message || "Could not change planner", "error");
+    }
+  };
+
   const handleEditWorkOrder = (wo) => {
     setSelectedOrder({
       _id: wo._id,
@@ -916,6 +935,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     );
 
     setActivity2((wo.activity2 || []).map(a => a?._id || a));
+    setPlanningUserEdit(wo.planningUser || "");
   };
 
   // ===== Functions =====
@@ -1533,6 +1553,10 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
         inkDetails: workOrderForm.inkDetails,
         remarks: workOrderForm.remarks,
         expectedDeliveryDate: selectedOrder.expectedDeliveryDate,
+        planningUser:
+          isAdmin && selectedOrder.status === "PLANNED" && planningUserEdit
+            ? planningUserEdit
+            : undefined,
 
         machines: confirmedRows.map((row) => {
           const i = workRows.indexOf(row);
@@ -4423,6 +4447,29 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         />
                       </PoField>
 
+                      {isAdmin && selectedOrder.status === "PLANNED" && (
+                        <PoField
+                          className="wo-field fs-3"
+                          icon="bi-person-badge"
+                          label="Planner (Admin)"
+                          alwaysFloat
+                          caret
+                        >
+                          <select
+                            className="po-input"
+                            value={planningUserEdit}
+                            onChange={(e) => setPlanningUserEdit(e.target.value)}
+                          >
+                            {planningUserEdit && !filterOptions.planners.includes(planningUserEdit) && (
+                              <option value={planningUserEdit}>{planningUserEdit}</option>
+                            )}
+                            {filterOptions.planners.map((p) => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                          </select>
+                        </PoField>
+                      )}
+
                       <PoField
                         className="wo-field fs-4"
                         icon="bi-list-check"
@@ -5465,9 +5512,29 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             )}
                           </td>
                           <td className="small">
-                            {wo.planningUser
-                              ? `${wo.planningUser} - ${new Date(wo.createdAt).toLocaleDateString("en-IN")}`
-                              : "-"}
+                            {isAdmin ? (
+                              <div>
+                                <select
+                                  className="form-select form-select-sm"
+                                  style={{ minWidth: 150, fontSize: 11.5 }}
+                                  value={wo.planningUser || ""}
+                                  onChange={(e) => handleChangePlanner(wo, e.target.value)}
+                                >
+                                  {wo.planningUser && !filterOptions.planners.includes(wo.planningUser) && (
+                                    <option value={wo.planningUser}>{wo.planningUser}</option>
+                                  )}
+                                  {!wo.planningUser && <option value="">-</option>}
+                                  {filterOptions.planners.map((p) => (
+                                    <option key={p} value={p}>{p}</option>
+                                  ))}
+                                </select>
+                                <div>{new Date(wo.createdAt).toLocaleDateString("en-IN")}</div>
+                              </div>
+                            ) : wo.planningUser ? (
+                              `${wo.planningUser} - ${new Date(wo.createdAt).toLocaleDateString("en-IN")}`
+                            ) : (
+                              "-"
+                            )}
                           </td>
                           <td>
                             {wo.userLocations && wo.userLocations.length > 0
