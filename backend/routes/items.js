@@ -8,6 +8,27 @@ const fs = require("fs");
 const upload = multer({ storage: multer.memoryStorage() });
 const authMiddleware = require("../middleware/authMiddleware");
 const User = require("../models/User");
+const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
+
+// writes a diagonal SPECIMEN watermark into every page of the saved PDF
+async function stampPdf(filePath) {
+  const pdf = await PDFDocument.load(fs.readFileSync(filePath), { ignoreEncryption: true });
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const ANGLE = 35, TEXT = "SPECIMEN";
+  const rad = (ANGLE * Math.PI) / 180;
+  pdf.getPages().forEach((page) => {
+    const { width, height } = page.getSize();
+    const size = Math.min(width, height) * 0.2;
+    const w = font.widthOfTextAtSize(TEXT, size);
+    const h = size * 0.7;
+    page.drawText(TEXT, {
+      x: width / 2 - (w / 2) * Math.cos(rad) + (h / 2) * Math.sin(rad),
+      y: height / 2 - (w / 2) * Math.sin(rad) - (h / 2) * Math.cos(rad),
+      size, font, color: rgb(0.84, 0.27, 0.27), opacity: 0.25, rotate: degrees(ANGLE),
+    });
+  });
+  fs.writeFileSync(filePath, await pdf.save());
+}
 
 const pdfDir = path.join(__dirname, "..", "uploads", "pdfs");
 if (!fs.existsSync(pdfDir)) fs.mkdirSync(pdfDir, { recursive: true });
@@ -187,6 +208,10 @@ router.post("/:itemCode/artwork", authMiddleware, artUpload.single("artwork"), a
     if (!item) {
       fs.unlink(req.file.path, () => {});
       return res.status(404).json({ message: "Item not found" });
+    }
+
+    if (path.extname(req.file.originalname).toLowerCase() === ".pdf") {
+      try { await stampPdf(req.file.path); } catch (e) { console.error("WATERMARK ERROR:", e.message); }
     }
 
     const user = await User.findById(req.user.id);

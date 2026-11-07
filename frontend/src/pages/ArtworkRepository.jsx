@@ -193,15 +193,8 @@ export default function ArtworkRepository() {
                     style={{ width: "100%", maxHeight: 420, objectFit: "contain", border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
                 </a>
               ) : isPdfFile(v.filePath) || isPdfFile(v.fileName) ? (
-                <div style={{ position: "relative", width: "100%", height: 420 }}>
-                  <iframe title="Artwork preview" src={BASE_URL + v.filePath}
-                    style={{ width: "100%", height: "100%", border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
-                  <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                    <span style={{ transform: "rotate(-35deg)", fontSize: "clamp(40px, 8vw, 90px)", fontWeight: 800, letterSpacing: "8px", color: "rgba(214, 69, 69, 0.22)", border: "6px solid rgba(214, 69, 69, 0.22)", padding: "0 20px", borderRadius: 12, userSelect: "none", whiteSpace: "nowrap" }}>
-                      SPECIMEN
-                    </span>
-                  </div>
-                </div>
+                <iframe title="Artwork preview" src={BASE_URL + v.filePath}
+                  style={{ width: "100%", height: 420, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
               ) : (
                 <div className="d-flex flex-column align-items-center justify-content-center"
                   style={{ height: 200, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }}>
@@ -455,11 +448,6 @@ export default function ArtworkRepository() {
               </div>
               <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
                 <iframe title="PDF" src={pdfPreview.url} style={{ width: "100%", height: "100%", border: "none" }} />
-                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  <span style={{ transform: "rotate(-35deg)", fontSize: "clamp(60px, 14vw, 150px)", fontWeight: 800, letterSpacing: "10px", color: "rgba(214, 69, 69, 0.22)", border: "8px solid rgba(214, 69, 69, 0.22)", padding: "0 28px", borderRadius: 16, userSelect: "none", whiteSpace: "nowrap" }}>
-                    SPECIMEN
-                  </span>
-                </div>
               </div>
             </div>
           </div>

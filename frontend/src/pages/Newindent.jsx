@@ -1165,7 +1165,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       Customer: ind.items?.[0]?.customerName,
       Type: ind.items?.[0]?.materialType,
       Quantity: ind.items?.[0]?.quantity,
-      "Unit Rate": ind.items?.[0]?.unitRate,
+
       Location: ind.location?.locationName,
       Status: ind.status,
       Stage: PIPE[typeKey(ind)][getStageIdx(ind)][1],
@@ -2373,8 +2373,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         @media(max-width:768px){.trk-cards{flex-direction:column}.trk-card{min-width:0}}
 
         /* collapse Lamination (col 10) to Customer Copy (col 26) */
-        .saved-indents-table.collapse-extra thead th:nth-child(n+10):nth-child(-n+26),
-        .saved-indents-table.collapse-extra tbody td:nth-child(n+10):nth-child(-n+26) {
+        .saved-indents-table.collapse-extra thead th:nth-child(n+9):nth-child(-n+25),
+        .saved-indents-table.collapse-extra tbody td:nth-child(n+9):nth-child(-n+25) {
           display: none;
         }
 
@@ -2658,13 +2658,13 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(form.colorBack)}>
                     <input name="colorBack" className="po-input" value={form.colorBack} title={form.colorBack} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
-                  <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(form.jobSize)}>
+                  <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" hide filled={has(form.jobSize)}>
                     <input name="jobSize" className="po-input" value={form.jobSize} title={form.jobSize} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(form.wasteQty)}>
+                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" hide filled={has(form.wasteQty)}>
                     <input type="number" name="wasteQty" className="po-input" value={form.wasteQty} title={form.wasteQty} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
-                  <PoField className="col-12 col-md-8" icon="bi-droplet" label="Ink Details" hide={searchMode === "sample"} filled={has(form.inkDetails)}>
+                  <PoField className="col-12 col-md-8" icon="bi-droplet" label="Ink Details" hide filled={has(form.inkDetails)}>
                     <input name="inkDetails" className="po-input" value={form.inkDetails} title={form.inkDetails} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                 </div>
@@ -2729,7 +2729,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   </PoField>
 
                   {searchMode !== "sample" && (
-<PoField className="col-6 col-md-3" icon="bi-currency-rupee" label="Unit Rate" filled={has(form.unitRate)}>
+<PoField className="col-6 col-md-3" icon="bi-currency-rupee" label="Unit Rate" hide filled={has(form.unitRate)}>
                     <input
                       type="number"
                       name="unitRate"
@@ -2789,7 +2789,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     </select>
                   </PoField>
 
-                  <PoField className="col-6 col-md-3" icon="bi-aspect-ratio" label="Size" alwaysFloat caret>
+                  <PoField className="col-6 col-md-3" icon="bi-aspect-ratio" label="Size" hide alwaysFloat caret>
                     <select name="paperSize" className="po-input" value={form.paperSize}
                             title={form.paperSize} onChange={handlePaperChange}>
                       <option value="">Select Size</option>
@@ -2874,7 +2874,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </select>
                     </PoField>
 
-                    <PoField className="col-12 col-md-4" icon="bi-currency-rupee" label="Expected Order Value (₹)" filled={has(form.expectedOrderValue)}>
+                    <PoField className="col-12 col-md-4" icon="bi-currency-rupee" label="Expected Order Value (₹)" hide filled={has(form.expectedOrderValue)}>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -2897,10 +2897,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               )}
 
               {/* SECTION 3: SALES ORDER / BILLING DETAILS (NEW) */}
-              <div className="gl-inner">
-                <div className="gl-group">
+              <div className="gl-inner" style={searchMode === "sample" ? { marginTop: 8 } : undefined}>
+                <div className="gl-group" style={searchMode === "sample" ? { display: "none" } : undefined}>
                   <i className="bi bi-receipt-cutoff"></i>
-                  <span>{searchMode === "sample" ? "Sample Costing" : "Sales Order / Billing Details"}</span>
+                  <span>Sales Order / Billing Details</span>
                 </div>
 
                 <div className="row g-2">
@@ -3292,10 +3292,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(newItem.colorBack)}>
                     <input className="po-input" value={newItem.colorBack} onChange={(e) => setNewItem((p) => ({ ...p, colorBack: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(newItem.jobSize)}>
+                  <PoField className="col-6 col-md-4" icon="bi-aspect-ratio" label="Job Size" hide filled={has(newItem.jobSize)}>
                     <input className="po-input" value={newItem.jobSize} onChange={(e) => setNewItem((p) => ({ ...p, jobSize: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" filled={has(newItem.wasteQty)}>
+                  <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" hide filled={has(newItem.wasteQty)}>
                     <input type="number" className="po-input" value={newItem.wasteQty} onChange={(e) => setNewItem((p) => ({ ...p, wasteQty: e.target.value }))} />
                   </PoField>
                   <PoField className="col-12" icon="bi-droplet" label="Ink Details" hide>
@@ -3327,29 +3327,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               </div>
               <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
                 <iframe title="PDF" src={pdfPreview.url} style={{ width: "100%", height: "100%", border: "none" }} />
-                <div
-                  style={{
-                    position: "absolute", inset: 0, pointerEvents: "none",
-                    display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden"
-                  }}
-                >
-                  <span
-                    style={{
-                      transform: "rotate(-35deg)",
-                      fontSize: "clamp(60px, 14vw, 150px)",
-                      fontWeight: 800,
-                      letterSpacing: "10px",
-                      color: "rgba(214, 69, 69, 0.22)",
-                      border: "8px solid rgba(214, 69, 69, 0.22)",
-                      padding: "0 28px",
-                      borderRadius: 16,
-                      userSelect: "none",
-                      whiteSpace: "nowrap"
-                    }}
-                  >
-                    SPECIMEN
-                  </span>
-                </div>
               </div>
             </div>
           </div>
@@ -3683,7 +3660,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th>Delivery date</th>
                   <th>Product Type</th>
                   <th>Qty</th>
-                  <th>Unit Rate</th>
+
                   <th> Requested Location</th>
                   <th>Lamination</th>
                   <th>Finish</th>
@@ -3776,7 +3753,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       </td>
                       <td>{ind.items[0]?.materialType || "-"}</td>
                       <td className="fw-semibold">{ind.items[0]?.quantity}</td>
-                      <td>{ind.items[0]?.unitRate || "-"}</td>
+
                       <td>
                         <span className="text-muted fw-semibold">{ind.location?.locationName || "-"}</span>
                       </td>

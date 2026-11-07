@@ -13,6 +13,36 @@ const Dispatch = require("../models/Dispatch");
 const sendIndentRequestMail = require("../utils/indentRequestMail");
 
 const mongoose = require("mongoose");
+const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
+
+async function stampPdf(filePath) {
+  const pdf = await PDFDocument.load(fs.readFileSync(filePath), { ignoreEncryption: true });
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const ANGLE = 35, TEXT = "SPECIMEN";
+  const rad = (ANGLE * Math.PI) / 180;
+  pdf.getPages().forEach((page) => {
+    const { width, height } = page.getSize();
+    const size = Math.min(width, height) * 0.2;
+    const w = font.widthOfTextAtSize(TEXT, size);
+    const h = size * 0.7;
+    page.drawText(TEXT, {
+      x: width / 2 - (w / 2) * Math.cos(rad) + (h / 2) * Math.sin(rad),
+      y: height / 2 - (w / 2) * Math.sin(rad) - (h / 2) * Math.cos(rad),
+      size, font, color: rgb(0.84, 0.27, 0.27), opacity: 0.25, rotate: degrees(ANGLE),
+    });
+  });
+  fs.writeFileSync(filePath, await pdf.save());
+}
+
+// runs after multer: stamps uploaded artwork PDFs
+async function watermarkUploadedPdfs(req, res, next) {
+  const files = ["artwork", "artworkFiles"].flatMap((n) => (req.files && req.files[n]) || []);
+  for (const f of files) {
+    if (path.extname(f.originalname).toLowerCase() !== ".pdf") continue;
+    try { await stampPdf(f.path); } catch (e) { console.error("WATERMARK ERROR:", f.originalname, e.message); }
+  }
+  next();
+}
 
 // no rule for a user = sees every indent (old behaviour);
 // a rule = only indents raised by users in the locations the admin assigned
@@ -176,7 +206,7 @@ router.use("/files", express.static(uploadDir));
 // =============================================
 // CREATE NEW INDENT (Saves to IndentRequest Model)
 // =============================================
-router.post("/", authMiddleware, indentUploadFields, async (req, res) => {
+router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, async (req, res) => {
   try {
     const userId = req.user.id;
     const userData = await User.findById(userId);
@@ -791,7 +821,7 @@ router.put("/:id/artwork-review", authMiddleware, async (req, res) => {
   }
 });
 
-router.put("/:id", authMiddleware, indentUploadFields, async (req, res) => {
+router.put("/:id", authMiddleware, indentUploadFields, watermarkUploadedPdfs, async (req, res) => {
   try {
     const {
       productCode,
