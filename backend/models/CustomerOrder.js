@@ -49,6 +49,10 @@ const customerOrderSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    estimatedCost: {
+      type: Number,
+      default: 0
+    },
     location: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "LocationMaster",

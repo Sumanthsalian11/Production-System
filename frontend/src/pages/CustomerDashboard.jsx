@@ -150,7 +150,8 @@ function CustomerDashboard() {
     purchaseOrderNo: "",
     poDate: "",
     expectedDeliveryDate: "",
-    wastePct: ""
+    wastePct: "",
+    estimatedCost: ""
   });
 
   // ===== NORMAL PO STATES =====
@@ -563,7 +564,7 @@ const PAGE_SIZE = 30;
           quantity: order.quantity,
           deliveryDate: order.expectedDeliveryDate,
           itemPdfPath: order.itemPdfPath,
-          unitRate: order.unitRate,
+
           customerPoNo: order.customerPoNo,
           customerPoDate: order.customerPoDate
         }
@@ -582,7 +583,8 @@ const PAGE_SIZE = 30;
             (order.userLocations?.[0] || loginLocation || "").toLowerCase()
         )?.locationName || "",
       expectedDeliveryDate: order.expectedDeliveryDate?.slice(0, 10) || "",
-      wastePct: order.orderWastePct ?? ""
+      wastePct: order.orderWastePct ?? "",
+      estimatedCost: order.estimatedCost ?? ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -676,7 +678,8 @@ const PAGE_SIZE = 30;
       poDate: "",
       planningLocation: "",
       expectedDeliveryDate: indent.items[0]?.deliveryDate?.slice(0, 10) || "",
-      wastePct: ""
+      wastePct: "",
+      estimatedCost: ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -695,6 +698,11 @@ const PAGE_SIZE = 30;
       newErrors.wastePct = "Required";
     } else if (!Number.isFinite(Number(indentForm.wastePct)) || Number(indentForm.wastePct) < 0) {
       newErrors.wastePct = "Enter a valid non-negative percentage";
+    }
+    if (indentForm.estimatedCost !== "" && indentForm.estimatedCost != null) {
+      if (!Number.isFinite(Number(indentForm.estimatedCost)) || Number(indentForm.estimatedCost) < 0) {
+        newErrors.estimatedCost = "Enter a valid non-negative amount";
+      }
     }
 
     if (indentForm.orderType) {
@@ -748,6 +756,8 @@ const PAGE_SIZE = 30;
           fd.append("purchaseOrderNo", indentForm.purchaseOrderNo);
         if (indentForm.poDate) fd.append("poDate", indentForm.poDate);
         fd.append("orderWastePct", indentForm.wastePct);
+        if (indentForm.estimatedCost !== "")
+          fd.append("estimatedCost", indentForm.estimatedCost);
         if (indentForm.expectedDeliveryDate)
           fd.append("expectedDeliveryDate", indentForm.expectedDeliveryDate);
 
@@ -793,7 +803,8 @@ const PAGE_SIZE = 30;
           purchaseOrderNo: "",
           poDate: "",
           expectedDeliveryDate: "",
-          wastePct: ""
+          wastePct: "",
+          estimatedCost: ""
         });
         fetchIndentRequests();
         fetchPendingArtworks();
@@ -851,6 +862,7 @@ const PAGE_SIZE = 30;
       "Customer": order.customerName,
       "Quantity": order.quantity,
       "Waste %": order.orderWastePct || 0,
+      "Estimated Cost": order.estimatedCost || 0,
       "Location": order.location?.locationName || "",
       "Order Type": order.orderType || "",
       "Supplier Name": order.remarks || "",
@@ -2399,12 +2411,7 @@ const PAGE_SIZE = 30;
                       "bi-geo-alt",
                       "col-md-4"
                     ],
-                    [
-                      "Unit Rate",
-                      selectedIndent.items[0]?.unitRate || "-",
-                      "bi-currency-rupee",
-                      "col-md-4"
-                    ],
+
                     [
                       "Expected Date",
                       selectedIndent.items[0]?.deliveryDate
@@ -2429,12 +2436,6 @@ const PAGE_SIZE = 30;
                           ).toLocaleDateString("en-IN")
                         : "-",
                       "bi-calendar-event",
-                      "col-md-4"
-                    ],
-                    [
-                      "Item PDF",
-                      selectedIndent.items[0]?.itemPdfPath ? "Attached" : "-",
-                      "bi-paperclip",
                       "col-md-4"
                     ]
                   ].map(([label, value, icon, colClass], i) => (
@@ -2696,6 +2697,27 @@ const PAGE_SIZE = 30;
                         alwaysFloat
                       >
                         <input className="po-input" value={orderQtyWithWaste()} readOnly />
+                      </PoField>
+                    )}
+
+                    {indentForm.orderType && (
+                      <PoField
+                        className="col-md-4"
+                        icon="bi-currency-rupee"
+                        label="Estimated Cost"
+                        filled={has(indentForm.estimatedCost)}
+                        error={errors.estimatedCost}
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          name="estimatedCost"
+                          className="po-input"
+                          value={indentForm.estimatedCost}
+                          onChange={handleIndentFormChange}
+                          onWheel={(e) => e.currentTarget.blur()}
+                        />
                       </PoField>
                     )}
 
@@ -3307,6 +3329,7 @@ const PAGE_SIZE = 30;
                     <th>Customer</th>
                     <th>Order Qty</th>
                     <th>Waste %</th>
+                    <th>Estimated Cost</th>
                     <th>Location</th>
                     <th>Order Type</th>
                     <th>Supplier Name</th>
@@ -3321,7 +3344,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="19" className="p-4 text-center text-muted">
+                      <td colSpan="20" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3414,6 +3437,11 @@ const PAGE_SIZE = 30;
                         <td>{order.orderWastePct !== null && order.orderWastePct !== undefined && order.orderWastePct !== ""
                           ? `${order.orderWastePct}%`
                           : "-"}</td>
+                        <td>
+                          {order.estimatedCost
+                            ? Number(order.estimatedCost).toLocaleString("en-IN")
+                            : "-"}
+                        </td>
                         <td>{order.location?.locationName || "-"}</td>
                         <td>
                           <span

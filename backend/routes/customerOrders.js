@@ -313,6 +313,10 @@ router.put("/:id", authMiddleware, upload.single("attachment"), async (req, res)
           req.body.orderWastePct !== undefined
             ? Number(req.body.orderWastePct) || 0
             : undefined,
+        estimatedCost:
+          req.body.estimatedCost !== undefined
+            ? Number(req.body.estimatedCost) || 0
+            : undefined,
 
         user,
         userLocations: userData?.locations || [],

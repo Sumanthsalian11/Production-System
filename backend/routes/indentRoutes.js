@@ -469,6 +469,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
           ? Math.ceil(Number(item.quantity) + (Number(item.quantity) * wastePct) / 100)
           : item.quantity,
         orderWastePct: wastePct,
+        estimatedCost: Math.max(0, Number(req.body.estimatedCost) || 0),
         location: indent.location?._id || indent.location,
         orderType: orderType,
         remarks: remarks || "",
