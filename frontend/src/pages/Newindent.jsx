@@ -1224,7 +1224,41 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
   // switching to / from Sample Request starts the product block clean
   const switchMode = (m) => {
-    const touchesSample = searchMode === "sample" || m === "sample";
+    const touchesSample = true; // always start the product block clean on every mode switch
+
+    // full refresh of the rest of the form on every mode switch
+    setCustomerCopyFile(null);
+    setArtworkFile(null);
+    setExistingCustomerCopy(null);
+    setExistingArtwork(null);
+    setArtworkVersions([]);
+    setAwFile(null);
+    setAwNote("");
+    setEditingId(null);
+    if (awFileInputRef.current) awFileInputRef.current.value = "";
+    setForm((prev) => ({
+      ...prev,
+      quantity: "",
+      location: "",
+      unitRate: "",
+      remark: "",
+      specification: "",
+      deliveryDate: "",
+      lamination: "",
+      finish: "",
+      jobNo: "",
+      soNo: "",
+      soDate: "",
+      sampleType: "",
+      costingConfirmation: "",
+      customerPoNo: "",
+      customerPoDate: "",
+      typeOfBilling: "",
+      millName: "",
+      paperGroup: "",
+      paperSize: "",
+      gsm: ""
+    }));
     setSearchMode(m);
     if (touchesSample) {
       setForm((prev) => ({
