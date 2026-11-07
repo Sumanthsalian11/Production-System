@@ -48,6 +48,7 @@ export default function ArtworkRepository() {
   const [repoAll, setRepoAll] = useState(false);
   const [repoSel, setRepoSel] = useState("");
   const [repoTotal, setRepoTotal] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState(null); // { url, name }
 
   useEffect(() => { if (!repoSel) setRepoTotal(false); }, [repoSel]);
 
@@ -192,8 +193,15 @@ export default function ArtworkRepository() {
                     style={{ width: "100%", maxHeight: 420, objectFit: "contain", border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
                 </a>
               ) : isPdfFile(v.filePath) || isPdfFile(v.fileName) ? (
-                <iframe title="Artwork preview" src={BASE_URL + v.filePath}
-                  style={{ width: "100%", height: 420, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
+                <div style={{ position: "relative", width: "100%", height: 420 }}>
+                  <iframe title="Artwork preview" src={BASE_URL + v.filePath}
+                    style={{ width: "100%", height: "100%", border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }} />
+                  <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    <span style={{ transform: "rotate(-35deg)", fontSize: "clamp(40px, 8vw, 90px)", fontWeight: 800, letterSpacing: "8px", color: "rgba(214, 69, 69, 0.22)", border: "6px solid rgba(214, 69, 69, 0.22)", padding: "0 20px", borderRadius: 12, userSelect: "none", whiteSpace: "nowrap" }}>
+                      SPECIMEN
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <div className="d-flex flex-column align-items-center justify-content-center"
                   style={{ height: 200, border: "1px solid #e3e7ec", borderRadius: 8, background: "#f4f6f8" }}>
@@ -334,7 +342,18 @@ export default function ArtworkRepository() {
         .trk-modal{width:94vw;max-width:1400px;max-height:90vh;overflow:auto;background:#fff;border-radius:12px;border-top:4px solid #e4572e;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:18px 24px 24px}
       `}</style>
 
-      <div className="indent-app-container">
+      <div
+        className="indent-app-container"
+        onClickCapture={(e) => {
+          const a = e.target.closest && e.target.closest("a[href]");
+          if (!a) return;
+          const href = a.getAttribute("href") || "";
+          if (!/\.pdf($|\?|#)/i.test(href)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setPdfPreview({ url: a.href, name: (a.textContent || "").trim() });
+        }}
+      >
         <div className="bar-card">
           <div className="bar-head">
             <h5>Artwork Repository</h5>
@@ -423,6 +442,28 @@ export default function ArtworkRepository() {
         </div>
 
         {renderModal()}
+
+        {pdfPreview && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2200, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={() => setPdfPreview(null)}>
+            <div onClick={(e) => e.stopPropagation()}
+              style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1100, height: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}>
+              <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                <i className="bi bi-file-earmark-pdf" style={{ color: "#e4572e" }}></i>
+                <b style={{ fontSize: 14 }}>{pdfPreview.name || "PDF"}</b>
+                <button type="button" className="btn-action-delete ms-auto" onClick={() => setPdfPreview(null)}>Close</button>
+              </div>
+              <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
+                <iframe title="PDF" src={pdfPreview.url} style={{ width: "100%", height: "100%", border: "none" }} />
+                <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  <span style={{ transform: "rotate(-35deg)", fontSize: "clamp(60px, 14vw, 150px)", fontWeight: 800, letterSpacing: "10px", color: "rgba(214, 69, 69, 0.22)", border: "8px solid rgba(214, 69, 69, 0.22)", padding: "0 28px", borderRadius: 16, userSelect: "none", whiteSpace: "nowrap" }}>
+                    SPECIMEN
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
