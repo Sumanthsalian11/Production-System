@@ -191,6 +191,7 @@ const PAGE_SIZE = 30;
   const [chartWo, setChartWo] = useState(null);
   const [flowSel, setFlowSel] = useState("");
   const [flowData, setFlowData] = useState({});
+  const [artPreview, setArtPreview] = useState(null);
   const submitLockRef = useRef(false);
 
 
@@ -1049,6 +1050,12 @@ const PAGE_SIZE = 30;
     if (!text) return "-";
     return text.length > length ? text.substring(0, length) + "..." : text;
   };
+
+  const openArtwork = (e, path, name) => {
+    e.preventDefault();
+    setArtPreview({ url: `${BASE_URL}${path}`, name: name || "Artwork" });
+  };
+  const isImageFile = (u) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(u || "");
 
   return (
     <div
@@ -2002,6 +2009,55 @@ const PAGE_SIZE = 30;
         }
       `}</style>
 
+      {/* Artwork popup */}
+      {artPreview && (
+        <div
+          className="trk-overlay"
+          style={{ zIndex: 2100 }}
+          onClick={() => setArtPreview(null)}
+        >
+          <div
+            className="trk-modal"
+            style={{ display: "flex", flexDirection: "column", height: "90vh", maxWidth: 1100 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <b className="text-truncate">{artPreview.name}</b>
+              <a
+                href={artPreview.url}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-sm btn-info ms-auto"
+              >
+                Open in new tab
+              </a>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={() => setArtPreview(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, background: "#f4f6f8", borderRadius: 8, overflow: "auto", textAlign: "center" }}>
+              {isImageFile(artPreview.url) ? (
+                <img
+                  src={artPreview.url}
+                  alt={artPreview.name}
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                />
+              ) : (
+                <iframe
+                  title={artPreview.name}
+                  src={artPreview.url}
+                  style={{ width: "100%", height: "100%", border: 0 }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Track popup */}
       {trackOrder && (
         <div className="trk-overlay" onClick={() => setTrackOrder(null)}>
@@ -2618,8 +2674,9 @@ const PAGE_SIZE = 30;
                                       Older indent:{" "}
                                       <a
                                         href={`${BASE_URL}${selectedIndent.items[0].artwork.filePath}`}
-                                        target="_blank"
-                                        rel="noreferrer"
+                                        onClick={(e) =>
+                                          openArtwork(e, selectedIndent.items[0].artwork.filePath, "Artwork")
+                                        }
                                       >
                                         View artwork
                                       </a>{" "}
@@ -2636,7 +2693,7 @@ const PAGE_SIZE = 30;
                                   <td>v{v.version}</td>
                                   <td>
                                     {v.filePath ? (
-                                      <a href={`${BASE_URL}${v.filePath}`} target="_blank" rel="noreferrer">
+                                      <a href={`${BASE_URL}${v.filePath}`} onClick={(e) => openArtwork(e, v.filePath, v.fileName)}>
                                         {v.fileName}
                                       </a>
                                     ) : (

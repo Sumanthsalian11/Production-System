@@ -156,6 +156,7 @@ function PlannerDashboard() {
   const [qtySaving, setQtySaving] = useState(false);
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [artPreview, setArtPreview] = useState(null);
 
   // latest saved artwork (else the old PDF) for each item code, from the Items master
   const [itemFileMap, setItemFileMap] = useState({});
@@ -175,6 +176,11 @@ function PlannerDashboard() {
   }, []);
   const itemFileOf = (o) =>
     itemFileMap[String(o.products?.[0]?.productCode || o.productCode || "")] || o.itemPdfPath || "";
+  const openArtwork = (e, path, name) => {
+    e.preventDefault();
+    setArtPreview({ url: `${BASE_URL}${path}`, name: name || "Artwork" });
+  };
+  const isImageFile = (u) => /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i.test(u || "");
   const [workOrders, setWorkOrders] = useState([]);
 
   // ===== Server-side paging =====
@@ -3802,6 +3808,54 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
         </div>
       )}
 
+      {artPreview && (
+        <div
+          className="wo-overlay"
+          style={{ zIndex: 2100 }}
+          onClick={() => setArtPreview(null)}
+        >
+          <div
+            className="wo-modal"
+            style={{ display: "flex", flexDirection: "column", height: "90vh", maxWidth: 1100 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <b className="text-truncate">{artPreview.name}</b>
+              <a
+                href={artPreview.url}
+                target="_blank"
+                rel="noreferrer"
+                className="wo-btn wo-btn-xs wo-btn-soft ms-auto"
+              >
+                Open in new tab
+              </a>
+              <button
+                type="button"
+                className="wo-btn wo-btn-xs wo-btn-danger"
+                onClick={() => setArtPreview(null)}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, background: "#f4f6f8", borderRadius: 8, overflow: "auto", textAlign: "center" }}>
+              {isImageFile(artPreview.url) ? (
+                <img
+                  src={artPreview.url}
+                  alt={artPreview.name}
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                />
+              ) : (
+                <iframe
+                  title={artPreview.name}
+                  src={artPreview.url}
+                  style={{ width: "100%", height: "100%", border: 0 }}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="planner-container-3d">
         {/* QUICK-NAV TABS */}
         <div className="quick-nav">
@@ -4135,8 +4189,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                               {itemFileOf(order) ? (
                                 <a
                                   href={`${BASE_URL}${itemFileOf(order)}`}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                  onClick={(e) => openArtwork(e, itemFileOf(order), "Artwork")}
                                   className="btn-3d btn-3d-info btn-sm"
                                   style={{ padding: "3px 10px", fontSize: "11.5px" }}
                                 >
@@ -4249,8 +4302,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                               {order.itemPdfPath ? (
                                 <a
                                   href={`${BASE_URL}${itemFileOf(order)}`}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                  onClick={(e) => openArtwork(e, itemFileOf(order), "Artwork")}
                                   className="btn-3d btn-3d-info btn-sm"
                                   style={{ padding: "3px 10px", fontSize: "11.5px" }}
                                 >
