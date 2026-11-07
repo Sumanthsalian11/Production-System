@@ -14,4 +14,5 @@ router.put("/:id", dispatchController.updateDispatch);
 // 🔹 Delete a dispatch by ID
 router.delete("/:id", dispatchController.deleteDispatch);
 router.get("/ticket/:ticketNo", dispatchController.getOrderByTicketNo);
+router.post("/bulk-import", dispatchController.bulkImportDispatch);
 module.exports = router;

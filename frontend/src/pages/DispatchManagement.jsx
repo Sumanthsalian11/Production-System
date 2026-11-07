@@ -582,6 +582,192 @@ saveAs(data,"DispatchList.xlsx");
 };
 
 
+// ---------- IMPORT EXCEL ----------
+const pad2 = (n) => String(n).padStart(2, "0");
+
+const toYMD = (v) => {
+  if (v === "" || v == null) return "";
+  if (typeof v === "number") {
+    const p = XLSX.SSF.parse_date_code(v);
+    return p ? `${p.y}-${pad2(p.m)}-${pad2(p.d)}` : null;
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (m) return `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return null; // invalid
+};
+
+const normKey = (k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const COLUMN_MAP = {
+  job: ["wo", "woticket", "workorder", "workorderno", "ticketno", "ticketid"],
+  purchaseOrderNo: ["pono", "purchaseorderno"],
+  poDate: ["orderdate", "podate"],
+  customer: ["customer"],
+  productName: ["productname", "product"],
+  totalQty: ["totalorderqty", "totalqty"],
+  dispatchQty: ["dispatchqty"],
+  extraQty: ["extraqty"],
+  dispatchDate: ["dispatchdate"],
+  expectedDeliveryDate: ["expected", "expecteddelivery", "expecteddeliverydate"],
+  courier: ["courier", "transportation"],
+  trackingNumber: ["tracking", "trackingnumber", "trackingno"],
+  invoiceNo: ["invoiceno", "invoicenumber"],
+  invoiceDate: ["invoicedate"],
+  location: ["location"],
+  deliveryAddress: ["address", "deliveryaddress"],
+  remarks: ["remarks"]
+};
+
+const downloadTemplate = () => {
+  const headers = [
+    "WO", "Dispatch Qty", "Extra Qty", "Dispatch Date", "Expected",
+    "Courier", "Tracking", "Invoice No", "Invoice Date", "Location", "Address", "Remarks"
+  ];
+  const ws = XLSX.utils.aoa_to_sheet([headers]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Dispatch");
+  const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(new Blob([buf], { type: "application/octet-stream" }), "DispatchImportTemplate.xlsx");
+};
+
+const handleImportExcel = async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = ""; // allow re-selecting the same file
+  if (!file) return;
+
+  if (!loggedInUser) {
+    showAlert("Session expired. Please login again.", "warning");
+    return;
+  }
+
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: true });
+
+    if (raw.length === 0) {
+      showAlert("Excel file is empty", "warning");
+      return;
+    }
+
+    const validRows = [];
+    const rowErrors = [];
+
+    raw.forEach((rawRow, idx) => {
+      const rowNo = idx + 2; // header is row 1
+
+      const row = {};
+      Object.keys(rawRow).forEach((k) => {
+        const nk = normKey(k);
+        for (const field in COLUMN_MAP) {
+          if (COLUMN_MAP[field].includes(nk)) row[field] = rawRow[k];
+        }
+      });
+
+      const txt = (v) => String(v ?? "").trim();
+      const num = (v) => Number(String(v ?? "").replace(/,/g, ""));
+      const fail = (msg) => rowErrors.push({ rowNo, message: msg });
+
+      if (!txt(row.job)) return fail("WO / Ticket is missing");
+      if (!txt(row.dispatchQty)) return fail("Dispatch Qty is required");
+      if (!txt(row.dispatchDate)) return fail("Dispatch Date is required");
+      if (!txt(row.courier)) return fail("Transportation (Courier) is required");
+      if (!txt(row.trackingNumber)) return fail("Tracking Number is required");
+      if (!txt(row.invoiceNo)) return fail("Invoice No is required");
+
+      const dispatchDate = toYMD(row.dispatchDate);
+      if (!dispatchDate) return fail("Dispatch Date format is invalid (use dd-mm-yyyy)");
+
+      const invoiceDate = toYMD(row.invoiceDate);
+      if (invoiceDate === null) return fail("Invoice Date format is invalid (use dd-mm-yyyy)");
+
+      const poDate = toYMD(row.poDate);
+      const expectedDeliveryDate = toYMD(row.expectedDeliveryDate);
+
+      const courierMaster = transportations.find(
+        (t) => t.name.toLowerCase() === txt(row.courier).toLowerCase()
+      );
+      if (!courierMaster) return fail(`Transportation "${txt(row.courier)}" not found in master`);
+
+      let locationId = "";
+      let address = txt(row.deliveryAddress);
+      if (txt(row.location)) {
+        const loc = locations.find(
+          (l) => l.locationName.toLowerCase() === txt(row.location).toLowerCase()
+        );
+        if (!loc) return fail(`Location "${txt(row.location)}" not found in master`);
+        locationId = loc._id.toString();
+        if (!address) address = loc.address || "";
+      }
+      if (!address) return fail("Delivery Address is required (or give a valid Location)");
+
+      validRows.push({
+        rowNo,
+        job: txt(row.job),
+        purchaseOrderNo: txt(row.purchaseOrderNo),
+        poDate: poDate || "",
+        customer: txt(row.customer),
+        productName: txt(row.productName),
+        totalQty: num(row.totalQty) || 0,
+        dispatchQty: num(row.dispatchQty),
+        extraQty: txt(row.extraQty) === "" ? 0 : num(row.extraQty),
+        dispatchDate,
+        expectedDeliveryDate: expectedDeliveryDate || "",
+        courier: courierMaster.name,
+        trackingNumber: txt(row.trackingNumber),
+        invoiceNo: txt(row.invoiceNo),
+        invoiceDate: invoiceDate || "",
+        location: locationId,
+        deliveryAddress: address,
+        remarks: txt(row.remarks)
+      });
+    });
+
+    let inserted = 0;
+    let skipped = 0;
+    const allErrors = [...rowErrors];
+    const CHUNK = 100;
+
+    for (let i = 0; i < validRows.length; i += CHUNK) {
+      const res = await axios.post(`${BASE_URL}/api/dispatch/bulk-import`, {
+        rows: validRows.slice(i, i + CHUNK),
+        enteredBy: loggedInUser,
+        userLocations: form.userLocations || []
+      });
+      inserted += res.data.inserted;
+      skipped += res.data.skipped;
+      allErrors.push(...res.data.errors);
+    }
+
+    allErrors.sort((a, b) => a.rowNo - b.rowNo);
+
+    const errorHtml = allErrors.length
+      ? `<div style="text-align:left;max-height:220px;overflow:auto;font-size:13px;margin-top:8px">
+          ${allErrors
+            .slice(0, 50)
+            .map((er) => `Row ${er.rowNo}: ${er.message}`)
+            .join("<br/>")}
+          ${allErrors.length > 50 ? `<br/>...and ${allErrors.length - 50} more` : ""}
+        </div>`
+      : "";
+
+    Swal.fire({
+      icon: allErrors.length ? (inserted ? "warning" : "error") : "success",
+      title: "Import Completed",
+      html: `Imported: <b>${inserted}</b> &nbsp; Duplicates skipped: <b>${skipped}</b> &nbsp; Failed: <b>${allErrors.length}</b>${errorHtml}`
+    });
+
+    fetchDispatches();
+  } catch (err) {
+    console.error(err);
+    showAlert("Error importing Excel file", "error");
+  }
+};
+
 const today = new Date().toISOString().split("T")[0];
 
 const filteredDispatchList = dispatchList.filter((item) => {
@@ -1351,6 +1537,30 @@ className="dm-btn dm-btn-green"
 onClick={exportExcel}
 >
 Export Excel
+</button>
+
+<input
+  id="dm-import-input"
+  type="file"
+  accept=".xlsx,.xls"
+  style={{ display: "none" }}
+  onChange={handleImportExcel}
+/>
+
+<button
+  type="button"
+  className="dm-btn dm-btn-blue"
+  onClick={() => document.getElementById("dm-import-input").click()}
+>
+  Import Excel
+</button>
+
+<button
+  type="button"
+  className="dm-btn dm-btn-gray"
+  onClick={downloadTemplate}
+>
+  Template
 </button>
 
 </div>
