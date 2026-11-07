@@ -972,7 +972,7 @@ return(
   </label>
   <label>
     <input type="radio" checked={fetchBy === "ticket"} onChange={() => switchFetchBy("ticket")} />
-    Ticket ID (Out Source / PMS)
+    Ticket ID (Out Source)
   </label>
 </div>
 
@@ -996,7 +996,7 @@ return(
         name="ticketNo"
         value={form.ticketNo}
         onChange={handleChange}
-        placeholder="e.g. OS_01 or PMS_01"
+        placeholder="e.g. OS_01"
         className="dm-input"
       />
     </div>

@@ -60,7 +60,7 @@ const customerOrderSchema = new mongoose.Schema(
     },
     orderType: {
       type: String,
-      enum: ["Inhouse", "Out Source", "PMS"]
+      enum: ["Inhouse", "Out Source"]
     },
     remarks: {
       type: String,

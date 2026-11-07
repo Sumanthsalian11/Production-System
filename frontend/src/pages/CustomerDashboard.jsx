@@ -143,6 +143,12 @@ function CustomerDashboard() {
   const [rowComments, setRowComments] = useState({});
   const [reviewBusy, setReviewBusy] = useState(false);
   const [selectedIndent, setSelectedIndent] = useState(null);
+  const [orFilter, setOrFilter] = useState({
+    productCode: "",
+    productType: "",
+    location: "",
+    customer: ""
+  });
   const [indentForm, setIndentForm] = useState({
     planningLocation: "",
     orderType: "",
@@ -1017,6 +1023,27 @@ const PAGE_SIZE = 30;
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackInfo?.woNo]);
+
+  const orOptions = (fn) =>
+    [...new Set(indentRequests.map(fn).filter(Boolean))].sort();
+  const orTypeOpts = orOptions((i) => i.items?.[0]?.materialType);
+  const orLocOpts = orOptions((i) => i.location?.locationName);
+  const orCustOpts = orOptions((i) => i.items?.[0]?.customerName);
+
+  const filteredIndents = indentRequests.filter((i) => {
+    const it = i.items?.[0] || {};
+    if (
+      orFilter.productCode &&
+      !String(it.productCode ?? "")
+        .toLowerCase()
+        .includes(orFilter.productCode.trim().toLowerCase())
+    )
+      return false;
+    if (orFilter.productType && it.materialType !== orFilter.productType) return false;
+    if (orFilter.location && i.location?.locationName !== orFilter.location) return false;
+    if (orFilter.customer && it.customerName !== orFilter.customer) return false;
+    return true;
+  });
 
   const truncateText = (text, length = 25) => {
     if (!text) return "-";
@@ -2221,6 +2248,113 @@ const PAGE_SIZE = 30;
           ====================================================================== */}
       {viewMode === "orderRequests" && (
         <>
+          {!selectedIndent && (
+            <div className="po-filter">
+              <div className="po-filter-head">
+                <div className="po-filter-title">
+                  <i className="bi bi-funnel-fill"></i>
+                  <span>Filters</span>
+                </div>
+                <span className="po-filter-count">
+                  {filteredIndents.length} of {indentRequests.length} requests
+                </span>
+              </div>
+
+              <div className="row g-2 align-items-end">
+                <PoField
+                  className="col-6 col-lg-2"
+                  icon="bi-upc-scan"
+                  label="Product Code"
+                  filled={has(orFilter.productCode)}
+                >
+                  <input
+                    type="text"
+                    className="po-input"
+                    value={orFilter.productCode}
+                    onChange={(e) =>
+                      setOrFilter((p) => ({ ...p, productCode: e.target.value }))
+                    }
+                  />
+                </PoField>
+
+                <PoField
+                  className="col-6 col-lg-3"
+                  icon="bi-tag"
+                  label="Product Type"
+                  alwaysFloat
+                  caret
+                >
+                  <select
+                    className="po-input"
+                    value={orFilter.productType}
+                    onChange={(e) =>
+                      setOrFilter((p) => ({ ...p, productType: e.target.value }))
+                    }
+                  >
+                    <option value="">All Types</option>
+                    {orTypeOpts.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </PoField>
+
+                <PoField
+                  className="col-6 col-lg-2"
+                  icon="bi-geo-alt"
+                  label="Location"
+                  alwaysFloat
+                  caret
+                >
+                  <select
+                    className="po-input"
+                    value={orFilter.location}
+                    onChange={(e) =>
+                      setOrFilter((p) => ({ ...p, location: e.target.value }))
+                    }
+                  >
+                    <option value="">All Locations</option>
+                    {orLocOpts.map((l) => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                </PoField>
+
+                <PoField
+                  className="col-6 col-lg-3"
+                  icon="bi-person"
+                  label="Customer"
+                  alwaysFloat
+                  caret
+                >
+                  <select
+                    className="po-input"
+                    value={orFilter.customer}
+                    onChange={(e) =>
+                      setOrFilter((p) => ({ ...p, customer: e.target.value }))
+                    }
+                  >
+                    <option value="">All Customers</option>
+                    {orCustOpts.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </PoField>
+
+                <div className="col-12 col-lg-2 d-flex">
+                  <button
+                    type="button"
+                    className="po-fbtn clear"
+                    onClick={() =>
+                      setOrFilter({ productCode: "", productType: "", location: "", customer: "" })
+                    }
+                  >
+                    <i className="bi bi-x-circle"></i> Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Indent Request List */}
           {!selectedIndent && (
             <div className="card shadow-lg mb-4">
@@ -2250,14 +2384,16 @@ const PAGE_SIZE = 30;
                     </tr>
                   </thead>
                   <tbody>
-                    {indentRequests.length === 0 ? (
+                    {filteredIndents.length === 0 ? (
                       <tr>
                         <td colSpan="12" className="p-4 text-center text-muted">
-                          No New Indent Requests
+                          {indentRequests.length === 0
+                            ? "No New Indent Requests"
+                            : "No requests match the filters"}
                         </td>
                       </tr>
                     ) : (
-                      indentRequests.map((indent) => (
+                      filteredIndents.map((indent) => (
                         <tr key={indent._id}>
                           <td className="fw-bold text-primary">
                             #{indent.indentNo}
@@ -2600,7 +2736,7 @@ const PAGE_SIZE = 30;
                         <option value="">Select Order Type</option>
                         <option value="Inhouse">Inhouse</option>
                         <option value="Out Source">Out Source</option>
-                        <option value="PMS">PMS</option>
+                        
                       </select>
                     </PoField>
 
@@ -3064,7 +3200,7 @@ const PAGE_SIZE = 30;
                         <option value="">Select</option>
                         <option value="Inhouse">Inhouse</option>
                         <option value="Out Source">Out Source</option>
-                        <option value="PMS">PMS</option>
+                        
                       </select>
                     </PoField>
 
@@ -3236,7 +3372,7 @@ const PAGE_SIZE = 30;
                   <option value="">All Types</option>
                   <option value="Inhouse">Inhouse</option>
                   <option value="Out Source">Out Source</option>
-                  <option value="PMS">PMS</option>
+                  
                 </select>
               </PoField>
 

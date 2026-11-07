@@ -541,12 +541,12 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       }
 
       // Generate ticket number for Inhouse orders
-      const ticketPrefixMap = { Inhouse: "IH", "Out Source": "OS", PMS: "PMS" };
+      const ticketPrefixMap = { Inhouse: "IH", "Out Source": "OS" };
       const ticketPrefix = ticketPrefixMap[orderType];
       if (ticketPrefix) {
         const lastOrder = await CustomerOrder.find({
           orderType,
-          ticketNo: { $exists: true, $ne: "" }
+          ticketNo: { $regex: "^" + ticketPrefix + "_" }
         }).sort({ createdAt: -1 }).limit(1);
 
         let lastNumber = 0;
@@ -622,7 +622,7 @@ router.put("/reject/:id", authMiddleware, async (req, res) => {
 router.get("/external-tickets", authMiddleware, async (req, res) => {
   try {
     const orders = await CustomerOrder.find({
-      orderType: { $in: ["Out Source", "PMS"] },
+      orderType: "Out Source",
       indentNo: { $exists: true, $ne: "" },
       ticketNo: { $exists: true, $ne: "" }
     }).select("indentNo ticketNo quantity").lean();
@@ -653,7 +653,7 @@ router.get("/external-track/:indentNo", authMiddleware, async (req, res) => {
   try {
     const orders = await CustomerOrder.find({
       indentNo: req.params.indentNo,
-      orderType: { $in: ["Out Source", "PMS"] },
+      orderType: "Out Source",
       ticketNo: { $exists: true, $ne: "" }
     })
       .select("ticketNo orderType quantity remarks purchaseOrderNo poDate expectedDeliveryDate createdAt")

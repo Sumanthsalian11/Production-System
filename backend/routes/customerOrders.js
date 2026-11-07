@@ -60,12 +60,12 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
     }
 
  let ticketNo = "";
-    const ticketPrefixMap = { Inhouse: "IH", "Out Source": "OS", PMS: "PMS" };
+    const ticketPrefixMap = { Inhouse: "IH", "Out Source": "OS" };
     const ticketPrefix = ticketPrefixMap[orderType];
     if (ticketPrefix) {
       const lastOrder = await CustomerOrder.find({
         orderType,
-        ticketNo: { $ne: "" }
+        ticketNo: { $regex: "^" + ticketPrefix + "_" }
       }).sort({ createdAt: -1 }).limit(1);
 
       let lastNumber = 0;
