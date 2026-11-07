@@ -22,7 +22,7 @@ export default function LoadingOverlay() {
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
-        animation: fade ? "fadeInOverlay 0.25s ease" : "none"
+        animation: "none"
       }}
     >
       <style>{`
