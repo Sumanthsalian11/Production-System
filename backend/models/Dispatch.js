@@ -85,7 +85,11 @@ delayLabel: {
     type: String,
     required: true
   },
-  userLocations: [{ type: String }]
+  userLocations: [{ type: String }],
+  noOfPackets: { type: Number, default: 0 },
+  noOfBoxes: { type: Number, default: 0 },
+  attachment: { type: String, default: "" },
+  attachmentName: { type: String, default: "" }
 
 }, { timestamps: true });
 

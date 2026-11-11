@@ -2,6 +2,18 @@ const WorkOrder = require("../models/WorkOrder");
 const Dispatch = require("../models/Dispatch");
 const CustomerOrder = require("../models/CustomerOrder");
 
+// userLocations arrives as a JSON string when the form is sent as multipart
+const parseLocations = (v) => {
+  if (Array.isArray(v)) return v;
+  if (!v) return [];
+  try {
+    const p = JSON.parse(v);
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+};
+
 // 🔹 Fetch Work Order by WO Number
 exports.getWorkOrderByNumber = async (req, res) => {
   try {
@@ -113,7 +125,12 @@ const dispatch = new Dispatch({
   delayDays,
   delayLabel,
   extraQty: data.extraQty,
-  userLocations: data.userLocations || [] 
+  userLocations: parseLocations(data.userLocations),
+  noOfPackets: Number(data.noOfPackets) || 0,
+  noOfBoxes: Number(data.noOfBoxes) || 0,
+  ...(req.file
+    ? { attachment: `/uploads/dispatch/${req.file.filename}`, attachmentName: req.file.originalname }
+    : {}) 
 });
 
     await dispatch.save();
@@ -216,6 +233,12 @@ exports.updateDispatch = async (req, res) => {
         delayDays,
         delayLabel,
         balanceQty: finalBalance,
+        noOfPackets: Number(data.noOfPackets) || 0,
+        noOfBoxes: Number(data.noOfBoxes) || 0,
+        userLocations: parseLocations(data.userLocations),
+        ...(req.file
+          ? { attachment: `/uploads/dispatch/${req.file.filename}`, attachmentName: req.file.originalname }
+          : {}),
         extraQty: data.extraQty 
       },
       { new: true }

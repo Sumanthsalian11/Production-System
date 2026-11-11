@@ -46,7 +46,8 @@ const CLEARED = {
   totalQty: "", dispatchQty: "", balanceQty: "", dispatchDate: "",
   location: "", deliveryAddress: "", expectedDeliveryDate: "",
   delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
-  invoiceNo: "", invoiceDate: "", extraQty: "", remarks: ""
+  invoiceNo: "", invoiceDate: "", extraQty: "", remarks: "",
+  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: ""
 };
 
 export default function DispatchManagement() {
@@ -58,6 +59,12 @@ const [fetchBy, setFetchBy] = useState("wo"); // "wo" | "ticket"
 const [loggedInUser, setLoggedInUser] = useState("");
 const [expandedCell, setExpandedCell] = useState(null);
 const [originalBalance, setOriginalBalance] = useState(0);
+const [attachmentFile, setAttachmentFile] = useState(null);
+const [fileInputKey, setFileInputKey] = useState(0);
+const resetAttachment = () => {
+  setAttachmentFile(null);
+  setFileInputKey((k) => k + 1);
+};
 const [locations, setLocations] = useState([]);
 const [locationFilter, setLocationFilter] = useState("");
 const [locationOptions, setLocationOptions] = useState([]);
@@ -95,6 +102,10 @@ const showAlert = (message, icon = "warning") => {
 };
 
 const [form, setForm] = useState({
+noOfPackets:"",
+noOfBoxes:"",
+attachment:"",
+attachmentName:"",
 efiWoNumber:"",
 ticketNo:"",
 purchaseOrderNo:"",
@@ -227,13 +238,18 @@ invoiceDate: dispatch.invoiceDate || "",
 deliveryAddress:dispatch.deliveryAddress,
 remarks:dispatch.remarks,
 enteredBy:dispatch.enteredBy || "",
-userLocations: dispatch.userLocations || []
+userLocations: dispatch.userLocations || [],
+noOfPackets: dispatch.noOfPackets ?? "",
+noOfBoxes: dispatch.noOfBoxes ?? "",
+attachment: dispatch.attachment || "",
+attachmentName: dispatch.attachmentName || ""
 });
 
 setOriginalBalance(
   Number(dispatch.balanceQty) + Number(dispatch.dispatchQty)
 );
 setEditingId(dispatch._id);
+resetAttachment();
 
 window.scrollTo({top:0,behavior:"smooth"});
 };
@@ -287,6 +303,7 @@ const switchFetchBy = (mode) => {
   setEditingId(null);
   setOriginalBalance(0);
   setForm(prev => ({ ...prev, ...CLEARED, efiWoNumber: "", ticketNo: "" }));
+  resetAttachment();
 };
 
 // FETCH BY TICKET (Out Source / PMS)
@@ -346,6 +363,7 @@ const handleChange = (e) => {
   // WO number changed -> clear fetched details, Fetch Details must be clicked again
   if (name === "efiWoNumber" || name === "ticketNo") {
     const clean = name === "ticketNo" ? value.replace(/[^a-zA-Z0-9_]/g, "") : value;
+    resetAttachment();
     setForm(prev => ({
       ...prev,
       ...CLEARED,
@@ -375,6 +393,13 @@ const handleChange = (e) => {
     }
   }
 }
+
+  if (["noOfPackets", "noOfBoxes"].includes(name)) {
+    if (!/^[0-9]*$/.test(value)) {
+      showAlert("Only numbers are allowed","warning");
+      return;
+    }
+  }
 
   // 🔹 Dispatch validation (same)
   if (name === "dispatchQty") {
@@ -441,7 +466,7 @@ if (!form.courier) {
 }
 
 if (!form.trackingNumber) {
-  showAlert("Tracking Number is required","warning");
+  showAlert("Vehicle Number is required","warning");
   return;
 }
 
@@ -474,7 +499,7 @@ const today = new Date().toISOString().split("T")[0];
 
 try{
 
-const payload = {
+const payloadObj = {
 ...form,
 delayDays: form.delayDays,
 delayLabel: form.delayLabel,
@@ -487,6 +512,15 @@ ticketNo: form.ticketNo || undefined,
 userLocations: form.userLocations || [] 
 };
 
+const payload = new FormData();
+Object.entries(payloadObj).forEach(([k, v]) => {
+  if (v === undefined || v === null) return;
+  if (k === "attachment" || k === "attachmentName") return;
+  if (k === "userLocations") payload.append(k, JSON.stringify(v));
+  else payload.append(k, v);
+});
+if (attachmentFile) payload.append("attachment", attachmentFile);
+
 if(editingId){
 
 await axios.put(
@@ -495,6 +529,7 @@ await axios.put(
 );
 
 showAlert("Dispatch Updated Successfully","success");
+resetAttachment();
 
 setEditingId(null);
 
@@ -506,6 +541,7 @@ await axios.post(
 );
 
 showAlert("Dispatch Created Successfully","success");
+resetAttachment();
 
 }
 
@@ -513,6 +549,10 @@ setForm({
 efiWoNumber:"",
 ticketNo:"",
 userLocations: form.userLocations || [],
+noOfPackets:"",
+noOfBoxes:"",
+attachment:"",
+attachmentName:"",
 customer:"",
 productName:"",
 totalQty:"",
@@ -558,12 +598,15 @@ const excelData = filteredDispatchList.map((item,index)=>({
 "Extra Qty": item.extraQty,
 "Dispatch Date": item.dispatchDate,
 "Transportation": item.courier,
-"Tracking Number": item.trackingNumber,
+"Vehicle Number": item.trackingNumber,
 "Invoice No": item.invoiceNo,
 "Invoice Date": item.invoiceDate,
 "Delivery Address": item.deliveryAddress,
 "User":item.enteredBy,
-"Remarks": item.remarks
+"Remarks": item.remarks,
+"No of Packets": item.noOfPackets ?? 0,
+"No of Boxes": item.noOfBoxes ?? 0,
+"Attachment": item.attachment ? `${BASE_URL}${item.attachment}` : ""
 
 }));
 
@@ -613,7 +656,7 @@ const COLUMN_MAP = {
   dispatchDate: ["dispatchdate"],
   expectedDeliveryDate: ["expected", "expecteddelivery", "expecteddeliverydate"],
   courier: ["courier", "transportation"],
-  trackingNumber: ["tracking", "trackingnumber", "trackingno"],
+  trackingNumber: ["vehicle", "vehicleno", "vehiclenumber", "tracking", "trackingnumber", "trackingno"],
   invoiceNo: ["invoiceno", "invoicenumber"],
   invoiceDate: ["invoicedate"],
   location: ["location"],
@@ -624,7 +667,7 @@ const COLUMN_MAP = {
 const downloadTemplate = () => {
   const headers = [
     "WO", "Dispatch Qty", "Extra Qty", "Dispatch Date", "Expected",
-    "Courier", "Tracking", "Invoice No", "Invoice Date", "Location", "Address", "Remarks"
+    "Courier", "Vehicle No", "Invoice No", "Invoice Date", "Location", "Address", "Remarks"
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers]);
   const wb = XLSX.utils.book_new();
@@ -676,7 +719,7 @@ const handleImportExcel = async (e) => {
       if (!txt(row.dispatchQty)) return fail("Dispatch Qty is required");
       if (!txt(row.dispatchDate)) return fail("Dispatch Date is required");
       if (!txt(row.courier)) return fail("Transportation (Courier) is required");
-      if (!txt(row.trackingNumber)) return fail("Tracking Number is required");
+      if (!txt(row.trackingNumber)) return fail("Vehicle Number is required");
       if (!txt(row.invoiceNo)) return fail("Invoice No is required");
 
       const dispatchDate = toYMD(row.dispatchDate);
@@ -1344,7 +1387,7 @@ return(
       </div>
 
       <div className="dm-field">
-        <label className="dm-label">Tracking Number</label>
+        <label className="dm-label">Vehicle Number</label>
         <input
           name="trackingNumber"
           value={form.trackingNumber}
@@ -1397,6 +1440,7 @@ return(
           rows="2"
           name="deliveryAddress"
           value={form.deliveryAddress}
+          onChange={handleChange}
           readOnly={form.location !== ""}
           className="dm-textarea"
         />
@@ -1411,6 +1455,60 @@ return(
           onChange={handleChange}
           className="dm-textarea"
         />
+      </div>
+
+    </div>
+
+    <div className="dm-form-grid" style={{ marginTop: 8 }}>
+
+      <div className="dm-field">
+        <label className="dm-label">No. of Packets</label>
+        <input
+          type="text"
+          name="noOfPackets"
+          value={form.noOfPackets}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
+
+      <div className="dm-field">
+        <label className="dm-label">No. of Boxes</label>
+        <input
+          type="text"
+          name="noOfBoxes"
+          value={form.noOfBoxes}
+          onChange={handleChange}
+          className="dm-input"
+        />
+      </div>
+
+      <div className="dm-field dm-span-2">
+        <label className="dm-label">Attachment</label>
+        <input
+          key={fileInputKey}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
+          className="dm-input"
+          onChange={(e) => {
+            const f = e.target.files?.[0] || null;
+            if (f && f.size > 50 * 1024 * 1024) {
+              showAlert("File must be 50 MB or smaller", "warning");
+              resetAttachment();
+              return;
+            }
+            setAttachmentFile(f);
+          }}
+        />
+        {editingId && form.attachment && !attachmentFile && (
+          <small className="dm-muted">
+            Current:{" "}
+            <a href={`${BASE_URL}${form.attachment}`} target="_blank" rel="noreferrer">
+              {form.attachmentName || "View file"}
+            </a>{" "}
+            (choose a new file to replace it)
+          </small>
+        )}
       </div>
 
     </div>
@@ -1555,13 +1653,7 @@ Export Excel
   Import Excel
 </button>
 
-<button
-  type="button"
-  className="dm-btn dm-btn-gray"
-  onClick={downloadTemplate}
->
-  Template
-</button>
+
 
 </div>
 
@@ -1590,12 +1682,15 @@ Export Excel
         <th>Expected</th>
         <th>TAT</th>
         <th>Courier</th>
-        <th>Tracking</th>
+        <th>Vehicle No</th>
         <th>Invoice No</th>
 <th>Invoice Date</th>
      <th>Location</th>
         <th>Address</th>
         <th>Remarks</th>
+        <th>Packets</th>
+        <th>Boxes</th>
+        <th>Attachment</th>
         <th>User</th>
         <th>User location</th>
         <th>Action</th>
@@ -1699,6 +1794,23 @@ Export Excel
   {expandedCell === `remarks-${d._id}`
     ? d.remarks
     : truncateText(d.remarks)}
+</td>
+
+<td>{d.noOfPackets ?? 0}</td>
+<td>{d.noOfBoxes ?? 0}</td>
+<td>
+  {d.attachment ? (
+    <a
+      href={`${BASE_URL}${d.attachment}`}
+      target="_blank"
+      rel="noreferrer"
+      title={d.attachmentName}
+    >
+      View
+    </a>
+  ) : (
+    "-"
+  )}
 </td>
          <td
   style={{ cursor: "pointer", maxWidth: "170px" }}
