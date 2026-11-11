@@ -227,6 +227,10 @@ exports.updateDispatch = async (req, res) => {
     // 🔹 Final balance
     const finalBalance = totalQty - (dispatchedQty + newDispatchQty);
 
+    // keep the original creator and locations when an admin edits
+    data.enteredBy = existingDispatch.enteredBy;
+    data.userLocations = existingDispatch.userLocations;
+
     const updated = await Dispatch.findByIdAndUpdate(
       req.params.id,
       {

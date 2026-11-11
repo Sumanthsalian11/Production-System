@@ -57,6 +57,7 @@ const [dispatchList, setDispatchList] = useState([]);
 const [editingId, setEditingId] = useState(null);
 const [fetchBy, setFetchBy] = useState("wo"); // "wo" | "ticket"
 const [loggedInUser, setLoggedInUser] = useState("");
+const [isAdmin, setIsAdmin] = useState(false);
 const [expandedCell, setExpandedCell] = useState(null);
 const [originalBalance, setOriginalBalance] = useState(0);
 const [attachmentFile, setAttachmentFile] = useState(null);
@@ -139,6 +140,7 @@ useEffect(() => {
     try {
       const decoded = jwtDecode(token);
       setLoggedInUser(decoded.name);
+      setIsAdmin(String(decoded.role || "").toUpperCase() === "ADMIN");
 
       // ✅ Store locations in state for later use
       setForm(prev => ({ ...prev, userLocations: decoded.locations || [] }));
@@ -239,7 +241,7 @@ invoiceDate: dispatch.invoiceDate || "",
 deliveryAddress:dispatch.deliveryAddress,
 remarks:dispatch.remarks,
 enteredBy:dispatch.enteredBy || "",
-userLocations: dispatch.userLocations || [],
+userLocations: form.userLocations || [],
 productType: dispatch.productType || "",
 noOfPackets: dispatch.noOfPackets ?? "",
 noOfBoxes: dispatch.noOfBoxes ?? "",
@@ -1865,7 +1867,7 @@ Export Excel
     : "-"}
 </td>
           <td>
-  {d.enteredBy === loggedInUser ? (
+  {isAdmin ? (
     <div style={{ display: "flex", gap: "8px" }}>
       <button
         className="dm-btn dm-btn-sm dm-btn-amber"
