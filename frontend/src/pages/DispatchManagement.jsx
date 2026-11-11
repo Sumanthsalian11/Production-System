@@ -598,6 +598,7 @@ const excelData = filteredDispatchList.map((item,index)=>({
 "Work Order": item.efiWoNumber || item.ticketNo,
 "Customer": item.customer,
 "Product": item.productName,
+"Product Type": item.productType || "",
 "Total Qty": item.totalQty,
 "Dispatch Qty": item.dispatchQty,
 "Balance Qty": item.balanceQty,
@@ -1688,6 +1689,7 @@ Export Excel
         <th>Order Date</th>
         <th>Customer</th>
         <th>Product name</th>
+        <th>Product Type</th>
         <th>Total Order Qty</th>
         <th>Dispatch Qty</th>
         <th>Balance Qty to dispatch</th>
@@ -1740,6 +1742,7 @@ Export Excel
     ? d.productName
     : truncateText(d.productName)}
 </td>
+              <td>{d.productType || "-"}</td>
               <td>{d.totalQty}</td>
               <td>{d.dispatchQty}</td>
               <td>{d.balanceQty}</td>

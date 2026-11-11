@@ -165,7 +165,7 @@ router.get("/", authMiddleware, async (req, res) => {
       let pState = isExt ? "na" : "pending";
       if (wo && acts.length && prodActs.some((a) => a.entries > 0)) pState = orderQty && prodQty >= orderQty ? "done" : "partial";
       stages.push({
-        key: "production", label: "Production Entry", state: pState,
+        key: "production", label: "Production", state: pState,
         lines: wo
           ? [`Produced: ${prodQty.toLocaleString("en-IN")} / ${orderQty.toLocaleString("en-IN")}`, ...prodActs.map((a) => `${a.name}: ${a.qty.toLocaleString("en-IN")} (last ${fd(a.last)})`)]
           : ["-"],

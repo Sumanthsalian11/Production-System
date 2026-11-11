@@ -12,6 +12,7 @@ app.use(compression());
 require("./cron/indentMailScheduler");
 require("./cron/productionMailCron");
 require("./cron/Persoproductionmail")
+require("./cron/dispatchMail");
 // ================== MIDDLEWARES ==================
 app.set("trust proxy", 1);
 

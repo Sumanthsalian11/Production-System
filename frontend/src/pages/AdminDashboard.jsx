@@ -1065,6 +1065,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { key: "indentSummary", label: "Indent Summary", defaultTime: "15:00" },
     { key: "persoProduction", label: "Perso Production Report", defaultTime: "10:00" },
     { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
+    { key: "dispatchReport", label: "Dispatch Report", defaultTime: "18:00" },
   ];
   const [mailKey, setMailKey] = useState("indentSummary");
   const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00", machineIds: [] });
@@ -4707,7 +4708,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </select>
           </div>
 
-          {(mailKey === "floorProduction" || mailKey === "persoProduction") && (
+          {(mailKey === "floorProduction" || mailKey === "persoProduction" || mailKey === "dispatchReport") && (
             <div className="activity-name-field" style={{ marginBottom: "10px" }}>
               <label>User Location (blank = all locations)</label>
               <select
@@ -4761,7 +4762,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             />
           </div>
 
-          {mailKey !== "indentSummary" && (
+          {(mailKey === "floorProduction" || mailKey === "persoProduction") && (
             <div className="machine-picker" style={{ marginBottom: "12px" }}>
               <div className="picker-header">
                 <span>Machines to include in mail (none ticked = all machines)</span>
