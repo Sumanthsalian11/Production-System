@@ -82,6 +82,7 @@ exports.getOrderByTicketNo = async (req, res) => {
       orderType: order.orderType,
       customer: order.customerName,
       productName: order.description,
+      productType: order.materialType || "",
       totalQty,
       dispatchedQty,
       balanceQty: totalQty - dispatchedQty,
@@ -307,7 +308,7 @@ exports.bulkImportDispatch = async (req, res) => {
 
         // ---- load master + already dispatched qty (once per job) ----
         if (!jobCache[key]) {
-          let master, filter, total, customer, productName, purchaseOrderNo, poDate, expected;
+          let master, filter, total, customer, productName, productType, purchaseOrderNo, poDate, expected;
 
           if (isWo) {
             master = await WorkOrder.findOne({ efiWoNumber: job });
@@ -316,6 +317,7 @@ exports.bulkImportDispatch = async (req, res) => {
             total = Number(master.qtyInLvs) || 0;
             customer = master.customer;
             productName = master.productName;
+            productType = master.productType || "";
             purchaseOrderNo = master.purchaseOrderNo || "";
             poDate = toYMD(master.poDate);
             expected = toYMD(master.expectedDeliveryDate);
@@ -330,6 +332,7 @@ exports.bulkImportDispatch = async (req, res) => {
             total = Number(master.quantity) || 0;
             customer = master.customerName;
             productName = master.description;
+            productType = master.materialType || "";
             purchaseOrderNo = master.purchaseOrderNo || "";
             poDate = toYMD(master.poDate);
             expected = toYMD(master.expectedDeliveryDate);
@@ -339,7 +342,7 @@ exports.bulkImportDispatch = async (req, res) => {
           const dispatched = existing.reduce((s, d) => s + Number(d.dispatchQty || 0), 0);
 
           jobCache[key] = {
-            filter, total, dispatched, customer, productName,
+            filter, total, dispatched, customer, productName, productType,
             purchaseOrderNo, poDate, expected
           };
         }
@@ -393,6 +396,7 @@ exports.bulkImportDispatch = async (req, res) => {
           poDate: c.poDate || r.poDate || "",
           customer: c.customer || r.customer,
           productName: c.productName || r.productName,
+          productType: c.productType || "",
           totalQty: c.total,
           dispatchQty,
           balanceQty: balanceNow - dispatchQty,

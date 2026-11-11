@@ -47,7 +47,7 @@ const CLEARED = {
   location: "", deliveryAddress: "", expectedDeliveryDate: "",
   delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
   invoiceNo: "", invoiceDate: "", extraQty: "", remarks: "",
-  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: ""
+  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: "", productType: ""
 };
 
 export default function DispatchManagement() {
@@ -102,6 +102,7 @@ const showAlert = (message, icon = "warning") => {
 };
 
 const [form, setForm] = useState({
+productType:"",
 noOfPackets:"",
 noOfBoxes:"",
 attachment:"",
@@ -239,6 +240,7 @@ deliveryAddress:dispatch.deliveryAddress,
 remarks:dispatch.remarks,
 enteredBy:dispatch.enteredBy || "",
 userLocations: dispatch.userLocations || [],
+productType: dispatch.productType || "",
 noOfPackets: dispatch.noOfPackets ?? "",
 noOfBoxes: dispatch.noOfBoxes ?? "",
 attachment: dispatch.attachment || "",
@@ -275,6 +277,7 @@ setForm(prev => ({
 ...prev,
 customer: wo.customer,
 productName: wo.productName,
+productType: wo.productType || "",
 totalQty: wo.qtyInLvs,
 dispatchQty: "",
 balanceQty: wo.balanceQty || 0,
@@ -324,6 +327,7 @@ const fetchByTicket = async () => {
       ticketNo: o.ticketNo,
       customer: o.customer,
       productName: o.productName,
+      productType: o.productType || "",
       totalQty: o.totalQty,
       dispatchQty: "",
       balanceQty: o.balanceQty || 0,
@@ -1277,6 +1281,14 @@ return(
         <div className="dm-lbody">
           <span className="dm-llabel">PO No</span>
           <span className="dm-lvalue">{form.purchaseOrderNo || "-"}</span>
+        </div>
+      </div>
+
+      <div className="dm-lrow">
+        <span className="dm-licon"><IconTruck /></span>
+        <div className="dm-lbody">
+          <span className="dm-llabel">Product Type</span>
+          <span className="dm-lvalue">{form.productType || "-"}</span>
         </div>
       </div>
 
