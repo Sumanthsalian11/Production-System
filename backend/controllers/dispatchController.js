@@ -416,6 +416,8 @@ exports.bulkImportDispatch = async (req, res) => {
           location: r.location || "",
           deliveryAddress: r.deliveryAddress,
           remarks: r.remarks || "",
+          noOfPackets: Number(r.noOfPackets) || 0,
+          noOfBoxes: Number(r.noOfBoxes) || 0,
           enteredBy,
           userLocations: userLocations || []
         });

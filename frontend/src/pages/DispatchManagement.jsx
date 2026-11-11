@@ -668,13 +668,16 @@ const COLUMN_MAP = {
   invoiceDate: ["invoicedate"],
   location: ["location"],
   deliveryAddress: ["address", "deliveryaddress"],
-  remarks: ["remarks"]
+  remarks: ["remarks"],
+  noOfPackets: ["noofpackets", "packets"],
+  noOfBoxes: ["noofboxes", "boxes"]
 };
 
 const downloadTemplate = () => {
   const headers = [
     "WO", "Dispatch Qty", "Extra Qty", "Dispatch Date", "Expected",
-    "Courier", "Vehicle No", "Invoice No", "Invoice Date", "Location", "Address", "Remarks"
+    "Courier", "Vehicle No", "Invoice No", "Invoice Date", "Location", "Address", "Remarks",
+    "No. of Packets", "No. of Boxes"
   ];
   const ws = XLSX.utils.aoa_to_sheet([headers]);
   const wb = XLSX.utils.book_new();
@@ -754,7 +757,10 @@ const handleImportExcel = async (e) => {
         if (!address) address = loc.address || "";
       }
       if (!address) return fail("Delivery Address is required (or give a valid Location)");
-
+      const packets = txt(row.noOfPackets) === "" ? 0 : num(row.noOfPackets);
+      const boxes = txt(row.noOfBoxes) === "" ? 0 : num(row.noOfBoxes);
+      if (!Number.isInteger(packets) || packets < 0) return fail("No. of Packets must be a whole number");
+      if (!Number.isInteger(boxes) || boxes < 0) return fail("No. of Boxes must be a whole number");
       validRows.push({
         rowNo,
         job: txt(row.job),
@@ -773,7 +779,9 @@ const handleImportExcel = async (e) => {
         invoiceDate: invoiceDate || "",
         location: locationId,
         deliveryAddress: address,
-        remarks: txt(row.remarks)
+        remarks: txt(row.remarks),
+        noOfPackets: packets,
+        noOfBoxes: boxes
       });
     });
 
