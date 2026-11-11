@@ -51,6 +51,7 @@ const NewInspectionForm = lazy(() => import("./pages/NewInspectionForm"));
 const ClickReport = lazy(() => import("./pages/Clickreport"));
 const CustomerSatisfaction = lazy(() => import("./pages/CustomerSatisfaction"));
 const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
+const JobValidation = lazy(() => import("./pages/Jobvalidation"));
 
 const RolesCtx = createContext({ extra: [], ready: true });
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
@@ -150,6 +151,15 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              <Route
+  path="/job-validation"
+  element={
+    <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+      <JobValidation />
+    </ProtectedRoute>
+  }
+/>
               <Route
                 path="/plate-request"
                 element={
