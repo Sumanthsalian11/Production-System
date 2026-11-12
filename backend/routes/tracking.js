@@ -308,6 +308,15 @@ dispatch = dispatch.map((d) => {
   return c;
 });
 
+// hide these fields from the tracking popup
+const HIDE_FIELDS = ["activity2", "locationSplits"];
+const stripHidden = (obj) => {
+  if (obj) HIDE_FIELDS.forEach((k) => delete obj[k]);
+};
+stripHidden(indent);
+orders.forEach(stripHidden);
+wos.forEach(stripHidden);
+
 res.json(clean({ indent, order: orders[0] || null, orders, workOrder: wos[0] || null, workOrders: wos, production, dispatch }));
   } catch (err) {
     console.error("TRACKING DETAIL ERROR:", err);
