@@ -40,6 +40,9 @@ const getTimeDiff = (from, to) => {
 
 const joinUnique = (arr) => [...new Set((arr || []).filter(Boolean))].join(", ");
 
+const normWO = (s) => String(s || "").trim().replace(/^WO\s*#?\s*/i, "");
+const toNumSafe = (v) => (isNaN(Number(v)) ? 0 : Number(v));
+
 const formatTime = (minutes) => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -139,6 +142,7 @@ function ProductionReport() {
   const [woDetail, setWoDetail] = useState(null);
   const [activities, setActivities] = useState([]);
   const [showMachineDetail, setShowMachineDetail] = useState(false);
+  const [reelRows, setReelRows] = useState([]);
   const reqId = useRef(0);
   const debouncedSearchWO = useDebounced(searchWO, 300);
 
@@ -214,11 +218,23 @@ function ProductionReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [woDetail]);
 
+  const fetchReels = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/production`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setReelRows(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching reels:", err);
+    }
+  };
+
   useEffect(() => {
     fetchMachines();
     fetchMachineStatuses();
     fetchItemStages();
     fetchActivities();
+    fetchReels();
   }, []);
 
   const clearFilters = () => {
@@ -309,6 +325,25 @@ function ProductionReport() {
   const customers = summary.customers || [];
   const productTypes = summary.productTypes || [];
 
+  // reel register: work order -> { weight, waste }
+  const reelByWO = useMemo(() => {
+    const map = new Map();
+    reelRows.forEach((r) => {
+      const wo = normWO(r.efiWoNumber);
+      if (!wo) return;
+      const net = toNumSafe(r.actualNetWeight);
+      const waste = toNumSafe(
+        r.totalWaste ??
+          (toNumSafe(r.mattWaste) + toNumSafe(r.printWaste) + toNumSafe(r.realEndWaste) + toNumSafe(r.coreWeight))
+      );
+      const a = map.get(wo) || { weight: 0, waste: 0 };
+      a.weight += net;
+      a.waste += waste;
+      map.set(wo, a);
+    });
+    return map;
+  }, [reelRows]);
+
   // ================= JOB-LEVEL AGGREGATION (sums come from the server) =================
   const jobAggregates = useMemo(() => {
     const map = {};
@@ -368,10 +403,29 @@ function ProductionReport() {
           wastePercent: p ? (w / p) * 100 : 0
         };
       });
+
+      // OFFSET only, same as Planning:
+      // (sum of every stage's waste % + reel waste %) / number of stages
+      const actIds = Object.keys(acts);
+      const reel = reelByWO.get(normWO(j.workOrder));
+      if (actIds.length && reel && reel.weight > 0) {
+        const sum =
+          actIds.reduce((s, id) => s + acts[id].wastePercent, 0) +
+          (reel.waste / reel.weight) * 100;
+        const avg = sum / actIds.length;
+
+        actIds.forEach((id) => {
+          const nm = String(
+            activities.find((a) => String(a._id) === String(id))?.activityName || ""
+          ).toLowerCase();
+          if (nm.includes("offset")) acts[id].wastePercent = avg;
+        });
+      }
+
       map[j.workOrder] = acts;
     });
     return map;
-  }, [jobAggregates]);
+  }, [jobAggregates, activities, reelByWO]);
 
   // activity columns (Activity master order, unknown ones at the end)
   const usedActivities = useMemo(() => {
