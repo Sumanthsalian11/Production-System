@@ -26,9 +26,18 @@ router.get("/", authMiddleware, async (req, res) => {
     const indents = await IndentRequest.find(indFilter).sort({ createdAt: -1 }).limit(limit).lean();
     const indentNos = indents.map((i) => i.indentNo);
 
+    // indents saved together (same groupId) share ONE order, stored under one indent no
+    const groupIds = [...new Set(indents.map((i) => i.groupId).filter(Boolean))];
+    const groupMembers = groupIds.length
+      ? await IndentRequest.find({ groupId: { $in: groupIds } }).select("indentNo groupId").lean()
+      : [];
+    const groupNos = {};
+    groupMembers.forEach((m) => { (groupNos[m.groupId] = groupNos[m.groupId] || []).push(m.indentNo); });
+    const lookupNos = [...new Set([...indentNos, ...groupMembers.map((m) => m.indentNo)])];
+
     // 2. POs created from those indents + direct POs (no indent)
-    const indentOrders = indentNos.length
-      ? await CustomerOrder.find({ indentNo: { $in: indentNos } }).lean()
+    const indentOrders = lookupNos.length
+      ? await CustomerOrder.find({ indentNo: { $in: lookupNos } }).lean()
       : [];
     const directAnd = [{ $or: [{ indentNo: "" }, { indentNo: null }, { indentNo: { $exists: false } }] }];
     if (rx) directAnd.push({ $or: [{ purchaseOrderNo: rx }, { customerName: rx }, { description: rx }, { ticketNo: rx }] });
@@ -40,7 +49,7 @@ router.get("/", authMiddleware, async (req, res) => {
     // 3. work orders
     const wos = orderIds.length
       ? await WorkOrder.find({ customerOrderId: { $in: orderIds } })
-          .select("efiWoNumber status customerOrderId createdAt planningUser orderQty totalQty")
+          .select("efiWoNumber status customerOrderId createdAt planningUser orderQty totalQty locationSplits")
           .lean()
       : [];
     const woByOrder = new Map(wos.map((w) => [String(w.customerOrderId), w]));
@@ -77,7 +86,7 @@ router.get("/", authMiddleware, async (req, res) => {
     // 5. dispatch per work order
     const disp = woNums.length
       ? await Dispatch.find({ efiWoNumber: { $in: woNums } })
-          .select("efiWoNumber dispatchQty balanceQty dispatchDate invoiceNo createdAt")
+          .select("efiWoNumber dispatchQty balanceQty dispatchDate invoiceNo createdAt splitLocation")
           .sort({ createdAt: 1 })
           .lean()
       : [];
@@ -86,6 +95,7 @@ router.get("/", authMiddleware, async (req, res) => {
       const e = dispByWo.get(d.efiWoNumber) || { qty: 0, balance: 0, last: null, invoices: [] };
       e.qty += Number(d.dispatchQty) || 0;
       e.balance = Number(d.balanceQty) || 0; // latest (sorted by createdAt)
+      if (d.splitLocation) e.split = true;
       e.last = d.dispatchDate;
       if (d.invoiceNo) e.invoices.push(d.invoiceNo);
       dispByWo.set(d.efiWoNumber, e);
@@ -120,6 +130,12 @@ router.get("/", authMiddleware, async (req, res) => {
       const orderQty = wo ? Number(wo.orderQty) || 0 : Number(order?.quantity || item.quantity) || 0;
       const isExt = !!(order && ["Out Source", "PMS"].includes(order.orderType) && order.ticketNo && !wo);
       let dsp = wo ? dispByWo.get(wo.efiWoNumber) : null;
+      if (dsp && dsp.split) {
+        const splitTotal = (wo.locationSplits || []).reduce(
+          (s, x) => s + (Number(x.qty ?? x.quantity) || 0), 0
+        );
+        if (splitTotal > 0) dsp = { ...dsp, balance: Math.max(0, splitTotal - dsp.qty) };
+      }
       if (isExt) {
         const t = dispByTicket.get(order.ticketNo);
         dsp = t ? { ...t, balance: Math.max(0, orderQty - t.qty) } : null;
@@ -204,7 +220,7 @@ router.get("/", authMiddleware, async (req, res) => {
         customer: item.customerName || order?.customerName || "-",
         product: item.description || order?.description || "-",
         productCode: item.productCode || order?.productCode || "",
-        qty: orderQty,
+        qty: indent && order && order.indentNo !== indent.indentNo ? Number(item.quantity) || orderQty : orderQty,
         woNo: wo ? wo.efiWoNumber : null,
         createdAt: indent ? indent.createdAt : order?.createdAt,
         current: cur ? cur.label : "Completed",
@@ -214,7 +230,10 @@ router.get("/", authMiddleware, async (req, res) => {
 
     const rows = [];
     indents.forEach((ind) => {
-      const o = indentOrders.find((x) => x.indentNo === ind.indentNo);
+      const nos = ind.groupId && groupNos[ind.groupId] ? groupNos[ind.groupId] : [ind.indentNo];
+      const o =
+        indentOrders.find((x) => x.indentNo === ind.indentNo) ||
+        indentOrders.find((x) => nos.includes(x.indentNo));
       rows.push(build(ind, o || null));
     });
     directOrders.forEach((o) => rows.push(build(null, o)));
@@ -244,8 +263,13 @@ router.get("/detail", authMiddleware, async (req, res) => {
     const orderId = String(req.query.orderId || "").trim();
     if (!indentNo && !orderId) return res.json({});
     const indent = indentNo ? await IndentRequest.findOne({ indentNo }).lean() : null;
+    let orderNos = [indentNo];
+    if (indent && indent.groupId) {
+      const mem = await IndentRequest.find({ groupId: indent.groupId }).select("indentNo").lean();
+      orderNos = mem.map((m) => m.indentNo);
+    }
     const orders = indentNo
-      ? await CustomerOrder.find({ indentNo }).sort({ createdAt: 1 }).lean()
+      ? await CustomerOrder.find({ indentNo: { $in: orderNos } }).sort({ createdAt: 1 }).lean()
       : (/^[a-f0-9]{24}$/i.test(orderId) ? await CustomerOrder.find({ _id: orderId }).lean() : []);
     const order = orders[0] || null;
     const wos = orders.length
@@ -307,6 +331,34 @@ dispatch = dispatch.map((d) => {
   HIDE_DISPATCH_FIELDS.forEach((k) => delete c[k]);
   return c;
 });
+
+// readable split label on dispatch records (e.g. "Manipal (Qty: 1200)")
+const splitSrc = [...wos, ...orders];
+const splitLocNames = await nameMap(
+  "LocationMaster",
+  splitSrc.flatMap((s) => (s.locationSplits || []).map((x) => String(x.location ?? x.locationId ?? ""))),
+  "locationName"
+);
+const splitLabel = {};
+splitSrc.forEach((src) => {
+  const list = (src.locationSplits || [])
+    .map((x) => ({
+      loc: String(x.location ?? x.locationId ?? x.locationName ?? ""),
+      qty: Number(x.qty ?? x.quantity ?? 0) || 0
+    }))
+    .filter((x) => x.loc);
+  const count = {};
+  list.forEach((x) => { count[x.loc] = (count[x.loc] || 0) + 1; });
+  const seen = {};
+  list.forEach((x) => {
+    let key = x.loc;
+    if (count[x.loc] > 1) { seen[x.loc] = (seen[x.loc] || 0) + 1; key = `${x.loc}#${seen[x.loc]}`; }
+    splitLabel[key] = `${splitLocNames.get(x.loc) || x.loc} (Qty: ${x.qty})`;
+  });
+});
+dispatch = dispatch.map((d) =>
+  d.splitLocation && splitLabel[d.splitLocation] ? { ...d, splitLocation: splitLabel[d.splitLocation] } : d
+);
 
 // hide these fields from the tracking popup
 const HIDE_FIELDS = ["activity2", "locationSplits"];
