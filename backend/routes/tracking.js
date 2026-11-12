@@ -16,7 +16,7 @@ const QC_RX = /(^|\W)(qc|quality)/i;
 router.get("/", authMiddleware, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim();
-    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 300);
+    const limit = 0; // 0 = no cap, return every indent
     const rx = q ? new RegExp(esc(q), "i") : null;
 
     // 1. indents
@@ -239,7 +239,7 @@ router.get("/", authMiddleware, async (req, res) => {
     directOrders.forEach((o) => rows.push(build(null, o)));
     rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-    res.json(rows.slice(0, limit));
+    res.json(limit ? rows.slice(0, limit) : rows);
   } catch (err) {
     console.error("TRACKING ERROR:", err);
     res.status(500).json({ message: "Error building tracking" });
