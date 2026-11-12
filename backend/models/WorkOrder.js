@@ -21,6 +21,14 @@ const workOrderSchema = new mongoose.Schema(
 
     productName: { type: String, required: true },
     location: { type: String, required: true },
+    locationSplits: [
+      {
+        _id: false,
+        location: { type: mongoose.Schema.Types.ObjectId, ref: "LocationMaster" },
+        locationName: { type: String, default: "" },
+        quantity: { type: Number, default: 0 }
+      }
+    ],
 
     woDate: { type: Date, required: true, default: Date.now },
     expectedDeliveryDate: { type: Date },

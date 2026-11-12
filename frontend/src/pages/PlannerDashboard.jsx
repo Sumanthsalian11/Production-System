@@ -854,6 +854,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       customer: wo.customer?.name || wo.customer,
       productName: wo.productName || wo.description || "-",
       location: wo.location?._id || wo.location,
+      locationSplits: wo.locationSplits || [],
       qtyInLvs: wo.qtyInLvs,
       orderQty: wo.orderQty,
       productType: wo.productType || "",
@@ -1527,6 +1528,11 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
         customer: selectedOrder.customer || selectedOrder.customerName,
         productName: selectedOrder.productName || selectedOrder.description || "-",
         location: selectedOrder.location?.locationName || selectedOrder.location,
+        locationSplits: (selectedOrder.locationSplits || []).map((l) => ({
+          location: l.location,
+          locationName: l.locationName,
+          quantity: l.quantity
+        })),
         qtyInLvs: Number(selectedOrder.qtyInLvs),
         colorFront: Number(workOrderForm.colorFront) || 0,
         colorBack: Number(workOrderForm.colorBack) || 0,
@@ -4181,7 +4187,25 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             <td>{order.customer?.name || order.customerName}</td>
                             <td>{order.description || order.productName || "-"}</td>
                             <td className="fw-bold text-primary">{order.quantity}</td>
-                            <td>{order.location?.locationName || order.location || "N/A"}</td>
+                            <td>
+  {order.locationSplits?.length > 1 ? (
+    <select
+      className="form-select form-select-sm"
+      value=""
+      onChange={() => {}}
+      style={{ minWidth: 150 }}
+    >
+      <option value="">{order.locationSplits.length} locations</option>
+      {order.locationSplits.map((l, i) => (
+        <option key={i} value="" disabled>
+          {l.locationName || "-"}: {l.quantity}
+        </option>
+      ))}
+    </select>
+  ) : (
+    order.location?.locationName || order.location || "N/A"
+  )}
+</td>
                             <td>
                               <span className="badge-3d badge-3d-primary">{order.materialType || "-"}</span>
                             </td>
@@ -4394,7 +4418,17 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                       </div>
                       <div className="wo-info">
                         <span>Location</span>
-                        <b>{selectedOrder.location?.locationName || selectedOrder.location || "-"}</b>
+                        <b
+  title={
+    selectedOrder.locationSplits?.length > 1
+      ? selectedOrder.locationSplits.map((l) => `${l.locationName}: ${l.quantity}`).join(" | ")
+      : ""
+  }
+>
+  {selectedOrder.locationSplits?.length > 1
+    ? selectedOrder.locationSplits.map((l) => `${l.locationName}: ${l.quantity}`).join(" | ")
+    : selectedOrder.location?.locationName || selectedOrder.location || "-"}
+</b>
                       </div>
                       <div className="wo-info">
                         <span>Expected delivery</span>
@@ -5427,7 +5461,25 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             {wo.productName || "-"}
                           </td>
                           <td>{new Date(wo.createdAt).toLocaleDateString("en-IN")}</td>
-                          <td>{wo.location}</td>
+                          <td>
+                            {wo.locationSplits?.length > 1 ? (
+                              <select
+                                className="form-select form-select-sm"
+                                value=""
+                                onChange={() => {}}
+                                style={{ minWidth: 150 }}
+                              >
+                                <option value="">{wo.locationSplits.length} locations</option>
+                                {wo.locationSplits.map((l, i) => (
+                                  <option key={i} value="" disabled>
+                                    {l.locationName || "-"}: {l.quantity}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              wo.location
+                            )}
+                          </td>
                           <td>
                             {wo.machines?.map(pair => {
                               const activity = activities.find(

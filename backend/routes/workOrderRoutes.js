@@ -291,6 +291,8 @@ router.post("/create", authMiddleware, async (req, res) => {
       }
     }
 
+    const locationSplits = Array.isArray(req.body.locationSplits) ? req.body.locationSplits : [];
+
     const lastWorkOrder = await WorkOrder.findOne().sort({ slNo: -1 }).select("slNo").lean();
     const nextSlNo = lastWorkOrder ? lastWorkOrder.slNo + 1 : 1;
 
@@ -338,6 +340,7 @@ router.post("/create", authMiddleware, async (req, res) => {
       inkDetails,
       remarks,
       itemPdfPath: itemPdfPath || "",
+      locationSplits,
       planningUser: plannerName,
       userLocations: plannerLocations,
       status: "PLANNED",
