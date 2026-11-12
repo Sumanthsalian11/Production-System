@@ -38,6 +38,7 @@ const menuItems = [
   { to: "/customer-onboarding", icon: "bi-person-check", label: "Customer Onboarding", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/certificate-numbering", icon: "bi-file-earmark-text", label: "Special Job", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
   { to: "/job-validation", icon: "bi-clipboard2-data", label: "Job Validation", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"] },
+  {to:"/raw-material-indent", icon: "bi-file-earmark-plus", label: "Raw Material Indent", roles: ["admin", "indenter", "kas", "planner", "purchase order", "supervisor","dispatch","production","scanner","prepress"]},
 ];
 
 export const BASE_ROLES = [

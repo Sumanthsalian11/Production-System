@@ -53,7 +53,7 @@ const APP_CATEGORIES = [
     color: "#e8590c",
     bgLight: "#fdeee6",
     borderGlow: "#f8c9ad",
-    routes: ["/dispatch"]
+    routes: ["/dispatch", "/raw-material-indent"]
   }
 ];
 
