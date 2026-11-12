@@ -14,6 +14,25 @@ const parseLocations = (v) => {
   }
 };
 
+// location splits of an order -> [{ location, qty }]
+const getSplits = (doc) => {
+  const list = (doc?.locationSplits || [])
+    .map((s) => ({
+      location: String(s.location ?? s.locationId ?? s.locationName ?? ""),
+      qty: Number(s.qty ?? s.quantity ?? 0) || 0
+    }))
+    .filter((s) => s.location);
+
+  const count = {};
+  list.forEach((s) => { count[s.location] = (count[s.location] || 0) + 1; });
+  const seen = {};
+  return list.map((s) => {
+    if (count[s.location] === 1) return { ...s, key: s.location };
+    seen[s.location] = (seen[s.location] || 0) + 1;
+    return { ...s, key: `${s.location}#${seen[s.location]}` };
+  });
+};
+
 // 🔹 Fetch Work Order by WO Number
 exports.getWorkOrderByNumber = async (req, res) => {
   try {
@@ -28,10 +47,22 @@ exports.getWorkOrderByNumber = async (req, res) => {
       return res.status(404).json({ message: "Work Order not found" });
     }
 
+    // 🔹 Location split handling
+    const splits = getSplits(workOrder);
+    const wanted = String(req.query.location || "").trim();
+    let selected = null;
+    if (splits.length > 1) {
+      if (!wanted) return res.json({ needsLocation: true, locations: splits });
+      selected = splits.find((s) => s.key === wanted);
+      if (!selected) return res.status(400).json({ message: "Invalid location" });
+    }
+
     // 🔹 Get all dispatch records for this WO
-    const dispatches = await Dispatch.find({
-      efiWoNumber: woNumber
-    });
+    const dispatches = await Dispatch.find(
+      selected
+        ? { efiWoNumber: woNumber, splitLocation: selected.key }
+        : { efiWoNumber: woNumber }
+    );
 
     // 🔹 Calculate total dispatched qty
     const dispatchedQty = dispatches.reduce(
@@ -39,12 +70,14 @@ exports.getWorkOrderByNumber = async (req, res) => {
       0
     );
 
-    const totalQty = Number(workOrder.qtyInLvs) || 0;
+    const totalQty = selected ? selected.qty : Number(workOrder.qtyInLvs) || 0;
 
     const balanceQty = totalQty - dispatchedQty;
 
     res.json({
       ...workOrder.toObject(),
+      qtyInLvs: totalQty,
+      selectedLocation: selected ? selected.key : "",
       dispatchedQty,
       balanceQty
     });
@@ -70,12 +103,23 @@ exports.getOrderByTicketNo = async (req, res) => {
       });
     }
 
-    const dispatches = await Dispatch.find({ ticketNo });
+    const splits = getSplits(order);
+    const wanted = String(req.query.location || "").trim();
+    let selected = null;
+    if (splits.length > 1) {
+      if (!wanted) return res.json({ needsLocation: true, locations: splits });
+      selected = splits.find((s) => s.location === wanted);
+      if (!selected) return res.status(400).json({ message: "Invalid location" });
+    }
+
+    const dispatches = await Dispatch.find(
+      selected ? { ticketNo, splitLocation: selected.key } : { ticketNo }
+    );
     const dispatchedQty = dispatches.reduce(
       (sum, d) => sum + Number(d.dispatchQty || 0),
       0
     );
-    const totalQty = Number(order.quantity) || 0;
+    const totalQty = selected ? selected.qty : Number(order.quantity) || 0;
 
     res.json({
       ticketNo: order.ticketNo,
@@ -88,7 +132,10 @@ exports.getOrderByTicketNo = async (req, res) => {
       balanceQty: totalQty - dispatchedQty,
       purchaseOrderNo: order.purchaseOrderNo || "",
       poDate: order.poDate || "",
-      expectedDeliveryDate: order.expectedDeliveryDate || ""
+      expectedDeliveryDate: order.expectedDeliveryDate || "",
+      location: order.location,
+      locationSplits: order.locationSplits || [],
+      selectedLocation: selected ? selected.key : ""
     });
   } catch (error) {
     console.error(error);
@@ -186,6 +233,17 @@ exports.updateDispatch = async (req, res) => {
       });
       totalQty = Number(workOrder.qtyInLvs) || 0;
       sameJobFilter = { efiWoNumber: existingDispatch.efiWoNumber };
+    }
+
+    // 🔹 If this dispatch belongs to a location split, use that split's qty
+    data.splitLocation = existingDispatch.splitLocation || "";
+    if (existingDispatch.splitLocation) {
+      const src = existingDispatch.ticketNo
+        ? await CustomerOrder.findOne({ ticketNo: existingDispatch.ticketNo })
+        : await WorkOrder.findOne({ efiWoNumber: existingDispatch.efiWoNumber });
+      const sp = getSplits(src).find((s) => s.key === existingDispatch.splitLocation);
+      if (sp) totalQty = sp.qty;
+      sameJobFilter = { ...sameJobFilter, splitLocation: existingDispatch.splitLocation };
     }
 
     // 🔹 Sum all OTHER dispatches (exclude current)

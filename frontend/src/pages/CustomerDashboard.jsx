@@ -574,6 +574,12 @@ const PAGE_SIZE = 30;
           quantity: order.quantity,
           deliveryDate: order.expectedDeliveryDate,
           itemPdfPath: order.itemPdfPath,
+          jobSize: order.jobSize,
+          lamination: order.lamination,
+          paperGroup: order.paperGroup,
+          paperSize: order.paperSize,
+          millName: order.millName,
+          gsm: order.gsm,
 
           customerPoNo: order.customerPoNo,
           customerPoDate: order.customerPoDate
@@ -870,6 +876,10 @@ const PAGE_SIZE = 30;
       "Material": order.materialType,
       "Description": order.description,
       "Customer": order.customerName,
+      "Job Size": order.jobSize || "",
+      "Lamination": order.lamination || "",
+      "Paper": [order.paperGroup, order.paperSize, order.millName].filter(Boolean).join(" / "),
+      "GSM": order.gsm || "",
       "Quantity": order.quantity,
       "Waste %": order.orderWastePct || 0,
       "Estimated Cost": order.estimatedCost || 0,
@@ -2326,7 +2336,7 @@ const PAGE_SIZE = 30;
           Order Requests
           {viewMode !== "orderRequests" && indentRequests.length > 0 && (
             <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow">
-              {indentRequests.length}
+              {groupIndents(indentRequests).length}
             </span>
           )}
         </button>
@@ -2345,7 +2355,7 @@ const PAGE_SIZE = 30;
                   <span>Filters</span>
                 </div>
                 <span className="po-filter-count">
-                  {filteredIndents.length} of {indentRequests.length} requests
+                  {filteredIndents.length} of {groupIndents(indentRequests).length} requests
                 </span>
               </div>
 
@@ -2463,6 +2473,7 @@ const PAGE_SIZE = 30;
                       <th>Product Type</th>
                       <th>Description</th>
                       <th>Customer</th>
+                    
                       <th>Quantity</th>
                       <th>Location</th>
                      
@@ -2475,7 +2486,7 @@ const PAGE_SIZE = 30;
                   <tbody>
                     {filteredIndents.length === 0 ? (
                       <tr>
-                        <td colSpan="12" className="p-4 text-center text-muted">
+                        <td colSpan="15" className="p-4 text-center text-muted">
                           {indentRequests.length === 0
                             ? "No New Indent Requests"
                             : "No requests match the filters"}
@@ -2518,6 +2529,7 @@ const PAGE_SIZE = 30;
                           <td className="fw-semibold">
                             {indent.items[0]?.customerName || "-"}
                           </td>
+              
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
                           <td><LocCell list={indent.locationList} /></td>
                           <td>
@@ -2622,30 +2634,7 @@ const PAGE_SIZE = 30;
                       "Customer",
                       selectedIndent.items[0]?.customerName || "-",
                       "bi-person",
-                      "col-md-8"
-                    ],
-                    [
-                      "Quantity",
-                      selectedIndent.items[0]?.quantity,
-                      "bi-123",
-                      "col-md-4"
-                    ],
-                    [
-                      "Location",
-                      selectedIndent.locationList?.map((l) => `${l.name}: ${l.qty}`).join(" | ") || selectedIndent.location?.locationName || "-",
-                      "bi-geo-alt",
-                      "col-md-4"
-                    ],
-
-                    [
-                      "Expected Date",
-                      selectedIndent.items[0]?.deliveryDate
-                        ? new Date(
-                            selectedIndent.items[0].deliveryDate
-                          ).toLocaleDateString("en-IN")
-                        : "-",
-                      "bi-calendar-check",
-                      "col-md-4"
+                      "col-12"
                     ],
                     [
                       "Customer PO No",
@@ -2661,6 +2650,56 @@ const PAGE_SIZE = 30;
                           ).toLocaleDateString("en-IN")
                         : "-",
                       "bi-calendar-event",
+                      "col-md-4"
+                    ],
+                    [
+                      "Job Size",
+                      selectedIndent.items[0]?.jobSize || "-",
+                      "bi-rulers",
+                      "col-md-4"
+                    ],
+                    [
+                      "Lamination",
+                      selectedIndent.items[0]?.lamination || "-",
+                      "bi-layers",
+                      "col-md-4"
+                    ],
+                    [
+                      "Paper",
+                      [
+                        selectedIndent.items[0]?.paperGroup,
+                        selectedIndent.items[0]?.paperSize,
+                        selectedIndent.items[0]?.millName
+                      ].filter(Boolean).join(" / ") || "-",
+                      "bi-file-earmark-text",
+                      "col-md-4"
+                    ],
+                    [
+                      "GSM",
+                      selectedIndent.items[0]?.gsm || "-",
+                      "bi-speedometer2",
+                      "col-md-4"
+                    ],
+                    [
+                      "Location",
+                      selectedIndent.locationList?.map((l) => `${l.name}: ${l.qty}`).join(" | ") || selectedIndent.location?.locationName || "-",
+                      "bi-geo-alt",
+                      "col-md-4"
+                    ],
+                    [
+                      "Quantity",
+                      selectedIndent.items[0]?.quantity,
+                      "bi-123",
+                      "col-md-4"
+                    ],
+                    [
+                      "Expected Date",
+                      selectedIndent.items[0]?.deliveryDate
+                        ? new Date(
+                            selectedIndent.items[0].deliveryDate
+                          ).toLocaleDateString("en-IN")
+                        : "-",
+                      "bi-calendar-check",
                       "col-md-4"
                     ]
                   ].map(([label, value, icon, colClass], i) => (
@@ -3541,7 +3580,7 @@ const PAGE_SIZE = 30;
             >
               <table
                 className="table table-striped table-bordered table-hover align-middle text-center mb-0 small"
-                style={{ minWidth: "1600px" }}
+                style={{ minWidth: "1950px" }}
               >
                 <thead className="table-dark sticky-top">
                   <tr>
@@ -3553,6 +3592,10 @@ const PAGE_SIZE = 30;
                     <th>Product Type</th>
                     <th>Description</th>
                     <th>Customer</th>
+                    <th>Job Size</th>
+                    <th>Lamination</th>
+                    <th>Paper</th>
+                    <th>GSM</th>
                     <th>Order Qty</th>
                     <th>Waste %</th>
                     <th>Estimated Cost</th>
@@ -3570,7 +3613,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="20" className="p-4 text-center text-muted">
+                      <td colSpan="24" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3659,6 +3702,34 @@ const PAGE_SIZE = 30;
                             ? order.customerName
                             : truncateText(order.customerName)}
                         </td>
+                        <td
+                          className="cell-expandable"
+                          style={{
+                            maxWidth: "160px",
+                            whiteSpace:
+                              expandedCell === `js-${order._id}`
+                                ? "normal"
+                                : "nowrap"
+                          }}
+                          onClick={() =>
+                            setExpandedCell(
+                              expandedCell === `js-${order._id}`
+                                ? null
+                                : `js-${order._id}`
+                            )
+                          }
+                        >
+                          {expandedCell === `js-${order._id}`
+                            ? order.jobSize || "-"
+                            : truncateText(order.jobSize, 15)}
+                        </td>
+                        <td>{order.lamination || "-"}</td>
+                        <td>
+                          {[order.paperGroup, order.paperSize, order.millName]
+                            .filter(Boolean)
+                            .join(" / ") || "-"}
+                        </td>
+                        <td>{order.gsm || "-"}</td>
                         <td className="fw-bold">{order.quantity}</td>
                         <td>{order.orderWastePct !== null && order.orderWastePct !== undefined && order.orderWastePct !== ""
                           ? `${order.orderWastePct}%`

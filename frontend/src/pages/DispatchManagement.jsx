@@ -47,7 +47,7 @@ const CLEARED = {
   location: "", deliveryAddress: "", expectedDeliveryDate: "",
   delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
   invoiceNo: "", invoiceDate: "", extraQty: "", remarks: "",
-  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: "", productType: ""
+  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: "", productType: "", splitLocation: ""
 };
 
 export default function DispatchManagement() {
@@ -62,9 +62,13 @@ const [expandedCell, setExpandedCell] = useState(null);
 const [originalBalance, setOriginalBalance] = useState(0);
 const [attachmentFile, setAttachmentFile] = useState(null);
 const [fileInputKey, setFileInputKey] = useState(0);
+const [fetchLocOptions, setFetchLocOptions] = useState([]);
+const [fetchLocation, setFetchLocation] = useState("");
 const resetAttachment = () => {
   setAttachmentFile(null);
   setFileInputKey((k) => k + 1);
+  setFetchLocOptions([]);
+  setFetchLocation("");
 };
 const [locations, setLocations] = useState([]);
 const [locationFilter, setLocationFilter] = useState("");
@@ -246,7 +250,8 @@ productType: dispatch.productType || "",
 noOfPackets: dispatch.noOfPackets ?? "",
 noOfBoxes: dispatch.noOfBoxes ?? "",
 attachment: dispatch.attachment || "",
-attachmentName: dispatch.attachmentName || ""
+attachmentName: dispatch.attachmentName || "",
+splitLocation: dispatch.splitLocation || ""
 });
 
 setOriginalBalance(
@@ -260,7 +265,7 @@ window.scrollTo({top:0,behavior:"smooth"});
 
 
 // FETCH WO
-const fetchWorkOrder = async () => {
+const fetchWorkOrder = async (selLoc = fetchLocation) => {
 
 if(!form.efiWoNumber){
 showAlert("Please enter Work Order Number","warning");
@@ -270,16 +275,28 @@ return;
 try{
 
 const res = await axios.get(
-  `${BASE_URL}/api/dispatch/workorder/${form.efiWoNumber}`
+  `${BASE_URL}/api/dispatch/workorder/${form.efiWoNumber}`,
+  { params: selLoc ? { location: selLoc } : {} }
 );
 
 const wo = res.data;
+
+if (wo.needsLocation) {
+  setFetchLocation("");
+  setEditingId(null);
+  setOriginalBalance(0);
+  setForm(prev => ({ ...prev, ...CLEARED }));
+  setFetchLocOptions(wo.locations);
+  showAlert("This order has multiple locations. Please select a location","info");
+  return;
+}
 
 setForm(prev => ({
 ...prev,
 customer: wo.customer,
 productName: wo.productName,
 productType: wo.productType || "",
+splitLocation: wo.selectedLocation || "",
 totalQty: wo.qtyInLvs,
 dispatchQty: "",
 balanceQty: wo.balanceQty || 0,
@@ -312,7 +329,7 @@ const switchFetchBy = (mode) => {
 };
 
 // FETCH BY TICKET (Out Source / PMS)
-const fetchByTicket = async () => {
+const fetchByTicket = async (selLoc = fetchLocation) => {
   const t = String(form.ticketNo || "").trim();
   if (!t) {
     showAlert("Please enter Ticket ID", "warning");
@@ -320,9 +337,20 @@ const fetchByTicket = async () => {
   }
   try {
     const res = await axios.get(
-      `${BASE_URL}/api/dispatch/ticket/${encodeURIComponent(t)}`
+      `${BASE_URL}/api/dispatch/ticket/${encodeURIComponent(t)}`,
+      { params: selLoc ? { location: selLoc } : {} }
     );
     const o = res.data;
+
+    if (o.needsLocation) {
+      setFetchLocation("");
+      setEditingId(null);
+      setOriginalBalance(0);
+      setForm(prev => ({ ...prev, ...CLEARED }));
+      setFetchLocOptions(o.locations);
+      showAlert("This order has multiple locations. Please select a location", "info");
+      return;
+    }
 
     setForm(prev => ({
       ...prev,
@@ -330,6 +358,7 @@ const fetchByTicket = async () => {
       customer: o.customer,
       productName: o.productName,
       productType: o.productType || "",
+      splitLocation: o.selectedLocation || "",
       totalQty: o.totalQty,
       dispatchQty: "",
       balanceQty: o.balanceQty || 0,
@@ -552,31 +581,15 @@ resetAttachment();
 }
 
 setForm({
-efiWoNumber:"",
-ticketNo:"",
-userLocations: form.userLocations || [],
-noOfPackets:"",
-noOfBoxes:"",
-attachment:"",
-attachmentName:"",
-customer:"",
-productName:"",
-totalQty:"",
-dispatchQty:"",
-balanceQty:"",
-dispatchDate:"",
-expectedDeliveryDate:"",
-delayDays:"",
-delayLabel:"",
-courier:"",
-trackingNumber:"",
-invoiceNo:"",
-invoiceDate:"",
-location:"",
-deliveryAddress:"",
-remarks:"",
-enteredBy:""
+  ...CLEARED,
+  efiWoNumber: "",
+  ticketNo: "",
+  enteredBy: "",
+  userLocations: form.userLocations || []
 });
+setOriginalBalance(0);
+setFetchLocation("");
+setFetchLocOptions([]);
 
 fetchDispatches();
 
@@ -1246,10 +1259,33 @@ return(
     </div>
   )}
 
+  {fetchLocOptions.length > 1 && (
+    <div className="dm-field">
+      <label className="dm-label">Select Location</label>
+      <select
+        className="dm-select"
+        key={`${fetchBy}-${form.efiWoNumber || form.ticketNo}-${fetchLocOptions.length}`}
+        value={fetchLocation}
+        onChange={(e) => {
+          const v = e.target.value;
+          setFetchLocation(v);
+          if (v) (fetchBy === "wo" ? fetchWorkOrder(v) : fetchByTicket(v));
+        }}
+      >
+        <option value="">Select Location</option>
+        {fetchLocOptions.map((l) => (
+          <option key={l.key} value={l.key}>
+            {locations.find((x) => String(x._id) === String(l.location))?.locationName || l.location} (Qty: {l.qty})
+          </option>
+        ))}
+      </select>
+    </div>
+  )}
+
   <button
     className="dm-btn dm-btn-blue"
     type="button"
-    onClick={fetchBy === "wo" ? fetchWorkOrder : fetchByTicket}>
+    onClick={() => (fetchBy === "wo" ? fetchWorkOrder("") : fetchByTicket(""))}>
     <IconSearch width={14} height={14} /> Fetch Details
   </button>
 </div>
@@ -1276,6 +1312,11 @@ return(
     <div className="dm-left-chips">
       <span className="dm-lchip ok">Verified Record</span>
       {editingId && <span className="dm-lchip warn">Editing</span>}
+      {form.splitLocation && (
+        <span className="dm-lchip">
+          {locations.find((x) => String(x._id) === String(form.splitLocation).split("#")[0])?.locationName || form.splitLocation}
+        </span>
+      )}
     </div>
 
     <div className="dm-left-list">

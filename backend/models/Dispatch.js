@@ -13,7 +13,7 @@ const dispatchSchema = new mongoose.Schema({
     purchaseOrderNo: {        // ⭐ ADD THIS
     type: String
   },
-
+splitLocation: { type: String, default: "" },
   poDate: {        // ⭐ ADD THIS
   type: String
 },
