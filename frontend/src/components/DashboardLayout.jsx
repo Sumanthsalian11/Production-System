@@ -53,7 +53,7 @@ const APP_CATEGORIES = [
     color: "#e8590c",
     bgLight: "#fdeee6",
     borderGlow: "#f8c9ad",
-    routes: ["/dispatch", "/manual-box", "/po-details", "/scan"]
+    routes: ["/dispatch"]
   }
 ];
 

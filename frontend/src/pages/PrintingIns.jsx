@@ -92,6 +92,8 @@ const [newBranch, setNewBranch] = useState({ branchCode: "", dispatchAddress: ""
 const [savingBranch, setSavingBranch] = useState(false);
 const [baseRemaining, setBaseRemaining] = useState(0);
 const [liveRemaining, setLiveRemaining] = useState(0);
+const [extraQty, setExtraQty] = useState(0);
+const [isAdmin, setIsAdmin] = useState(false);
 const [freightChargeList, setFreightChargeList] = useState([]);
 const [freightTypeList, setFreightTypeList] = useState([]);
 const [materialList, setMaterialList] = useState([]);
@@ -184,6 +186,7 @@ useEffect(() => {
     if (token) {
       const decoded = jwtDecode(token);
       setLoggedInUser(decoded.name || decoded.username);
+      setIsAdmin(String(decoded.role || "").toLowerCase() === "admin");
     }
   }, []);
 
@@ -571,6 +574,23 @@ const fetchWOList = async (code) => {
     console.log("Inner packing not found");
   }
 };
+const addExtraQty = async () => {
+  const { value } = await Swal.fire({
+    title: "Add Extra Quantity",
+    input: "number",
+    inputLabel: "This is added on top of the remaining qty",
+    inputAttributes: { min: 1 },
+    showCancelButton: true,
+    confirmButtonText: "Add",
+    inputValidator: (v) =>
+      !v || Number(v) <= 0 ? "Enter a quantity greater than 0" : undefined
+  });
+  if (!value) return;
+  const add = Number(value);
+  setExtraQty(prev => prev + add);
+  setLiveRemaining(prev => prev + add);
+};
+
 const fetchRemainingQty = async (code) => {
   if (!code) return;
 
@@ -649,12 +669,12 @@ if (name === "quantity" && orderMode === "PERSOW") {
       quantity: ""
     }));
 
-    setLiveRemaining(baseRemaining);
+    setLiveRemaining(Number(baseRemaining) + Number(extraQty || 0));
     return;
   }
 
   const enteredQty = Number(value);
-  const originalRemaining = Number(baseRemaining || 0);  // ✅ FIX
+  const originalRemaining = Number(baseRemaining || 0) + Number(extraQty || 0);
 
   if (enteredQty > originalRemaining) {
     Swal.fire("Error", "Qty cannot be greater than remaining", "error");
@@ -827,7 +847,7 @@ const handleSubmit = async (e) => {
     return;
   }
 
-  if (Number(form.quantity) > Number(baseRemaining))  {
+  if (Number(form.quantity) > Number(baseRemaining) + Number(extraQty || 0)) {
     Swal.fire("Error", "Quantity exceeds remaining qty", "error");
     setSaving(false);
     return;
@@ -903,6 +923,7 @@ try {
   console.log("Refresh error ignored", refreshErr);
 }
     fetchOrders();
+    setExtraQty(0);
     // reset form
     setForm({
       productCode: "",
@@ -1189,6 +1210,7 @@ if (found) {
     const editRemaining = remaining + currentQty;
 
     setBaseRemaining(editRemaining);   // cap used for validation
+    setExtraQty(0);
     setLiveRemaining(remaining);       // ✅ FIX: display = pool minus qty already filled in
 
   } catch (remainingErr) {
@@ -2265,6 +2287,7 @@ const expandTd = (order, key, value) => {
                 const remaining = Number(res.data.remainingQty || 0);
                 setBaseRemaining(remaining);
                 setLiveRemaining(remaining);
+                setExtraQty(0);
               }}
               styles={selectStyles}
             />
@@ -2278,9 +2301,23 @@ const expandTd = (order, key, value) => {
         </Field>
 
         {orderMode === "PERSOW" && (
-          <Field col="col-md-2" icon="calculator" label="Remaining Qty">
-            <input type="number" className="pi-input" value={liveRemaining} readOnly />
-          </Field>
+          <div className="col-md-2">
+            <div className="po-field is-floated">
+              <i className="bi bi-calculator po-field-icon"></i>
+              <input type="number" className="pi-input" value={liveRemaining} readOnly />
+              <label className="po-field-label">Remaining Qty</label>
+            </div>
+            {isAdmin && (
+              <button
+                type="button"
+                className="pi-linkbtn"
+                onClick={addExtraQty}
+                disabled={!selectedWO}
+              >
+                + Add Quantity{extraQty > 0 ? ` (extra: ${extraQty})` : ""}
+              </button>
+            )}
+          </div>
         )}
 
         <Field col="col-md-2" icon="geo-alt" label="Location" error={errors.location && <small className="text-danger">{errors.location}</small>}>
