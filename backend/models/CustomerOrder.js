@@ -58,6 +58,14 @@ const customerOrderSchema = new mongoose.Schema(
       ref: "LocationMaster",
       required: true
     },
+    locationSplits: [
+      {
+        _id: false,
+        location: { type: mongoose.Schema.Types.ObjectId, ref: "LocationMaster" },
+        locationName: { type: String, default: "" },
+        quantity: { type: Number, default: 0 }
+      }
+    ],
     orderType: {
       type: String,
       enum: ["Inhouse", "Out Source"]

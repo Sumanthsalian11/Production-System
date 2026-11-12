@@ -343,9 +343,12 @@ const PAGE_SIZE = 30;
       const res = await axios.get(`${BASE_URL}/api/newindent/requests`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setIndentRequests(res.data || []);
+      const d = res.data || [];
+      setIndentRequests(d);
+      return d;
     } catch {
       setIndentRequests([]);
+      return [];
     }
   };
 
@@ -796,7 +799,7 @@ const PAGE_SIZE = 30;
         Swal.fire({
           icon: "success",
           title: "Success",
-          text: `${res.data.ordersCreated} Order(s) Created from Indent ${res.data.indentNo}`,
+          text: `Order(s) created from Indent ${selectedIndent.indentNo}`,
           width: "350px",
           confirmButtonColor: "#3085d6",
           allowEnterKey: false,
@@ -870,7 +873,9 @@ const PAGE_SIZE = 30;
       "Quantity": order.quantity,
       "Waste %": order.orderWastePct || 0,
       "Estimated Cost": order.estimatedCost || 0,
-      "Location": order.location?.locationName || "",
+      "Location": order.locationSplits?.length > 1
+        ? order.locationSplits.map((l) => `${l.locationName}: ${l.quantity}`).join(" | ")
+        : order.location?.locationName || "",
       "Order Type": order.orderType || "",
       "Supplier Name": order.remarks || "",
       "User": order.user || "System"
@@ -931,8 +936,10 @@ const PAGE_SIZE = 30;
         { version, action, comment: c },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      const fresh = await fetchIndentRequests();
       if (selectedIndent && selectedIndent._id === ind._id) {
-        setSelectedIndent(res.data);
+        const g = groupIndents(fresh).find((x) => x.groupKey === selectedIndent.groupKey);
+        if (g) setSelectedIndent(g);
         setArtworkComment("");
       }
       setRowComments((p) => {
@@ -940,7 +947,7 @@ const PAGE_SIZE = 30;
         delete n[`${ind._id}-${version}`];
         return n;
       });
-      await Promise.all([fetchIndentRequests(), fetchPendingArtworks()]);
+      await fetchPendingArtworks();
       Swal.fire({
         icon: "success",
         title: action === "approve" ? "Approved" : "Rejected",
@@ -1025,13 +1032,39 @@ const PAGE_SIZE = 30;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackInfo?.woNo]);
 
+  const groupIndents = (list) => {
+    const map = new Map();
+    list.forEach((i) => {
+      const k = i.groupId || i._id;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(i);
+    });
+    return [...map.entries()].map(([k, arr]) => ({
+      ...arr[0],
+      groupKey: k,
+      _group: arr,
+      indentNo: arr.map((x) => x.indentNo).join(", "),
+      items: [{ ...arr[0].items[0],
+        quantity: arr.reduce((s, x) => s + (Number(x.items?.[0]?.quantity) || 0), 0) }],
+      locationList: arr.map((x) => ({ name: x.location?.locationName || "-", qty: x.items?.[0]?.quantity }))
+    }));
+  };
+
+  const LocCell = ({ list }) =>
+    list.length === 1 ? list[0].name : (
+      <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
+        <option value="">{list.length} locations</option>
+        {list.map((l, i) => <option key={i} value="" disabled>{l.name}: {l.qty}</option>)}
+      </select>
+    );
+
   const orOptions = (fn) =>
     [...new Set(indentRequests.map(fn).filter(Boolean))].sort();
   const orTypeOpts = orOptions((i) => i.items?.[0]?.materialType);
   const orLocOpts = orOptions((i) => i.location?.locationName);
   const orCustOpts = orOptions((i) => i.items?.[0]?.customerName);
 
-  const filteredIndents = indentRequests.filter((i) => {
+  const filteredIndents = groupIndents(indentRequests).filter((i) => {
     const it = i.items?.[0] || {};
     if (
       orFilter.productCode &&
@@ -1041,7 +1074,7 @@ const PAGE_SIZE = 30;
     )
       return false;
     if (orFilter.productType && it.materialType !== orFilter.productType) return false;
-    if (orFilter.location && i.location?.locationName !== orFilter.location) return false;
+    if (orFilter.location && !i.locationList.some((l) => l.name === orFilter.location)) return false;
     if (orFilter.customer && it.customerName !== orFilter.customer) return false;
     return true;
   });
@@ -2486,7 +2519,7 @@ const PAGE_SIZE = 30;
                             {indent.items[0]?.customerName || "-"}
                           </td>
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
-                          <td>{indent.location?.locationName || "-"}</td>
+                          <td><LocCell list={indent.locationList} /></td>
                           <td>
                             {(() => {
                               const it = indent.items[0] || {};
@@ -2599,7 +2632,7 @@ const PAGE_SIZE = 30;
                     ],
                     [
                       "Location",
-                      selectedIndent.location?.locationName || "-",
+                      selectedIndent.locationList?.map((l) => `${l.name}: ${l.qty}`).join(" | ") || selectedIndent.location?.locationName || "-",
                       "bi-geo-alt",
                       "col-md-4"
                     ],
@@ -3635,7 +3668,18 @@ const PAGE_SIZE = 30;
                             ? Number(order.estimatedCost).toLocaleString("en-IN")
                             : "-"}
                         </td>
-                        <td>{order.location?.locationName || "-"}</td>
+                        <td>
+                          {order.locationSplits?.length > 1 ? (
+                            <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
+                              <option value="">{order.locationSplits.length} locations</option>
+                              {order.locationSplits.map((l, i) => (
+                                <option key={i} value="" disabled>{l.locationName || "-"}: {l.quantity}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            order.location?.locationName || "-"
+                          )}
+                        </td>
                         <td>
                           <span
                             className={`badge ${

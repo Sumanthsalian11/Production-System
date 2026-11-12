@@ -253,7 +253,12 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     const { sampleRequestType, provisionalCustomerId } = req.body;
     const { productFamily, physicalReference, expectedOrderValue } = req.body;
 
-    if ((!isSample && !productCode) || !quantity || !location) {
+    let splits = [];
+    try { splits = JSON.parse(req.body.splits || "[]"); } catch { splits = []; }
+    splits = splits.filter((s) => s && s.location && Number(s.quantity) > 0);
+    if (!splits.length && location && quantity) splits = [{ location, quantity }];
+
+    if ((!isSample && !productCode) || !splits.length) {
       return res.status(400).json({ message: "Required fields missing" });
     }
 
@@ -267,7 +272,6 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
       const parts = lastIndent.indentNo.split("_");
       lastNumber = Number(parts[1]) || 0;
     }
-    const indentNo = `${isSample ? "SMP" : "IND"}_${String(lastNumber + 1).padStart(3, "0")}`;
 
     // ===== Uploaded files =====
     const customerCopyFile = req.files?.customerCopy?.[0];
@@ -311,69 +315,54 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     }
     const latestArt = pickLatestArtwork(artworkVersions);
 
-    // Create indent item
-    const indentItem = {
-      productCode,
-      materialType,
-      description,
-      customerName,
-      colorFront,
-      colorBack,
-      wasteQty,
-      jobSize,
-      inkDetails,
-      quantity: Number(quantity),
-      unitRate: Number(unitRate) || 0,
-      remark: remark || "",
-      deliveryDate: deliveryDate || null,
-      // ===== NEW FIELDS =====
-      lamination: lamination || "",
-      finish: finish || "",
-      jobNo: jobNo || "",
-      soNo: soNo || "",
-      soDate: soDate || null,
-      sampleType: sampleType || "",
-      costingConfirmation: costingConfirmation || "",
-      customerPoNo: customerPoNo || "",
-      customerPoDate: customerPoDate || null,
-      typeOfBilling: typeOfBilling || "",
-      itemPdfPath: itemPdfPath || "",
-      millName: millName || "",
-      paperGroup: paperGroup || "",
-      paperSize: paperSize || "",
-      gsm: gsm || "",
-      sampleRequestType: sampleRequestType || "",
-      provisionalCustomerId:
-        sampleRequestType === "new" ? (provisionalCustomerId || "PRV-" + indentNo.split("_")[1]) : "",
-      artworkVersions,
-      customerCopy,
-      artwork
-    };
+    const groupId = splits.length > 1 ? "GRP_" + Date.now() + "_" + Math.round(Math.random() * 1e6) : "";
+    const savedList = [];
 
-    if (latestArt) indentItem.artwork = latestArt;
-    indentItem.specification = specification;
-    indentItem.productFamily = productFamily || "";
-    indentItem.physicalReference = physicalReference || "";
-    indentItem.expectedOrderValue = expectedOrderValue || "";
+    for (let n = 0; n < splits.length; n++) {
+      const indentNo = `${isSample ? "SMP" : "IND"}_${String(lastNumber + 1 + n).padStart(3, "0")}`;
 
-    const newIndent = new IndentRequest({
-      indentNo,
-      items: [indentItem],
-      location,
-      user: userData.name,
-      userEmail: userData.email,
-      userLocations: Array.isArray(userData.locations) ? userData.locations : [],
-      status: isSample ? "SAMPLE_REQUESTED" : "PENDING_PO",
+      const indentItem = {
+        productCode, materialType, description, customerName, colorFront, colorBack,
+        wasteQty, jobSize, inkDetails,
+        quantity: Number(splits[n].quantity),
+        unitRate: Number(unitRate) || 0,
+        remark: remark || "",
+        deliveryDate: deliveryDate || null,
+        lamination: lamination || "", finish: finish || "", jobNo: jobNo || "", soNo: soNo || "",
+        soDate: soDate || null, sampleType: sampleType || "",
+        costingConfirmation: costingConfirmation || "",
+        customerPoNo: customerPoNo || "", customerPoDate: customerPoDate || null,
+        typeOfBilling: typeOfBilling || "", itemPdfPath: itemPdfPath || "",
+        millName: millName || "", paperGroup: paperGroup || "", paperSize: paperSize || "", gsm: gsm || "",
+        sampleRequestType: sampleRequestType || "",
+        provisionalCustomerId:
+          sampleRequestType === "new" ? (provisionalCustomerId || "PRV-" + indentNo.split("_")[1]) : "",
+        artworkVersions: artworkVersions.map((v) => ({ ...v })),
+        customerCopy,
+        artwork: latestArt || artwork,
+        specification,
+        productFamily: productFamily || "",
+        physicalReference: physicalReference || "",
+        expectedOrderValue: expectedOrderValue || ""
+      };
 
-      indentType: isSample ? "sample" : "production",
-      orderType: ""
-    });
+      const doc = new IndentRequest({
+        indentNo,
+        groupId,
+        items: [indentItem],
+        location: splits[n].location,
+        user: userData.name,
+        userEmail: userData.email,
+        userLocations: Array.isArray(userData.locations) ? userData.locations : [],
+        status: isSample ? "SAMPLE_REQUESTED" : "PENDING_PO",
+        indentType: isSample ? "sample" : "production",
+        orderType: ""
+      });
+      savedList.push(await doc.save());
+    }
 
-    const savedIndent = await newIndent.save();
-    res.status(201).json(savedIndent);
-
-    // mail for every new request (creator in CC). No await: saving is never delayed by mail errors
-    sendIndentRequestMail(savedIndent._id);
+    res.status(201).json(savedList.length === 1 ? savedList[0] : savedList);
+    savedList.forEach((s) => sendIndentRequestMail(s._id));
 
   } catch (err) {
     console.error("CREATE INDENT ERROR:", err);
@@ -483,6 +472,23 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       }
     }
 
+    // indents saved together (same groupId) become ONE order with the quantities added up
+    let groupDocs = [indent];
+    if (indent.groupId) {
+      const sibs = await IndentRequest.find({
+        groupId: indent.groupId,
+        _id: { $ne: indent._id },
+        status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] }
+      }).populate("location");
+      groupDocs = [indent, ...sibs];
+    }
+    const totalQty = groupDocs.reduce((s, d) => s + (Number(d.items?.[0]?.quantity) || 0), 0);
+    const locationSplits = groupDocs.map((d) => ({
+      location: d.location?._id || d.location,
+      locationName: d.location?.locationName || "",
+      quantity: Number(d.items?.[0]?.quantity) || 0
+    }));
+
     // 3. Process each item in the indent
     const createdOrders = [];
     
@@ -498,8 +504,9 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         jobSize: item.jobSize,
         inkDetails: item.inkDetails,
         quantity: wastePct > 0
-          ? Math.ceil(Number(item.quantity) + (Number(item.quantity) * wastePct) / 100)
-          : item.quantity,
+          ? Math.ceil(totalQty + (totalQty * wastePct) / 100)
+          : totalQty,
+        locationSplits,
         orderWastePct: wastePct,
         estimatedCost: Math.max(0, Number(req.body.estimatedCost) || 0),
         location: indent.location?._id || indent.location,
@@ -564,10 +571,12 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     }
 
     // 4. Update indent status
-    indent.status = "APPROVED";
-    indent.orderType = orderType;
-    indent.approvedAt = new Date();
-    await indent.save();
+    for (const d of groupDocs) {
+      d.status = "APPROVED";
+      d.orderType = orderType;
+      d.approvedAt = new Date();
+      await d.save();
+    }
 
     res.status(200).json({
       message: "Indent processed successfully",
@@ -814,6 +823,23 @@ router.put("/:id/artwork-review", authMiddleware, async (req, res) => {
 
     indent.markModified("items");
     await indent.save();
+
+    if (indent.groupId) {
+      const sibs = await IndentRequest.find({ groupId: indent.groupId, _id: { $ne: indent._id } });
+      for (const s of sibs) {
+        const it = s.items && s.items[0];
+        const t = it && (it.artworkVersions || []).find((v) => Number(v.version) === Number(version) && v.status === "Pending");
+        if (!t) continue;
+        if (verdict === "Approved") {
+          it.artworkVersions.forEach((v) => { if (v !== t && v.status === "Approved") v.status = "Superseded"; });
+        }
+        t.status = verdict; t.comment = cmt; t.reviewedBy = reviewer.name; t.reviewedAt = new Date();
+        const b = pickLatestArtwork(it.artworkVersions);
+        if (b) it.artwork = b;
+        s.markModified("items");
+        await s.save();
+      }
+    }
 
     const fresh = await IndentRequest.findById(indent._id).populate("location", "locationName");
     res.status(200).json(fresh);

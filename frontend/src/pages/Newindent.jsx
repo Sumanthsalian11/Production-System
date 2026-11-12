@@ -217,6 +217,8 @@ function NewIndent() {
   const [materials, setMaterials] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState("");
   const [errors, setErrors] = useState({});
+  const [extraRows, setExtraRows] = useState([]);
+  const setExtra = (i, k, v) => setExtraRows((p) => p.map((r, x) => (x === i ? { ...r, [k]: v } : r)));
   const [indents, setIndents] = useState([]);
   const [filteredIndents, setFilteredIndents] = useState([]);
   const [fromDate, setFromDate] = useState("");
@@ -801,6 +803,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         confirmButtonColor: "#3085d6"
       });
     }
+    if (extraRows.some((r) => !r.location || !(Number(r.quantity) > 0))) newErrors.splits = "Fill or remove the extra rows";
     setErrors(newErrors);
     const fieldLabels = {
       productCode: "Product Code",
@@ -809,7 +812,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       deliveryDate: searchMode === "sample" ? "Required Date" : "Delivery Date",
       sampleRequestType: "Request Type",
       sampleType: "Sample Type",
-      artwork: "Artwork (upload a version)"
+      artwork: "Artwork (upload a version)",
+      splits: "Extra Location / Quantity rows (fill or remove)"
     };
     const missingKeys = Object.keys(newErrors).filter((k) => fieldLabels[k]);
     if (missingKeys.length) {
@@ -847,6 +851,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         formData.append(key, value ?? "");
       });
       if (searchMode === "sample") formData.set("productCode", sampleMatchCode);
+      formData.append("splits", JSON.stringify([{ location: form.location, quantity: form.quantity }, ...extraRows]));
       if (customerCopyFile) formData.append("customerCopy", customerCopyFile);
       if (artworkFile) formData.append("artwork", artworkFile);
 
@@ -956,6 +961,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setAwNote("");
     if (awFileInputRef.current) awFileInputRef.current.value = "";
     setErrors({});
+    setExtraRows([]);
     setEditingId(null);
   };
 
@@ -1034,6 +1040,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setSearchMode(ind.indentType === "sample" ? "sample" : "code");
     artReviewedRef.current = false;
     setEditingId(ind._id);
+    setExtraRows([]);
     setShowForm(true);
     setShowTrack(false);
 
@@ -1272,6 +1279,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     setAwFile(null);
     setAwNote("");
     setEditingId(null);
+    setExtraRows([]);
     if (awFileInputRef.current) awFileInputRef.current.value = "";
     setForm((prev) => ({
       ...prev,
@@ -2898,6 +2906,35 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       onChange={handleChange}
                       />
                   </PoField>
+
+                  {!editingId && (
+                    <div className="col-12">
+                      <button type="button" className="btn-action-edit"
+                        onClick={() => setExtraRows((p) => [...p, { location: "", quantity: "" }])}>
+                        <i className="bi bi-plus-lg"></i> Add location &amp; quantity
+                      </button>
+                    </div>
+                  )}
+                  {extraRows.map((r, i) => (
+                    <div key={i} className="col-12">
+                      <div className="row g-2 align-items-center">
+                        <PoField className="col-6 col-md-3" icon="bi-123" label="Order Quantity" required filled={has(r.quantity)}>
+                          <input type="number" className="po-input" value={r.quantity} title={r.quantity}
+                            onChange={(e) => e.target.value >= 0 && setExtra(i, "quantity", e.target.value)} />
+                        </PoField>
+                        <PoField className="col-6 col-md-3" icon="bi-geo-alt" label="Location" required alwaysFloat caret>
+                          <select className="po-input" value={r.location} onChange={(e) => setExtra(i, "location", e.target.value)}>
+                            <option value="">Select Location</option>
+                            {locations.map((l) => <option key={l._id} value={l._id}>{l.locationName}</option>)}
+                          </select>
+                        </PoField>
+                        <div className="col-12 col-md-2">
+                          <button type="button" className="btn-action-delete"
+                            onClick={() => setExtraRows((p) => p.filter((_, x) => x !== i))}>Remove</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 

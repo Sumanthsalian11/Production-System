@@ -93,6 +93,7 @@ const IndentRequestSchema = new mongoose.Schema(
     },
 
     indentType: { type: String, enum: ["production", "sample"], default: "production" },
+groupId: { type: String, default: "" },
     orderType:  { type: String, default: "" },
 
     // ===== TRACKING =====
