@@ -401,6 +401,9 @@ router.get("/", authMiddleware, async (req, res) => {
       if (req.query.from) f.createdAt.$gte = new Date(req.query.from);
       if (req.query.to) f.createdAt.$lte = new Date(req.query.to);
     }
+    if (req.query.productType) {
+      f["items.materialType"] = new RegExp("^" + escapeRx(String(req.query.productType).trim()) + "$", "i");
+    }
     if (req.query.type === "sample") f.indentType = "sample";
     else if (req.query.type === "production") f.indentType = { $ne: "sample" };
     if (req.query.q) {

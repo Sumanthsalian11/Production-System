@@ -25,6 +25,9 @@ async function buildTracking(opt = {}) {
     if (onlyNos) indFilter.indentNo = { $in: onlyNos };
     else if (rx)
       indFilter.$or = [{ indentNo: rx }, { "items.customerName": rx }, { "items.productCode": rx }, { "items.description": rx }];
+    if (opt.productType) {
+      indFilter["items.materialType"] = new RegExp("^" + esc(String(opt.productType).trim()) + "$", "i");
+    }
     if (opt.type === "sample") indFilter.indentType = "sample";
     else if (opt.type === "production") indFilter.indentType = { $ne: "sample" };
     const indents = await IndentRequest.find(indFilter)
@@ -280,7 +283,7 @@ router.get("/stage-page", authMiddleware, async (req, res) => {
     let more = true;
     while (more && out.length < want && scanned < MAX_SCAN) {
       const rows = await buildTracking({
-        q: req.query.q, type: req.query.type, skip, limit: BATCH, indentsOnly: true
+        q: req.query.q, type: req.query.type, productType: req.query.productType, skip, limit: BATCH, indentsOnly: true
       });
       if (rows.length < BATCH) more = false;
       let used = rows.length;

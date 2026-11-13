@@ -598,14 +598,14 @@ function NewIndent() {
   const fetchTrackRows = async () => {
     const q = qRef.current;
     try {
-      let params = { page: q.trackPage, limit: PAGE_SIZE, q: q.searchQ, type: q.typeFilter };
+      let params = { page: q.trackPage, limit: PAGE_SIZE, q: q.searchQ, productType: q.typeFilter };
       if (q.stageFilter) {
         const s = await axios.get(`${BASE_URL}/api/tracking/stage-page`, {
           headers: { Authorization: `Bearer ${token}` },
           params: {
             stage: q.stageFilter,
             q: q.searchQ,
-            type: q.typeFilter,
+            productType: q.typeFilter,
             limit: PAGE_SIZE,
             cursor: stageCursors.current[q.trackPage - 1] || 0
           }
@@ -1318,10 +1318,9 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     return trackRows.filter((ind) => {
       const it = ind.items?.[0] || {};
       const hay = [ind.indentNo, it.customerName, it.productCode, it.description].join(" ").toLowerCase();
-      const t = typeKey(ind);
       return (
         (!q || hay.includes(q)) &&
-        (!typeFilter || t === typeFilter) &&
+        (!typeFilter || norm(it.materialType).toLowerCase() === norm(typeFilter).toLowerCase()) &&
         (!stageFilter || (flow[ind.indentNo]?.current || "") === stageFilter)
       );
     });
@@ -4401,11 +4400,10 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   {LIVE_STAGES.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               </PoField>
-              <PoField className="col-6 col-lg-2" icon="bi-tag" label="Type" alwaysFloat caret>
+              <PoField className="col-6 col-lg-2" icon="bi-tag" label="Product Type" alwaysFloat caret>
                 <select className="po-input" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                  <option value="">All types</option>
-                  <option value="production">Production</option>
-                  <option value="sample">Sample</option>
+                  <option value="">All product types</option>
+                  {materialTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </PoField>
               <div className="col-6 col-lg-2">
@@ -4418,7 +4416,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             <table className="table table-bordered table-hover align-middle bg-white">
               <thead>
                 <tr>
-                  <th>Indent</th><th>Type</th><th>Customer</th><th>Product</th><th>Qty</th>
+                  <th>Indent</th><th>Product Type</th><th>Customer</th><th>Product</th><th>Qty</th>
                   <th>Due</th><th>Stage</th><th>WO / Ticket</th><th></th>
                 </tr>
               </thead>
@@ -4436,7 +4434,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     return (
                       <tr key={ind._id} className={trackId === ind._id ? "trk-selected" : ""}>
                         <td className="fw-bold">{ind.indentNo}</td>
-                        <td>{typeKey(ind) === "sample" ? "Sample" : "Production"}</td>
+                        <td>{it.materialType || "-"}</td>
                         <td>{it.customerName || "-"}</td>
                         <td>{it.description || it.productCode || "-"}</td>
                         <td>{it.quantity ?? "-"}</td>
