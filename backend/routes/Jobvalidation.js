@@ -111,7 +111,7 @@ router.post("/upload/:kind", async (req, res) => {
   try {
     const kind = req.params.kind;
     if (!UPLOAD_SPEC[kind]) return res.status(400).json({ message: "Unknown data type: " + kind });
-    const { rows, startRow, batchId, final, passcode } = req.body || {};
+    const { rows, startRow, batchId, final, passcode, fileName } = req.body || {};
     if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ message: "Nothing to upload." });
     if (!batchId) return res.status(400).json({ message: "Missing batch id." });
 
@@ -127,7 +127,7 @@ router.post("/upload/:kind", async (req, res) => {
       if (missing.length) return res.status(400).json({ message: "Missing columns: " + missing.join(", ") });
       await JobValidationMeta.deleteMany({ kind, active: false }); // clear any half-finished earlier upload
       await JobValidationRow.deleteMany({ kind, batchId: { $nin: await activeBatches(kind) } });
-      await JobValidationMeta.create({ kind, batchId, header: rows[0].map((h) => String(h).trim()), rowCount: 0, active: false, uploadedBy: req.user && (req.user.name || req.user.username) });
+      await JobValidationMeta.create({ kind, batchId, header: rows[0].map((h) => String(h).trim()), rowCount: 0, active: false, fileName: String(fileName || "").slice(0, 255), uploadedBy: req.user && (req.user.name || req.user.username) });
       dataRows = rows.slice(1);
     } else {
       const m = await JobValidationMeta.findOne({ kind, batchId, active: false });
@@ -159,5 +159,43 @@ async function activeBatches(kind) {
   const a = await JobValidationMeta.find({ kind, active: true }).lean();
   return a.map((x) => x.batchId);
 }
+/* ---------------- uploaded files: list + delete ---------------- */
+router.get("/files", async (req, res) => {
+  try {
+    const setup = await getSetup();
+    const order = { production: 1, consumption: 2, planning: 3 };
+    const metas = await JobValidationMeta.find({ active: true }).lean();
+    const files = metas
+      .sort((a, b) => (order[a.kind] || 9) - (order[b.kind] || 9))
+      .map((m) => ({
+        kind: m.kind,
+        fileName: m.fileName || "",
+        rowCount: m.rowCount,
+        uploadedAt: m.updatedAt,
+        uploadedBy: m.uploadedBy || "",
+      }));
+    res.json({
+      files,
+      needPasscode: String(settingValue(setup, "UPLOAD_PASSCODE") || "").trim() !== "",
+    });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
 
+router.delete("/files/:kind", async (req, res) => {
+  try {
+    const kind = req.params.kind;
+    if (!UPLOAD_SPEC[kind]) return res.status(400).json({ message: "Unknown data type: " + kind });
+    const setup = await getSetup();
+    const pass = String(settingValue(setup, "UPLOAD_PASSCODE") || "").trim();
+    if (pass && String((req.body && req.body.passcode) || "").trim() !== pass) {
+      return res.status(403).json({ message: "Wrong upload passcode." });
+    }
+    const del = await JobValidationRow.deleteMany({ kind });
+    await JobValidationMeta.deleteMany({ kind });
+    res.json({ ok: true, deletedRows: del.deletedCount });
+  } catch (e) {
+    console.error("job-validation delete file:", e);
+    res.status(500).json({ message: e.message });
+  }
+});
 module.exports = router;

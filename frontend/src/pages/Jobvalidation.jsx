@@ -309,7 +309,7 @@ export default function JobValidation() {
             {data && data.months.concat(["ALL"]).map((m) => <option key={m} value={m}>{monthName(m)}</option>)}
           </select>
         </div>
-        <button className="jv-btn primary" onClick={() => setShowUpload(true)}>Upload data</button>
+        <FilesMenu onChanged={() => load("")} /><button className="jv-btn primary" onClick={() => setShowUpload(true)}>Upload data</button>
         <button className="jv-btn" onClick={() => setShowSetup(true)}>Setup</button>
         <button className="jv-btn" disabled={loading} onClick={() => load(month)}>Refresh</button>
         <button className="jv-btn" disabled={!data} onClick={downloadCsv}>Download CSV</button>
@@ -656,7 +656,7 @@ function UploadModal({ onClose, onDone }) {
     for (let pos = 0; pos < grid.length; pos += CH) {
       const part = grid.slice(pos, pos + CH);
       setMsg(`Uploading ${info.kinds[k].label}: ${n0(Math.min(pos + part.length, grid.length) - 1)} of ${n0(grid.length - 1)} rows...`);
-      await axios.post(`${API}/upload/${k}`, { rows: part, startRow: pos, batchId, final: pos + part.length >= grid.length, passcode: pass }, authCfg());
+      await axios.post(`${API}/upload/${k}`, { rows: part, startRow: pos, batchId, final: pos + part.length >= grid.length, passcode: pass, fileName: p.name }, authCfg());
     }
     return grid.length - 1;
   };
@@ -895,3 +895,105 @@ const CSS = `
 .jv-detail { background: var(--jv-cyan-soft); border-radius: 8px; padding: 4px 16px 16px; }
 .jv-setupwrap { overflow: auto; max-height: 55vh; border: 1px solid var(--jv-line); border-radius: 6px; }
 `;
+
+/* ---------------- uploaded files dropdown (names + delete) ---------------- */
+const KIND_LABEL = { production: "Production", consumption: "SAP consumption", planning: "Planning" };
+
+const FILES_CSS = `
+.jv-files { position: relative; }
+.jv-files-pop { position: absolute; right: 0; top: calc(100% + 6px); width: 400px; max-width: 92vw; background: #fff; border: 1px solid var(--jv-line); border-radius: 8px; box-shadow: 0 8px 24px rgba(20,32,43,.18); z-index: 30; max-height: 70vh; overflow: auto; }
+.jv-files-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--jv-line); }
+.jv-files-item:last-child { border-bottom: 0; }
+.jv-files-info { min-width: 0; }
+.jv-files-kind { font-size: 12px; color: var(--muted, #5A6772); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.jv-files-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px; }
+.jv-files-empty { padding: 16px; text-align: center; color: var(--muted, #5A6772); }
+.jv-btn.del { color: var(--jv-crit); border-color: var(--jv-crit-soft); }
+.jv-btn.del:hover { background: var(--jv-crit-soft); border-color: var(--jv-crit); color: var(--jv-crit); }
+`;
+
+function FilesMenu({ onChanged }) {
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState([]);
+  const [needPass, setNeedPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [busyKind, setBusyKind] = useState("");
+  const [err, setErr] = useState("");
+  const boxRef = useRef(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await axios.get(`${API}/files`, authCfg());
+      setList(r.data.files || []);
+      setNeedPass(!!r.data.needPasscode);
+    } catch (e) {
+      setErr("Could not load files: " + errMsg(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (open) refresh(); }, [open, refresh]);
+
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+
+  const remove = async (f) => {
+    const name = f.fileName || KIND_LABEL[f.kind] || f.kind;
+    if (!window.confirm(`Delete "${name}" (${n0(f.rowCount)} rows) from the database?\n\nThis cannot be undone.`)) return;
+    let passcode = "";
+    if (needPass) {
+      passcode = window.prompt("Enter the upload passcode to delete this file");
+      if (passcode === null) return;
+    }
+    setBusyKind(f.kind);
+    setErr("");
+    try {
+      await axios.delete(`${API}/files/${f.kind}`, { ...authCfg(), data: { passcode } });
+      await refresh();
+      onChanged();
+    } catch (e) {
+      setErr("Could not delete: " + errMsg(e));
+    } finally {
+      setBusyKind("");
+    }
+  };
+
+  return (
+    <div className="jv-files" ref={boxRef}>
+      <style>{FILES_CSS}</style>
+      <button className="jv-btn" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        Uploaded files &#9662;
+      </button>
+      {open && (
+        <div className="jv-files-pop">
+          {loading && <div className="jv-files-empty">Loading...</div>}
+          {err && <div className="jv-msg" style={{ margin: 8 }}>{err}</div>}
+          {!loading && !err && list.length === 0 && <div className="jv-files-empty">No files uploaded yet.</div>}
+          {list.map((f) => (
+            <div className="jv-files-item" key={f.kind}>
+              <div className="jv-files-info">
+                <div className="jv-files-kind">{KIND_LABEL[f.kind] || f.kind}</div>
+                <div className="jv-files-name" title={f.fileName}>{f.fileName || "(file name not saved)"}</div>
+                <div className="jv-jobdesc">
+                  {n0(f.rowCount)} rows
+                  {f.uploadedAt ? " | " + new Date(f.uploadedAt).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                  {f.uploadedBy ? " | " + f.uploadedBy : ""}
+                </div>
+              </div>
+              <button className="jv-btn del" disabled={busyKind === f.kind} onClick={() => remove(f)}>
+                {busyKind === f.kind ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -16,7 +16,7 @@ const metaSchema = new mongoose.Schema(
     header: [String],
     rowCount: { type: Number, default: 0 },
     active: { type: Boolean, default: false },
-    uploadedBy: String,
+    uploadedBy: String, fileName: { type: String, default: "" },
   },
   { timestamps: true }
 );
