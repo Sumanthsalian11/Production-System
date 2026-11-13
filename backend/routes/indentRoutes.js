@@ -375,13 +375,102 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
 // =============================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const indents = await IndentRequest.find()
-      .populate("location", "locationName")
-      .sort({ createdAt: -1 });
-    res.status(200).json(indents);
+    // no page param = old behaviour (other pages may still call this)
+    if (req.query.page === undefined) {
+      const indents = await IndentRequest.find()
+        .populate("location", "locationName")
+        .sort({ createdAt: -1 })
+        .lean();
+      return res.status(200).json(indents);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    const rx = (s) => new RegExp(escapeRx(String(s)), "i");
+    const f = {};
+    if (req.query.indentNo) f.indentNo = rx(req.query.indentNo);
+    if (req.query.indentNos) {
+      f.indentNo = { $in: String(req.query.indentNos).split(",").map((s) => s.trim()).filter(Boolean) };
+    }
+    if (req.query.productCode) f["items.productCode"] = rx(req.query.productCode);
+    if (req.query.customer) f["items.customerName"] = rx(req.query.customer);
+    if (req.query.indenter) f.user = req.query.indenter;
+    if (req.query.location) f.location = req.query.location;
+    if (req.query.from || req.query.to) {
+      f.createdAt = {};
+      if (req.query.from) f.createdAt.$gte = new Date(req.query.from);
+      if (req.query.to) f.createdAt.$lte = new Date(req.query.to);
+    }
+    if (req.query.type === "sample") f.indentType = "sample";
+    else if (req.query.type === "production") f.indentType = { $ne: "sample" };
+    if (req.query.q) {
+      const r = rx(req.query.q);
+      f.$or = [
+        { indentNo: r },
+        { "items.customerName": r },
+        { "items.productCode": r },
+        { "items.description": r }
+      ];
+    }
+
+    const filtered = Object.keys(f).length > 0;
+    const [data, total, grandTotal] = await Promise.all([
+      IndentRequest.find(f)
+        .populate("location", "locationName")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      filtered ? IndentRequest.countDocuments(f) : IndentRequest.estimatedDocumentCount(),
+      IndentRequest.estimatedDocumentCount()
+    ]);
+    res.status(200).json({ data, total, grandTotal });
   } catch (err) {
     console.error("FETCH INDENTS ERROR:", err);
     res.status(500).json({ message: "Error fetching indents" });
+  }
+});
+
+// distinct indenters for the filter dropdown
+router.get("/indenters", authMiddleware, async (req, res) => {
+  try {
+    const users = await IndentRequest.distinct("user");
+    res.status(200).json(users.filter(Boolean).sort());
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching indenters" });
+  }
+});
+
+// one indent by id (used when Track is opened from another page)
+router.get("/by-id/:id", authMiddleware, async (req, res) => {
+  try {
+    const ind = await IndentRequest.findById(req.params.id)
+      .populate("location", "locationName")
+      .lean();
+    if (!ind) return res.status(404).json({ message: "Indent not found" });
+    res.status(200).json(ind);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching indent" });
+  }
+});
+
+// the logged-in user's indents that have artwork updates (feeds the bell)
+router.get("/my-artwork-updates", authMiddleware, async (req, res) => {
+  try {
+    const me = await User.findById(req.user.id).select("name");
+    if (!me) return res.status(200).json([]);
+    const list = await IndentRequest.find({
+      user: me.name,
+      status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED", "REJECTED"] },
+      "items.artworkVersions.status": { $in: ["Rejected", "Approved"] }
+    })
+      .populate("location", "locationName")
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    res.status(200).json(list);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching artwork updates" });
   }
 });
 
@@ -632,9 +721,10 @@ router.put("/reject/:id", authMiddleware, async (req, res) => {
 // indentNo -> ticket numbers, for the Track table
 router.get("/external-tickets", authMiddleware, async (req, res) => {
   try {
+    const wanted = String(req.query.indentNos || "").split(",").map((s) => s.trim()).filter(Boolean);
     const orders = await CustomerOrder.find({
       orderType: "Out Source",
-      indentNo: { $exists: true, $ne: "" },
+      indentNo: wanted.length ? { $in: wanted } : { $exists: true, $ne: "" },
       ticketNo: { $exists: true, $ne: "" }
     }).select("indentNo ticketNo quantity").lean();
 

@@ -221,6 +221,23 @@ function NewIndent() {
   const setExtra = (i, k, v) => setExtraRows((p) => p.map((r, x) => (x === i ? { ...r, [k]: v } : r)));
   const [indents, setIndents] = useState([]);
   const [filteredIndents, setFilteredIndents] = useState([]);
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [grandTotal, setGrandTotal] = useState(0);
+  const [trackRows, setTrackRows] = useState([]);
+  const [trackPage, setTrackPage] = useState(1);
+  const [trackTotal, setTrackTotal] = useState(0);
+  const [pinned, setPinned] = useState([]);
+  const [bellList, setBellList] = useState([]);
+  const [indenterList, setIndenterList] = useState([]);
+  // every indent currently loaded (table page + track page + one opened from another page)
+  const indentsAll = useMemo(() => {
+    const seen = new Set();
+    return [...indents, ...trackRows, ...pinned].filter(
+      (x) => x && !seen.has(x._id) && seen.add(x._id)
+    );
+  }, [indents, trackRows, pinned]);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const token = localStorage.getItem("token");
@@ -332,11 +349,11 @@ function NewIndent() {
   // ===== PRODUCT SEARCH MODE: "code" (normal) or "customer" (customer + description dropdowns) =====
   const flow = useMemo(() => {
     const out = { ...flowRaw };
-    indents.forEach((ind) => {
+    indentsAll.forEach((ind) => {
       if (out[ind.indentNo]) out[ind.indentNo] = withExt(out[ind.indentNo], ind, extTickets[ind.indentNo]);
     });
     return out;
-  }, [flowRaw, indents, extTickets]);
+  }, [flowRaw, indentsAll, extTickets]);
 
   const [searchMode, setSearchMode] = useState("code");
   const [itemList, setItemList] = useState([]);
@@ -522,30 +539,160 @@ function NewIndent() {
     fetchLocations();
     fetchIndents();
     fetchMaterials();
+    fetchIndenters();
   }, []);
 
+  // latest filter / page values, so fetchIndents always sees them (even from the 60s timer)
+  const qRef = useRef({});
+  qRef.current = {
+    page, trackPage, showTrack, indentNoFilter, productCodeFilter, customerFilter,
+    locationFilter, indenterFilter, fromDate, toDate, searchQ, typeFilter, stageFilter
+  };
+  const reqId = useRef(0);
+
+  const dayEdge = (d, end) => {
+    if (!d) return "";
+    const x = new Date(d);
+    if (end) x.setHours(23, 59, 59, 999);
+    else x.setHours(0, 0, 0, 0);
+    return x.toISOString();
+  };
+  const listParams = (q, p, limit) => ({
+    page: p,
+    limit,
+    indentNo: q.indentNoFilter,
+    productCode: q.productCodeFilter,
+    customer: q.customerFilter,
+    location: q.locationFilter,
+    indenter: q.indenterFilter,
+    from: dayEdge(q.fromDate, false),
+    to: dayEdge(q.toDate, true)
+  });
+
   const fetchIndents = async () => {
+    const q = qRef.current;
+    const my = ++reqId.current;
     try {
       const res = await axios.get(`${BASE_URL}/api/newindent`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: listParams(q, q.page, PAGE_SIZE)
       });
-      setIndents(res.data);
-      fetchFlow();
-      fetchExtTickets();
+      if (my !== reqId.current) return; // a newer request is already running
+      const rows = res.data?.data || [];
+      setIndents(rows);
+      setTotal(res.data?.total || 0);
+      setGrandTotal(res.data?.grandTotal || 0);
+      fetchFlow(rows.map((x) => x.indentNo));
+      fetchExtTickets(rows.map((x) => x.indentNo));
+      fetchBell();
+      if (q.showTrack) fetchTrackRows();
     } catch {
+      if (my !== reqId.current) return;
       setIndents([]);
+      setTotal(0);
     }
   };
-  const fetchExtTickets = async () => {
+
+  const stageCursors = useRef([0]);
+  const [trackMore, setTrackMore] = useState(false);
+  const fetchTrackRows = async () => {
+    const q = qRef.current;
+    try {
+      let params = { page: q.trackPage, limit: PAGE_SIZE, q: q.searchQ, type: q.typeFilter };
+      if (q.stageFilter) {
+        const s = await axios.get(`${BASE_URL}/api/tracking/stage-page`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: {
+            stage: q.stageFilter,
+            q: q.searchQ,
+            type: q.typeFilter,
+            limit: PAGE_SIZE,
+            cursor: stageCursors.current[q.trackPage - 1] || 0
+          }
+        });
+        const found = s.data?.indentNos || [];
+        stageCursors.current[q.trackPage] = s.data?.nextCursor;
+        setTrackMore(s.data?.nextCursor != null);
+        if (!found.length) {
+          setTrackRows([]);
+          setTrackTotal(0);
+          return;
+        }
+        params = { page: 1, limit: found.length, indentNos: found.join(",") };
+      } else {
+        setTrackMore(false);
+      }
+      const res = await axios.get(`${BASE_URL}/api/newindent`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params
+      });
+      const rows = res.data?.data || [];
+      setTrackRows(rows);
+      setTrackTotal(q.stageFilter ? rows.length : res.data?.total || 0);
+      setGrandTotal(res.data?.grandTotal || 0);
+      fetchFlow(rows.map((x) => x.indentNo));
+      fetchExtTickets(rows.map((x) => x.indentNo));
+    } catch {
+      setTrackRows([]);
+      setTrackTotal(0);
+    }
+  };
+
+  const fetchExtTickets = async (nos = []) => {
+    if (!nos.length) return;
     try {
       const r = await axios.get(`${BASE_URL}/api/newindent/external-tickets`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { indentNos: nos.join(",") }
       });
-      setExtTickets(r.data || {});
+      setExtTickets((p) => ({ ...p, ...(r.data || {}) }));
     } catch {
-      setExtTickets({});
+      /* keep what is already loaded */
     }
   };
+
+  const fetchBell = async () => {
+    try {
+      const r = await axios.get(`${BASE_URL}/api/newindent/my-artwork-updates`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setBellList(r.data || []);
+    } catch {
+      setBellList([]);
+    }
+  };
+
+  const fetchIndenters = async () => {
+    try {
+      const r = await axios.get(`${BASE_URL}/api/newindent/indenters`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setIndenterList(r.data || []);
+    } catch {
+      setIndenterList([]);
+    }
+  };
+
+  // reload from the server when a filter or the page changes (waits 400 ms while typing)
+  const firstLoad = useRef(true);
+  useEffect(() => {
+    setPage(1);
+  }, [indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+  useEffect(() => {
+    if (firstLoad.current) { firstLoad.current = false; return; }
+    const t = setTimeout(() => fetchIndents(), 400);
+    return () => clearTimeout(t);
+  }, [page, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+
+  useEffect(() => {
+    stageCursors.current = [0];
+    setTrackPage(1);
+  }, [searchQ, typeFilter, stageFilter]);
+  useEffect(() => {
+    if (!showTrack) return;
+    const t = setTimeout(() => fetchTrackRows(), 400);
+    return () => clearTimeout(t);
+  }, [showTrack, trackPage, searchQ, typeFilter, stageFilter]);
   const fetchExtDetail = async (indentNo) => {
     try {
       const r = await axios.get(
@@ -568,7 +715,7 @@ function NewIndent() {
   };
   // work order of the indent whose Track popup is open
   const trackWoNo = (() => {
-    const i = indents.find((x) => x._id === trackId);
+    const i = indentsAll.find((x) => x._id === trackId);
     return i ? flow[i.indentNo]?.woNo : null;
   })();
   useEffect(() => {
@@ -582,7 +729,7 @@ function NewIndent() {
   }, [trackWoNo, trackId]);
 
   useEffect(() => {
-    const ind = indents.find((x) => x._id === trackId);
+    const ind = indentsAll.find((x) => x._id === trackId);
     if (ind && isExtOrder(ind)) fetchExtDetail(ind.indentNo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId]);
@@ -594,17 +741,25 @@ function NewIndent() {
     setShowForm(false);
     setTrackId(id);
     setTrackExtra({}); setTrackNote(""); setHoldReason(""); setTrackErr("");
+    axios
+      .get(`${BASE_URL}/api/newindent/by-id/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => { setPinned([r.data]); fetchFlow([r.data.indentNo]); })
+      .catch(() => {});
     navigate(routerLoc.pathname, { replace: true, state: null });
   }, [routerLoc.state]);
 
-  const fetchFlow = async () => {
+  const fetchFlow = async (nos = []) => {
+    if (!nos.length) return;
     try {
-      const r = await axios.get(`${BASE_URL}/api/tracking`, { headers: { Authorization: `Bearer ${token}` }, params: { limit: 300 } });
+      const r = await axios.get(`${BASE_URL}/api/tracking`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { indentNos: nos.join(",") }
+      });
       const m = {};
       (r.data || []).forEach((x) => { m[x.ref] = { ...x, stages: (x.stages || []).filter((s) => s.key !== "qc") }; });
-      setFlow(m);
+      setFlow((p) => ({ ...p, ...m }));
     } catch {
-      setFlow({});
+      /* keep what is already loaded */
     }
   };
   useEffect(() => {
@@ -1142,7 +1297,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   }, [indents, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
 
   // everyone who has raised an indent (plus the logged-in user, so the default is always in the list)
-  const indenterOptions = [...new Set([loggedInUser, ...indents.map((i) => i.user)].filter(Boolean))].sort();
+  const indenterOptions = [...new Set([loggedInUser, ...indenterList].filter(Boolean))].sort();
 
   const clearFilters = () => {
     setIndentNoFilter("");
@@ -1160,7 +1315,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
   // ===== TRACK TABLE (separate list and filters) =====
   const trackIndents = useMemo(() => {
     const q = searchQ.trim().toLowerCase();
-    return indents.filter((ind) => {
+    return trackRows.filter((ind) => {
       const it = ind.items?.[0] || {};
       const hay = [ind.indentNo, it.customerName, it.productCode, it.description].join(" ").toLowerCase();
       const t = typeKey(ind);
@@ -1170,7 +1325,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         (!stageFilter || (flow[ind.indentNo]?.current || "") === stageFilter)
       );
     });
-  }, [indents, searchQ, stageFilter, typeFilter, flow]);
+  }, [trackRows, searchQ, stageFilter, typeFilter, flow]);
 
 
 
@@ -1207,8 +1362,24 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
     }
     runTrack(ind, { action: "advance", details: trackExtra, note: trackNote });
   };
-  const exportToExcel = () => {
-    const data = filteredIndents.map((ind) => ({
+  const exportToExcel = async () => {
+    const q = qRef.current;
+    let rows = [];
+    try {
+      for (let p = 1; p <= 50; p++) {
+        const r = await axios.get(`${BASE_URL}/api/newindent`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: listParams(q, p, 1000)
+        });
+        const d = r.data?.data || [];
+        rows = rows.concat(d);
+        if (!d.length || rows.length >= (r.data?.total || 0)) break;
+      }
+    } catch {
+      Swal.fire({ icon: "error", title: "Error", text: "Could not export indents", confirmButtonColor: "#d33" });
+      return;
+    }
+    const data = rows.map((ind) => ({
       "Indent No": ind.indentNo,
       "Product Code": ind.items?.[0]?.productCode,
       Description: ind.items?.[0]?.description,
@@ -3701,7 +3872,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
         {(() => {
 
           if (showTrack) return null; // hide bell on Track
-          const mine = indents.filter((ind) => {
+          const mine = bellList.filter((ind) => {
             if (ind.user !== loggedInUser) return false;
             const a = latestArtOf(ind);
             if (!a) return false;
@@ -3778,7 +3949,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               Filter Indents
             </h5>
             <span className="bar-count">
-              {filteredIndents.length} / {indents.length} indents
+              {total.toLocaleString("en-IN")} / {grandTotal.toLocaleString("en-IN")} indents
             </span>
           </div>
 
@@ -3906,7 +4077,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 {showExtraCols ? "Collapse columns" : "Expand columns"}
               </button>
               <span className="bar-count">
-                Showing {Math.min(filteredIndents.length, 50)} of {filteredIndents.length} entries
+                Showing {filteredIndents.length} of {total.toLocaleString("en-IN")} entries
               </span>
             </div>
           </div>
@@ -4195,11 +4366,28 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
 
 
 
+        {!showTrack && (
+          <div className="d-flex justify-content-center align-items-center gap-3 mt-2">
+            <button type="button" className="btn-action-edit" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              Prev
+            </button>
+            <span>Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}</span>
+            <button
+              type="button"
+              className="btn-action-edit"
+              disabled={page >= Math.ceil(total / PAGE_SIZE)}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
+        )}
+
         {/* ===== SAVED INDENTS AND TRACKING ===== */}
         <div className="bar-card" style={{ display: showTrack ? "block" : "none" }}>
           <div className="bar-head">
             <h5>Saved Indents and Tracking</h5>
-            <span className="bar-count">{trackIndents.length} / {indents.length} indents</span>
+            <span className="bar-count">{trackTotal.toLocaleString("en-IN")} / {grandTotal.toLocaleString("en-IN")} indents</span>
           </div>
 
           <div className="bar-body">
@@ -4298,9 +4486,24 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
             </table>
           </div>
 
+          <div className="d-flex justify-content-center align-items-center gap-3 py-2">
+            <button type="button" className="btn-action-edit" disabled={trackPage <= 1} onClick={() => setTrackPage((p) => p - 1)}>
+              Prev
+            </button>
+            <span>Page {trackPage}{stageFilter ? "" : ` of ${Math.max(1, Math.ceil(trackTotal / PAGE_SIZE))}`}</span>
+            <button
+              type="button"
+              className="btn-action-edit"
+              disabled={stageFilter ? !trackMore : trackPage >= Math.ceil(trackTotal / PAGE_SIZE)}
+              onClick={() => setTrackPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
+
           {/* ---- Track detail panel ---- */}
           {(() => {
-            const ind = indents.find((x) => x._id === trackId);
+            const ind = indentsAll.find((x) => x._id === trackId);
             if (!ind) return null;
             const it = ind.items?.[0] || {};
             const P = PIPE[typeKey(ind)];

@@ -112,4 +112,13 @@ groupId: { type: String, default: "" },
   { timestamps: true }
 );
 
+IndentRequestSchema.index({ createdAt: -1 });
+IndentRequestSchema.index({ user: 1, createdAt: -1 });
+IndentRequestSchema.index({ user: 1, status: 1, createdAt: -1 });
+IndentRequestSchema.index({ location: 1, createdAt: -1 });
+IndentRequestSchema.index({ indentType: 1, createdAt: -1 });
+IndentRequestSchema.index({ status: 1, createdAt: -1 });
+IndentRequestSchema.index({ groupId: 1 });
+IndentRequestSchema.index({ "items.productCode": 1 });
+
 module.exports = mongoose.model("IndentRequest", IndentRequestSchema);

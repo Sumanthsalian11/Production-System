@@ -142,5 +142,6 @@ customerOrderSchema.index(
     }
   }
 );
-
+customerOrderSchema.index({ indentNo: 1 });
+customerOrderSchema.index({ ticketNo: 1 });
 module.exports = mongoose.model("CustomerOrder", customerOrderSchema);

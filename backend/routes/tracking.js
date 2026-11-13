@@ -13,17 +13,26 @@ const fd = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
 const QC_RX = /(^|\W)(qc|quality)/i;
 
 // READ-ONLY: Indent -> PO (CustomerOrder) -> Work Order -> Production -> QC -> Dispatch
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const q = String(req.query.q || "").trim();
-    const limit = 0; // 0 = no cap, return every indent
+// builds the tracking rows. opt: { q, onlyNos, type, skip, limit, indentsOnly }
+async function buildTracking(opt = {}) {
+    const q = String(opt.q || "").trim();
+    const limit = Math.min(opt.limit || 200, 1000); // always capped
     const rx = q ? new RegExp(esc(q), "i") : null;
+    const onlyNos = opt.onlyNos && opt.onlyNos.length ? opt.onlyNos : null;
 
     // 1. indents
-    const indFilter = rx
-      ? { $or: [{ indentNo: rx }, { "items.customerName": rx }, { "items.productCode": rx }, { "items.description": rx }] }
-      : {};
-    const indents = await IndentRequest.find(indFilter).sort({ createdAt: -1 }).limit(limit).lean();
+    const indFilter = {};
+    if (onlyNos) indFilter.indentNo = { $in: onlyNos };
+    else if (rx)
+      indFilter.$or = [{ indentNo: rx }, { "items.customerName": rx }, { "items.productCode": rx }, { "items.description": rx }];
+    if (opt.type === "sample") indFilter.indentType = "sample";
+    else if (opt.type === "production") indFilter.indentType = { $ne: "sample" };
+    const indents = await IndentRequest.find(indFilter)
+      .select("indentNo groupId status indentType createdAt user items.customerName items.productCode items.description items.quantity")
+      .sort({ createdAt: -1 })
+      .skip(opt.skip || 0)
+      .limit(limit)
+      .lean();
     const indentNos = indents.map((i) => i.indentNo);
 
     // indents saved together (same groupId) share ONE order, stored under one indent no
@@ -41,7 +50,9 @@ router.get("/", authMiddleware, async (req, res) => {
       : [];
     const directAnd = [{ $or: [{ indentNo: "" }, { indentNo: null }, { indentNo: { $exists: false } }] }];
     if (rx) directAnd.push({ $or: [{ purchaseOrderNo: rx }, { customerName: rx }, { description: rx }, { ticketNo: rx }] });
-    const directOrders = await CustomerOrder.find({ $and: directAnd }).sort({ createdAt: -1 }).limit(limit).lean();
+    const directOrders = (onlyNos || opt.indentsOnly)
+      ? []
+      : await CustomerOrder.find({ $and: directAnd }).sort({ createdAt: -1 }).limit(limit).lean();
 
     const orders = [...indentOrders, ...directOrders];
     const orderIds = orders.map((o) => o._id);
@@ -239,10 +250,57 @@ router.get("/", authMiddleware, async (req, res) => {
     directOrders.forEach((o) => rows.push(build(null, o)));
     rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-    res.json(limit ? rows.slice(0, limit) : rows);
+    return limit ? rows.slice(0, limit) : rows;
+}
+
+router.get("/", authMiddleware, async (req, res) => {
+  try {
+    // indentNos = only these indents (used by the New Indent page). Without it: same as before.
+    const onlyNos = String(req.query.indentNos || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const nos = onlyNos.slice(0, 200);
+if (!nos.length) console.warn("BARE /api/tracking call from", req.headers.referer);
+res.json(await buildTracking({ q: req.query.q, onlyNos: nos, limit: nos.length || 200 }));
   } catch (err) {
     console.error("TRACKING ERROR:", err);
     res.status(500).json({ message: "Error building tracking" });
+  }
+});
+
+// Stage filter for the New Indent Track tab: scans newest-first in batches and returns
+// the indent numbers whose current stage matches, plus a cursor for the next page.
+router.get("/stage-page", authMiddleware, async (req, res) => {
+  try {
+    const stage = String(req.query.stage || "");
+    const want = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    let skip = Math.max(0, parseInt(req.query.cursor, 10) || 0);
+    const BATCH = 200;
+    const MAX_SCAN = 20000;
+    const out = [];
+    let scanned = 0;
+    let more = true;
+    while (more && out.length < want && scanned < MAX_SCAN) {
+      const rows = await buildTracking({
+        q: req.query.q, type: req.query.type, skip, limit: BATCH, indentsOnly: true
+      });
+      if (rows.length < BATCH) more = false;
+      let used = rows.length;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].current === stage) {
+          out.push(rows[i].ref);
+          if (out.length >= want) {
+            used = i + 1;
+            if (i + 1 < rows.length) more = true;
+            break;
+          }
+        }
+      }
+      skip += used;
+      scanned += used;
+    }
+    res.json({ indentNos: out, nextCursor: more ? skip : null });
+  } catch (err) {
+    console.error("STAGE PAGE ERROR:", err);
+    res.status(500).json({ message: "Error filtering by stage" });
   }
 });
 
