@@ -127,6 +127,28 @@ const FlowList = ({ docs }) => {
   );
 };
 
+// Stage stepper (dots + line) for the Track table
+function StageSteps({ tr }) {
+  const st = ((tr && tr.stages) || []).filter((s) => s.key !== "qc");
+  if (!st.length)
+    return tr?.current ? <span className="badge bg-primary">{tr.current}</span> : "-";
+  return (
+    <div className="stp-wrap">
+      <div className="stp-row">
+        {st.map((s, i) => (
+          <span key={s.key} className="stp-item">
+            <span className={`stp-dot stp-${s.state || "idle"}`} title={s.label}></span>
+            {i < st.length - 1 && (
+              <span className={`stp-line ${s.state === "done" ? "stp-line-done" : ""}`}></span>
+            )}
+          </span>
+        ))}
+      </div>
+      <div className="stp-label">{tr.current}</div>
+    </div>
+  );
+}
+
 function CustomerDashboard() {
   const navigate = useNavigate();
 
@@ -192,6 +214,10 @@ const PAGE_SIZE = 30;
   const [flowSel, setFlowSel] = useState("");
   const [flowData, setFlowData] = useState({});
   const [artPreview, setArtPreview] = useState(null);
+  const [trackList, setTrackList] = useState([]);
+  const [trackMap, setTrackMap] = useState({});
+  const [trackListLoading, setTrackListLoading] = useState(false);
+  const [trackSearch, setTrackSearch] = useState("");
   const submitLockRef = useRef(false);
 
 
@@ -1031,6 +1057,42 @@ const PAGE_SIZE = 30;
     setTrackLoading(false);
   };
 
+  // Top "Track" button: ask for a number, then open the same track popup
+  const refOf = (o) => o.indentNo || o.ticketNo || o.purchaseOrderNo || "";
+
+  // Top "Track" button: load all orders + their stage into the track table
+  const handleTopTrack = async () => {
+    setViewMode("track");
+    setShowEntryForm(false);
+    setEditingId(null);
+    setSelectedIndent(null);
+    setTrackListLoading(true);
+    try {
+      const [o, t] = await Promise.all([
+        axios.get(`${BASE_URL}/api/customer-orders`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { all: "1" }
+        }),
+        axios
+          .get(`${BASE_URL}/api/tracking`, {
+            headers: { Authorization: `Bearer ${token}` },
+            params: { q: "", limit: 1000 }
+          })
+          .catch(() => ({ data: [] }))
+      ]);
+      setTrackList(Array.isArray(o.data) ? o.data : []);
+      const m = {};
+      (Array.isArray(t.data) ? t.data : []).forEach((r) => {
+        m[String(r.ref)] = r;
+      });
+      setTrackMap(m);
+    } catch {
+      setTrackList([]);
+      setTrackMap({});
+    }
+    setTrackListLoading(false);
+  };
+
   useEffect(() => {
     const wo = trackInfo?.woNo;
     if (!wo) return;
@@ -1786,6 +1848,25 @@ const PAGE_SIZE = 30;
         .customer-dashboard-universe .gl-group i{color:#e4572e}
         @media(max-width:768px){.trk-cards{flex-direction:column}.trk-card{min-width:0}}
 
+        /* ---------- Stage stepper ---------- */
+        .stp-wrap { display: inline-block; text-align: left; padding: 2px 4px; }
+        .stp-row { display: flex; align-items: center; }
+        .stp-item { display: flex; align-items: center; }
+        .stp-dot {
+          width: 14px; height: 14px; border-radius: 50%;
+          box-sizing: border-box; background: #ffffff; border: 2px solid #c5ccd5;
+        }
+        .stp-dot.stp-done { background: #1f9d6b; border-color: #1f9d6b; }
+        .stp-dot.stp-current {
+          background: #ffffff; border-color: #e4572e;
+          box-shadow: 0 0 0 3px rgba(228, 87, 46, 0.22);
+        }
+        .stp-dot.stp-partial { background: #fff3d6; border-color: #d98a00; }
+        .stp-dot.stp-stopped { background: #fbdcdc; border-color: #d64545; }
+        .stp-line { width: 24px; height: 3px; background: #dfe3e8; }
+        .stp-line.stp-line-done { background: #1f9d6b; }
+        .stp-label { margin-top: 5px; font-size: 12px; font-weight: 500; color: #000000; white-space: nowrap; }
+
         /* ---------- Scrollbars ---------- */
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar { height: 8px; width: 8px; }
         .customer-dashboard-universe .table-responsive::-webkit-scrollbar-thumb { background: #c5ccd5; border-radius: 8px; }
@@ -2339,6 +2420,13 @@ const PAGE_SIZE = 30;
               {groupIndents(indentRequests).length}
             </span>
           )}
+        </button>
+
+        <button
+          className={`mode-pill-btn ${viewMode === "track" ? "warning-active" : ""}`}
+          onClick={handleTopTrack}
+        >
+          Track
         </button>
       </div>
 
@@ -3067,6 +3155,109 @@ const PAGE_SIZE = 30;
       {/* ======================================================================
           PURCHASE ORDER ENTRY VIEW
           ====================================================================== */}
+      {viewMode === "track" && (
+        <>
+          <div className="card shadow-lg mb-4">
+            <div className="card-header text-center">
+              <strong>Order Tracking</strong>
+              <span className="badge ms-2">
+                {
+                  trackList.filter((o) =>
+                    [o.ticketNo, o.indentNo, o.purchaseOrderNo, o.customerName, o.productCode]
+                      .join(" ")
+                      .toLowerCase()
+                      .includes(trackSearch.trim().toLowerCase())
+                  ).length
+                }{" "}
+                orders
+              </span>
+            </div>
+            <div className="px-3 pt-3 pb-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+              <div className="row g-2">
+                <PoField
+                  className="col-12 col-lg-4"
+                  icon="bi-search"
+                  label="Search Ticket / Customer / Product Code"
+                  filled={has(trackSearch)}
+                >
+                  <input
+                    type="text"
+                    className="po-input"
+                    value={trackSearch}
+                    onChange={(e) => setTrackSearch(e.target.value)}
+                  />
+                </PoField>
+              </div>
+            </div>
+            <div
+              className="table-responsive"
+              style={{ maxHeight: "520px", overflowY: "auto" }}
+            >
+              <table className="table table-striped table-bordered table-hover align-middle text-center mb-0">
+                <thead className="table-dark sticky-top">
+                  <tr>
+                    <th>Ticket No</th>
+                    <th>Customer</th>
+                    <th>Product Type</th>
+                    <th>Product Code</th>
+                    <th>Qty</th>
+                    <th>Stage</th>
+                    <th>WO / Ticket</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trackListLoading ? (
+                    <tr>
+                      <td colSpan="7" className="p-4 text-center">Loading...</td>
+                    </tr>
+                  ) : (
+                    (() => {
+                      const rows = trackList
+                        .filter((o) =>
+                          [o.ticketNo, o.indentNo, o.purchaseOrderNo, o.customerName, o.productCode]
+                            .join(" ")
+                            .toLowerCase()
+                            .includes(trackSearch.trim().toLowerCase())
+                        )
+                        .slice(0, 200);
+                      if (!rows.length)
+                        return (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-muted">
+                              No Orders Found
+                            </td>
+                          </tr>
+                        );
+                      return rows.map((o) => {
+                        const tr = trackMap[String(refOf(o))];
+                        return (
+                          <tr
+                            key={o._id}
+                            style={{ cursor: "pointer" }}
+                            title="Click to open tracking"
+                            onClick={() => openTrack(o)}
+                          >
+                            <td className="fw-bold">{o.ticketNo || "-"}</td>
+                            <td>{o.customerName || "-"}</td>
+                            <td>{o.materialType || "-"}</td>
+                            <td className="fw-semibold">{o.productCode || "-"}</td>
+                            <td className="fw-bold">{o.quantity}</td>
+                            <td style={{ minWidth: 190 }}>
+                              <StageSteps tr={tr} />
+                            </td>
+                            <td>{tr?.woNo || o.ticketNo || "-"}</td>
+                          </tr>
+                        );
+                      });
+                    })()
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+
       {viewMode === "purchaseOrder" && (
         <>
           {/* Entry form: appears only after clicking "Purchase Order Entry" */}
@@ -3606,14 +3797,14 @@ const PAGE_SIZE = 30;
                     <th>Attachment</th>
                     <th>User</th>
                     <th>User Location</th>
-                    <th>Track</th>
+
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="24" className="p-4 text-center text-muted">
+                      <td colSpan="23" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3864,15 +4055,7 @@ const PAGE_SIZE = 30;
                             ? order.userLocations.join(", ")
                             : "-"}
                         </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-info"
-                            onClick={() => openTrack(order)}
-                          >
-                            Track
-                          </button>
-                        </td>
+
                         <td className="text-center align-middle">
                           {order.user === loggedInUser ? (
                             <div className="d-flex gap-2 justify-content-center">
