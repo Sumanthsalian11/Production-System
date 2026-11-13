@@ -180,23 +180,7 @@ const runDispatchReport = async (settings, location) => {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      // uploaded files of each dispatch (within the size limit)
-      let total = 0;
-      for (const d of rows) {
-        if (!d.attachment) continue;
-        const full = path.join(__dirname, "..", d.attachment);
-        try {
-          const size = fs.statSync(full).size;
-          if (total + size > MAX_ATTACH_BYTES) continue;
-          total += size;
-          attachments.push({
-            filename: `${d.efiWoNumber || d.ticketNo}_${d.attachmentName || path.basename(full)}`,
-            path: full,
-          });
-        } catch {
-          /* file missing on disk - ignore */
-        }
-      }
+
     }
 
     await sendMail({

@@ -19,6 +19,7 @@ async function buildTracking(opt = {}) {
     const limit = Math.min(opt.limit || 200, 1000); // always capped
     const rx = q ? new RegExp(esc(q), "i") : null;
     const onlyNos = opt.onlyNos && opt.onlyNos.length ? opt.onlyNos : null;
+    const directIds = opt.directIds && opt.directIds.length ? opt.directIds : null;
 
     // 1. indents
     const indFilter = {};
@@ -30,7 +31,7 @@ async function buildTracking(opt = {}) {
     }
     if (opt.type === "sample") indFilter.indentType = "sample";
     else if (opt.type === "production") indFilter.indentType = { $ne: "sample" };
-    const indents = await IndentRequest.find(indFilter)
+    const indents = (directIds && !onlyNos) ? [] : await IndentRequest.find(indFilter)
       .select("indentNo groupId status indentType createdAt user items.customerName items.productCode items.description items.quantity")
       .sort({ createdAt: -1 })
       .skip(opt.skip || 0)
@@ -53,7 +54,9 @@ async function buildTracking(opt = {}) {
       : [];
     const directAnd = [{ $or: [{ indentNo: "" }, { indentNo: null }, { indentNo: { $exists: false } }] }];
     if (rx) directAnd.push({ $or: [{ purchaseOrderNo: rx }, { customerName: rx }, { description: rx }, { ticketNo: rx }] });
-    const directOrders = (onlyNos || opt.indentsOnly)
+    const directOrders = directIds
+      ? await CustomerOrder.find({ _id: { $in: directIds } }).lean()
+      : (onlyNos || opt.indentsOnly)
       ? []
       : await CustomerOrder.find({ $and: directAnd }).sort({ createdAt: -1 }).limit(limit).lean();
 
@@ -261,8 +264,9 @@ router.get("/", authMiddleware, async (req, res) => {
     // indentNos = only these indents (used by the New Indent page). Without it: same as before.
     const onlyNos = String(req.query.indentNos || "").split(",").map((s) => s.trim()).filter(Boolean);
     const nos = onlyNos.slice(0, 200);
-if (!nos.length) console.warn("BARE /api/tracking call from", req.headers.referer);
-res.json(await buildTracking({ q: req.query.q, onlyNos: nos, limit: nos.length || 200 }));
+const directIds = String(req.query.directIds || "").split(",").map((s) => s.trim()).filter((s) => /^[a-f0-9]{24}$/i.test(s)).slice(0, 200);
+if (!nos.length && !directIds.length) console.warn("BARE /api/tracking call from", req.headers.referer);
+res.json(await buildTracking({ q: req.query.q, onlyNos: nos, directIds, limit: (nos.length + directIds.length) || 200 }));
   } catch (err) {
     console.error("TRACKING ERROR:", err);
     res.status(500).json({ message: "Error building tracking" });

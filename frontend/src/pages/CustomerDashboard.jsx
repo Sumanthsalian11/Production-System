@@ -218,6 +218,11 @@ const PAGE_SIZE = 30;
   const [trackMap, setTrackMap] = useState({});
   const [trackListLoading, setTrackListLoading] = useState(false);
   const [trackSearch, setTrackSearch] = useState("");
+  const [trackPage, setTrackPage] = useState(1);
+  const [trackTotal, setTrackTotal] = useState(0);
+  const TRACK_PAGE_SIZE = 30;
+  const trackReq = useRef(0);
+  const orderReq = useRef(0);
   const submitLockRef = useRef(false);
 
 
@@ -302,13 +307,15 @@ const PAGE_SIZE = 30;
     }
   };
 
-  const fetchOrders = async (p = page) => {
+  const fetchOrders = async (p = page, skipCount = false) => {
+    const reqId = ++orderReq.current;
     try {
       const res = await axios.get(`${BASE_URL}/api/customer-orders`, {
         headers: { Authorization: `Bearer ${token}` },
         params: {
           page: p,
           limit: PAGE_SIZE,
+          ...(skipCount ? { noCount: "1" } : {}),
           po: poSearch,
           productCode: productCodeSearch,
           from: fromDate,
@@ -317,10 +324,11 @@ const PAGE_SIZE = 30;
           customer: customerFilter
         }
       });
+      if (reqId !== orderReq.current) return;
       const rows = res.data?.data || [];
       setOrders(rows);
       setFilteredOrders(rows);
-      setTotal(res.data?.total || 0);
+      if (res.data?.total != null) setTotal(res.data.total);
       setConvertedOrderIds((res.data?.converted || []).map(String));
     } catch {
       setOrders([]);
@@ -394,7 +402,7 @@ const PAGE_SIZE = 30;
       }
       p = 1;
     }
-    const t = setTimeout(() => fetchOrders(p), 400);
+    const t = setTimeout(() => fetchOrders(p, p > 1), 400);
     return () => clearTimeout(t);
   }, [page, filterKey]);
 
@@ -1040,7 +1048,7 @@ const PAGE_SIZE = 30;
     try {
       const r = await axios.get(`${BASE_URL}/api/tracking`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { q: ref, limit: 50 }
+        params: order.indentNo ? { indentNos: order.indentNo } : { directIds: order._id }
       });
       const row = (r.data || []).find((x) => String(x.ref) === String(ref));
       if (row) {
@@ -1061,37 +1069,58 @@ const PAGE_SIZE = 30;
   const refOf = (o) => o.indentNo || o.ticketNo || o.purchaseOrderNo || "";
 
   // Top "Track" button: load all orders + their stage into the track table
-  const handleTopTrack = async () => {
-    setViewMode("track");
-    setShowEntryForm(false);
-    setEditingId(null);
-    setSelectedIndent(null);
+  const loadTrack = async (p = 1, s = "") => {
+    const id = ++trackReq.current;
     setTrackListLoading(true);
     try {
-      const [o, t] = await Promise.all([
-        axios.get(`${BASE_URL}/api/customer-orders`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: { all: "1" }
-        }),
-        axios
+      const o = await axios.get(`${BASE_URL}/api/customer-orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { page: p, limit: TRACK_PAGE_SIZE, search: s.trim() }
+      });
+      const rows = o.data?.data || [];
+      const indentNos = [...new Set(rows.map((r) => r.indentNo).filter(Boolean))];
+      const directIds = rows.filter((r) => !r.indentNo).map((r) => r._id);
+      let t = { data: [] };
+      if (indentNos.length || directIds.length) {
+        t = await axios
           .get(`${BASE_URL}/api/tracking`, {
             headers: { Authorization: `Bearer ${token}` },
-            params: { q: "", limit: 1000 }
+            params: { indentNos: indentNos.join(","), directIds: directIds.join(",") }
           })
-          .catch(() => ({ data: [] }))
-      ]);
-      setTrackList(Array.isArray(o.data) ? o.data : []);
+          .catch(() => ({ data: [] }));
+      }
+      if (id !== trackReq.current) return;
+      setTrackList(rows);
+      setTrackTotal(o.data?.total ?? 0);
       const m = {};
       (Array.isArray(t.data) ? t.data : []).forEach((r) => {
         m[String(r.ref)] = r;
       });
       setTrackMap(m);
     } catch {
+      if (id !== trackReq.current) return;
       setTrackList([]);
       setTrackMap({});
+      setTrackTotal(0);
     }
-    setTrackListLoading(false);
+    if (id === trackReq.current) setTrackListLoading(false);
   };
+
+  const handleTopTrack = () => {
+    setViewMode("track");
+    setShowEntryForm(false);
+    setEditingId(null);
+    setSelectedIndent(null);
+    setTrackPage(1);
+    if (viewMode === "track" && trackPage === 1) loadTrack(1, trackSearch);
+  };
+
+  useEffect(() => {
+    if (viewMode !== "track") return;
+    const t = setTimeout(() => loadTrack(trackPage, trackSearch), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, trackPage, trackSearch]);
 
   useEffect(() => {
     const wo = trackInfo?.woNo;
@@ -3161,14 +3190,7 @@ const PAGE_SIZE = 30;
             <div className="card-header text-center">
               <strong>Order Tracking</strong>
               <span className="badge ms-2">
-                {
-                  trackList.filter((o) =>
-                    [o.ticketNo, o.indentNo, o.purchaseOrderNo, o.customerName, o.productCode]
-                      .join(" ")
-                      .toLowerCase()
-                      .includes(trackSearch.trim().toLowerCase())
-                  ).length
-                }{" "}
+                {trackTotal}{" "}
                 orders
               </span>
             </div>
@@ -3184,9 +3206,31 @@ const PAGE_SIZE = 30;
                     type="text"
                     className="po-input"
                     value={trackSearch}
-                    onChange={(e) => setTrackSearch(e.target.value)}
+                    onChange={(e) => {
+                      setTrackSearch(e.target.value);
+                      setTrackPage(1);
+                    }}
                   />
                 </PoField>
+                <div className="col-12 col-lg-8 d-flex align-items-center justify-content-end gap-3">
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    disabled={trackPage <= 1 || trackListLoading}
+                    onClick={() => setTrackPage((p) => p - 1)}
+                  >
+                    Prev
+                  </button>
+                  <span>
+                    Page {trackPage} of {Math.max(1, Math.ceil(trackTotal / TRACK_PAGE_SIZE))}
+                  </span>
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    disabled={trackPage >= Math.ceil(trackTotal / TRACK_PAGE_SIZE) || trackListLoading}
+                    onClick={() => setTrackPage((p) => p + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
             <div
@@ -3212,14 +3256,7 @@ const PAGE_SIZE = 30;
                     </tr>
                   ) : (
                     (() => {
-                      const rows = trackList
-                        .filter((o) =>
-                          [o.ticketNo, o.indentNo, o.purchaseOrderNo, o.customerName, o.productCode]
-                            .join(" ")
-                            .toLowerCase()
-                            .includes(trackSearch.trim().toLowerCase())
-                        )
-                        .slice(0, 200);
+                      const rows = trackList;
                       if (!rows.length)
                         return (
                           <tr>

@@ -122,12 +122,16 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
 // GET CUSTOMER ORDERS (paged + filtered on server)
 // =============================================
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+let custCache = { list: null, at: 0 };
 
 // Distinct customers for the dropdown
 router.get("/customers", authMiddleware, async (req, res) => {
   try {
-    const list = await CustomerOrder.distinct("customerName");
-    res.status(200).json(list.filter(Boolean).sort());
+    if (!custCache.list || Date.now() - custCache.at > 60000) {
+      const list = await CustomerOrder.distinct("customerName");
+      custCache = { list: list.filter(Boolean).sort(), at: Date.now() };
+    }
+    res.status(200).json(custCache.list);
   } catch (err) {
     res.status(500).json({ message: "Error fetching customers" });
   }
@@ -149,7 +153,7 @@ router.get("/converted", authMiddleware, async (req, res) => {
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { status, orderType, source, po, productCode, date, customer, all, from, to } = req.query;
+    const { status, orderType, source, po, productCode, date, customer, all, from, to, search } = req.query;
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 30, 200);
 
@@ -160,6 +164,17 @@ router.get("/", authMiddleware, async (req, res) => {
     if (po) filter.purchaseOrderNo = { $regex: "^" + escapeRegex(po) };
     if (productCode && !isNaN(Number(productCode))) filter.productCode = Number(productCode);
     if (customer) filter.customerName = customer;
+    const sTerm = String(search || "").trim().slice(0, 60);
+    if (sTerm) {
+      const pre = [sTerm, sTerm.toUpperCase()];
+      const or = [];
+      ["ticketNo", "indentNo", "purchaseOrderNo"].forEach((f) =>
+        pre.forEach((t) => or.push({ [f]: { $regex: "^" + escapeRegex(t) } }))
+      );
+      or.push({ customerName: { $regex: escapeRegex(sTerm), $options: "i" } });
+      if (!isNaN(Number(sTerm))) or.push({ productCode: Number(sTerm) });
+      filter.$or = or;
+    }
     if (date) {
       const start = new Date(date);
       const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
@@ -198,7 +213,9 @@ router.get("/", authMiddleware, async (req, res) => {
     const noFilter = Object.keys(filter).length === 0;
     const [data, total] = await Promise.all([
       q.skip((page - 1) * limit).limit(limit),
-      noFilter
+      req.query.noCount === "1"
+        ? Promise.resolve(null)
+        : noFilter
         ? CustomerOrder.estimatedDocumentCount()
         : CustomerOrder.countDocuments(filter)
     ]);
