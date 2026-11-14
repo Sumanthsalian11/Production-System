@@ -2804,12 +2804,7 @@ const PAGE_SIZE = 30;
                       "bi-rulers",
                       "col-md-4"
                     ],
-                    [
-                      "Finish",
-                      selectedIndent.items[0]?.finish || "-",
-                      "bi-stars",
-                      "col-md-4"
-                    ],
+                 
                     [
                       "Specification",
                       selectedIndent.items[0]?.specification || "-",
@@ -2860,7 +2855,8 @@ const PAGE_SIZE = 30;
                       "bi-calendar-check",
                       "col-md-4"
                     ]
-                  ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
+                  ,["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-md-4"],
+                    ["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
                   ["Remarks", selectedIndent.items[0]?.remark || "-", "bi-chat-left-text", "col-12"]
                   ].map(([label, value, icon, colClass], i) => (
                     <PoField
