@@ -8,6 +8,7 @@ const DEFAULT_TIMES = {
   persoProduction: "10:00",
   floorProduction: "10:00",
   dispatchReport: "18:00",
+  inhouseOrder: "00:00",
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -36,7 +37,7 @@ router.put("/:key", auth, async (req, res) => {
     const baseKey = String(key).split("::")[0];
     if (!DEFAULT_TIMES[baseKey]) return res.status(400).json({ message: "Unknown report" });
     // location is allowed for the floor and perso reports
-    if (key.includes("::") && (!["floorProduction", "persoProduction", "dispatchReport"].includes(baseKey) || !key.split("::")[1])) {
+    if (key.includes("::") && (!["floorProduction", "persoProduction", "dispatchReport", "inhouseOrder"].includes(baseKey) || !key.split("::")[1])) {
       return res.status(400).json({ message: "Unknown report" });
     }
 

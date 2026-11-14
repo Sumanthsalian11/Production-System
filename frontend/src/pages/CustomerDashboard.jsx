@@ -2601,10 +2601,6 @@ const PAGE_SIZE = 30;
                     
                       <th>Quantity</th>
                       <th>Location</th>
-                     
-                      <th>Lamination</th>
-<th>Finish</th>
-<th>Remarks</th>
 <th>Artwork</th>
                       <th>Created By</th>
                       <th>Created Date</th>
@@ -2660,25 +2656,7 @@ const PAGE_SIZE = 30;
               
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
                           <td><LocCell list={indent.locationList} /></td>
-<td>{indent.items[0]?.lamination || "-"}</td>
-<td>{indent.items[0]?.finish || "-"}</td>
-<td
-  className="cell-expandable"
-  style={{
-    maxWidth: "220px",
-    whiteSpace:
-      expandedCell === `ind-rem-${indent._id}` ? "normal" : "nowrap"
-  }}
-  onClick={() =>
-    setExpandedCell(
-      expandedCell === `ind-rem-${indent._id}` ? null : `ind-rem-${indent._id}`
-    )
-  }
->
-  {expandedCell === `ind-rem-${indent._id}`
-    ? indent.items[0]?.remark || "-"
-    : truncateText(indent.items[0]?.remark)}
-</td>
+
                           <td>
                             {(() => {
                               const it = indent.items[0] || {};
@@ -2806,12 +2784,7 @@ const PAGE_SIZE = 30;
                       "col-md-4"
                     ],
                  
-                    [
-                      "Specification",
-                      selectedIndent.items[0]?.specification || "-",
-                      "bi-card-checklist",
-                      "col-12"
-                    ],
+
                     [
                       "Lamination",
                       selectedIndent.items[0]?.lamination || "-",
@@ -2856,8 +2829,9 @@ const PAGE_SIZE = 30;
                       "bi-calendar-check",
                       "col-md-4"
                     ]
-                  ,["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-md-4"],
-                    ["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
+                  ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
+                  ["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-12"],
+                  ["Specification", selectedIndent.items[0]?.specification || "-", "bi-card-checklist", "col-12"],
                   ["Remarks", selectedIndent.items[0]?.remark || "-", "bi-chat-left-text", "col-12"]
                   ].map(([label, value, icon, colClass], i) => (
                     <PoField
@@ -2866,12 +2840,23 @@ const PAGE_SIZE = 30;
                       icon={icon}
                       label={label}
                       alwaysFloat
+                      area={["Finish", "Specification", "Remarks"].includes(label)}
                     >
-                      <input
-                        className="po-input"
-                        value={value ?? ""}
-                        readOnly
-                      />
+                      {["Finish", "Specification", "Remarks"].includes(label) ? (
+                        <textarea
+                          className="po-input"
+                          rows={Math.max(1, Math.ceil(String(value ?? "").length / 90))}
+                          value={value ?? ""}
+                          readOnly
+                          style={{ resize: "none" }}
+                        />
+                      ) : (
+                        <input
+                          className="po-input"
+                          value={value ?? ""}
+                          readOnly
+                        />
+                      )}
                     </PoField>
                   ))}
                 </div>
@@ -3996,7 +3981,22 @@ const PAGE_SIZE = 30;
                             : truncateText(order.jobSize, 15)}
                         </td>
                         <td>{order.lamination || "-"}</td>
-<td>{order.finish || "-"}</td>
+<td
+  className="cell-expandable"
+  style={{
+    maxWidth: "160px",
+    whiteSpace: expandedCell === `finish-${order._id}` ? "normal" : "nowrap"
+  }}
+  onClick={() =>
+    setExpandedCell(
+      expandedCell === `finish-${order._id}` ? null : `finish-${order._id}`
+    )
+  }
+>
+  {expandedCell === `finish-${order._id}`
+    ? order.finish || "-"
+    : truncateText(order.finish, 15)}
+</td>
 <td>{order.sampleType || "-"}</td>
 <td>
   {order.artwork?.filePath ? (

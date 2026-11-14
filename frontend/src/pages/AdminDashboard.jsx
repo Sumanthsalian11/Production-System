@@ -1066,6 +1066,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { key: "persoProduction", label: "Perso Production Report", defaultTime: "10:00" },
     { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
     { key: "dispatchReport", label: "Dispatch Report", defaultTime: "18:00" },
+    { key: "inhouseOrder", label: "Inhouse Order Mail (on save)", defaultTime: "00:00" },
   ];
   const [mailKey, setMailKey] = useState("indentSummary");
   const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00", machineIds: [] });
@@ -1121,7 +1122,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       const res = await axios.get(`${BASE_URL}/api/mail-settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setMailList(res.data || []);
+      setMailList((res.data || []).filter((m) => !m.key.startsWith("inhouseOrder::")));
     } catch (err) {
       console.error("Error fetching mail settings:", err);
     }
@@ -4730,6 +4731,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </div>
           )}
 
+
+
           <div className="activity-name-field" style={{ marginBottom: "10px" }}>
             <label>TO (comma separated emails)</label>
             <textarea
@@ -4752,15 +4755,17 @@ const [supplierFilter, setSupplierFilter] = useState("");
             />
           </div>
 
-          <div className="activity-name-field" style={{ marginBottom: "12px" }}>
-            <label>Send Time (every day)</label>
-            <input
-              className="pro-input"
-              type="time"
-              value={mailSettings.sendTime}
-              onChange={(e) => setMailSettings({ ...mailSettings, sendTime: e.target.value })}
-            />
-          </div>
+          {mailKey !== "inhouseOrder" && (
+            <div className="activity-name-field" style={{ marginBottom: "12px" }}>
+              <label>Send Time (every day)</label>
+              <input
+                className="pro-input"
+                type="time"
+                value={mailSettings.sendTime}
+                onChange={(e) => setMailSettings({ ...mailSettings, sendTime: e.target.value })}
+              />
+            </div>
+          )}
 
           {(mailKey === "floorProduction" || mailKey === "persoProduction") && (
             <div className="machine-picker" style={{ marginBottom: "12px" }}>
@@ -4831,7 +4836,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                   <li key={m.key} className="d-flex justify-content-between align-items-center">
                     <span>
                       <strong>{mailLabel(m.key.split("::")[0])}</strong>
-                      {m.key.includes("::") ? ` • Location: ${m.key.split("::")[1]}` : " • All Locations"} • Time: {m.sendTime} • TO:{" "}
+                      {m.key.includes("::") ? ` • ${m.key.startsWith("inhouseOrder") ? "Product Type" : "Location"}: ${m.key.split("::")[1]}` : m.key.startsWith("inhouseOrder") ? " • All Product Types" : " • All Locations"}{m.key.split("::")[0] !== "inhouseOrder" && ` • Time: ${m.sendTime}`} • TO:{" "}
                       {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"} • Machines:{" "}
                       {(m.machineIds || []).length ? `${m.machineIds.length} selected` : "All"}
                     </span>

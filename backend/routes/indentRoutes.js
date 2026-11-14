@@ -11,6 +11,7 @@ const Item = require("../models/Item");
 const IndentRouting = require("../models/IndentRouting");
 const Dispatch = require("../models/Dispatch");
 const sendIndentRequestMail = require("../utils/indentRequestMail");
+const sendInhouseOrderMail = require("../cron/inhouseOrderMail"); // change to the real file name of your inhouse mail file
 
 const mongoose = require("mongoose");
 const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
@@ -594,6 +595,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
 
     // 3. Process each item in the indent
     const createdOrders = [];
+    const mailOrders = [];
     
     for (const item of indent.items) {
       const orderData = {
@@ -679,6 +681,20 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       const newOrder = new CustomerOrder(orderData);
       const savedOrder = await newOrder.save();
       createdOrders.push(savedOrder);
+
+      const mailArt =
+        item.artwork && item.artwork.filePath
+          ? { filePath: item.artwork.filePath, fileName: item.artwork.fileName }
+          : item.itemPdfPath
+          ? { filePath: item.itemPdfPath, fileName: "" }
+          : null;
+      mailOrders.push({
+        ...savedOrder.toObject(),
+        location: indent.location,
+        indentType: indent.indentType,
+        artworkPath: mailArt ? mailArt.filePath : "",
+        artworkName: mailArt ? mailArt.fileName : ""
+      });
     }
 
     // 4. Update indent status
@@ -695,6 +711,10 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
       ordersCreated: createdOrders.length,
       orders: createdOrders
     });
+
+    if (orderType === "Inhouse") {
+      sendInhouseOrderMail(mailOrders, planningLocation || "");
+    }
 
   } catch (err) {
     console.error("PROCESS INDENT ERROR:", err);
