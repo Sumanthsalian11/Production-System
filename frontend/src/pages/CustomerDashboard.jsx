@@ -1167,6 +1167,16 @@ const PAGE_SIZE = 30;
       </select>
     );
 
+  const DateCell = ({ list }) => {
+    const fmt = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
+    return list.length <= 1 ? fmt(list[0]?.date) : (
+      <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
+        <option value="">{list.length} dates</option>
+        {list.map((l, i) => <option key={i} value="" disabled>{l.name}: {fmt(l.date)}</option>)}
+      </select>
+    );
+  };
+
   const orOptions = (fn) =>
     [...new Set(indentRequests.map(fn).filter(Boolean))].sort();
   const orTypeOpts = orOptions((i) => i.items?.[0]?.materialType);
@@ -2601,6 +2611,7 @@ const PAGE_SIZE = 30;
                     
                       <th>Quantity</th>
                       <th>Location</th>
+                      <th>Expected Date</th>
 <th>Artwork</th>
                       <th>Created By</th>
                       <th>Created Date</th>
@@ -2656,6 +2667,7 @@ const PAGE_SIZE = 30;
               
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
                           <td><LocCell list={indent.locationList} /></td>
+<td><DateCell list={indent.locationList} /></td>
 
                           <td>
                             {(() => {
@@ -2829,7 +2841,7 @@ const PAGE_SIZE = 30;
                         ? new Date(selectedIndent.items[0].deliveryDate).toLocaleDateString("en-IN")
                         : "-",
                       "bi-calendar-check",
-                      selectedIndent.locationList?.length > 1 ? "col-12" : "col-md-4"
+                      "col-md-4"
                     ]
                   ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
                   ["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-12"],
@@ -2843,8 +2855,18 @@ const PAGE_SIZE = 30;
                       label={label}
                       alwaysFloat
                       area={["Finish", "Specification", "Remarks"].includes(label)}
+                      caret={label === "Expected Date" && selectedIndent.locationList?.length > 1}
                     >
-                      {["Finish", "Specification", "Remarks"].includes(label) ? (
+                      {label === "Expected Date" && selectedIndent.locationList?.length > 1 ? (
+                        <select className="po-input" value="" onChange={() => {}}>
+                          <option value="">{selectedIndent.locationList.length} dates</option>
+                          {selectedIndent.locationList.map((l, i) => (
+                            <option key={i} value="" disabled>
+                              {l.name}: {l.date ? new Date(l.date).toLocaleDateString("en-IN") : "-"}
+                            </option>
+                          ))}
+                        </select>
+                      ) : ["Finish", "Specification", "Remarks"].includes(label) ? (
                         <textarea
                           className="po-input"
                           rows={Math.max(1, Math.ceil(String(value ?? "").length / 90))}
@@ -3891,7 +3913,14 @@ const PAGE_SIZE = 30;
                             : "-"}
                         </td>
                         <td>
-                          {order.expectedDeliveryDate
+                          {order.locationSplits?.length > 1 ? (
+                            <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
+                              <option value="">{order.locationSplits.length} dates</option>
+                              {order.locationSplits.map((l, i) => (
+                                <option key={i} value="" disabled>{l.locationName || "-"}: {l.deliveryDate ? new Date(l.deliveryDate).toLocaleDateString("en-IN") : "-"}</option>
+                              ))}
+                            </select>
+                          ) : order.expectedDeliveryDate
                             ? new Date(
                                 order.expectedDeliveryDate
                               ).toLocaleDateString("en-IN")

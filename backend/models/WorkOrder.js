@@ -26,7 +26,8 @@ const workOrderSchema = new mongoose.Schema(
         _id: false,
         location: { type: mongoose.Schema.Types.ObjectId, ref: "LocationMaster" },
         locationName: { type: String, default: "" },
-        quantity: { type: Number, default: 0 }
+        quantity: { type: Number, default: 0 },
+        deliveryDate: { type: Date, default: null }
       }
     ],
 

@@ -1531,7 +1531,8 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
         locationSplits: (selectedOrder.locationSplits || []).map((l) => ({
           location: l.location,
           locationName: l.locationName,
-          quantity: l.quantity
+          quantity: l.quantity,
+          deliveryDate: l.deliveryDate || null
         })),
         qtyInLvs: Number(selectedOrder.qtyInLvs),
         colorFront: Number(workOrderForm.colorFront) || 0,
@@ -4432,11 +4433,22 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                       </div>
                       <div className="wo-info">
                         <span>Expected delivery</span>
-                        <b>
-                          {selectedOrder?.expectedDeliveryDate
-                            ? selectedOrder.expectedDeliveryDate.split("T")[0]
-                            : "-"}
-                        </b>
+                        {selectedOrder.locationSplits?.length > 1 ? (
+                          <select className="form-select form-select-sm" value="" onChange={() => {}}>
+                            <option value="">{selectedOrder.locationSplits.length} dates</option>
+                            {selectedOrder.locationSplits.map((l, i) => (
+                              <option key={i} value="" disabled>
+                                {l.locationName || "-"}: {l.deliveryDate ? new Date(l.deliveryDate).toLocaleDateString("en-IN") : "-"}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <b>
+                            {selectedOrder?.expectedDeliveryDate
+                              ? selectedOrder.expectedDeliveryDate.split("T")[0]
+                              : "-"}
+                          </b>
+                        )}
                       </div>
                       <div className="wo-info">
                         <span>Product type</span>
@@ -5402,6 +5414,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         <th>Job Description</th>
                         <th>WO Date</th>
                         <th>Location</th>
+                        <th>Expected Date</th>
                         <th>Activity</th>
                         <th>Machines</th>
                         <th>Color Front</th>
@@ -5478,6 +5491,22 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                               </select>
                             ) : (
                               wo.location
+                            )}
+                          </td>
+                          <td>
+                            {wo.locationSplits?.length > 1 ? (
+                              <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
+                                <option value="">{wo.locationSplits.length} dates</option>
+                                {wo.locationSplits.map((l, i) => (
+                                  <option key={i} value="" disabled>
+                                    {l.locationName || "-"}: {l.deliveryDate ? new Date(l.deliveryDate).toLocaleDateString("en-IN") : "-"}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : wo.expectedDeliveryDate ? (
+                              new Date(wo.expectedDeliveryDate).toLocaleDateString("en-IN")
+                            ) : (
+                              "-"
                             )}
                           </td>
                           <td>

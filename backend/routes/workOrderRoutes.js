@@ -273,9 +273,13 @@ router.post("/create", authMiddleware, async (req, res) => {
     } = req.body;
 
     let expectedDate = null;
+    let coSplits = [];
     if (customerOrderId) {
-      const customerOrder = await CustomerOrder.findById(customerOrderId);
-      if (customerOrder) expectedDate = customerOrder.expectedDeliveryDate;
+      const customerOrder = await CustomerOrder.findById(customerOrderId).lean();
+      if (customerOrder) {
+        expectedDate = customerOrder.expectedDeliveryDate;
+        coSplits = customerOrder.locationSplits || [];
+      }
     }
 
     if (customerOrderId) {
@@ -291,7 +295,15 @@ router.post("/create", authMiddleware, async (req, res) => {
       }
     }
 
-    const locationSplits = Array.isArray(req.body.locationSplits) ? req.body.locationSplits : [];
+    const sentSplits = Array.isArray(req.body.locationSplits) ? req.body.locationSplits : [];
+    const locationSplits = (sentSplits.length ? sentSplits : coSplits).map((s) => {
+      const m = coSplits.find(
+        (c) =>
+          String(c.location) === String(s.location) ||
+          (c.locationName && c.locationName === s.locationName)
+      );
+      return { ...s, deliveryDate: s.deliveryDate || m?.deliveryDate || null };
+    });
 
     const lastWorkOrder = await WorkOrder.findOne().sort({ slNo: -1 }).select("slNo").lean();
     const nextSlNo = lastWorkOrder ? lastWorkOrder.slNo + 1 : 1;
