@@ -125,6 +125,9 @@ const summaryDisplayRoutes = require("./routes/summaryDisplay");
 app.use("/api/summary-display", summaryDisplayRoutes);
 app.use("/api/indent-routing", require("./routes/indentRouting"));
 app.use("/api/job-validation", require("./routes/Jobvalidation"));
+
+const rawMaterialIndentRoutes = require("./routes/Rawmaterialindent");
+app.use("/api/raw-material-indent", rawMaterialIndentRoutes);
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 

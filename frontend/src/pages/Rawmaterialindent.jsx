@@ -1,237 +1,57 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 
 /* =====================================================================
-   RAW MATERIAL & INK INDENT PORTAL  (React module)
-   - Uploaded data, jobs, cart and indents are kept in this browser (localStorage).
-   - Nothing is hard coded: materials, spec groups, plants, stock, open POs
-     and job demand all come from the Excel sheets uploaded in
-     "Settings & SAP"  (MB5B stock, ME2N pending POs, optional Job Demand).
-   - Self-contained: no Tailwind / FontAwesome needed.
-   - All styles are scoped with the "rmi-" prefix so they cannot clash
-     with your Bootstrap theme. Change colours in the :root block of CSS.
-   - Only dependency besides React: "xlsx"  (npm i xlsx)
+   RAW MATERIAL & INK INDENT PORTAL  (React module, server backed)
+   - All data lives in MongoDB through /api/raw-material-indent (see routes/rawMaterialIndent.js).
+   - The browser only holds the current page of the board, so crores of rows are fine.
+   - Same screens, same classes and same workings as before. Only dependency besides React: "xlsx" (exports).
    ===================================================================== */
 
-const DEFAULT_SETTINGS = {
-  workingDays: 26,
-  targetCoverDays: 30,
-  criticalDays: 12,
-  lowDays: 22,
-  overstockDays: 60,
-  lotSize: 500,
-  leadTimeDays: 10,
-  mainPlant: "", // plant that gets 100% of demand by default ("" = first plant found in the sheets)
-  plantSplits: {}, // { groupId: { plantCode: percent } }
+const API = `${import.meta.env.VITE_API_URL || ""}/api/raw-material-indent`;
+// ONE place to adapt to your login: return the headers your other pages send.
+const authHeaders = () => {
+  const t = localStorage.getItem("token");
+  return t ? { Authorization: `Bearer ${t}` } : {};
 };
+async function api(path, { method = "GET", body, form } = {}) {
+  const headers = { ...authHeaders() };
+  if (body) headers["Content-Type"] = "application/json";
+  const res = await fetch(API + path, {
+    method,
+    headers,
+    credentials: "include",
+    body: form || (body ? JSON.stringify(body) : undefined),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
+  return data;
+}
 
 /* ------------------------------- HELPERS ------------------------------ */
-const sum = (obj) => Object.values(obj || {}).reduce((a, b) => a + b, 0);
-
 const formatNum = (num) => {
   if (num === null || num === undefined || isNaN(num)) return "0";
   return Math.round(num).toLocaleString("en-IN");
 };
-
 const formatDec = (num) => {
   if (num === null || num === undefined || isNaN(num)) return "0.0";
   return (Math.round(num * 10) / 10).toLocaleString("en-IN");
 };
-
-const normTxt = (s) => String(s === null || s === undefined ? "" : s).trim().toLowerCase();
-const cellTxt = (v) => String(v === null || v === undefined ? "" : v).trim();
-const cleanCode = (v) => cellTxt(v).replace(/\.0+$/, "").replace(/^0+/, "");
-const toNum = (v) => {
-  if (typeof v === "number") return v;
-  const n = parseFloat(cellTxt(v).replace(/,/g, ""));
-  return isNaN(n) ? 0 : n;
-};
-const toISODate = (v) => {
-  if (v === null || v === undefined || v === "") return "";
-  if (v instanceof Date) return new Date(v.getTime() + 12 * 3600 * 1000).toISOString().slice(0, 10);
-  if (typeof v === "number" && v > 20000 && v < 80000) {
-    return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
-  }
-  const t = cellTxt(v);
-  const m = t.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
-  if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
-  return t;
-};
-
-/* ----------------------- BROWSER STORAGE + TOASTS --------------------- */
-const STORAGE_KEY = "rmi-portal-v1";
-function loadSaved() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (e) {
-    return {};
-  }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function useDebounced(value, ms) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
 }
+
 const ToastCtx = createContext(() => {});
 const useToast = () => useContext(ToastCtx);
 
-/* --------------- SPEC GROUP DERIVED FROM THE MATERIAL DESCRIPTION ------- */
-// Used only when the sheet has no "Spec group" column and no manual override was set.
-const FAMILY_ORDER = ["Paper", "Ink", "Glue", "Film", "Other"];
-
-function deriveGroup(desc) {
-  const d = cellTxt(desc).toUpperCase();
-  const gsmM = d.match(/(\d{2,3})\s*GSM/);
-  if (gsmM) {
-    const gsm = parseInt(gsmM[1]);
-    let kind = "ART PAPER";
-    if (/MICR/.test(d)) kind = "MICR PAPER";
-    else if (/MAPLITHO|SILVERBRITE|CLASSIC|MAXIMA|CREAMWOVE|WOVE/.test(d)) kind = "MAPLITHO";
-    else if (/BOARD|DUPLEX|SBS|FBB/.test(d)) kind = "BOARD";
-    return { name: `${gsm} GSM ${kind}${/REEL/.test(d) ? " (REEL)" : ""}`, fam: "Paper", gsm };
-  }
-  if (/\bINK\b|THERMOCHROMIC|INVISIBLE/.test(d)) return { name: "INKS", fam: "Ink", gsm: 0 };
-  if (/GLUE|FEVICOL|ADHESIVE|BINDING GUM|TURBO BOND|\bGUM\b/.test(d)) return { name: "GLUE & ADHESIVE", fam: "Glue", gsm: 0 };
-  if (/FILM|BOPP|LAMINAT|THERMAL/.test(d)) return { name: "LAMINATION / BOPP FILM", fam: "Film", gsm: 0 };
-  return { name: "OTHER MATERIALS", fam: "Other", gsm: 0 };
-}
-
-/* ----------------------- SAP SHEET PARSING (MB5B / ME2N / JOBS) ------- */
-// For each field: label, required?, regexes tried in priority order, exclude regex
-const SAP_FIELDS = {
-  MB5B: {
-    material: { label: "Material code", required: true, tests: [/^material( no\.?| number| code)?$/, /material/], exclude: /desc|text|type|group|doc/ },
-    desc: { label: "Material description", required: false, tests: [/^material desc/, /description|short text|^text$/], exclude: /plant/ },
-    plant: { label: "Plant", required: true, tests: [/^plant$/, /plant|werks/], exclude: /supplying/ },
-    qty: { label: "Stock quantity", required: true, tests: [/closing|end(ing)? stock|final stock/, /total stock/, /unrestricted/, /stock/, /qty|quantity/], exclude: /value|price|amount|opening|begin|uom|unit/ },
-    group: { label: "Spec group (optional)", required: false, tests: [/spec(ification)? group/], exclude: null },
-  },
-  ME2N: {
-    poNo: { label: "PO number", required: false, tests: [/purchasing doc|purch\.? ?doc/, /^po( no\.?| number)?$/, /document/], exclude: /item|type|date/ },
-    material: { label: "Material code", required: true, tests: [/^material( no\.?| number| code)?$/, /material/], exclude: /desc|text|type|group|doc/ },
-    desc: { label: "Material description", required: false, tests: [/^material desc/, /short text|description/], exclude: /plant/ },
-    plant: { label: "Plant", required: true, tests: [/^plant$/, /plant|werks/], exclude: /supplying/ },
-    vendor: { label: "Vendor", required: false, tests: [/name of (supplier|vendor)/, /supplier|vendor/], exclude: /code|no\.?$/ },
-    qty: { label: "Open / pending quantity", required: true, tests: [/still to be deliv|open (qty|quantity)|to be deliv|outstanding/, /sched(uled)? qty|schedule.*qty/, /order (qty|quantity)|po qty/, /quantity|qty/], exclude: /price|value|amount|net|uom|unit/ },
-    date: { label: "Delivery date (ETA)", required: false, tests: [/delivery date|del\.? ?date|deliv.*date/, /eta|schedule.*date/, /date/], exclude: /doc|creat|posting/ },
-    group: { label: "Spec group (optional)", required: false, tests: [/spec(ification)? group/], exclude: null },
-  },
-  JOBS: {
-    job: { label: "Job title / customer", required: true, tests: [/job/, /customer|title|name/], exclude: /group|material|code/ },
-    target: { label: "Spec group or material code", required: true, tests: [/spec(ification)? group/, /material (code|no)|^material$/, /group|material|code|spec/], exclude: /desc/ },
-    kg: { label: "Monthly requirement (KG)", required: true, tests: [/monthly|per month/, /kg|demand|qty|quantity|req/], exclude: null },
-  },
-};
-
-const SHEET_TITLES = {
-  MB5B: "MB5B stock sheet",
-  ME2N: "ME2N pending PO sheet",
-  JOBS: "Job demand sheet",
-};
-
-function detectColumns(type, headers) {
-  const result = {};
-  Object.entries(SAP_FIELDS[type]).forEach(([key, rule]) => {
-    let found = -1;
-    for (const re of rule.tests) {
-      found = headers.findIndex((h) => re.test(normTxt(h)) && !(rule.exclude && rule.exclude.test(normTxt(h))));
-      if (found >= 0) break;
-    }
-    result[key] = found;
-  });
-  return result;
-}
-
-// Reads the first sheet, finds the header row and returns the rows below it
-function readSapSheet(arrayBuffer, type) {
-  const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: "array", cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
-  const hint = type === "JOBS" ? /job|customer|title|kg|demand|group|material/ : /material/;
-  const minCells = type === "JOBS" ? 2 : 3;
-  let headerIdx = grid.findIndex(
-    (row, i) => i < 25 && row.some((c) => hint.test(normTxt(c))) && row.filter((c) => c !== "").length >= minCells
-  );
-  if (headerIdx < 0) headerIdx = 0;
-  const headers = (grid[headerIdx] || []).map((h) => cellTxt(h));
-  const rows = grid.slice(headerIdx + 1).filter((r) => r.some((c) => c !== ""));
-  return { headers, rows, map: detectColumns(type, headers) };
-}
-
-/* --------------------------- CALCULATION ENGINE ----------------------- */
-function calculateGroupHealth(group, appSettings, jobList, pendingPOs, plants) {
-  const matCodes = group.mats.map((m) => m.c);
-
-  const plantStock = {};
-  const plantPending = {};
-  plants.forEach((p) => {
-    plantStock[p] = 0;
-    plantPending[p] = 0;
-  });
-
-  group.mats.forEach((m) => {
-    plants.forEach((p) => {
-      plantStock[p] += m.st && m.st[p] ? m.st[p] : 0;
-    });
-  });
-
-  pendingPOs.forEach((po) => {
-    if (matCodes.includes(po.m)) {
-      plantPending[po.p] = (plantPending[po.p] || 0) + po.q;
-    }
-  });
-
-  const monthlyReq = jobList
-    .filter((j) => j.groupGroupId === group.id)
-    .reduce((acc, j) => acc + (j.kg || 0), 0);
-
-  const totalStock = sum(plantStock);
-  const totalPending = sum(plantPending);
-  const totalAvailable = totalStock + totalPending;
-
-  const dailyReq = monthlyReq > 0 ? monthlyReq / appSettings.workingDays : 0;
-  const daysCoverStockOnly = dailyReq > 0 ? totalStock / dailyReq : null;
-  const daysCoverWithPending = dailyReq > 0 ? totalAvailable / dailyReq : null;
-
-  let status = "Balanced";
-  if (monthlyReq === 0) status = "No Demand";
-  else if (daysCoverWithPending < appSettings.criticalDays) status = "Critical";
-  else if (daysCoverWithPending < appSettings.lowDays) status = "Low";
-  else if (daysCoverWithPending > appSettings.overstockDays) status = "Overstocked";
-
-  const mainPlant = plants.includes(appSettings.mainPlant) ? appSettings.mainPlant : plants[0];
-  const customSplits = appSettings.plantSplits[group.id] || (mainPlant ? { [mainPlant]: 100 } : {});
-  const totalSplitWeight = sum(customSplits) || 100;
-
-  const plantBreakdown = {};
-  let totalIndentRequired = 0;
-  const targetBufferPerGroup = dailyReq * appSettings.targetCoverDays;
-
-  plants.forEach((p) => {
-    const share = (customSplits[p] || 0) / totalSplitWeight;
-    const plantTargetNeed = targetBufferPerGroup * share;
-    const plantAvail = plantStock[p] + plantPending[p];
-    const rawDeficit = Math.max(0, plantTargetNeed - plantAvail);
-
-    let recommendedIndent = 0;
-    if (rawDeficit > 0) {
-      const lot = group.fam === "Ink" ? 5 : appSettings.lotSize;
-      recommendedIndent = Math.ceil(rawDeficit / lot) * lot;
-    }
-
-    plantBreakdown[p] = {
-      stock: plantStock[p],
-      pending: plantPending[p],
-      targetNeed: plantTargetNeed,
-      deficit: rawDeficit,
-      indent: recommendedIndent,
-      surplus: Math.max(0, plantAvail - plantTargetNeed),
-    };
-    totalIndentRequired += recommendedIndent;
-  });
-
-  return {
-    group, monthlyReq, totalStock, totalPending, totalAvailable,
-    daysCoverStockOnly, daysCoverWithPending, status, plantBreakdown,
-    totalIndentRequired, plantSplits: customSplits,
-  };
-}
+const SHEET_TITLES = { MB5B: "MB5B stock sheet", ME2N: "ME2N pending PO sheet" };
+const NO_SETTINGS = { criticalDays: 0, lowDays: 0, overstockDays: 1, targetCoverDays: 0, lotSize: 0 };
 
 /* -------------------------------- ICONS ------------------------------- */
 const ICONS = {
@@ -293,25 +113,34 @@ function StatusBadge({ status }) {
 /* ------------------------------ SMALL UI PARTS ------------------------ */
 const statusClass = (status) => String(status).toLowerCase().replace(/\s+/g, "");
 
-function FilePick({ onFile, children, className }) {
-  const ref = useRef(null);
+// number box that keeps what you type locally and saves after a short pause / on blur
+function CommitInput({ value, onCommit, delay = 600, ...rest }) {
+  const [v, setV] = useState(value);
+  const timer = useRef(null);
+  const last = useRef(value);
+  useEffect(() => {
+    setV(value);
+    last.current = value;
+  }, [value]);
+  const fire = (val) => {
+    clearTimeout(timer.current);
+    if (String(val) !== String(last.current)) {
+      last.current = val;
+      onCommit(val);
+    }
+  };
   return (
-    <>
-      <button type="button" className={className} onClick={() => ref.current && ref.current.click()}>
-        {children}
-      </button>
-      <input
-        ref={ref}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        hidden
-        onChange={(e) => {
-          const f = e.target.files && e.target.files[0];
-          e.target.value = "";
-          if (f) onFile(f);
-        }}
-      />
-    </>
+    <input
+      {...rest}
+      value={v}
+      onChange={(e) => {
+        setV(e.target.value);
+        clearTimeout(timer.current);
+        if (delay) timer.current = setTimeout(() => fire(e.target.value), delay);
+      }}
+      onBlur={(e) => fire(e.target.value)}
+      onKeyDown={(e) => e.key === "Enter" && fire(e.target.value)}
+    />
   );
 }
 
@@ -346,7 +175,7 @@ function DropZone({ type, title, hint, log, busy, onFile, step }) {
       <input
         ref={ref}
         type="file"
-        accept=".xlsx,.xls,.csv"
+        accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt"
         hidden
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => {
@@ -364,7 +193,7 @@ function DropZone({ type, title, hint, log, busy, onFile, step }) {
           {title}
         </div>
         {busy ? (
-          <div className="rmi-drop-hint">Reading file...</div>
+          <div className="rmi-drop-hint">{typeof busy === "string" ? busy : "Reading file..."}</div>
         ) : log ? (
           <>
             <div className="rmi-drop-hint">
@@ -374,12 +203,6 @@ function DropZone({ type, title, hint, log, busy, onFile, step }) {
               {formatNum(log.used)} rows used{log.extra ? ` (${log.extra})` : ""}
               {log.skipped > 0 ? ` \u2022 ${formatNum(log.skipped)} skipped` : ""}
             </div>
-            {log.unmatched && log.unmatched.length > 0 && (
-              <div className="rmi-drop-hint rmi-red">
-                {log.unmatched.length} job target(s) not found: {log.unmatched.slice(0, 5).join(", ")}
-                {log.unmatched.length > 5 ? " ..." : ""}
-              </div>
-            )}
             <div className="rmi-drop-action">Drop or click to replace</div>
           </>
         ) : (
@@ -435,12 +258,29 @@ function ToastStack({ toasts, onClose }) {
   );
 }
 
+function Pager({ page, pages, onPage }) {
+  if (pages <= 1) return null;
+  return (
+    <div className="rmi-pager">
+      <button className="rmi-btn rmi-btn-outline rmi-btn-xs" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+        Previous
+      </button>
+      <span>
+        Page {page} of {pages}
+      </span>
+      <button className="rmi-btn rmi-btn-outline rmi-btn-xs" disabled={page >= pages} onClick={() => onPage(page + 1)}>
+        Next
+      </button>
+    </div>
+  );
+}
+
 /* ----------------------- COLUMN CONFIRMATION DIALOG ------------------- */
 function ImportModal({ draft, onColumn, onApply, onCancel }) {
-  const fields = Object.entries(SAP_FIELDS[draft.type]);
-  const missing = fields.filter(([key, rule]) => rule.required && draft.map[key] < 0);
-  const mapped = fields.filter(([key]) => draft.map[key] >= 0);
-  const preview = draft.rows.slice(0, 3);
+  const fields = draft.fields;
+  const missing = fields.filter((f) => f.required && draft.map[f.key] < 0);
+  const mapped = fields.filter((f) => draft.map[f.key] >= 0);
+  const preview = draft.preview;
 
   return (
     <div className="rmi-modal-back" onClick={onCancel}>
@@ -449,7 +289,7 @@ function ImportModal({ draft, onColumn, onApply, onCancel }) {
           <div>
             <h3>Check the columns</h3>
             <p>
-              {SHEET_TITLES[draft.type]} &bull; {draft.fileName} &bull; {formatNum(draft.rows.length)} rows
+              {SHEET_TITLES[draft.type]} &bull; {draft.fileName} &bull; {draft.sizeMB} MB
             </p>
           </div>
           <button className="rmi-iconbtn" onClick={onCancel} aria-label="Close">
@@ -461,21 +301,21 @@ function ImportModal({ draft, onColumn, onApply, onCancel }) {
           <div className={`rmi-detect ${missing.length ? "bad" : "good"}`}>
             <Icon name={missing.length ? "alert" : "check"} size={16} />
             {missing.length
-              ? `Choose the column for: ${missing.map(([, r]) => r.label).join(", ")}.`
+              ? `Choose the column for: ${missing.map((f) => f.label).join(", ")}.`
               : "All required columns were found. Review them below, then apply."}
           </div>
 
           <div className="rmi-form3">
-            {fields.map(([key, rule]) => (
-              <div key={key}>
+            {fields.map((f) => (
+              <div key={f.key}>
                 <label>
-                  {rule.label}
-                  {rule.required ? " *" : ""}
+                  {f.label}
+                  {f.required ? " *" : ""}
                 </label>
                 <select
-                  className={`rmi-input w100 ${rule.required && draft.map[key] < 0 ? "rmi-invalid" : ""}`}
-                  value={draft.map[key]}
-                  onChange={(e) => onColumn(key, e.target.value)}
+                  className={`rmi-input w100 ${f.required && draft.map[f.key] < 0 ? "rmi-invalid" : ""}`}
+                  value={draft.map[f.key]}
+                  onChange={(e) => onColumn(f.key, e.target.value)}
                 >
                   <option value={-1}>- not in sheet -</option>
                   {draft.headers.map((h, i) => (
@@ -497,18 +337,17 @@ function ImportModal({ draft, onColumn, onApply, onCancel }) {
                 <table className="rmi-table rmi-table-sm">
                   <thead>
                     <tr>
-                      {mapped.map(([key, rule]) => (
-                        <th key={key}>{rule.label.replace(" (optional)", "")}</th>
+                      {mapped.map((f) => (
+                        <th key={f.key}>{f.label.replace(" (optional)", "")}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((r, i) => (
                       <tr key={i}>
-                        {mapped.map(([key]) => {
-                          const v = r[draft.map[key]];
-                          return <td key={key}>{v instanceof Date ? toISODate(v) : cellTxt(v) || "-"}</td>;
-                        })}
+                        {mapped.map((f) => (
+                          <td key={f.key}>{r[draft.map[f.key]] || "-"}</td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -532,7 +371,7 @@ function ImportModal({ draft, onColumn, onApply, onCancel }) {
 }
 
 /* ================================ FIRST-RUN GUIDE ====================== */
-function SetupGuide({ importLog, reading, onFile }) {
+function SetupGuide({ importLog, busyOf, onFile }) {
   return (
     <div className="rmi-guide">
       <h3 className="rmi-guide-title">Load your SAP sheets to start planning</h3>
@@ -547,7 +386,7 @@ function SetupGuide({ importLog, reading, onFile }) {
           title="Stock sheet (MB5B)"
           hint="Materials, descriptions and stock per plant. Start here."
           log={importLog.MB5B}
-          busy={reading === "MB5B"}
+          busy={busyOf("MB5B")}
           onFile={onFile}
         />
         <DropZone
@@ -556,10 +395,9 @@ function SetupGuide({ importLog, reading, onFile }) {
           title="Pending POs (ME2N)"
           hint="Material already on order, with vendor and delivery date."
           log={importLog.ME2N}
-          busy={reading === "ME2N"}
+          busy={busyOf("ME2N")}
           onFile={onFile}
         />
-
       </div>
     </div>
   );
@@ -567,28 +405,23 @@ function SetupGuide({ importLog, reading, onFile }) {
 
 /* ================================ MAIN ================================= */
 export default function RawMaterialIndent() {
-  const saved = useRef(loadSaved()).current;
-
   const [activeTab, setActiveTab] = useState("board");
-  const [appSettings, setAppSettings] = useState({ ...DEFAULT_SETTINGS, ...(saved.appSettings || {}) });
-  const [jobList, setJobList] = useState(saved.jobList || []); // from Job Demand sheet or added by hand
-  const [indentCart, setIndentCart] = useState(saved.indentCart || []);
-  const [indentRegister, setIndentRegister] = useState(saved.indentRegister || []);
-  const indentSeq = useRef(saved.indentSeq || 1001);
-
-  /* ---- data coming from the uploaded sheets ---- */
-  const [stockMap, setStockMap] = useState(saved.stockMap || {}); // MB5B: { code: { plant: qty } }
-  const [mbInfo, setMbInfo] = useState(saved.mbInfo || {}); // MB5B: { code: { desc, group } }
-  const [pendingPOs, setPendingPOs] = useState(saved.pendingPOs || []); // ME2N lines
-  const [meInfo, setMeInfo] = useState(saved.meInfo || {}); // ME2N: { code: { desc, group } }
-  const [groupOverride, setGroupOverride] = useState(saved.groupOverride || {}); // manual { code: groupName }
-  const [importLog, setImportLog] = useState(saved.importLog || {}); // last applied upload per sheet type
-  const [importDraft, setImportDraft] = useState(null); // sheet read but not applied yet
-  const [reading, setReading] = useState(""); // sheet type being read right now
-
+  const [board, setBoard] = useState(null); // last /board response (one page)
+  const [loadingBoard, setLoadingBoard] = useState(true);
   const [filters, setFilters] = useState({ search: "", family: "", status: "", onlyShortage: false });
-  const [drawerGroupId, setDrawerGroupId] = useState(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sort, setSort] = useState({ key: "status", dir: "asc" });
+  const [page, setPage] = useState(1);
+  const [version, setVersion] = useState(0); // bump to reload server data
+  const [groups, setGroups] = useState([]); // [{id, cat, lead, fam}] for dropdowns
+  const [vendors, setVendors] = useState([]);
+  const [indentCart, setIndentCart] = useState([]);
+  const [register, setRegister] = useState({ rows: [], total: 0 });
+  const [importDraft, setImportDraft] = useState(null);
+  const [reading, setReading] = useState(""); // sheet type being read / imported
+  const [progress, setProgress] = useState("");
+  const [drawer, setDrawer] = useState({ id: null, open: false, data: null });
+
+  const bump = useCallback(() => setVersion((v) => v + 1), []);
 
   /* ---- toasts ---- */
   const [toasts, setToasts] = useState([]);
@@ -599,486 +432,309 @@ export default function RawMaterialIndent() {
     setToasts((p) => [...p.slice(-3), { id, msg, type: opts.type || "info", actionLabel: opts.actionLabel, onAction: opts.onAction }]);
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), opts.duration || 6000);
   }, []);
+  const fail = useCallback((e) => notify(e.message || "Something went wrong.", { type: "warn" }), [notify]);
 
-  /* ---- keep everything in this browser so a refresh does not lose it ---- */
-  const saveFailed = useRef(false);
+  /* ---- planning board: filtered, sorted and paginated on the server ---- */
+  const search = useDebounced(filters.search, 350);
+  const boardQuery = (extra = {}) =>
+    new URLSearchParams({
+      search, family: filters.family, status: filters.status, onlyShortage: filters.onlyShortage ? "1" : "",
+      sort: sort.key, dir: sort.dir, page, ...extra,
+    }).toString();
+  const seq = useRef(0);
   useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            appSettings, jobList, indentCart, indentRegister, indentSeq: indentSeq.current,
-            stockMap, mbInfo, pendingPOs, meInfo, groupOverride, importLog,
-          })
-        );
-        saveFailed.current = false;
-      } catch (e) {
-        if (!saveFailed.current) {
-          saveFailed.current = true;
-          notify("Could not save data in this browser. It will be lost on refresh.", { type: "warn" });
-        }
-      }
-    }, 400);
-    return () => clearTimeout(t);
-  }, [appSettings, jobList, indentCart, indentRegister, stockMap, mbInfo, pendingPOs, meInfo, groupOverride, importLog, notify]);
+    const my = ++seq.current;
+    setLoadingBoard(true);
+    api(`/board?${boardQuery()}`)
+      .then((d) => {
+        if (my !== seq.current) return;
+        setBoard(d);
+        if (d.page !== page) setPage(d.page);
+      })
+      .catch(fail)
+      .finally(() => my === seq.current && setLoadingBoard(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filters.family, filters.status, filters.onlyShortage, sort, page, version]);
+
+  useEffect(() => {
+    api("/groups").then(setGroups).catch(fail);
+    api("/vendors").then(setVendors).catch(() => {});
+  }, [version, fail]);
+
+  const refreshCart = useCallback(() => api("/cart").then(setIndentCart).catch(fail), [fail]);
+  useEffect(() => {
+    refreshCart();
+  }, [refreshCart]);
+
+  useEffect(() => {
+    if (activeTab === "register") api("/indents?limit=100").then(setRegister).catch(fail);
+  }, [activeTab, version, fail]);
 
   /* ---- Esc closes the open dialog or drawer ---- */
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (importDraft) setImportDraft(null);
-      else if (drawerOpen) setDrawerOpen(false);
+      else if (drawer.open) setDrawer((d) => ({ ...d, open: false }));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [importDraft, drawerOpen]);
+  }, [importDraft, drawer.open]);
 
-  /* ---- plants found in the sheets ---- */
-  const plants = useMemo(() => {
-    const set = new Set();
-    Object.values(stockMap).forEach((byPlant) => Object.keys(byPlant).forEach((p) => set.add(p)));
-    pendingPOs.forEach((po) => set.add(po.p));
-    return Array.from(set).sort();
-  }, [stockMap, pendingPOs]);
-
-  /* ---- material catalog + spec groups built from the sheets ---- */
-  const catalog = useMemo(() => {
-    const codes = new Set([
-      ...Object.keys(stockMap),
-      ...Object.keys(mbInfo),
-      ...Object.keys(meInfo),
-      ...pendingPOs.map((po) => po.m),
-    ]);
-    const groups = {};
-    codes.forEach((code) => {
-      const desc = (mbInfo[code] && mbInfo[code].desc) || (meInfo[code] && meInfo[code].desc) || "";
-      const sheetGroup = (mbInfo[code] && mbInfo[code].group) || (meInfo[code] && meInfo[code].group) || "";
-      const derived = deriveGroup(desc);
-      const chosen = groupOverride[code] || sheetGroup;
-      const name = chosen || derived.name;
-      const fromName = chosen ? deriveGroup(chosen) : derived;
-      const fam = fromName.fam !== "Other" ? fromName.fam : derived.fam;
-      const gsm = fromName.gsm || derived.gsm;
-      if (!groups[name]) groups[name] = { id: name, cat: name, fam, gsm, lead: "", mats: [] };
-      groups[name].mats.push({ c: code, s: desc || code, st: stockMap[code] || {}, auto: !chosen });
-    });
-    return Object.values(groups)
-      .map((g) => {
-        const mats = g.mats.sort((a, b) => a.c.localeCompare(b.c));
-        return { ...g, mats, lead: mats[0].s };
-      })
-      .sort(
-        (a, b) =>
-          FAMILY_ORDER.indexOf(a.fam) - FAMILY_ORDER.indexOf(b.fam) ||
-          b.gsm - a.gsm ||
-          a.cat.localeCompare(b.cat)
-      );
-  }, [stockMap, mbInfo, meInfo, pendingPOs, groupOverride]);
-
-  const allHealth = useMemo(
-    () => catalog.map((g) => calculateGroupHealth(g, appSettings, jobList, pendingPOs, plants)),
-    [catalog, appSettings, jobList, pendingPOs, plants]
-  );
-
-  const vendors = useMemo(
-    () => Array.from(new Set(pendingPOs.map((po) => po.v).filter(Boolean))).sort(),
-    [pendingPOs]
-  );
+  const appSettings = board ? board.settings : NO_SETTINGS;
+  const plants = board ? board.plants : [];
+  const importLog = board ? board.importLog : {};
+  const changeFilters = (f) => {
+    setFilters(f);
+    setPage(1);
+  };
 
   /* ---- drawer ---- */
+  const loadDrawer = useCallback(
+    (id) =>
+      api(`/group?id=${encodeURIComponent(id)}`)
+        .then((data) => setDrawer((d) => (d.id === id ? { ...d, data } : d)))
+        .catch(fail),
+    [fail]
+  );
   const openMaterialDrawer = (groupId) => {
-    setDrawerGroupId(groupId);
-    setDrawerOpen(true);
+    setDrawer({ id: groupId, open: true, data: null });
+    loadDrawer(groupId);
   };
-  const closeDrawer = () => setDrawerOpen(false);
+  const closeDrawer = () => setDrawer((d) => ({ ...d, open: false }));
 
-  /* ---- plant split ---- */
-  const updatePlantSplit = (groupId, plant, value) => {
-    setAppSettings((prev) => {
-      const mainPlant = plants.includes(prev.mainPlant) ? prev.mainPlant : plants[0];
-      const current = prev.plantSplits[groupId] || (mainPlant ? { [mainPlant]: 100 } : {});
-      return {
-        ...prev,
-        plantSplits: {
-          ...prev.plantSplits,
-          [groupId]: { ...current, [plant]: parseFloat(value) || 0 },
-        },
-      };
-    });
+  const updatePlantSplit = async (groupId, plant, value) => {
+    try {
+      await api("/split", { method: "PUT", body: { group: groupId, plant, pct: value } });
+      await loadDrawer(groupId);
+      bump();
+    } catch (e) {
+      fail(e);
+    }
   };
 
   /* ---- cart ---- */
-  const upsertCart = (prev, groupId, plant, qty) => {
-    const idx = prev.findIndex((c) => c.groupId === groupId && c.plant === plant);
-    if (idx >= 0) {
-      const copy = [...prev];
-      copy[idx] = { ...copy[idx], qty };
-      return copy;
-    }
-    return [
-      ...prev,
-      {
-        groupId,
-        plant,
-        qty,
-        vendor: "",
-        requiredBy: new Date(Date.now() + appSettings.leadTimeDays * 86400000)
-          .toISOString()
-          .slice(0, 10),
-        notes: "",
-      },
-    ];
-  };
+  const cartRef = useRef([]);
+  cartRef.current = indentCart;
+  const cartTimers = useRef({});
+  const saveLine = (line) => api("/cart/line", { method: "PUT", body: line }).catch(fail);
 
-  const addToCartSingle = (groupId, plant, qty) => {
-    setIndentCart((prev) => upsertCart(prev, groupId, plant, qty));
-    notify(`Added ${formatNum(qty)} KG for plant ${plant} to the cart`, {
-      type: "success",
-      actionLabel: "View cart",
-      onAction: () => setActiveTab("cart"),
-    });
-  };
-
-  const addGroupShortages = (h) => {
-    const lines = plants
-      .filter((p) => h.plantBreakdown[p].indent > 0)
-      .map((p) => [h.group.id, p, h.plantBreakdown[p].indent]);
-    if (lines.length === 0) {
-      notify("Nothing to indent for this spec group.");
-      return;
-    }
-    setIndentCart((prev) => lines.reduce((acc, [g, p, q]) => upsertCart(acc, g, p, q), prev));
-    notify(`${lines.length} line${lines.length === 1 ? "" : "s"} from ${h.group.cat} added to the cart`, {
-      type: "success",
-      actionLabel: "View cart",
-      onAction: () => setActiveTab("cart"),
-    });
-  };
-
-  const addAllShortagesToCart = () => {
-    const lines = [];
-    allHealth.forEach((h) => {
-      plants.forEach((p) => {
-        const pb = h.plantBreakdown[p];
-        if (pb.indent > 0) lines.push([h.group.id, p, pb.indent]);
+  const addToCartSingle = async (groupId, plant, qty) => {
+    try {
+      await api("/cart/line", { method: "PUT", body: { groupId, plant, qty } });
+      await refreshCart();
+      notify(`Added ${formatNum(qty)} KG for plant ${plant} to the cart`, {
+        type: "success",
+        actionLabel: "View cart",
+        onAction: () => setActiveTab("cart"),
       });
-    });
-
-    if (lines.length === 0) {
-      notify("No material shortages detected requiring indenting.");
-      return;
+    } catch (e) {
+      fail(e);
     }
-    setIndentCart((prev) => lines.reduce((acc, [g, p, q]) => upsertCart(acc, g, p, q), prev));
-    notify(`${lines.length} shortage lines added to the cart`, { type: "success" });
-    setActiveTab("cart");
   };
 
-  const updateCartLine = (i, patch) =>
-    setIndentCart((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  const addShortages = async (groupId, label) => {
+    try {
+      const r = await api("/cart/shortages", { method: "POST", body: { groupId } });
+      if (!r.added) {
+        notify(groupId ? "Nothing to indent for this spec group." : "No material shortages detected requiring indenting.");
+        return;
+      }
+      await refreshCart();
+      notify(`${r.added} ${groupId ? `line${r.added === 1 ? "" : "s"} from ${label} added to the cart` : "shortage lines added to the cart"}`, {
+        type: "success",
+        actionLabel: groupId ? "View cart" : undefined,
+        onAction: () => setActiveTab("cart"),
+      });
+      if (!groupId) setActiveTab("cart");
+    } catch (e) {
+      fail(e);
+    }
+  };
+  const addGroupShortages = (h) => addShortages(h.group.id, h.group.cat);
+  const addAllShortagesToCart = () => addShortages(null);
+
+  const updateCartLine = (i, patch) => {
+    const line = { ...cartRef.current[i], ...patch };
+    setIndentCart((prev) => prev.map((c, idx) => (idx === i ? line : c)));
+    const key = `${line.groupId}|${line.plant}`;
+    clearTimeout(cartTimers.current[key]);
+    cartTimers.current[key] = setTimeout(() => saveLine(line), 500);
+  };
 
   const removeCartLine = (i) => {
     const line = indentCart[i];
     if (!line) return;
     setIndentCart((prev) => prev.filter((_, idx) => idx !== i));
+    api(`/cart/line?groupId=${encodeURIComponent(line.groupId)}&plant=${encodeURIComponent(line.plant)}`, { method: "DELETE" }).catch(fail);
     notify("Line removed from the cart", {
       actionLabel: "Undo",
-      onAction: () =>
-        setIndentCart((prev) => {
-          const copy = [...prev];
-          copy.splice(Math.min(i, copy.length), 0, line);
-          return copy;
-        }),
+      onAction: () => saveLine(line).then(refreshCart),
     });
   };
 
   const clearCart = () => {
     const before = indentCart;
     setIndentCart([]);
-    notify("Cart cleared", { actionLabel: "Undo", onAction: () => setIndentCart(before) });
+    api("/cart", { method: "DELETE" }).catch(fail);
+    notify("Cart cleared", {
+      actionLabel: "Undo",
+      onAction: () => Promise.all(before.map(saveLine)).then(refreshCart),
+    });
   };
 
-  const raiseOfficialIndent = () => {
+  const raiseOfficialIndent = async () => {
     if (indentCart.length === 0) return;
-    const indentNo = `IND-${indentSeq.current++}`;
-    const newIndent = {
-      indentNo,
-      date: new Date().toISOString().slice(0, 10),
-      status: "Draft",
-      lines: [...indentCart],
-      totalKG: indentCart.reduce((a, c) => a + c.qty, 0),
-    };
-    setIndentRegister((prev) => [newIndent, ...prev]);
-    setIndentCart([]);
-    setActiveTab("register");
-    notify(`Indent ${indentNo} raised as Draft`, { type: "success" });
+    try {
+      const r = await api("/indents", { method: "POST" });
+      setIndentCart([]);
+      setActiveTab("register");
+      bump();
+      notify(`Indent ${r.indentNo} raised as Draft`, { type: "success" });
+    } catch (e) {
+      fail(e);
+    }
   };
 
-  const setIndentStatus = (idx, status) =>
-    setIndentRegister((prev) => prev.map((r, i) => (i === idx ? { ...r, status } : r)));
+  const setIndentStatus = (indentNo, status) => {
+    setRegister((r) => ({ ...r, rows: r.rows.map((x) => (x.indentNo === indentNo ? { ...x, status } : x)) }));
+    api(`/indents/${encodeURIComponent(indentNo)}/status`, { method: "PATCH", body: { status } }).catch(fail);
+  };
 
   const exportIndentToExcel = (index) => {
-    const indent = indentRegister[index];
-    const data = indent.lines.map((l) => {
-      const group = catalog.find((g) => g.id === l.groupId);
-      return {
-        "Indent Number": indent.indentNo,
-        "Indent Date": indent.date,
-        Status: indent.status,
-        "Material Specification": group ? group.cat : l.groupId,
-        "Plant Location": l.plant,
-        "Quantity (KG)": l.qty,
-        Vendor: l.vendor,
-        "Required By": l.requiredBy,
-      };
-    });
+    const indent = register.rows[index];
+    const data = indent.lines.map((l) => ({
+      "Indent Number": indent.indentNo,
+      "Indent Date": indent.date,
+      Status: indent.status,
+      "Material Specification": l.groupId,
+      "Plant Location": l.plant,
+      "Quantity (KG)": l.qty,
+      Vendor: l.vendor,
+      "Required By": l.requiredBy,
+    }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Material Indent");
     XLSX.writeFile(wb, `${indent.indentNo}_Material_Indent.xlsx`);
   };
 
-  /* ---- jobs ---- */
-  const addJob = (name, groupId, kg) => {
-    setJobList((prev) => [...prev, { id: Date.now(), name, groupGroupId: groupId, kg }]);
-    notify(`Job "${name}" added`, { type: "success" });
-  };
-
-  const updateJob = (id, key, value) =>
-    setJobList((prev) => prev.map((j) => (j.id === id ? { ...j, [key]: value } : j)));
-
-  const deleteJob = (id) => {
-    const idx = jobList.findIndex((j) => j.id === id);
-    const job = jobList[idx];
-    if (!job) return;
-    setJobList((prev) => prev.filter((j) => j.id !== id));
-    notify(`Job "${job.name}" removed`, {
-      actionLabel: "Undo",
-      onAction: () =>
-        setJobList((prev) => {
-          const copy = [...prev];
-          copy.splice(Math.min(idx, copy.length), 0, job);
-          return copy;
-        }),
-    });
-  };
-
-  const shiftJobDemand = (jobId, targetGroupId, shiftPctRaw) => {
-    const job = jobList.find((j) => j.id === jobId);
-    if (!job) return;
-    if (targetGroupId === job.groupGroupId) {
-      notify("The target spec group is the same as the current one.", { type: "warn" });
-      return;
-    }
-    const shiftedKg = Math.round(job.kg * (shiftPctRaw / 100));
-    setJobList((prev) => [
-      ...prev.map((j) => (j.id === jobId ? { ...j, kg: j.kg - shiftedKg } : j)),
-      {
-        id: Date.now(),
-        name: `${job.name} (Shifted Spec)`,
-        groupGroupId: targetGroupId,
-        kg: shiftedKg,
-      },
-    ]);
-    notify(`${formatNum(shiftedKg)} KG shifted to ${targetGroupId}`, { type: "success" });
-  };
-
-  /* ---- manual spec group for one material ---- */
-  const setMaterialGroup = (code, name) =>
-    setGroupOverride((prev) => {
-      const next = { ...prev };
-      if (name) next[code] = name;
-      else delete next[code];
-      return next;
-    });
-
-  /* ---- sheet upload (step 1: read file, detect columns) ---- */
-  const handleSapFile = (file, type) => {
+  /* ---- sheet upload (step 1: send file, server detects columns) ---- */
+  const handleSapFile = async (file, type) => {
     if (!file) return;
-    if (!/\.(xlsx|xls|xlsm|csv)$/i.test(file.name)) {
-      notify("Please choose an Excel file (.xlsx or .xls).", { type: "warn" });
+    if (!/\.(xlsx|xlsm|xls|csv|tsv|txt)$/i.test(file.name)) {
+      notify("Please choose an Excel or CSV file.", { type: "warn" });
       return;
     }
     setReading(type);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const parsed = readSapSheet(ev.target.result, type);
-        setImportDraft({ type, fileName: file.name, ...parsed });
-      } catch (err) {
-        notify("Error parsing Excel file. Please ensure standard SAP layout.", { type: "warn" });
-      }
-      setReading("");
-    };
-    reader.onerror = () => {
-      setReading("");
-      notify("Could not read that file.", { type: "warn" });
-    };
-    reader.readAsArrayBuffer(file);
+    setProgress("Reading file...");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const d = await api(`/upload/${type}/preview`, { method: "POST", form });
+      setImportDraft(d);
+    } catch (e) {
+      fail(e);
+    }
+    setReading("");
+    setProgress("");
   };
 
   const setDraftColumn = (field, value) =>
     setImportDraft((d) => ({ ...d, map: { ...d.map, [field]: parseInt(value) } }));
 
-  /* ---- sheet upload (step 2: apply the mapped columns) ---- */
-  const applyImport = () => {
-    if (!importDraft) return;
-    const { type, rows, map, fileName } = importDraft;
-    const col = (r, key) => (map[key] >= 0 ? r[map[key]] : "");
-    let used = 0;
-    let skipped = 0;
-    let unmatched = [];
-    let extra = "";
-    let commit = () => {};
-
-    if (type === "MB5B") {
-      const stock = {};
-      const info = {};
-      rows.forEach((r) => {
-        const code = cleanCode(col(r, "material"));
-        const plant = cellTxt(col(r, "plant"));
-        if (!code || !plant) {
-          skipped++;
-          return;
-        }
-        stock[code] = stock[code] || {};
-        stock[code][plant] = (stock[code][plant] || 0) + toNum(col(r, "qty"));
-        info[code] = info[code] || { desc: "", group: "" };
-        if (cellTxt(col(r, "desc"))) info[code].desc = cellTxt(col(r, "desc"));
-        if (cellTxt(col(r, "group"))) info[code].group = cellTxt(col(r, "group"));
-        used++;
-      });
-      extra = `${Object.keys(info).length} materials`;
-      commit = () => {
-        setStockMap(stock);
-        setMbInfo(info);
-      };
-    } else if (type === "ME2N") {
-      const list = [];
-      const info = {};
-      rows.forEach((r) => {
-        const code = cleanCode(col(r, "material"));
-        const plant = cellTxt(col(r, "plant"));
-        const qty = toNum(col(r, "qty"));
-        if (!code || !plant || qty <= 0) {
-          skipped++;
-          return;
-        }
-        list.push({
-          m: code,
-          p: plant,
-          poNo: map.poNo >= 0 ? cellTxt(col(r, "poNo")) : "-",
-          v: cellTxt(col(r, "vendor")),
-          q: qty,
-          e: toISODate(col(r, "date")),
-        });
-        info[code] = info[code] || { desc: "", group: "" };
-        if (cellTxt(col(r, "desc"))) info[code].desc = cellTxt(col(r, "desc"));
-        if (cellTxt(col(r, "group"))) info[code].group = cellTxt(col(r, "group"));
-        used++;
-      });
-      extra = `${new Set(list.map((l) => l.m)).size} materials`;
-      commit = () => {
-        setPendingPOs(list);
-        setMeInfo(info);
-      };
-    } else {
-      // JOBS: link every row to a spec group (by group name or by a material code in the group)
-      const codeToGroup = {};
-      const nameToGroup = {};
-      catalog.forEach((g) => {
-        nameToGroup[g.cat.toLowerCase()] = g.id;
-        g.mats.forEach((m) => {
-          codeToGroup[m.c] = g.id;
-        });
-      });
-      const missing = new Set();
-      const jobs = [];
-      rows.forEach((r, i) => {
-        const name = cellTxt(col(r, "job"));
-        const target = cellTxt(col(r, "target"));
-        const kg = toNum(col(r, "kg"));
-        if (!name || !kg) {
-          skipped++;
-          return;
-        }
-        const gid = codeToGroup[cleanCode(target)] || nameToGroup[target.toLowerCase()];
-        if (!gid) {
-          missing.add(target || "(blank)");
-          return;
-        }
-        jobs.push({ id: Date.now() + i, name, groupGroupId: gid, kg });
-        used++;
-      });
-      unmatched = Array.from(missing);
-      extra = `${jobs.length} jobs`;
-      commit = () => setJobList(jobs);
-    }
-
-    if (used === 0) {
-      notify(`No usable rows found in ${fileName}. Check the column choices and try again.`, { type: "warn" });
-      return;
-    }
-
-    commit();
-    setImportLog((prev) => ({
-      ...prev,
-      [type]: {
-        fileName,
-        at: new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
-        totalRows: rows.length,
-        used,
-        skipped,
-        extra,
-        unmatched,
-      },
-    }));
+  /* ---- sheet upload (step 2: server imports in the background, we poll) ---- */
+  const applyImport = async () => {
+    const d = importDraft;
+    if (!d) return;
     setImportDraft(null);
-    notify(`${SHEET_TITLES[type]} loaded: ${formatNum(used)} rows (${extra})`, { type: "success" });
+    setReading(d.type);
+    setProgress("Importing...");
+    try {
+      const { jobId } = await api(`/upload/${d.type}/apply`, {
+        method: "POST",
+        body: { uploadId: d.uploadId, map: d.map, headerRow: d.headerRow, fileName: d.fileName },
+      });
+      for (;;) {
+        await sleep(1000);
+        const j = await api(`/upload/job/${jobId}`);
+        if (j.state === "running") setProgress(`Importing... ${formatNum(j.rows)} rows read`);
+        else if (j.state === "error") throw new Error(j.error);
+        else {
+          notify(`${SHEET_TITLES[d.type]} loaded: ${formatNum(j.result.used)} rows (${j.result.extra})`, { type: "success" });
+          break;
+        }
+      }
+      bump();
+    } catch (e) {
+      fail(e);
+    }
+    setReading("");
+    setProgress("");
+  };
+  const busyOf = (type) => (reading === type ? progress || true : false);
+
+  const saveSettings = async (patch) => {
+    try {
+      await api("/settings", { method: "PUT", body: patch });
+      bump();
+    } catch (e) {
+      fail(e);
+    }
   };
 
-  const setSetting = (key, value) => setAppSettings((prev) => ({ ...prev, [key]: value }));
-
-  const resetAll = () => {
-    if (!window.confirm("Clear all uploaded sheets, jobs, cart, indents and settings from this browser?")) return;
-    setStockMap({});
-    setMbInfo({});
-    setPendingPOs([]);
-    setMeInfo({});
-    setGroupOverride({});
-    setJobList([]);
-    setIndentCart([]);
-    setIndentRegister([]);
-    setImportLog({});
-    setAppSettings(DEFAULT_SETTINGS);
-    indentSeq.current = 1001;
+  const resetAll = async () => {
+    if (!window.confirm("Clear all uploaded sheets, jobs, cart, indents and settings?")) return;
     try {
-      localStorage.removeItem(STORAGE_KEY);
+      await api("/all", { method: "DELETE", body: { confirm: true } });
+      setIndentCart([]);
+      setBoard(null);
+      bump();
+      notify("All data cleared.");
     } catch (e) {
-      /* ignore */
+      fail(e);
     }
-    notify("All data cleared.");
+  };
+
+  const exportBoard = async () => {
+    try {
+      const d = await api(`/board?${boardQuery({ limit: "all" })}`);
+      const data = d.rows.map((h) => ({
+        "Spec Group": h.group.cat,
+        Family: h.group.fam,
+        "Main Material": h.group.lead,
+        "Mapped Jobs": h.jobNames,
+        "Current Stock (KG)": Math.round(h.totalStock),
+        "Monthly Req (KG)": Math.round(h.monthlyReq),
+        "Pending PO (KG)": Math.round(h.totalPending),
+        "Stock Days": h.daysCoverStockOnly === null ? "" : Math.round(h.daysCoverStockOnly * 10) / 10,
+        "Total Days": h.daysCoverWithPending === null ? "" : Math.round(h.daysCoverWithPending * 10) / 10,
+        "Indent Required (KG)": h.totalIndentRequired,
+        Status: h.status,
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Planning Board");
+      XLSX.writeFile(wb, "Planning_Board.xlsx");
+    } catch (e) {
+      fail(e);
+    }
   };
 
   /* ---- KPIs ---- */
-  const hasMaterials = allHealth.length > 0;
-  const totalStockKG = allHealth.reduce((a, c) => a + c.totalStock, 0);
-  const totalPendingKG = allHealth.reduce((a, c) => a + c.totalPending, 0);
-  const totalMonthlyReqKG = allHealth.reduce((a, c) => a + c.monthlyReq, 0);
-  const criticalCount = allHealth.filter((c) => c.status === "Critical" || c.status === "Low").length;
-  const totalIndentNeededKG = allHealth.reduce((a, c) => a + c.totalIndentRequired, 0);
+  const hasMaterials = !!board && board.groupCount > 0;
+  const k = board ? board.kpis : {};
   const dash = (v) => (hasMaterials ? v : "-");
-
   const kpis = [
-    { title: "Current stock", val: dash(`${formatNum(totalStockKG)} KG`), sub: `Across ${plants.length} plant${plants.length === 1 ? "" : "s"}`, icon: "package", tone: "teal" },
-    { title: "Pending delivery", val: dash(`${formatNum(totalPendingKG)} KG`), sub: "Open purchase orders", icon: "truck", tone: "blue" },
-    { title: "Monthly demand", val: dash(`${formatNum(totalMonthlyReqKG)} KG`), sub: `${jobList.length} job${jobList.length === 1 ? "" : "s"} allocated`, icon: "trend", tone: "green" },
-    { title: "Critical / low", val: dash(`${criticalCount} group${criticalCount === 1 ? "" : "s"}`), sub: `Under ${appSettings.lowDays} days of cover`, icon: "alert", tone: hasMaterials && criticalCount > 0 ? "red" : "green" },
-    { title: "Recommended indent", val: dash(`${formatNum(totalIndentNeededKG)} KG`), sub: "To reach the target buffer", icon: "cart", tone: "gold" },
+    { title: "Current stock", val: dash(`${formatNum(k.stock)} KG`), sub: `Across ${plants.length} plant${plants.length === 1 ? "" : "s"}`, icon: "package", tone: "teal" },
+    { title: "Pending delivery", val: dash(`${formatNum(k.pending)} KG`), sub: "Open purchase orders", icon: "truck", tone: "blue" },
+    { title: "Monthly demand", val: dash(`${formatNum(k.monthlyReq)} KG`), sub: `${k.jobs || 0} job${k.jobs === 1 ? "" : "s"} allocated`, icon: "trend", tone: "green" },
+    { title: "Critical / low", val: dash(`${k.critical || 0} group${k.critical === 1 ? "" : "s"}`), sub: `Under ${appSettings.lowDays} days of cover`, icon: "alert", tone: hasMaterials && k.critical > 0 ? "red" : "green" },
+    { title: "Recommended indent", val: dash(`${formatNum(k.indent)} KG`), sub: "To reach the target buffer", icon: "cart", tone: "gold" },
   ];
 
   const tabs = [
-    { id: "board", label: "Planning Board", icon: "grid", badge: hasMaterials && criticalCount > 0 ? criticalCount : 0, badgeTone: "red" },
+    { id: "board", label: "Planning Board", icon: "grid", badge: hasMaterials && k.critical > 0 ? k.critical : 0, badgeTone: "red" },
     { id: "jobs", label: "Job Demand", icon: "layers", badge: 0 },
     { id: "register", label: "Indent Register", icon: "file", badge: 0 },
     { id: "settings", label: "Data & Settings", icon: "sliders", badge: 0 },
@@ -1092,11 +748,10 @@ export default function RawMaterialIndent() {
   return (
     <ToastCtx.Provider value={notify}>
       <div className="rmi-root" onFocus={selectNumber}>
-        <style>{CSS}</style>
+        <style>{CSS + CSS_EXTRA}</style>
 
         {/* ---------- Header ---------- */}
         <div className="rmi-header">
-
           <button className="rmi-btn rmi-btn-gold rmi-cart-btn" onClick={() => setActiveTab("cart")}>
             <Icon name="cart" />
             <span>Indent cart</span>
@@ -1123,16 +778,16 @@ export default function RawMaterialIndent() {
 
         {/* ---------- KPI cards ---------- */}
         <div className="rmi-kpis">
-          {kpis.map((k) => (
-            <div className="rmi-kpi" key={k.title}>
+          {kpis.map((x) => (
+            <div className="rmi-kpi" key={x.title}>
               <div className="rmi-kpi-top">
-                <span className="rmi-kpi-title">{k.title}</span>
-                <span className={`rmi-kpi-icon tone-${k.tone}`}>
-                  <Icon name={k.icon} />
+                <span className="rmi-kpi-title">{x.title}</span>
+                <span className={`rmi-kpi-icon tone-${x.tone}`}>
+                  <Icon name={x.icon} />
                 </span>
               </div>
-              <div className="rmi-kpi-val">{k.val}</div>
-              <div className="rmi-kpi-sub">{k.sub}</div>
+              <div className="rmi-kpi-val">{x.val}</div>
+              <div className="rmi-kpi-sub">{x.sub}</div>
             </div>
           ))}
         </div>
@@ -1140,38 +795,37 @@ export default function RawMaterialIndent() {
         {/* ---------- Tab content ---------- */}
         <div className="rmi-panel">
           {activeTab === "board" &&
-            (hasMaterials ? (
+            (!board ? (
+              <div className="rmi-note-empty">{loadingBoard ? "Loading..." : "Could not load data."}</div>
+            ) : hasMaterials ? (
               <PlanningBoard
-                allHealth={allHealth}
-                jobList={jobList}
+                data={board}
+                loading={loadingBoard}
                 filters={filters}
-                setFilters={setFilters}
+                setFilters={changeFilters}
+                sort={sort}
+                setSort={(s) => {
+                  setSort(s);
+                  setPage(1);
+                }}
+                page={page}
+                setPage={setPage}
                 appSettings={appSettings}
-                plants={plants}
-                importLog={importLog}
                 cart={indentCart}
                 onOpen={openMaterialDrawer}
                 onAddAll={addAllShortagesToCart}
                 onAddGroup={addGroupShortages}
+                onExport={exportBoard}
                 onGoTab={setActiveTab}
               />
             ) : (
-              <SetupGuide importLog={importLog} reading={reading} onFile={handleSapFile} />
+              <SetupGuide importLog={importLog} busyOf={busyOf} onFile={handleSapFile} />
             ))}
-          {activeTab === "jobs" && (
-            <JobPlanner
-              groups={catalog}
-              jobList={jobList}
-              onAdd={addJob}
-              onUpdate={updateJob}
-              onDelete={deleteJob}
-              onShift={shiftJobDemand}
-            />
-          )}
+          {activeTab === "jobs" && <JobPlanner groups={groups} version={version} onChanged={bump} />}
           {activeTab === "cart" && (
             <IndentCart
               cart={indentCart}
-              groups={catalog}
+              groups={groups}
               vendors={vendors}
               onGoBoard={() => setActiveTab("board")}
               onClear={clearCart}
@@ -1181,23 +835,19 @@ export default function RawMaterialIndent() {
             />
           )}
           {activeTab === "register" && (
-            <IndentRegister
-              register={indentRegister}
-              groups={catalog}
-              onStatus={setIndentStatus}
-              onExport={exportIndentToExcel}
-            />
+            <IndentRegister register={register.rows} total={register.total} groups={groups} onStatus={setIndentStatus} onExport={exportIndentToExcel} />
           )}
           {activeTab === "settings" && (
             <SettingsPage
-              appSettings={appSettings}
-              setSetting={setSetting}
+              settings={appSettings}
+              onSave={saveSettings}
               plants={plants}
-              catalog={catalog}
+              families={board ? board.families : []}
               importLog={importLog}
-              reading={reading}
+              busyOf={busyOf}
               onFile={handleSapFile}
-              onMaterialGroup={setMaterialGroup}
+              version={version}
+              onGroupChanged={bump}
               onReset={resetAll}
             />
           )}
@@ -1215,32 +865,26 @@ export default function RawMaterialIndent() {
         </div>
 
         {/* ---------- Drawer ---------- */}
-        <div className={`rmi-backdrop ${drawerOpen ? "open" : ""}`} onClick={closeDrawer}>
+        <div className={`rmi-backdrop ${drawer.open ? "open" : ""}`} onClick={closeDrawer}>
           <div className="rmi-drawer" role="dialog" aria-modal="true" aria-label="Spec group details" onClick={(e) => e.stopPropagation()}>
-            {drawerGroupId !== null && (
-              <MaterialDrawer
-                health={allHealth.find((h) => h.group.id === drawerGroupId)}
-                appSettings={appSettings}
-                pendingPOs={pendingPOs}
-                plants={plants}
-                cart={indentCart}
-                onClose={closeDrawer}
-                onSplit={updatePlantSplit}
-                onAddToCart={addToCartSingle}
-                onAddGroup={addGroupShortages}
-              />
-            )}
+            {drawer.id !== null &&
+              (drawer.data ? (
+                <MaterialDrawer
+                  data={drawer.data}
+                  appSettings={appSettings}
+                  cart={indentCart}
+                  onClose={closeDrawer}
+                  onSplit={updatePlantSplit}
+                  onAddToCart={addToCartSingle}
+                  onAddGroup={addGroupShortages}
+                />
+              ) : (
+                <div className="rmi-note-empty">Loading...</div>
+              ))}
           </div>
         </div>
 
-        {importDraft && (
-          <ImportModal
-            draft={importDraft}
-            onColumn={setDraftColumn}
-            onApply={applyImport}
-            onCancel={() => setImportDraft(null)}
-          />
-        )}
+        {importDraft && <ImportModal draft={importDraft} onColumn={setDraftColumn} onApply={applyImport} onCancel={() => setImportDraft(null)} />}
 
         <ToastStack toasts={toasts} onClose={closeToast} />
       </div>
@@ -1250,73 +894,18 @@ export default function RawMaterialIndent() {
 
 /* ============================ PLANNING BOARD =========================== */
 const STATUS_ORDER = ["Critical", "Low", "Balanced", "Overstocked", "No Demand"];
-const STATUS_LABEL = {
-  Critical: "Critical",
-  Low: "Low",
-  Balanced: "Balanced",
-  Overstocked: "Overstock",
-  "No Demand": "No demand",
-};
+const STATUS_LABEL = { Critical: "Critical", Low: "Low", Balanced: "Balanced", Overstocked: "Overstock", "No Demand": "No demand" };
 
 function PlanningBoard({
-  allHealth, jobList, filters, setFilters, appSettings, plants, importLog, cart,
-  onOpen, onAddAll, onAddGroup, onGoTab,
+  data, loading, filters, setFilters, sort, setSort, page, setPage, appSettings, cart,
+  onOpen, onAddAll, onAddGroup, onExport, onGoTab,
 }) {
-  const [sort, setSort] = useState({ key: "status", dir: "asc" });
-
-  const jobsFor = (groupId) =>
-    jobList.filter((j) => j.groupGroupId === groupId).map((j) => j.name).join(", ");
-  const families = Array.from(new Set(allHealth.map((h) => h.group.fam)));
-  const num = (v) => (v === null || v === undefined ? Infinity : v);
-
-  const counts = { "": allHealth.length };
-  STATUS_ORDER.forEach((s) => {
-    counts[s] = allHealth.filter((h) => h.status === s).length;
-  });
-
-  const filtered = allHealth.filter((h) => {
-    const matchesSearch =
-      !filters.search ||
-      (
-        h.group.cat + " " + h.group.lead + " " + jobsFor(h.group.id) + " " +
-        h.group.mats.map((m) => m.c + m.s).join(" ")
-      )
-        .toLowerCase()
-        .includes(filters.search.toLowerCase());
-    const matchesFam = !filters.family || h.group.fam === filters.family;
-    const matchesStatus = !filters.status || h.status === filters.status;
-    const matchesShortage = !filters.onlyShortage || h.totalIndentRequired > 0;
-    return matchesSearch && matchesFam && matchesStatus && matchesShortage;
-  });
-
-  const sortVal = (h, key) => {
-    switch (key) {
-      case "cat": return h.group.cat;
-      case "stock": return h.totalStock;
-      case "req": return h.monthlyReq;
-      case "pending": return h.totalPending;
-      case "stockDays": return num(h.daysCoverStockOnly);
-      case "totalDays": return num(h.daysCoverWithPending);
-      case "indent": return h.totalIndentRequired;
-      default: return STATUS_ORDER.indexOf(h.status);
-    }
-  };
-  const rows = [...filtered].sort((a, b) => {
-    const va = sortVal(a, sort.key);
-    const vb = sortVal(b, sort.key);
-    let c = typeof va === "string" ? va.localeCompare(vb) : va === vb ? 0 : va - vb;
-    if (c === 0 && sort.key === "status") {
-      const da = num(a.daysCoverWithPending);
-      const db = num(b.daysCoverWithPending);
-      c = da === db ? 0 : da - db;
-    }
-    return sort.dir === "asc" ? c : -c;
-  });
+  const { rows, plants, counts, families, importLog, shortLines, shortKG } = data;
 
   const toggleSort = (key) =>
-    setSort((s) =>
-      s.key === key
-        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+    setSort(
+      sort.key === key
+        ? { key, dir: sort.dir === "asc" ? "desc" : "asc" }
         : { key, dir: ["cat", "status", "stockDays", "totalDays"].includes(key) ? "asc" : "desc" }
     );
 
@@ -1329,19 +918,6 @@ function PlanningBoard({
     </th>
   );
 
-  // shortage summary for the main action button
-  let shortLines = 0;
-  let shortKG = 0;
-  allHealth.forEach((h) =>
-    plants.forEach((p) => {
-      const ind = h.plantBreakdown[p].indent;
-      if (ind > 0) {
-        shortLines++;
-        shortKG += ind;
-      }
-    })
-  );
-
   const inCartAll = (h) => {
     const lines = plants.filter((p) => h.plantBreakdown[p].indent > 0);
     return (
@@ -1350,33 +926,11 @@ function PlanningBoard({
     );
   };
 
-  const exportBoard = () => {
-    const data = rows.map((h) => ({
-      "Spec Group": h.group.cat,
-      Family: h.group.fam,
-      "Main Material": h.group.lead,
-      "Mapped Jobs": jobsFor(h.group.id),
-      "Current Stock (KG)": Math.round(h.totalStock),
-      "Monthly Req (KG)": Math.round(h.monthlyReq),
-      "Pending PO (KG)": Math.round(h.totalPending),
-      "Stock Days": h.daysCoverStockOnly === null ? "" : Math.round(h.daysCoverStockOnly * 10) / 10,
-      "Total Days": h.daysCoverWithPending === null ? "" : Math.round(h.daysCoverWithPending * 10) / 10,
-      "Indent Required (KG)": h.totalIndentRequired,
-      Status: h.status,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Planning Board");
-    XLSX.writeFile(wb, "Planning_Board.xlsx");
-  };
-
   const filtersActive = filters.search || filters.family || filters.status || filters.onlyShortage;
   const clearFilters = () => setFilters({ search: "", family: "", status: "", onlyShortage: false });
-
   const strip = [
     { type: "MB5B", label: "Stock" },
     { type: "ME2N", label: "Pending POs" },
-
   ];
 
   return (
@@ -1393,7 +947,7 @@ function PlanningBoard({
             </button>
           );
         })}
-        {jobList.length === 0 && (
+        {data.kpis.jobs === 0 && (
           <button className="rmi-linkbtn" onClick={() => onGoTab("jobs")}>
             Add job demand to get cover days and indent suggestions
           </button>
@@ -1428,12 +982,7 @@ function PlanningBoard({
             />
           </div>
 
-          <select
-            className="rmi-input"
-            aria-label="Family"
-            value={filters.family}
-            onChange={(e) => setFilters({ ...filters, family: e.target.value })}
-          >
+          <select className="rmi-input" aria-label="Family" value={filters.family} onChange={(e) => setFilters({ ...filters, family: e.target.value })}>
             <option value="">All families</option>
             {families.map((f) => (
               <option key={f} value={f}>
@@ -1443,11 +992,7 @@ function PlanningBoard({
           </select>
 
           <label className="rmi-switch">
-            <input
-              type="checkbox"
-              checked={filters.onlyShortage}
-              onChange={(e) => setFilters({ ...filters, onlyShortage: e.target.checked })}
-            />
+            <input type="checkbox" checked={filters.onlyShortage} onChange={(e) => setFilters({ ...filters, onlyShortage: e.target.checked })} />
             <span className="rmi-switch-track" />
             <span>Shortages only</span>
           </label>
@@ -1460,23 +1005,22 @@ function PlanningBoard({
         </div>
 
         <div className="rmi-actions">
-          <button className="rmi-btn rmi-btn-outline" onClick={exportBoard} disabled={rows.length === 0}>
+          <button className="rmi-btn rmi-btn-outline" onClick={onExport} disabled={data.total === 0}>
             <Icon name="download" size={14} /> Export
           </button>
           <button className="rmi-btn rmi-btn-primary" onClick={onAddAll} disabled={shortLines === 0}>
             <Icon name="cart" size={14} />
-            {shortLines > 0
-              ? `Add all shortages (${shortLines} lines, ${formatNum(shortKG)} KG)`
-              : "No shortages to indent"}
+            {shortLines > 0 ? `Add all shortages (${shortLines} lines, ${formatNum(shortKG)} KG)` : "No shortages to indent"}
           </button>
         </div>
       </div>
 
       <div className="rmi-resultline">
-        Showing {rows.length} of {allHealth.length} spec groups
+        Showing {rows.length} of {formatNum(data.total)} matching spec groups ({formatNum(data.groupCount)} total)
+        {loading ? " - updating..." : ""}
       </div>
 
-      <div className="rmi-tablewrap rmi-sticky">
+      <div className={`rmi-tablewrap rmi-sticky ${loading ? "rmi-loading" : ""}`}>
         <table className="rmi-table">
           <thead>
             <tr>
@@ -1517,10 +1061,10 @@ function PlanningBoard({
                     <div className="rmi-strong">{h.group.cat}</div>
                     <div className="rmi-muted rmi-trunc">{h.group.lead}</div>
                     <div className="rmi-link-note">
-                      {h.group.mats.length} material code{h.group.mats.length === 1 ? "" : "s"}
+                      {h.group.matCount} material code{h.group.matCount === 1 ? "" : "s"}
                     </div>
                   </td>
-                  <td className="rmi-jobs-cell">{jobsFor(h.group.id) || <span className="rmi-faint">-</span>}</td>
+                  <td className="rmi-jobs-cell">{h.jobNames || <span className="rmi-faint">-</span>}</td>
                   <td className="r rmi-strong">{formatNum(h.totalStock)} KG</td>
                   <td className="r rmi-strong">{h.monthlyReq > 0 ? `${formatNum(h.monthlyReq)} KG` : <span className="rmi-faint">-</span>}</td>
                   <td className="r rmi-indigo">{h.totalPending > 0 ? `+${formatNum(h.totalPending)} KG` : <span className="rmi-faint">-</span>}</td>
@@ -1557,25 +1101,23 @@ function PlanningBoard({
           </tbody>
         </table>
       </div>
+      <Pager page={data.page} pages={data.pages} onPage={setPage} />
       <div className="rmi-hint">Click a row to see plant split, alternate codes and open POs.</div>
     </div>
   );
 }
 
 /* ============================== MATERIAL DRAWER ======================== */
-function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose, onSplit, onAddToCart, onAddGroup }) {
-  if (!health) return null;
+function MaterialDrawer({ data, appSettings, cart, onClose, onSplit, onAddToCart, onAddGroup }) {
+  const { health, plants, mats, pos } = data;
   const { group } = health;
-  const matCodes = group.mats.map((m) => m.c);
-  const pos = pendingPOs.filter((p) => matCodes.includes(p.m));
 
   return (
     <>
       <div className="rmi-drawer-head">
         <div>
           <div className="rmi-drawer-kicker">
-            {group.fam}
-            {group.gsm ? ` \u2022 ${group.gsm} GSM` : ""} &nbsp;
+            {group.fam} &nbsp;
             <StatusBadge status={health.status} />
           </div>
           <h3 className="rmi-drawer-title">{group.cat}</h3>
@@ -1587,7 +1129,6 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
       </div>
 
       <div className="rmi-drawer-body">
-        {/* Health metrics */}
         <div className="rmi-metrics">
           <div>
             <div className="rmi-muted">Total Stock</div>
@@ -1603,11 +1144,7 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
           </div>
           <div>
             <div className="rmi-muted">Total Cover</div>
-            <div
-              className={`rmi-metric ${
-                health.daysCoverWithPending < appSettings.criticalDays ? "rmi-red" : "rmi-green"
-              }`}
-            >
+            <div className={`rmi-metric ${health.daysCoverWithPending < appSettings.criticalDays ? "rmi-red" : "rmi-green"}`}>
               {health.daysCoverWithPending !== null ? `${formatDec(health.daysCoverWithPending)} Days` : "N/A"}
             </div>
           </div>
@@ -1636,21 +1173,17 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
                 {plants.map((p) => {
                   const pb = health.plantBreakdown[p];
                   const currentSplit = health.plantSplits[p] || 0;
-                  const hasSurplusElsewhere = plants.some(
-                    (other) => other !== p && health.plantBreakdown[other].surplus > 0
-                  );
+                  const hasSurplusElsewhere = plants.some((other) => other !== p && health.plantBreakdown[other].surplus > 0);
                   return (
                     <tr key={p}>
-                      <td className="rmi-strong">
-                        Plant {p}
-                      </td>
+                      <td className="rmi-strong">Plant {p}</td>
                       <td className="c">
-                        <input
+                        <CommitInput
                           type="number"
                           min="0"
                           max="100"
                           value={currentSplit}
-                          onChange={(e) => onSplit(group.id, p, e.target.value)}
+                          onCommit={(v) => onSplit(group.id, p, v)}
                           className="rmi-input rmi-num-sm"
                         />{" "}
                         %
@@ -1672,10 +1205,7 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
                             <Icon name="check" size={12} /> In cart
                           </span>
                         ) : pb.indent > 0 ? (
-                          <button
-                            className="rmi-btn rmi-btn-gold rmi-btn-xs"
-                            onClick={() => onAddToCart(group.id, p, pb.indent)}
-                          >
+                          <button className="rmi-btn rmi-btn-gold rmi-btn-xs" onClick={() => onAddToCart(group.id, p, pb.indent)}>
                             + Cart
                           </button>
                         ) : (
@@ -1694,8 +1224,9 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
         <div>
           <div className="rmi-sec-head">
             <h4>Alternate Interchangeable Codes in Group</h4>
+            {data.matsTruncated && <span className="rmi-muted">Showing first {mats.length} of {formatNum(group.matCount)}</span>}
           </div>
-          <div className="rmi-tablewrap">
+          <div className="rmi-tablewrap rmi-scroll">
             <table className="rmi-table rmi-table-sm">
               <thead>
                 <tr>
@@ -1707,7 +1238,7 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
                 </tr>
               </thead>
               <tbody>
-                {group.mats.map((m) => (
+                {mats.map((m) => (
                   <tr key={m.c}>
                     <td className="rmi-mono rmi-bold">{m.c}</td>
                     <td>{m.s}</td>
@@ -1729,7 +1260,7 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
           {pos.length === 0 ? (
             <div className="rmi-note-empty">No active pending POs for this material spec group.</div>
           ) : (
-            <div className="rmi-tablewrap">
+            <div className="rmi-tablewrap rmi-scroll">
               <table className="rmi-table rmi-table-sm">
                 <thead>
                   <tr>
@@ -1744,7 +1275,7 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
                   {pos.map((po, i) => (
                     <tr key={`${po.poNo}-${po.m}-${po.p}-${i}`}>
                       <td className="rmi-mono">{po.poNo}</td>
-                      <td>{po.v}</td>
+                      <td>{po.v || "-"}</td>
                       <td className="rmi-strong">{po.p}</td>
                       <td className="r rmi-indigo rmi-bold">{formatNum(po.q)} KG</td>
                       <td className="r">{po.e || "-"}</td>
@@ -1775,11 +1306,32 @@ function MaterialDrawer({ health, appSettings, pendingPOs, plants, cart, onClose
 }
 
 /* ============================ JOB DEMAND PLANNER ======================= */
-function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
+function JobPlanner({ groups, version, onChanged }) {
   const notify = useToast();
   const [name, setName] = useState("");
   const [groupId, setGroupId] = useState("");
   const [kg, setKg] = useState("");
+  const [list, setList] = useState({ rows: [], total: 0, page: 1, pages: 1 });
+  const [page, setPage] = useState(1);
+  const [term, setTerm] = useState("");
+  const search = useDebounced(term, 350);
+
+  const load = useCallback(
+    () =>
+      api(`/jobs?${new URLSearchParams({ page, search })}`)
+        .then(setList)
+        .catch((e) => notify(e.message, { type: "warn" })),
+    [page, search, notify]
+  );
+  useEffect(() => {
+    load();
+  }, [load, version]);
+
+  const done = () => {
+    load();
+    onChanged();
+  };
+  const run = (p) => p.then(done).catch((e) => notify(e.message, { type: "warn" }));
 
   const handleAdd = () => {
     const kgNum = parseFloat(kg);
@@ -1788,10 +1340,28 @@ function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
       notify("Enter a job title, choose a spec group and enter the monthly KG.", { type: "warn" });
       return;
     }
-    onAdd(name, gid, kgNum);
-    setName("");
-    setKg("");
+    run(api("/jobs", { method: "POST", body: { name, groupGroupId: gid, kg: kgNum } }).then(() => {
+      notify(`Job "${name}" added`, { type: "success" });
+      setName("");
+      setKg("");
+    }));
   };
+  const onUpdate = (id, patch) => run(api(`/jobs/${id}`, { method: "PATCH", body: patch }));
+  const onDelete = (job) =>
+    run(
+      api(`/jobs/${job.id}`, { method: "DELETE" }).then(() =>
+        notify(`Job "${job.name}" removed`, {
+          actionLabel: "Undo",
+          onAction: () => run(api("/jobs", { method: "POST", body: { name: job.name, groupGroupId: job.groupGroupId, kg: job.kg } })),
+        })
+      )
+    );
+  const onShift = (id, targetGroupId, pct) =>
+    run(
+      api(`/jobs/${id}/shift`, { method: "POST", body: { targetGroupId, pct } }).then((r) =>
+        notify(`${formatNum(r.shifted)} KG shifted to ${targetGroupId}`, { type: "success" })
+      )
+    );
 
   return (
     <div className="rmi-stack">
@@ -1799,11 +1369,13 @@ function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
         <div>
           <h3 className="rmi-h3">Job demand</h3>
           <p className="rmi-muted">
-            Monthly KG per job drives cover days and indent suggestions. {jobList.length} job
-            {jobList.length === 1 ? "" : "s"} loaded.
+            Monthly KG per job drives cover days and indent suggestions. {formatNum(list.total)} job{list.total === 1 ? "" : "s"} loaded.
           </p>
         </div>
-
+        <div className="rmi-search" style={{ maxWidth: 260 }}>
+          <Icon name="search" size={14} />
+          <input type="text" placeholder="Search job or spec group" aria-label="Search jobs" value={term} onChange={(e) => { setTerm(e.target.value); setPage(1); }} />
+        </div>
       </div>
 
       <div className="rmi-callout">
@@ -1815,30 +1387,18 @@ function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
       </div>
 
       {groups.length === 0 ? (
-        <div className="rmi-note-empty">
-          Upload the MB5B stock sheet first. Spec groups are built from the materials in it.
-        </div>
+        <div className="rmi-note-empty">Upload the MB5B stock sheet first. Spec groups are built from the materials in it.</div>
       ) : (
         <div className="rmi-card">
           <h4 className="rmi-card-title">Add New Job Demand</h4>
           <div className="rmi-addjob">
             <div className="span2">
               <label>Job Title / Customer</label>
-              <input
-                type="text"
-                className="rmi-input w100"
-                placeholder="e.g. HDFC COVER PAGES"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              <input type="text" className="rmi-input w100" placeholder="e.g. HDFC COVER PAGES" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
               <label>Material Spec Group</label>
-              <select
-                className="rmi-input w100"
-                value={groupId || groups[0].id}
-                onChange={(e) => setGroupId(e.target.value)}
-              >
+              <select className="rmi-input w100" value={groupId || groups[0].id} onChange={(e) => setGroupId(e.target.value)}>
                 {groups.map((g) => (
                   <option key={g.id} value={g.id}>
                     {g.cat}
@@ -1848,13 +1408,7 @@ function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
             </div>
             <div>
               <label>Monthly Req. (KG)</label>
-              <input
-                type="number"
-                className="rmi-input w100"
-                placeholder="e.g. 5000"
-                value={kg}
-                onChange={(e) => setKg(e.target.value)}
-              />
+              <input type="number" className="rmi-input w100" placeholder="e.g. 5000" value={kg} onChange={(e) => setKg(e.target.value)} />
             </div>
             <div className="rmi-addjob-btn">
               <button className="rmi-btn rmi-btn-primary w100" onClick={handleAdd}>
@@ -1877,20 +1431,19 @@ function JobPlanner({ groups, jobList, onAdd, onUpdate, onDelete, onShift }) {
             </tr>
           </thead>
           <tbody>
-            {jobList.length === 0 ? (
+            {list.rows.length === 0 ? (
               <tr>
                 <td colSpan={5} className="rmi-empty-row">
                   No jobs yet. Add a job using the form above.
                 </td>
               </tr>
             ) : (
-              jobList.map((j) => (
-                <JobRow key={j.id} job={j} groups={groups} onUpdate={onUpdate} onDelete={onDelete} onShift={onShift} />
-              ))
+              list.rows.map((j) => <JobRow key={j.id} job={j} groups={groups} onUpdate={onUpdate} onDelete={onDelete} onShift={onShift} />)
             )}
           </tbody>
         </table>
       </div>
+      <Pager page={list.page} pages={list.pages} onPage={setPage} />
     </div>
   );
 }
@@ -1904,19 +1457,10 @@ function JobRow({ job, groups, onUpdate, onDelete, onShift }) {
   return (
     <tr>
       <td>
-        <input
-          type="text"
-          value={job.name}
-          onChange={(e) => onUpdate(job.id, "name", e.target.value)}
-          className="rmi-inline-input"
-        />
+        <CommitInput type="text" delay={0} value={job.name} onCommit={(v) => onUpdate(job.id, { name: v })} className="rmi-inline-input" />
       </td>
       <td>
-        <select
-          className="rmi-input"
-          value={job.groupGroupId}
-          onChange={(e) => onUpdate(job.id, "groupGroupId", e.target.value)}
-        >
+        <select className="rmi-input" value={job.groupGroupId} onChange={(e) => onUpdate(job.id, { groupGroupId: e.target.value })}>
           {!known && <option value={job.groupGroupId}>{job.groupGroupId} (not in current sheets)</option>}
           {groups.map((g) => (
             <option key={g.id} value={g.id}>
@@ -1926,13 +1470,7 @@ function JobRow({ job, groups, onUpdate, onDelete, onShift }) {
         </select>
       </td>
       <td className="r">
-        <input
-          type="number"
-          value={job.kg}
-          onChange={(e) => onUpdate(job.id, "kg", parseFloat(e.target.value))}
-          className="rmi-input rmi-num-md r"
-        />{" "}
-        KG
+        <CommitInput type="number" delay={0} value={job.kg} onCommit={(v) => onUpdate(job.id, { kg: parseFloat(v) || 0 })} className="rmi-input rmi-num-md r" /> KG
       </td>
       <td className="c">
         <div className="rmi-shift">
@@ -1952,17 +1490,13 @@ function JobRow({ job, groups, onUpdate, onDelete, onShift }) {
             className="rmi-input rmi-num-sm"
           />{" "}
           %
-          <button
-            className="rmi-btn rmi-btn-light rmi-btn-xs"
-            disabled={!target}
-            onClick={() => onShift(job.id, target, shiftPct)}
-          >
+          <button className="rmi-btn rmi-btn-light rmi-btn-xs" disabled={!target} onClick={() => onShift(job.id, target, shiftPct)}>
             Shift
           </button>
         </div>
       </td>
       <td className="c">
-        <button className="rmi-iconbtn rmi-red" onClick={() => onDelete(job.id)} title="Delete job">
+        <button className="rmi-iconbtn rmi-red" onClick={() => onDelete(job)} title="Delete job">
           <Icon name="trash" size={14} />
         </button>
       </td>
@@ -2032,8 +1566,7 @@ function IndentCart({ cart, groups, vendors, onGoBoard, onClear, onRaise, onUpda
         <div className="rmi-callout">
           <Icon name="info" size={16} />
           <div>
-            {noVendor} line{noVendor === 1 ? " has" : "s have"} no vendor yet. You can still raise the indent and add
-            vendors later.
+            {noVendor} line{noVendor === 1 ? " has" : "s have"} no vendor yet. You can still raise the indent and add vendors later.
           </div>
         </div>
       )}
@@ -2113,7 +1646,7 @@ function IndentCart({ cart, groups, vendors, onGoBoard, onClear, onRaise, onUpda
 }
 
 /* ============================== INDENT REGISTER ======================== */
-function IndentRegister({ register, groups, onStatus, onExport }) {
+function IndentRegister({ register, total, groups, onStatus, onExport }) {
   const [closed, setClosed] = useState({});
 
   if (register.length === 0) {
@@ -2132,7 +1665,9 @@ function IndentRegister({ register, groups, onStatus, onExport }) {
     <div className="rmi-stack">
       <div className="rmi-sec-top">
         <h3 className="rmi-h3">Raised indents</h3>
-        <span className="rmi-muted">{register.length} total</span>
+        <span className="rmi-muted">
+          {total} total{total > register.length ? ` (latest ${register.length} shown)` : ""}
+        </span>
       </div>
 
       {register.map((r, idx) => {
@@ -2159,7 +1694,7 @@ function IndentRegister({ register, groups, onStatus, onExport }) {
                   className={`rmi-input rmi-bold rmi-stat s-${statusClass(r.status)}`}
                   value={r.status}
                   aria-label="Indent status"
-                  onChange={(e) => onStatus(idx, e.target.value)}
+                  onChange={(e) => onStatus(r.indentNo, e.target.value)}
                 >
                   <option value="Draft">Draft</option>
                   <option value="Submitted">Submitted</option>
@@ -2210,15 +1745,38 @@ function IndentRegister({ register, groups, onStatus, onExport }) {
 }
 
 /* ================================ SETTINGS ============================= */
-function SettingsPage({
-  appSettings, setSetting, plants, catalog, importLog, reading, onFile, onMaterialGroup, onReset,
-}) {
-  const num = (key) => (e) => setSetting(key, parseFloat(e.target.value));
+function SettingsPage({ settings, onSave, plants, families, importLog, busyOf, onFile, version, onGroupChanged, onReset }) {
+  const notify = useToast();
+  const [meta, setMeta] = useState({ units: [], types: [] });
   const [matSearch, setMatSearch] = useState("");
+  const [matPage, setMatPage] = useState(1);
+  const [mats, setMats] = useState({ rows: [], hasMore: false });
+  const q = useDebounced(matSearch, 350);
 
-  const matRows = catalog
-    .flatMap((g) => g.mats.map((m) => ({ code: m.c, desc: m.s, group: g.cat })))
-    .filter((r) => !matSearch || `${r.code} ${r.desc} ${r.group}`.toLowerCase().includes(matSearch.toLowerCase()));
+  useEffect(() => {
+    api("/meta").then(setMeta).catch(() => {});
+  }, [version]);
+  useEffect(() => {
+    api(`/materials?${new URLSearchParams({ search: q, page: matPage })}`)
+      .then(setMats)
+      .catch((e) => notify(e.message, { type: "warn" }));
+  }, [q, matPage, version, notify]);
+
+  const num = (key) => (v) => onSave({ [key]: parseFloat(v) });
+  const types = settings.materialTypes || [];
+  const toggleType = (t) => onSave({ materialTypes: types.includes(t) ? types.filter((x) => x !== t) : [...types, t] });
+  const lots = settings.familyLots || [];
+  const setLot = (family, v) =>
+    onSave({ familyLots: [...lots.filter((l) => l.family !== family), { family, lot: parseFloat(v) }] });
+
+  const saveGroup = async (code, group) => {
+    try {
+      await api("/material-group", { method: "PUT", body: { material: code, group } });
+      onGroupChanged();
+    } catch (e) {
+      notify(e.message, { type: "warn" });
+    }
+  };
 
   return (
     <div className="rmi-stack">
@@ -2232,27 +1790,12 @@ function SettingsPage({
       <div className="rmi-card">
         <h4 className="rmi-card-title">Excel sheets</h4>
         <p className="rmi-muted rmi-mb">
-          A new upload replaces the previous one of the same kind. Your data is kept in this browser, so it is still here
-          after a refresh.
+          A new upload replaces the previous one of the same kind (the old data stays until the new file is fully loaded).
+          Large files are read in the background; .xlsx, .csv and tab separated SAP exports are supported.
         </p>
         <div className="rmi-guide-grid">
-          <DropZone
-            type="MB5B"
-            title="Stock sheet (MB5B)"
-            hint="Materials, descriptions and stock per plant."
-            log={importLog.MB5B}
-            busy={reading === "MB5B"}
-            onFile={onFile}
-          />
-          <DropZone
-            type="ME2N"
-            title="Pending POs (ME2N)"
-            hint="Material on order, vendor and delivery date."
-            log={importLog.ME2N}
-            busy={reading === "ME2N"}
-            onFile={onFile}
-          />
-
+          <DropZone type="MB5B" title="Stock sheet (MB5B)" hint="Materials, descriptions and stock per plant." log={importLog.MB5B} busy={busyOf("MB5B")} onFile={onFile} />
+          <DropZone type="ME2N" title="Pending POs (ME2N)" hint="Material on order, vendor and delivery date." log={importLog.ME2N} busy={busyOf("ME2N")} onFile={onFile} />
         </div>
       </div>
 
@@ -2261,94 +1804,161 @@ function SettingsPage({
         <div className="rmi-form3">
           <div>
             <label>Working days per month</label>
-            <input type="number" className="rmi-input w100" value={appSettings.workingDays} onChange={num("workingDays")} />
+            <CommitInput type="number" className="rmi-input w100" value={settings.workingDays} onCommit={num("workingDays")} />
           </div>
           <div>
             <label>Target buffer cover (days)</label>
-            <input type="number" className="rmi-input w100" value={appSettings.targetCoverDays} onChange={num("targetCoverDays")} />
+            <CommitInput type="number" className="rmi-input w100" value={settings.targetCoverDays} onCommit={num("targetCoverDays")} />
           </div>
           <div>
             <label>Lot rounding size (KG)</label>
-            <input type="number" className="rmi-input w100" value={appSettings.lotSize} onChange={num("lotSize")} />
+            <CommitInput type="number" className="rmi-input w100" value={settings.lotSize} onCommit={num("lotSize")} />
           </div>
           <div>
             <label>Critical below (days of cover)</label>
-            <input type="number" className="rmi-input w100" value={appSettings.criticalDays} onChange={num("criticalDays")} />
+            <CommitInput type="number" className="rmi-input w100" value={settings.criticalDays} onCommit={num("criticalDays")} />
           </div>
-
+          <div>
+            <label>Low below (days of cover)</label>
+            <CommitInput type="number" className="rmi-input w100" value={settings.lowDays} onCommit={num("lowDays")} />
+          </div>
+          <div>
+            <label>Overstock above (days of cover)</label>
+            <CommitInput type="number" className="rmi-input w100" value={settings.overstockDays} onCommit={num("overstockDays")} />
+          </div>
+          <div>
+            <label>Main plant (gets 100% by default)</label>
+            <select className="rmi-input w100" value={settings.mainPlant || ""} onChange={(e) => onSave({ mainPlant: e.target.value })}>
+              <option value="">First plant found</option>
+              {plants.map((p) => (
+                <option key={p} value={p}>
+                  Plant {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="rmi-span2">
+            <label>Units planned (comma separated)</label>
+            <CommitInput
+              type="text"
+              delay={0}
+              className="rmi-input w100"
+              value={(settings.planningUnits || []).join(", ")}
+              onCommit={(v) => onSave({ planningUnits: v.split(",").map((x) => x.trim()).filter(Boolean) })}
+            />
+            <div className="rmi-muted">
+              Units found in the stock sheet: {meta.units.length ? meta.units.map((u) => `${u.unit} (${formatNum(u.rows)})`).join(", ") : "-"}. Leave empty to plan every unit.
+            </div>
+          </div>
         </div>
+
+        {meta.types.length > 0 && (
+          <div className="rmi-mt">
+            <label className="rmi-muted">Material types planned (none ticked = all)</label>
+            <div className="rmi-chkgrid">
+              {meta.types.map((t) => (
+                <label key={t.type} className="rmi-check">
+                  <input type="checkbox" checked={types.includes(t.type)} onChange={() => toggleType(t.type)} />
+                  {t.type}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {families.length > 0 && (
+          <div className="rmi-mt">
+            <label className="rmi-muted">Lot rounding per family (blank = the lot size above)</label>
+            <div className="rmi-form3">
+              {families.map((f) => {
+                const l = lots.find((x) => x.family === f);
+                return (
+                  <div key={f}>
+                    <label>{f}</label>
+                    <CommitInput type="number" delay={0} className="rmi-input w100" value={l ? l.lot : ""} onCommit={(v) => parseFloat(v) > 0 && setLot(f, v)} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
-      {catalog.length > 0 && (
-        <div className="rmi-card">
-          <h4 className="rmi-card-title">Spec groups ({catalog.length})</h4>
-          <p className="rmi-muted rmi-mb">
-            Groups come from a "Spec group" column if your sheet has one. Otherwise they are worked out from the
-            description. Retype the group of any material to correct it. Materials with the same group name are planned
-            together.
-          </p>
-          <div className="rmi-search rmi-mb">
-            <Icon name="search" size={14} />
-            <input
-              type="text"
-              placeholder="Search material code, description or group"
-              aria-label="Search materials"
-              value={matSearch}
-              onChange={(e) => setMatSearch(e.target.value)}
-            />
-          </div>
-          <datalist id="rmi-group-names">
-            {catalog.map((g) => (
-              <option key={g.id} value={g.cat} />
-            ))}
-          </datalist>
-          <div className="rmi-tablewrap rmi-scroll">
-            <table className="rmi-table rmi-table-sm">
-              <thead>
+      <div className="rmi-card">
+        <h4 className="rmi-card-title">Spec groups</h4>
+        <p className="rmi-muted rmi-mb">
+          Groups come from a "Spec group" column if your sheet has one. Otherwise they are the material group plus the GSM
+          read from the description. Retype the group of any material to correct it. Materials with the same group name are
+          planned together.
+        </p>
+        <div className="rmi-search rmi-mb">
+          <Icon name="search" size={14} />
+          <input
+            type="text"
+            placeholder="Search material code, description or group"
+            aria-label="Search materials"
+            value={matSearch}
+            onChange={(e) => {
+              setMatSearch(e.target.value);
+              setMatPage(1);
+            }}
+          />
+        </div>
+        <div className="rmi-tablewrap rmi-scroll">
+          <table className="rmi-table rmi-table-sm">
+            <thead>
+              <tr>
+                <th>SAP code</th>
+                <th>Material description</th>
+                <th>Spec group</th>
+              </tr>
+            </thead>
+            <tbody>
+              {mats.rows.length === 0 ? (
                 <tr>
-                  <th>SAP code</th>
-                  <th>Material description</th>
-                  <th>Spec group</th>
+                  <td colSpan={3} className="rmi-empty-row">
+                    No materials loaded yet.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {matRows.slice(0, 100).map((r) => (
+              ) : (
+                mats.rows.map((r) => (
                   <tr key={`${r.code}-${r.group}`}>
                     <td className="rmi-mono rmi-bold">{r.code}</td>
                     <td>{r.desc}</td>
                     <td>
                       <input
                         type="text"
-                        list="rmi-group-names"
                         className="rmi-input w100"
                         aria-label={`Spec group for ${r.code}`}
                         defaultValue={r.group}
                         onBlur={(e) => {
                           const v = e.target.value.trim();
-                          if (v && v !== r.group) onMaterialGroup(r.code, v);
+                          if (v && v.toUpperCase() !== r.group) saveGroup(r.code, v);
                         }}
                       />
                     </td>
                   </tr>
-                ))}
-                {matRows.length > 100 && (
-                  <tr>
-                    <td colSpan={3} className="rmi-empty-row">
-                      Showing the first 100 of {matRows.length} materials. Use the search to narrow down.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+        <div className="rmi-pager">
+          <button className="rmi-btn rmi-btn-outline rmi-btn-xs" disabled={matPage <= 1} onClick={() => setMatPage(matPage - 1)}>
+            Previous
+          </button>
+          <span>Page {matPage}</span>
+          <button className="rmi-btn rmi-btn-outline rmi-btn-xs" disabled={!mats.hasMore} onClick={() => setMatPage(matPage + 1)}>
+            Next
+          </button>
+        </div>
+      </div>
 
       <div className="rmi-card rmi-danger">
         <div className="rmi-sec-top rmi-nobar">
           <div>
             <h4 className="rmi-card-title">Saved data</h4>
-            <p className="rmi-muted">Removes uploaded sheets, jobs, cart, indents and settings from this browser.</p>
+            <p className="rmi-muted">Removes uploaded sheets, jobs, cart, indents and settings.</p>
           </div>
           <button className="rmi-btn rmi-btn-outline rmi-btn-danger" onClick={onReset}>
             <Icon name="trash" size={14} /> Clear all data
@@ -2360,304 +1970,970 @@ function SettingsPage({
 }
 
 /* ================================== CSS ================================ */
+// >>> Paste the full CSS from your current file here (everything that was between the backticks of
+//     `const CSS = \`...\`;`). It is unchanged. The two small additions below go in CSS_EXTRA.
+/* ================================== CSS ================================ */
 const CSS = `
-.rmi-root{
-  --rmi-teal:#0f6b74; --rmi-teal-dark:#0a4f56; --rmi-teal-soft:#e6f2f4;
-  --rmi-gold:#b8892a; --rmi-gold-soft:#fbf3de;
-  --rmi-ink:#16323a; --rmi-muted:#64808a; --rmi-line:#d6e4e8; --rmi-bg:#f3f8f9;
-  --rmi-red:#d0453a; --rmi-green:#1f8a5b; --rmi-indigo:#4a55b5;
-  color:var(--rmi-ink); font-size:13px; line-height:1.45; padding:4px 0 24px;
-}
-.rmi-root *{box-sizing:border-box}
-.rmi-icon{flex:none;vertical-align:middle}
-
-/* header */
-.rmi-header{position:relative;display:flex;justify-content:flex-end;align-items:center;padding:6px 0 14px}
-.rmi-title-wrap{text-align:center}
-.rmi-title{margin:0;font-size:22px;font-weight:700;color:var(--rmi-teal-dark);letter-spacing:.2px}
-.rmi-subtitle{margin:2px 0 0;color:var(--rmi-muted);font-size:12px}
-.rmi-title-wrap:after{content:"";display:block;width:64px;height:3px;border-radius:2px;background:var(--rmi-gold);margin:8px auto 0}
-.rmi-cart-btn{position:absolute;right:0;top:6px}
-.rmi-cart-badge{background:#fff;color:var(--rmi-gold);font-weight:800;font-size:11px;padding:1px 8px;border-radius:999px;margin-left:4px}
-
-/* tabs */
-.rmi-tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:16px}
-.rmi-tab{display:flex;align-items:center;gap:6px;border:1px solid var(--rmi-line);background:#fff;color:var(--rmi-teal-dark);
-  padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
-.rmi-tab:hover{background:var(--rmi-teal-soft)}
-.rmi-tab.active{background:var(--rmi-teal);border-color:var(--rmi-teal);color:#fff}
-
-/* kpis */
-.rmi-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}
-.rmi-kpi{background:#fff;border:1px solid var(--rmi-line);border-radius:10px;padding:12px 14px}
-.rmi-kpi-top{display:flex;justify-content:space-between;align-items:center}
-.rmi-kpi-title{font-size:11px;font-weight:600;color:var(--rmi-muted)}
-.rmi-kpi-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
-.tone-teal{background:var(--rmi-teal-soft);color:var(--rmi-teal)}
-.tone-blue{background:#e8ecfb;color:var(--rmi-indigo)}
-.tone-green{background:#e3f4ec;color:var(--rmi-green)}
-.tone-red{background:#fbe8e6;color:var(--rmi-red)}
-.tone-gold{background:var(--rmi-gold-soft);color:var(--rmi-gold)}
-.rmi-kpi-val{font-size:19px;font-weight:800;margin-top:8px}
-.rmi-kpi-sub{font-size:11px;color:var(--rmi-muted)}
-
-/* panel */
-.rmi-panel{background:#fff;border:1px solid var(--rmi-line);border-radius:12px;padding:16px;min-height:420px}
-.rmi-stack{display:flex;flex-direction:column;gap:16px}
-
-/* buttons / inputs */
-.rmi-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid transparent;border-radius:8px;
-  padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;transition:filter .15s,background .15s}
-.rmi-btn:hover{filter:brightness(.94)}
-.rmi-btn-primary{background:var(--rmi-teal);color:#fff}
-.rmi-btn-gold{background:var(--rmi-gold);color:#fff}
-.rmi-btn-dark{background:var(--rmi-teal-dark);color:#fff}
-.rmi-btn-green{background:var(--rmi-green);color:#fff}
-.rmi-btn-light{background:#e4eef0;color:var(--rmi-ink)}
-.rmi-btn-outline{background:#fff;border-color:var(--rmi-line);color:var(--rmi-ink)}
-.rmi-btn-outline:hover{color:var(--rmi-red)}
-.rmi-btn-xs{padding:3px 9px;font-size:11px}
-.rmi-iconbtn{background:#eef4f5;border:0;border-radius:6px;padding:6px 8px;color:var(--rmi-ink);cursor:pointer}
-.rmi-iconbtn:hover{background:var(--rmi-teal-soft);color:var(--rmi-teal)}
-.rmi-iconbtn.rmi-red{background:transparent}
-.rmi-input{font-size:12px;background:#f6fafb;border:1px solid #c9dade;border-radius:6px;padding:5px 8px;color:var(--rmi-ink)}
-.rmi-input:focus,.rmi-search input:focus,.rmi-inline-input:focus{outline:2px solid rgba(15,107,116,.35);outline-offset:0}
-.rmi-num-sm{width:58px;text-align:center}
-.rmi-num-md{width:96px}
-.rmi-root .r{text-align:right}.rmi-root .c{text-align:center}
-.w100{width:100%}
-.rmi-file{display:block;width:100%;font-size:12px}
-.rmi-log{margin-top:6px;font-size:11px;color:#47636c;line-height:1.5}
-.rmi-form3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.rmi-form3 label{display:block;font-size:11px;font-weight:600;color:#47636c;margin-bottom:3px}
-.rmi-mt{margin-top:12px}
-.rmi-span2{grid-column:span 2}
-.rmi-scroll{max-height:420px;overflow-y:auto}
-.rmi-btn:disabled{opacity:.5;cursor:not-allowed}
-.rmi-linkbtn{background:none;border:0;padding:0;color:var(--rmi-teal);font-weight:700;text-decoration:underline;cursor:pointer;font-size:12px}
-
-/* filters */
-.rmi-filterbar{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--rmi-line)}
-.rmi-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1;min-width:260px}
-.rmi-search{position:relative;flex:1;min-width:200px;color:var(--rmi-muted)}
-.rmi-search .rmi-icon{position:absolute;left:10px;top:9px}
-.rmi-search input{width:100%;padding:6px 10px 6px 30px;font-size:12px;background:#f6fafb;border:1px solid #c9dade;border-radius:8px}
-.rmi-check{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;cursor:pointer;margin:0}
-
-/* tables */
-.rmi-tablewrap{overflow-x:auto;border:1px solid var(--rmi-line);border-radius:8px}
-.rmi-bg-white{background:#fff}
-.rmi-table{width:100%;border-collapse:collapse;font-size:12px}
-.rmi-table thead{background:var(--rmi-teal-soft);color:var(--rmi-teal-dark)}
-.rmi-table th{padding:10px 12px;font-weight:700;text-align:left;white-space:nowrap;border-bottom:1px solid var(--rmi-line)}
-.rmi-table td{padding:10px 12px;border-bottom:1px solid #e7f0f2;vertical-align:middle}
-.rmi-table tbody tr:last-child td{border-bottom:0}
-.rmi-table th.r{text-align:right}.rmi-table th.c{text-align:center}
-.rmi-table-sm th,.rmi-table-sm td{padding:8px 10px}
-.rmi-row-click{cursor:pointer}
-.rmi-row-click:hover{background:#f3f9fa}
-.rmi-jobs-cell{font-size:11px;color:#47636c;max-width:240px}
-.rmi-empty-row{text-align:center;color:var(--rmi-muted);padding:32px !important}
-.rmi-trunc{max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rmi-link-note{font-size:10px;color:var(--rmi-teal);font-weight:600}
-.rmi-inline-input{width:100%;background:transparent;border:0;border-bottom:1px solid transparent;padding:2px 0;font-weight:600;color:var(--rmi-ink)}
-.rmi-inline-input:hover{border-bottom-color:#b6cbd0}
-.rmi-shift{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap}
-
-/* text helpers */
-.rmi-strong{font-weight:600}.rmi-bold{font-weight:800}.rmi-muted{color:var(--rmi-muted);font-size:11px}
-.rmi-xs{font-size:10px}.rmi-faint{color:#9bb0b6}.rmi-red{color:var(--rmi-red)}.rmi-green{color:var(--rmi-green)}
-.rmi-gold{color:var(--rmi-gold)}.rmi-indigo{color:var(--rmi-indigo)}.rmi-mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-.rmi-mb{margin-bottom:10px}
-.rmi-h3{margin:0;font-size:16px;font-weight:700}
-.rmi-bordered{padding-bottom:8px;border-bottom:1px solid var(--rmi-line)}
-
-/* badges */
-.rmi-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:800;border:1px solid transparent}
-.rmi-b-critical{background:#fbe3e0;color:#b3342a;border-color:#f3c3be}
-.rmi-b-low{background:#fdf0d4;color:#9a6a0b;border-color:#f1dca7}
-.rmi-b-ok{background:#ddf2e8;color:#176d47;border-color:#b9e2cf}
-.rmi-b-over{background:#ece4f8;color:#6a43a8;border-color:#d6c8ee}
-.rmi-b-none{background:#eef3f4;color:#6b8188;border-color:#d9e3e6}
-
-/* cards & forms */
-.rmi-card{background:var(--rmi-bg);border:1px solid var(--rmi-line);border-radius:10px;padding:14px}
-.rmi-card-title{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--rmi-teal-dark)}
-.rmi-callout{display:flex;gap:10px;align-items:flex-start;background:var(--rmi-gold-soft);border:1px solid #ecd9a6;color:#6e5214;border-radius:10px;padding:12px 14px;font-size:12px}
-.rmi-callout .rmi-icon{margin-top:2px;color:var(--rmi-gold)}
-.rmi-addjob{display:grid;grid-template-columns:2fr 1.4fr 1fr auto;gap:10px;align-items:end}
-.rmi-addjob .span2{grid-column:span 1}
-.rmi-addjob label,.rmi-form2 label,.rmi-form1 label{display:block;font-size:11px;font-weight:600;color:#47636c;margin-bottom:3px}
-.rmi-addjob-btn{min-width:120px}
-.rmi-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.rmi-form2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rmi-form1{display:flex;flex-direction:column;gap:10px}
-
-/* cart / register */
-.rmi-sec-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--rmi-line)}
-.rmi-sec-top p{margin:2px 0 0}
-.rmi-actions{display:flex;align-items:center;gap:8px}
-.rmi-total{display:flex;justify-content:space-between;align-items:center;background:var(--rmi-gold-soft);border:1px solid #ecd9a6;border-radius:10px;padding:12px 16px;font-weight:600}
-.rmi-total-val{font-size:18px;font-weight:800}
-.rmi-reg-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--rmi-line)}
-.rmi-reg-id{display:flex;align-items:center;gap:12px}
-.rmi-reg-no{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;font-size:14px;color:var(--rmi-teal)}
-.rmi-empty{text-align:center;padding:56px 12px;color:var(--rmi-muted)}
-.rmi-empty h4{margin:10px 0 4px;color:var(--rmi-ink);font-size:15px}
-.rmi-empty p{max-width:360px;margin:0 auto 14px;font-size:12px}
-.rmi-empty-icon{width:60px;height:60px;border-radius:50%;background:var(--rmi-teal-soft);color:var(--rmi-teal);display:flex;align-items:center;justify-content:center;margin:0 auto}
-.rmi-note-empty{padding:12px;text-align:center;color:var(--rmi-muted);background:var(--rmi-bg);border:1px solid var(--rmi-line);border-radius:8px}
-
-/* footer */
-.rmi-footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-top:14px;font-size:11px;color:var(--rmi-muted)}
-
-/* drawer */
-.rmi-backdrop{position:fixed;inset:0;background:rgba(10,40,46,.55);z-index:2000;opacity:0;pointer-events:none;transition:opacity .25s}
-.rmi-backdrop.open{opacity:1;pointer-events:auto}
-.rmi-drawer{position:absolute;top:0;right:0;bottom:0;width:min(760px,100vw);background:#fff;display:flex;flex-direction:column;
-  transform:translateX(100%);transition:transform .3s ease;box-shadow:-8px 0 30px rgba(0,0,0,.2)}
-.rmi-backdrop.open .rmi-drawer{transform:translateX(0)}
-.rmi-drawer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px;background:var(--rmi-teal-dark);color:#fff}
-.rmi-drawer-kicker{font-size:11px;color:#e4c775;font-weight:600}
-.rmi-drawer-title{margin:2px 0 0;font-size:18px;font-weight:700;color:#fff}
-.rmi-drawer-lead{font-size:11px;color:#b8d3d8;margin-top:2px}
-.rmi-drawer-x{background:rgba(255,255,255,.12);border:0;color:#fff;border-radius:8px;padding:7px;cursor:pointer}
-.rmi-drawer-x:hover{background:rgba(255,255,255,.22)}
-.rmi-drawer-body{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:20px}
-.rmi-drawer-foot{display:flex;justify-content:space-between;align-items:center;padding:12px 22px;background:var(--rmi-bg);border-top:1px solid var(--rmi-line)}
-.rmi-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:var(--rmi-bg);border:1px solid var(--rmi-line);border-radius:10px;padding:14px}
-.rmi-metric{font-size:15px;font-weight:800}
-.rmi-sec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-.rmi-sec-head h4{margin:0;font-size:13px;font-weight:700}
-.rmi-transfer{font-size:9px;font-weight:500;color:var(--rmi-indigo)}
-
-@media (max-width:1100px){.rmi-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media (max-width:720px){
-  .rmi-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .rmi-two,.rmi-addjob,.rmi-form3{grid-template-columns:1fr}
-  .rmi-metrics{grid-template-columns:repeat(2,1fr)}
-  .rmi-cart-btn{position:static}
+:root {
+  --rmi-bg: #f8fafc;
+  --rmi-surface: #ffffff;
+  --rmi-border: #e2e8f0;
+  --rmi-border-focus: #3b82f6;
+  --rmi-text: #1e293b;
+  --rmi-muted: #64748b;
+  --rmi-faint: #94a3b8;
+  --rmi-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* ===== v2 additions ===== */
-.rmi-root :focus-visible{outline:2px solid var(--rmi-gold);outline-offset:2px}
-.rmi-panel{box-shadow:0 1px 2px rgba(15,60,70,.05),0 8px 24px -12px rgba(15,60,70,.12)}
-.rmi-kpi{box-shadow:0 1px 2px rgba(15,60,70,.04)}
-.rmi-tab{position:relative}
-.rmi-tab-badge{min-width:18px;padding:0 5px;border-radius:999px;font-size:10px;font-weight:800;line-height:18px;text-align:center;color:#fff}
-.rmi-tab-badge.b-red{background:var(--rmi-red)}
-.rmi-tab-badge.b-gold{background:var(--rmi-gold)}
-.rmi-tab.active .rmi-tab-badge{box-shadow:0 0 0 2px var(--rmi-teal)}
-
-/* first-run guide + drop zones */
-.rmi-guide{max-width:980px;margin:0 auto;padding:18px 4px 8px;text-align:center}
-.rmi-guide-title{margin:0 0 6px;font-size:18px;font-weight:700;color:var(--rmi-teal-dark)}
-.rmi-guide-sub{margin:0 auto 18px;max-width:560px;color:var(--rmi-muted);font-size:12.5px}
-.rmi-guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;text-align:left}
-.rmi-drop{display:flex;gap:12px;align-items:flex-start;padding:16px;border:1.5px dashed #a9c3c9;border-radius:12px;background:var(--rmi-bg);cursor:pointer;transition:border-color .15s,background .15s}
-.rmi-drop:hover,.rmi-drop.over{border-color:var(--rmi-teal);background:var(--rmi-teal-soft)}
-.rmi-drop.done{border-style:solid;border-color:#b9e2cf;background:#f1faf5}
-.rmi-drop-icon{flex:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--rmi-teal);border:1px solid var(--rmi-line)}
-.rmi-drop.done .rmi-drop-icon{background:var(--rmi-green);border-color:var(--rmi-green);color:#fff}
-.rmi-drop-title{font-weight:700;font-size:13px;display:flex;align-items:center;gap:8px}
-.rmi-step{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--rmi-teal);color:#fff;font-size:11px;align-items:center;justify-content:center}
-.rmi-drop-hint{font-size:11.5px;color:#47636c;margin-top:3px;word-break:break-word}
-.rmi-drop-action{font-size:11px;font-weight:600;color:var(--rmi-teal);margin-top:6px}
-
-/* data strip + chips */
-.rmi-strip{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
-.rmi-datachip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--rmi-line);background:#fff;border-radius:999px;padding:4px 12px 4px 10px;font-size:11.5px;cursor:pointer;color:var(--rmi-ink)}
-.rmi-datachip:hover{background:var(--rmi-teal-soft)}
-.rmi-datachip i{width:8px;height:8px;border-radius:50%;background:#b9c9cd}
-.rmi-datachip.ok i{background:var(--rmi-green)}
-.rmi-datachip-name{font-weight:700}
-.rmi-datachip-meta{color:var(--rmi-muted)}
-.rmi-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
-.rmi-chip{border:1px solid var(--rmi-line);background:#fff;border-radius:999px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;color:var(--rmi-ink);transition:background .15s}
-.rmi-chip b{margin-left:4px;font-weight:800}
-.rmi-chip:hover{background:var(--rmi-teal-soft)}
-.rmi-chip.zero{opacity:.55}
-.rmi-chip.on{background:var(--rmi-teal);border-color:var(--rmi-teal);color:#fff}
-.rmi-chip.c-critical b{color:var(--rmi-red)}
-.rmi-chip.c-low b{color:#b07a0c}
-.rmi-chip.on b{color:#fff}
-.rmi-resultline{font-size:11.5px;color:var(--rmi-muted);margin:2px 0 8px}
-.rmi-hint{font-size:11px;color:var(--rmi-muted);margin-top:8px;text-align:center}
-
-/* switch */
-.rmi-switch{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:500;cursor:pointer;margin:0}
-.rmi-switch input{position:absolute;opacity:0;pointer-events:none}
-.rmi-switch-track{width:32px;height:18px;border-radius:999px;background:#b9c9cd;position:relative;transition:background .15s}
-.rmi-switch-track:after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s}
-.rmi-switch input:checked + .rmi-switch-track{background:var(--rmi-teal)}
-.rmi-switch input:checked + .rmi-switch-track:after{transform:translateX(14px)}
-.rmi-switch input:focus-visible + .rmi-switch-track{outline:2px solid var(--rmi-gold);outline-offset:2px}
-
-/* table upgrades */
-.rmi-sticky{max-height:min(64vh,660px);overflow:auto}
-.rmi-sticky .rmi-table thead th{position:sticky;top:0;z-index:2;background:#e6f2f4;box-shadow:0 1px 0 var(--rmi-line)}
-.rmi-sort{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:0;font:inherit;font-weight:700;color:inherit;cursor:pointer;white-space:nowrap}
-.rmi-sort:hover,.rmi-sort.on{color:var(--rmi-teal)}
-.rmi-table th.r .rmi-sort{justify-content:flex-end}
-.rmi-table th.c .rmi-sort{justify-content:center}
-.rmi-row-click:focus-visible{outline-offset:-2px}
-tr.st-critical td:first-child{box-shadow:inset 4px 0 0 var(--rmi-red)}
-tr.st-low td:first-child{box-shadow:inset 4px 0 0 #e0a21f}
-tr.st-balanced td:first-child{box-shadow:inset 4px 0 0 var(--rmi-green)}
-tr.st-overstocked td:first-child{box-shadow:inset 4px 0 0 #8a63c9}
-tr.st-nodemand td:first-child{box-shadow:inset 4px 0 0 #cbd7da}
-.rmi-cover{display:flex;flex-direction:column;gap:4px;min-width:110px}
-.rmi-cover-num{font-weight:700;font-size:12px}
-.rmi-bar{position:relative;height:6px;border-radius:999px;background:#e3edef;overflow:visible}
-.rmi-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
-.rmi-fill.s-critical{background:var(--rmi-red)}.rmi-fill.s-low{background:#e0a21f}.rmi-fill.s-balanced{background:var(--rmi-green)}
-.rmi-fill.s-overstocked{background:#8a63c9}.rmi-fill.s-nodemand{background:#b9c9cd}
-.rmi-bar b{position:absolute;top:-2px;bottom:-2px;width:1px;background:rgba(22,50,58,.35)}
-.rmi-incart{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:var(--rmi-green)}
-.rmi-invalid{border-color:var(--rmi-red) !important;background:#fdf1f0 !important}
-
-/* tiles */
-.rmi-tiles{display:flex;flex-wrap:wrap;gap:10px}
-.rmi-tile{flex:1 1 130px;background:var(--rmi-bg);border:1px solid var(--rmi-line);border-radius:10px;padding:10px 14px}
-.rmi-tile span{display:block;font-size:11px;color:var(--rmi-muted)}
-.rmi-tile strong{font-size:17px;font-weight:800}
-.rmi-nobar{border:0;padding:0}
-.rmi-danger{border-color:#efcfca;background:#fdf6f5}
-.rmi-btn-danger{color:var(--rmi-red)}
-
-/* register */
-.rmi-reg-toggle{display:flex;align-items:center;gap:12px;background:none;border:0;padding:0;cursor:pointer;color:inherit;font:inherit;text-align:left}
-.rmi-caret{display:inline-flex;transition:transform .15s;transform:rotate(-90deg)}
-.rmi-caret.open{transform:rotate(0)}
-.rmi-stat.s-draft{background:#eef3f4}.rmi-stat.s-submitted{background:#e8ecfb}.rmi-stat.s-approved{background:#e3f4ec}
-.rmi-stat.s-poplaced{background:var(--rmi-gold-soft)}.rmi-stat.s-closed{background:#e4e8e9;color:#5a6b70}
-
-/* modal */
-.rmi-modal-back{position:fixed;inset:0;z-index:2100;background:rgba(10,40,46,.55);display:flex;align-items:center;justify-content:center;padding:16px}
-.rmi-modal{width:min(780px,100%);max-height:92vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.3);overflow:hidden}
-.rmi-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--rmi-line)}
-.rmi-modal-head h3{margin:0;font-size:16px;font-weight:700}
-.rmi-modal-head p{margin:2px 0 0;font-size:11.5px;color:var(--rmi-muted)}
-.rmi-modal-body{padding:16px 20px;overflow:auto;display:flex;flex-direction:column;gap:16px}
-.rmi-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--rmi-line);background:var(--rmi-bg)}
-.rmi-detect{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:8px;font-size:12px;font-weight:600}
-.rmi-detect.good{background:#e3f4ec;color:#176d47}
-.rmi-detect.bad{background:#fbe8e6;color:#a8342a}
-
-/* toasts */
-.rmi-toasts{position:fixed;right:18px;bottom:18px;z-index:2200;display:flex;flex-direction:column;gap:8px;max-width:min(380px,calc(100vw - 36px))}
-.rmi-toast{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--rmi-teal-dark);color:#fff;font-size:12.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:rmi-in .2s ease-out}
-.rmi-toast.t-success{background:#17694a}
-.rmi-toast.t-warn{background:#9a3b22}
-.rmi-toast span{flex:1}
-.rmi-toast-act{background:rgba(255,255,255,.18);border:0;color:#fff;font-weight:700;font-size:11.5px;padding:3px 10px;border-radius:6px;cursor:pointer}
-.rmi-toast-act:hover{background:rgba(255,255,255,.3)}
-.rmi-toast-x{background:none;border:0;color:rgba(255,255,255,.7);cursor:pointer;padding:2px}
-@keyframes rmi-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-
-@media (max-width:900px){.rmi-guide-grid{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){
-  .rmi-toast{animation:none}
-  .rmi-drawer,.rmi-backdrop,.rmi-caret,.rmi-switch-track,.rmi-switch-track:after{transition:none}
+.rmi-root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--rmi-text);
+  background: var(--rmi-bg);
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
 }
+.rmi-root * {
+  box-sizing: border-box;
+}
+
+/* Typography & Utilities */
+.rmi-strong { font-weight: 600; color: var(--rmi-text); }
+.rmi-bold { font-weight: 700; }
+.rmi-muted { color: var(--rmi-muted); font-size: 12px; }
+.rmi-faint { color: var(--rmi-faint); }
+.rmi-mono { font-family: var(--rmi-mono); font-size: 12px; }
+.rmi-trunc { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rmi-link-note { font-size: 11px; color: #2563eb; margin-top: 2px; }
+.rmi-xs { font-size: 11px; }
+.rmi-mb { margin-bottom: 16px; }
+.rmi-mt { margin-top: 16px; }
+.rmi-span2 { grid-column: span 2; }
+.w100 { width: 100%; }
+.r { text-align: right; }
+.c { text-align: center; }
+
+/* Colors */
+.rmi-indigo { color: #4f46e5; }
+.rmi-red { color: #dc2626; }
+.rmi-green { color: #16a34a; }
+.rmi-gold { color: #d97706; }
+
+/* Icons */
+.rmi-icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+
+/* Header */
+.rmi-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.rmi-cart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.rmi-cart-badge {
+  background: #1e293b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+/* Tabs */
+.rmi-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--rmi-border);
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.rmi-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  color: var(--rmi-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.15s;
+}
+.rmi-tab:hover {
+  color: var(--rmi-text);
+  background: #f1f5f9;
+}
+.rmi-tab.active {
+  color: #2563eb;
+  font-weight: 600;
+  border-bottom-color: #2563eb;
+  background: #ffffff;
+}
+.rmi-tab-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+.rmi-tab-badge.b-red { background: #fee2e2; color: #dc2626; }
+.rmi-tab-badge.b-gold { background: #fef3c7; color: #d97706; }
+
+/* KPI Cards */
+.rmi-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.rmi-kpi {
+  background: var(--rmi-surface);
+  border: 1px solid var(--rmi-border);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.rmi-kpi-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.rmi-kpi-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rmi-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rmi-kpi-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rmi-kpi-icon.tone-teal { background: #ccfbf1; color: #0d9488; }
+.rmi-kpi-icon.tone-blue { background: #dbeafe; color: #2563eb; }
+.rmi-kpi-icon.tone-green { background: #dcfce7; color: #16a34a; }
+.rmi-kpi-icon.tone-red { background: #fee2e2; color: #dc2626; }
+.rmi-kpi-icon.tone-gold { background: #fef3c7; color: #d97706; }
+.rmi-kpi-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--rmi-text);
+  margin-bottom: 4px;
+}
+.rmi-kpi-sub {
+  font-size: 12px;
+  color: var(--rmi-muted);
+}
+
+/* Panel */
+.rmi-panel {
+  background: var(--rmi-surface);
+  border: 1px solid var(--rmi-border);
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  min-height: 480px;
+  margin-bottom: 24px;
+}
+
+/* Data Source Strip */
+.rmi-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.rmi-datachip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  border: 1px solid var(--rmi-border);
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rmi-datachip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.rmi-datachip.ok i { background: #16a34a; }
+.rmi-datachip.ok { background: #f0fdf4; border-color: #bbf7d0; }
+.rmi-datachip-name { font-weight: 600; color: var(--rmi-text); }
+.rmi-datachip-meta { color: var(--rmi-muted); }
+
+/* Health Filter Chips */
+.rmi-chips {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.rmi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  border: 1px solid var(--rmi-border);
+  background: #f8fafc;
+  color: var(--rmi-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rmi-chip b {
+  background: #e2e8f0;
+  color: #1e293b;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+.rmi-chip.zero { opacity: 0.5; }
+.rmi-chip.c-all.on { background: #1e293b; color: #fff; border-color: #1e293b; }
+.rmi-chip.c-all.on b { background: #475569; color: #fff; }
+.rmi-chip.c-critical.on { background: #fef2f2; color: #dc2626; border-color: #fca5a5; }
+.rmi-chip.c-critical.on b { background: #fee2e2; color: #dc2626; }
+.rmi-chip.c-low.on { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+.rmi-chip.c-low.on b { background: #fef3c7; color: #d97706; }
+.rmi-chip.c-balanced.on { background: #f0fdf4; color: #16a34a; border-color: #bbf7d0; }
+.rmi-chip.c-balanced.on b { background: #dcfce7; color: #16a34a; }
+.rmi-chip.c-overstocked.on, .rmi-chip.c-overstock.on { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+.rmi-chip.c-overstocked.on b, .rmi-chip.c-overstock.on b { background: #dbeafe; color: #2563eb; }
+.rmi-chip.c-nodemand.on { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+
+/* Filter Bar & Controls */
+.rmi-filterbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.rmi-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.rmi-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rmi-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 250px;
+}
+.rmi-search svg {
+  position: absolute;
+  left: 10px;
+  color: var(--rmi-muted);
+  pointer-events: none;
+}
+.rmi-search input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  font-size: 13px;
+  border: 1px solid var(--rmi-border);
+  border-radius: 6px;
+  outline: none;
+  background: #ffffff;
+}
+.rmi-search input:focus {
+  border-color: var(--rmi-border-focus);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+.rmi-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.rmi-switch input { display: none; }
+.rmi-switch-track {
+  width: 34px;
+  height: 18px;
+  background: #cbd5e1;
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+}
+.rmi-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.rmi-switch input:checked + .rmi-switch-track { background: #2563eb; }
+.rmi-switch input:checked + .rmi-switch-track::after { transform: translateX(16px); }
+
+.rmi-linkbtn {
+  background: none;
+  border: none;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.rmi-resultline {
+  font-size: 12px;
+  color: var(--rmi-muted);
+  margin-bottom: 8px;
+}
+
+/* Tables */
+.rmi-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--rmi-border);
+  border-radius: 8px;
+}
+.rmi-tablewrap.rmi-sticky thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #f8fafc;
+}
+.rmi-tablewrap.rmi-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+}
+.rmi-tablewrap.rmi-bg-white { background: #ffffff; }
+
+.rmi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+.rmi-table th {
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--rmi-border);
+  white-space: nowrap;
+}
+.rmi-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rmi-border);
+  vertical-align: middle;
+}
+.rmi-table-sm th { padding: 8px 10px; font-size: 12px; }
+.rmi-table-sm td { padding: 8px 10px; font-size: 12px; }
+.rmi-table tbody tr:last-child td { border-bottom: none; }
+.rmi-row-click { cursor: pointer; transition: background 0.12s; }
+.rmi-row-click:hover { background: #f1f5f9; }
+
+/* Status Row Borders */
+.st-critical { border-left: 4px solid #ef4444; }
+.st-low { border-left: 4px solid #f59e0b; }
+.st-balanced { border-left: 4px solid #10b981; }
+.st-overstocked { border-left: 4px solid #3b82f6; }
+.st-nodemand { border-left: 4px solid #94a3b8; }
+
+.rmi-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.rmi-sort.on { color: #2563eb; }
+.rmi-jobs-cell { font-size: 12px; max-width: 180px; }
+.rmi-empty-row { text-align: center; padding: 36px 16px; color: var(--rmi-muted); }
+.rmi-hint { font-size: 12px; color: var(--rmi-muted); margin-top: 10px; font-style: italic; }
+.rmi-incart {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Badges */
+.rmi-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.rmi-b-critical { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+.rmi-b-low { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
+.rmi-b-ok { background: #dcfce7; color: #16a34a; border: 1px solid #bbf7d0; }
+.rmi-b-over { background: #dbeafe; color: #2563eb; border: 1px solid #bfdbfe; }
+.rmi-b-none { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+
+/* Cover Bar */
+.rmi-cover {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+.rmi-cover-num {
+  font-size: 12px;
+  font-weight: 600;
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.rmi-bar {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+}
+.rmi-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 4px;
+}
+.rmi-fill.s-critical { background: #ef4444; }
+.rmi-fill.s-low { background: #f59e0b; }
+.rmi-fill.s-balanced { background: #10b981; }
+.rmi-fill.s-overstocked, .rmi-fill.s-overstock { background: #3b82f6; }
+.rmi-fill.s-nodemand { background: #94a3b8; }
+.rmi-bar b {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #334155;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+/* Buttons */
+.rmi-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s;
+  line-height: 1.2;
+}
+.rmi-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.rmi-btn-primary { background: #2563eb; color: #ffffff; border-color: #2563eb; }
+.rmi-btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.rmi-btn-outline { background: #ffffff; color: #334155; border-color: #cbd5e1; }
+.rmi-btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+.rmi-btn-gold { background: #f59e0b; color: #ffffff; border-color: #d97706; }
+.rmi-btn-gold:hover:not(:disabled) { background: #d97706; }
+.rmi-btn-dark { background: #1e293b; color: #ffffff; border-color: #1e293b; }
+.rmi-btn-dark:hover:not(:disabled) { background: #0f172a; }
+.rmi-btn-green { background: #16a34a; color: #ffffff; border-color: #16a34a; }
+.rmi-btn-green:hover:not(:disabled) { background: #15803d; }
+.rmi-btn-danger { background: #dc2626; color: #ffffff; border-color: #dc2626; }
+.rmi-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.rmi-btn-light { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+.rmi-btn-light:hover:not(:disabled) { background: #e2e8f0; }
+.rmi-btn-xs { padding: 4px 8px; font-size: 11px; border-radius: 4px; }
+.rmi-iconbtn {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: 4px;
+  color: var(--rmi-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.rmi-iconbtn:hover { background: #f1f5f9; color: var(--rmi-text); }
+.rmi-iconbtn.rmi-red:hover { background: #fee2e2; color: #dc2626; }
+
+/* Inputs */
+.rmi-input {
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid var(--rmi-border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--rmi-text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.rmi-input:focus {
+  border-color: var(--rmi-border-focus);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+.rmi-input.rmi-invalid { border-color: #ef4444; background: #fef2f2; }
+.rmi-inline-input {
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 4px 6px;
+  font-size: 13px;
+  border-radius: 4px;
+  width: 100%;
+}
+.rmi-inline-input:hover { border-color: var(--rmi-border); background: #ffffff; }
+.rmi-inline-input:focus { border-color: #2563eb; background: #ffffff; outline: none; }
+.rmi-num-sm { width: 64px; text-align: center; }
+.rmi-num-md { width: 96px; }
+
+/* Indent Status Select */
+.rmi-stat { font-weight: 600; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+.rmi-stat.s-draft { background: #f1f5f9; color: #475569; }
+.rmi-stat.s-submitted { background: #dbeafe; color: #1d4ed8; }
+.rmi-stat.s-approved { background: #dcfce7; color: #15803d; }
+.rmi-stat.s-poplaced { background: #fef3c7; color: #b45309; }
+.rmi-stat.s-closed { background: #f3f4f6; color: #6b7280; }
+
+/* Dropzones & Guide */
+.rmi-guide { padding: 32px 16px; text-align: center; }
+.rmi-guide-title { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
+.rmi-guide-sub { font-size: 14px; color: var(--rmi-muted); max-width: 580px; margin: 0 auto 24px; }
+.rmi-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  text-align: left;
+}
+.rmi-drop {
+  border: 2px dashed var(--rmi-border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rmi-drop:hover { border-color: #2563eb; background: #eff6ff; }
+.rmi-drop.over { border-color: #2563eb; background: #dbeafe; }
+.rmi-drop.done { border-color: #86efac; background: #f0fdf4; border-style: solid; }
+.rmi-drop-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--rmi-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--rmi-muted);
+}
+.rmi-drop.done .rmi-drop-icon { background: #dcfce7; color: #16a34a; border-color: #bbf7d0; }
+.rmi-drop-text { flex: 1; }
+.rmi-drop-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.rmi-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.rmi-drop-hint { font-size: 12px; color: var(--rmi-muted); margin-top: 2px; }
+.rmi-drop-action { font-size: 12px; font-weight: 600; color: #2563eb; margin-top: 8px; }
+
+/* Modals */
+.rmi-modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.rmi-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 820px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+.rmi-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--rmi-border);
+}
+.rmi-modal-head h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.rmi-modal-head p { margin: 4px 0 0; font-size: 12px; color: var(--rmi-muted); }
+.rmi-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.rmi-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rmi-border);
+  background: #f8fafc;
+}
+.rmi-detect {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.rmi-detect.good { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.rmi-detect.bad { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.rmi-form3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+.rmi-form3 label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.rmi-sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+.rmi-sec-head h4 { margin: 0; font-size: 14px; font-weight: 600; }
+
+/* Drawer & Backdrop */
+.rmi-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.rmi-backdrop.open { opacity: 1; pointer-events: auto; }
+.rmi-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 700px;
+  max-width: 92vw;
+  background: #ffffff;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 910;
+}
+.rmi-backdrop.open .rmi-drawer { transform: translateX(0); }
+.rmi-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  border-bottom: 1px solid var(--rmi-border);
+  background: #f8fafc;
+}
+.rmi-drawer-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--rmi-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+}
+.rmi-drawer-title { font-size: 20px; font-weight: 700; margin: 0; }
+.rmi-drawer-lead { font-size: 13px; color: var(--rmi-muted); margin-top: 4px; }
+.rmi-drawer-x {
+  background: none;
+  border: none;
+  color: var(--rmi-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+}
+.rmi-drawer-x:hover { background: #e2e8f0; color: var(--rmi-text); }
+.rmi-drawer-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.rmi-drawer-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rmi-border);
+  background: #f8fafc;
+}
+.rmi-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--rmi-border);
+  border-radius: 8px;
+  padding: 14px;
+}
+.rmi-metric { font-size: 17px; font-weight: 700; margin-top: 2px; }
+.rmi-transfer {
+  font-size: 11px;
+  color: #0284c7;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Toast Notifications */
+.rmi-toasts {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 380px;
+}
+.rmi-toast {
+  background: #1e293b;
+  color: #ffffff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  animation: rmi-toast-in 0.2s ease-out;
+}
+.rmi-toast.t-info { border-left: 4px solid #3b82f6; }
+.rmi-toast.t-warn { border-left: 4px solid #ef4444; }
+.rmi-toast.t-success { border-left: 4px solid #10b981; }
+.rmi-toast-act {
+  background: #ffffff;
+  color: #1e293b;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rmi-toast-x {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+.rmi-toast-x:hover { color: #ffffff; }
+@keyframes rmi-toast-in {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Job Demand Planner & Stack */
+.rmi-stack { display: flex; flex-direction: column; gap: 20px; }
+.rmi-sec-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.rmi-h3 { font-size: 18px; font-weight: 700; margin: 0; }
+.rmi-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e40af;
+}
+.rmi-callout svg { flex-shrink: 0; margin-top: 2px; color: #2563eb; }
+.rmi-card {
+  background: #ffffff;
+  border: 1px solid var(--rmi-border);
+  border-radius: 8px;
+  padding: 18px;
+}
+.rmi-card.rmi-danger { border-color: #fca5a5; background: #fff5f5; }
+.rmi-card-title { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.rmi-addjob {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1fr auto;
+  gap: 12px;
+  align-items: flex-end;
+}
+.rmi-addjob label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 4px; }
+.rmi-shift { display: flex; align-items: center; gap: 6px; justify-content: center; }
+
+/* Empty States & Tiles */
+.rmi-empty { text-align: center; padding: 48px 20px; color: var(--rmi-muted); }
+.rmi-empty h4 { font-size: 18px; font-weight: 600; color: var(--rmi-text); margin: 12px 0 6px; }
+.rmi-empty p { font-size: 13px; margin: 0 0 20px; }
+.rmi-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: var(--rmi-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.rmi-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.rmi-tile {
+  background: #f8fafc;
+  border: 1px solid var(--rmi-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rmi-tile span { font-size: 12px; color: var(--rmi-muted); }
+.rmi-tile strong { font-size: 18px; font-weight: 700; color: var(--rmi-text); }
+
+/* Indent Register */
+.rmi-reg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.rmi-reg-toggle {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  flex: 1;
+}
+.rmi-caret { display: inline-flex; align-items: center; transition: transform 0.2s; }
+.rmi-caret.open { transform: rotate(180deg); }
+.rmi-reg-no { font-family: var(--rmi-mono); font-weight: 700; font-size: 14px; color: #2563eb; }
+
+/* Settings / Checkboxes */
+.rmi-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.rmi-note-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--rmi-muted);
+  font-size: 14px;
+}
+
+/* Footer */
+.rmi-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--rmi-muted);
+  padding: 16px 0 0;
+  border-top: 1px solid var(--rmi-border);
+  margin-top: 24px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+`;
+
+const CSS_EXTRA = `
+.rmi-pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:var(--rmi-muted)}
+.rmi-loading{opacity:.6;transition:opacity .15s}
+.rmi-chkgrid{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:6px}
 `;
