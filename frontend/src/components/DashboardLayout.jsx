@@ -4,6 +4,7 @@ import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import BASE_URL from "../config/api";
 import menuItems from "../config/menuItems";
+import ChatPanel from "./ChatPanel";
 
 // 6 Organized Categories for the 3D App Launcher Grid (Admin Only)
 const APP_CATEGORIES = [
@@ -139,6 +140,27 @@ export default function DashboardLayout() {
       // Silent ignore if storage is blocked
     }
   }, [theme]);
+
+  // Chat
+  const [showChat, setShowChat] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+
+  useEffect(() => {
+    const tick = async () => {
+      const ct = sessionStorage.getItem("chatToken");
+      if (!ct) { setChatUnread(0); return; }
+      if (document.hidden) return;
+      try {
+        const r = await axios.get(`${BASE_URL}/api/messenger/unread`, { headers: { Authorization: `Bearer ${ct}` } });
+        setChatUnread(r.data.count || 0);
+      } catch {
+        // ignore
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 8000);
+    return () => clearInterval(iv);
+  }, [showChat]);
 
   // Year filter (shown only on the production portal page)
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
@@ -378,6 +400,7 @@ export default function DashboardLayout() {
 
   const logout = () => {
     localStorage.removeItem("token");
+    sessionStorage.removeItem("chatToken");
     navigate("/");
   };
 
@@ -1602,6 +1625,26 @@ export default function DashboardLayout() {
               <button
                 type="button"
                 className="theme-toggle-btn"
+                onClick={() => setShowChat(true)}
+                title="MPI Chat"
+                style={{ position: "relative", color: "#25d366" }}
+              >
+                <i className="bi bi-chat-dots-fill"></i>
+                {chatUnread > 0 && (
+                  <span
+                    style={{
+                      position: "absolute", top: "-4px", right: "-4px",
+                      background: "#dc3545", color: "#fff", borderRadius: "999px",
+                      fontSize: "0.6rem", fontWeight: 700, padding: "1px 5px", lineHeight: 1.2
+                    }}
+                  >
+                    {chatUnread > 99 ? "99+" : chatUnread}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="theme-toggle-btn"
                 onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
                 title={isDark ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -1845,6 +1888,9 @@ export default function DashboardLayout() {
           </div>
         </div>
       )}
+
+      {/* CHAT PANEL */}
+      {showChat && <ChatPanel onClose={() => setShowChat(false)} />}
 
       {/* CHANGE PASSWORD MODAL */}
       {showChangePassword && (

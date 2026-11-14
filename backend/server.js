@@ -128,6 +128,7 @@ app.use("/api/job-validation", require("./routes/Jobvalidation"));
 
 const rawMaterialIndentRoutes = require("./routes/Rawmaterialindent");
 app.use("/api/raw-material-indent", rawMaterialIndentRoutes);
+app.use("/api/messenger", require("./routes/Chatmessenger"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
