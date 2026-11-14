@@ -1155,7 +1155,7 @@ const PAGE_SIZE = 30;
       indentNo: arr.map((x) => x.indentNo).join(", "),
       items: [{ ...arr[0].items[0],
         quantity: arr.reduce((s, x) => s + (Number(x.items?.[0]?.quantity) || 0), 0) }],
-      locationList: arr.map((x) => ({ name: x.location?.locationName || "-", qty: x.items?.[0]?.quantity }))
+      locationList: arr.map((x) => ({ name: x.location?.locationName || "-", qty: x.items?.[0]?.quantity, date: x.items?.[0]?.deliveryDate }))
     }));
   };
 
@@ -1163,7 +1163,7 @@ const PAGE_SIZE = 30;
     list.length === 1 ? list[0].name : (
       <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
         <option value="">{list.length} locations</option>
-        {list.map((l, i) => <option key={i} value="" disabled>{l.name}: {l.qty}</option>)}
+        {list.map((l, i) => <option key={i} value="" disabled>{l.name}: {l.qty}{l.date ? " (" + new Date(l.date).toLocaleDateString("en-IN") + ")" : ""}</option>)}
       </select>
     );
 
@@ -2821,13 +2821,15 @@ const PAGE_SIZE = 30;
                     ],
                     [
                       "Expected Date",
-                      selectedIndent.items[0]?.deliveryDate
-                        ? new Date(
-                            selectedIndent.items[0].deliveryDate
-                          ).toLocaleDateString("en-IN")
+                      selectedIndent.locationList?.length > 1
+                        ? selectedIndent.locationList
+                            .map((l) => `${l.name}: ${l.date ? new Date(l.date).toLocaleDateString("en-IN") : "-"}`)
+                            .join(" | ")
+                        : selectedIndent.items[0]?.deliveryDate
+                        ? new Date(selectedIndent.items[0].deliveryDate).toLocaleDateString("en-IN")
                         : "-",
                       "bi-calendar-check",
-                      "col-md-4"
+                      selectedIndent.locationList?.length > 1 ? "col-12" : "col-md-4"
                     ]
                   ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
                   ["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-12"],
@@ -4047,7 +4049,7 @@ const PAGE_SIZE = 30;
                             <select className="form-select form-select-sm" value="" onChange={() => {}} style={{ minWidth: 150 }}>
                               <option value="">{order.locationSplits.length} locations</option>
                               {order.locationSplits.map((l, i) => (
-                                <option key={i} value="" disabled>{l.locationName || "-"}: {l.quantity}</option>
+                                <option key={i} value="" disabled>{l.locationName || "-"}: {l.quantity}{l.deliveryDate ? " (" + new Date(l.deliveryDate).toLocaleDateString("en-IN") + ")" : ""}</option>
                               ))}
                             </select>
                           ) : (

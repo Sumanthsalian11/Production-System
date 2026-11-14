@@ -257,7 +257,7 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     let splits = [];
     try { splits = JSON.parse(req.body.splits || "[]"); } catch { splits = []; }
     splits = splits.filter((s) => s && s.location && Number(s.quantity) > 0);
-    if (!splits.length && location && quantity) splits = [{ location, quantity }];
+    if (!splits.length && location && quantity) splits = [{ location, quantity, deliveryDate }];
 
     if ((!isSample && !productCode) || !splits.length) {
       return res.status(400).json({ message: "Required fields missing" });
@@ -339,7 +339,7 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
         quantity: Number(splits[n].quantity),
         unitRate: Number(unitRate) || 0,
         remark: remark || "",
-        deliveryDate: deliveryDate || null,
+        deliveryDate: splits[n].deliveryDate || deliveryDate || null,
         lamination: lamination || "", finish: finish || "", jobNo: jobNo || "", soNo: soNo || "",
         soDate: soDate || null, sampleType: sampleType || "",
         costingConfirmation: costingConfirmation || "",
@@ -590,7 +590,8 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     const locationSplits = groupDocs.map((d) => ({
       location: d.location?._id || d.location,
       locationName: d.location?.locationName || "",
-      quantity: Number(d.items?.[0]?.quantity) || 0
+      quantity: Number(d.items?.[0]?.quantity) || 0,
+      deliveryDate: d.items?.[0]?.deliveryDate || null
     }));
 
     // 3. Process each item in the indent

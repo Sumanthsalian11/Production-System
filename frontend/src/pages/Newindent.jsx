@@ -964,7 +964,7 @@ if (!norm(form.specification)) newErrors.specification = "Required";
         confirmButtonColor: "#3085d6"
       });
     }
-    if (extraRows.some((r) => !r.location || !(Number(r.quantity) > 0))) newErrors.splits = "Fill or remove the extra rows";
+    if (extraRows.some((r) => !r.location || !(Number(r.quantity) > 0) || !r.deliveryDate)) newErrors.splits = "Fill or remove the extra rows";
     setErrors(newErrors);
     const fieldLabels = {
       productCode: "Product Code",
@@ -1017,7 +1017,7 @@ specification: "Specification",
         formData.append(key, value ?? "");
       });
       if (searchMode === "sample") formData.set("productCode", sampleMatchCode);
-      formData.append("splits", JSON.stringify([{ location: form.location, quantity: form.quantity }, ...extraRows]));
+      formData.append("splits", JSON.stringify([{ location: form.location, quantity: form.quantity, deliveryDate: form.deliveryDate }, ...extraRows]));
       if (customerCopyFile) formData.append("customerCopy", customerCopyFile);
       if (artworkFile) formData.append("artwork", artworkFile);
 
@@ -3091,7 +3091,7 @@ specification: "Specification",
                   {!editingId && (
                     <div className="col-12">
                       <button type="button" className="btn-action-edit"
-                        onClick={() => setExtraRows((p) => [...p, { location: "", quantity: "" }])}>
+                        onClick={() => setExtraRows((p) => [...p, { location: "", quantity: "", deliveryDate: "" }])}>
                         <i className="bi bi-plus-lg"></i> Add location &amp; quantity
                       </button>
                     </div>
@@ -3108,6 +3108,10 @@ specification: "Specification",
                             <option value="">Select Location</option>
                             {locations.map((l) => <option key={l._id} value={l._id}>{l.locationName}</option>)}
                           </select>
+                        </PoField>
+                        <PoField className="col-6 col-md-3" icon="bi-calendar-event" label={searchMode === "sample" ? "Required Date" : "Delivery Date"} required alwaysFloat>
+                          <input type="date" className="po-input" value={r.deliveryDate || ""} title={r.deliveryDate || ""}
+                            onChange={(e) => setExtra(i, "deliveryDate", e.target.value)} />
                         </PoField>
                         <div className="col-12 col-md-2">
                           <button type="button" className="btn-action-delete"
