@@ -58,10 +58,10 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           const splits = Array.isArray(o.mailSplits) && o.mailSplits.length > 1 ? o.mailSplits : null;
 
           // one full row (all details repeated); indent no, location and qty come from the caller
-          const makeRow = (indentNo, locName, qty) => `<tr>
+          const makeRow = (indentNo, locName, qty, reqDate) => `<tr>
           <td style="${td}">${esc(indentNo)}</td>
           <td style="${td}">${esc(locName)}</td>
-          <td style="${td}">${esc(fmtDate(o.expectedDeliveryDate))}</td>
+          <td style="${td}">${esc(fmtDate(reqDate || o.expectedDeliveryDate))}</td>
           <td style="${td}">${esc(o.productCode)}</td>
           <td style="${td}">${esc(o.description)}</td>
           <td style="${td}">${esc(o.paperGroup)}</td>
@@ -91,7 +91,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
               ? ` <span style="font-size:11px;font-weight:normal">(incl. waste: ${esc(o.quantity)})</span>`
               : "";
 
-          const splitRows = splits.map((x) => makeRow(x.indentNo, x.locationName, x.quantity)).join("");
+          const splitRows = splits.map((x) => makeRow(x.indentNo, x.locationName, x.quantity, x.deliveryDate)).join("");
 
           const tt = `${td};background:#eef6f8`;
           const totalRow = `<tr>
@@ -106,9 +106,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
 
       const html = `
       <p>Dear Team,</p>
-      <p>The following order request has been planned as <b>Inhouse</b> and saved${
-        planningLocation ? " for <b>" + esc(planningLocation) + "</b>" : ""
-      }. Artwork is attached.</p>
+       <p>Please find below the details of the indent order planned as <b>Inhouse</b>. The artwork is attached for your reference.</p>
       <table style="border-collapse:collapse;font-family:Arial,sans-serif">
         <thead><tr>
           <th style="${th}">Indent No</th><th style="${th}">Location</th><th style="${th}">Required date</th>

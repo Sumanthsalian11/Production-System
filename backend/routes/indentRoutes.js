@@ -374,7 +374,7 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
     }
 
     res.status(201).json(savedList.length === 1 ? savedList[0] : savedList);
-    savedList.forEach((s) => sendIndentRequestMail(s._id));
+    sendIndentRequestMail(savedList.map((s) => s._id));
 
   } catch (err) {
     console.error("CREATE INDENT ERROR:", err);
@@ -697,6 +697,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         artworkName: mailArt ? mailArt.fileName : "",
         mailSplits: groupDocs.map((d) => ({
           indentNo: d.indentNo,
+          deliveryDate: d.items?.[0]?.deliveryDate || null,
           locationName: d.location?.locationName || "",
           quantity: Number(d.items?.[0]?.quantity) || 0
         }))
