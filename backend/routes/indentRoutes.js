@@ -693,7 +693,12 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         location: indent.location,
         indentType: indent.indentType,
         artworkPath: mailArt ? mailArt.filePath : "",
-        artworkName: mailArt ? mailArt.fileName : ""
+        artworkName: mailArt ? mailArt.fileName : "",
+        mailSplits: groupDocs.map((d) => ({
+          indentNo: d.indentNo,
+          locationName: d.location?.locationName || "",
+          quantity: Number(d.items?.[0]?.quantity) || 0
+        }))
       });
     }
 

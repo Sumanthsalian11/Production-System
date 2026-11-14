@@ -52,18 +52,20 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
         continue;
       }
 
-      const rows = rowsList
+          const rows = rowsList
         .map((o) => {
-          const loc = o.location?.locationName || planningLocation || "";
           const colour = [o.colorFront, o.colorBack].filter((x) => x !== undefined && x !== "").join("+");
-          return `<tr>
-          <td style="${td}">${esc(o.indentNo || o.ticketNo)}</td>
-          <td style="${td}">${esc(loc)}</td>
+          const splits = Array.isArray(o.mailSplits) && o.mailSplits.length > 1 ? o.mailSplits : null;
+
+          // one full row (all details repeated); indent no, location and qty come from the caller
+          const makeRow = (indentNo, locName, qty) => `<tr>
+          <td style="${td}">${esc(indentNo)}</td>
+          <td style="${td}">${esc(locName)}</td>
           <td style="${td}">${esc(fmtDate(o.expectedDeliveryDate))}</td>
           <td style="${td}">${esc(o.productCode)}</td>
           <td style="${td}">${esc(o.description)}</td>
           <td style="${td}">${esc(o.paperGroup)}</td>
-          <td style="${td};text-align:right">${esc(o.quantity)}</td>
+          <td style="${td};text-align:right">${esc(qty)}</td>
           <td style="${td}">${esc(o.gsm)}</td>
           <td style="${td}">${esc(o.jobSize)}</td>
           <td style="${td}">${esc(colour)}</td>
@@ -72,6 +74,33 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           <td style="${td}">${esc(o.specification)}</td>
           <td style="${td}">${esc(o.sampleType || o.indentType)}</td>
         </tr>`;
+
+          // single request: one normal row
+          if (!splits) {
+            return makeRow(
+              o.indentNo || o.ticketNo,
+              o.location?.locationName || planningLocation || "",
+              o.quantity
+            );
+          }
+
+          // multiple locations: one full row per indent + a total row
+          const sum = splits.reduce((s, x) => s + (Number(x.quantity) || 0), 0);
+          const wasteNote =
+            Number(o.quantity) && Number(o.quantity) !== sum
+              ? ` <span style="font-size:11px;font-weight:normal">(incl. waste: ${esc(o.quantity)})</span>`
+              : "";
+
+          const splitRows = splits.map((x) => makeRow(x.indentNo, x.locationName, x.quantity)).join("");
+
+          const tt = `${td};background:#eef6f8`;
+          const totalRow = `<tr>
+          <td style="${tt}" colspan="6"><b>Total Qty</b></td>
+          <td style="${tt};text-align:right"><b>${esc(sum)}</b>${wasteNote}</td>
+          <td style="${tt}" colspan="7"></td>
+        </tr>`;
+
+          return splitRows + totalRow;
         })
         .join("");
 
@@ -117,7 +146,17 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
         });
       }
 
-      const indentNos = [...new Set(rowsList.map((o) => o.indentNo || o.ticketNo).filter(Boolean))].join(", ");
+      const indentNos = [
+        ...new Set(
+          rowsList
+            .flatMap((o) =>
+              Array.isArray(o.mailSplits) && o.mailSplits.length > 1
+                ? o.mailSplits.map((x) => x.indentNo)
+                : [o.indentNo || o.ticketNo]
+            )
+            .filter(Boolean)
+        )
+      ].join(", ");
 
       await sendMail({
         to,

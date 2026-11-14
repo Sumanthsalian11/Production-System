@@ -120,10 +120,11 @@ export default function ArtworkRepository() {
     const rows = [
       ["Customer", it.customerName], ["Product code", it.productCode], ["Product type", it.materialType],
       ["Description", it.description], ["Job size", it.jobSize], ["Color front", it.colorFront],
-      ["Color back", it.colorBack], ["Paper group", it.paperGroup], ["Paper size", it.paperSize],
+      ["Color back", it.colorBack], ["Paper group", it.paperGroup],
       ["GSM", it.gsm], ["Quantity", it.quantity],
       ["Delivery date", it.deliveryDate ? new Date(it.deliveryDate).toLocaleDateString("en-IN") : ""],
-      ["Location", ind.location?.locationName], ["Notes", it.remark]
+      ["Location", ind.location?.locationName],
+["Specification", it.specification], ["Remarks", it.remark]
     ];
 
     const chipsOf = (st) => {
