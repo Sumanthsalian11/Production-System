@@ -37,10 +37,7 @@ splitLocation: { type: String, default: "" },
     type: Number,
     required: true
   },
-  extraQty: {
-  type: Number,
- required:true
-},
+  extraQty: { type: Number, default: 0 },
   invoiceNo: {
   type: String
 },

@@ -495,21 +495,21 @@ if (!form.dispatchDate) {
   return;
 }
 
-if (!form.courier) {
+if (fetchBy === "wo" && !form.courier) {
   showAlert("Transportation is required","warning");
   return;
 }
 
-if (!form.trackingNumber) {
+if (fetchBy === "wo" && !form.trackingNumber) {
   showAlert("Vehicle Number is required","warning");
   return;
 }
 
-if (!form.deliveryAddress) {
+if (fetchBy === "wo" && !form.deliveryAddress) {
   showAlert("Delivery Address is required","warning");
   return;
 }
-if(!form.extraQty)
+if(fetchBy === "wo" && !form.extraQty)
 {showAlert("Extra Qty is required","warning");
 return;
 } 
@@ -522,7 +522,7 @@ return;
 
 
 
-if(!form.invoiceNo)
+if(fetchBy === "wo" && !form.invoiceNo)
 {
    showAlert("Invoice No is required","warning");
   return;
@@ -1442,7 +1442,7 @@ return(
           value={form.courier}
           onChange={handleChange}
           className="dm-select"
-          required>
+          required={fetchBy === "wo"}>
           <option value="">Select Transportation</option>
           {transportations.map(t=>(
             <option key={t._id} value={t.name}>{t.name}</option>

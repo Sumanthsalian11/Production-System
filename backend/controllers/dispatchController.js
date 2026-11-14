@@ -19,7 +19,8 @@ const getSplits = (doc) => {
   const list = (doc?.locationSplits || [])
     .map((s) => ({
       location: String(s.location ?? s.locationId ?? s.locationName ?? ""),
-      qty: Number(s.qty ?? s.quantity ?? 0) || 0
+      qty: Number(s.qty ?? s.quantity ?? 0) || 0,
+      deliveryDate: s.deliveryDate || null
     }))
     .filter((s) => s.location);
 
@@ -77,6 +78,7 @@ exports.getWorkOrderByNumber = async (req, res) => {
     res.json({
       ...workOrder.toObject(),
       qtyInLvs: totalQty,
+      expectedDeliveryDate: (selected && selected.deliveryDate) || workOrder.expectedDeliveryDate,
       selectedLocation: selected ? selected.key : "",
       dispatchedQty,
       balanceQty
@@ -132,7 +134,7 @@ exports.getOrderByTicketNo = async (req, res) => {
       balanceQty: totalQty - dispatchedQty,
       purchaseOrderNo: order.purchaseOrderNo || "",
       poDate: order.poDate || "",
-      expectedDeliveryDate: order.expectedDeliveryDate || "",
+      expectedDeliveryDate: (selected && selected.deliveryDate) || order.expectedDeliveryDate || "",
       location: order.location,
       locationSplits: order.locationSplits || [],
       selectedLocation: selected ? selected.key : ""
@@ -172,7 +174,7 @@ const dispatch = new Dispatch({
   ...data,
   delayDays,
   delayLabel,
-  extraQty: data.extraQty,
+  extraQty: Number(data.extraQty) || 0,
   userLocations: parseLocations(data.userLocations),
   noOfPackets: Number(data.noOfPackets) || 0,
   noOfBoxes: Number(data.noOfBoxes) || 0,
@@ -302,7 +304,7 @@ exports.updateDispatch = async (req, res) => {
         ...(req.file
           ? { attachment: `/uploads/dispatch/${req.file.filename}`, attachmentName: req.file.originalname }
           : {}),
-        extraQty: data.extraQty 
+        extraQty: Number(data.extraQty) || 0 
       },
       { new: true }
     );
