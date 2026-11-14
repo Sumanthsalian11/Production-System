@@ -918,6 +918,7 @@ const PAGE_SIZE = 30;
       "Lamination": order.lamination || "",
 "Finish": order.finish || "",
 "Sample Type": order.sampleType || "",
+"Artwork": order.artwork?.fileName || "",
 "Specification": order.specification || "",
       "Paper": [order.paperGroup, order.paperSize, order.millName].filter(Boolean).join(" / "),
       "GSM": order.gsm || "",
@@ -3863,6 +3864,7 @@ const PAGE_SIZE = 30;
                     <th>Lamination</th>
 <th>Finish</th>
 <th>Sample Type</th>
+<th>Artwork</th>
 <th>Specification</th>
                     <th>Paper</th>
                     <th>GSM</th>
@@ -3883,7 +3885,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="26" className="p-4 text-center text-muted">
+                      <td colSpan="27" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3996,6 +3998,18 @@ const PAGE_SIZE = 30;
                         <td>{order.lamination || "-"}</td>
 <td>{order.finish || "-"}</td>
 <td>{order.sampleType || "-"}</td>
+<td>
+  {order.artwork?.filePath ? (
+    <button
+      type="button"
+      className="btn btn-sm btn-info"
+      title={order.artwork.fileName}
+      onClick={(e) => openArtwork(e, order.artwork.filePath, order.artwork.fileName)}
+    >
+      View
+    </button>
+  ) : "-"}
+</td>
 <td
   className="cell-expandable"
   style={{

@@ -641,7 +641,14 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         paperGroup: item.paperGroup || "",
         paperSize: item.paperSize || "",
         gsm: item.gsm || "",
-        specification: item.specification || ""
+        specification: item.specification || "",
+        artwork: (() => {
+          const vs = item.artworkVersions || [];
+          const a = [...vs].reverse().find((v) => v.status === "Approved");
+          if (a) return { fileName: a.fileName, filePath: a.filePath };
+          if (item.artwork && item.artwork.filePath) return { fileName: item.artwork.fileName, filePath: item.artwork.filePath };
+          return { fileName: "", filePath: "" };
+        })()
       };
 
       // Add PO fields for Inhouse/Stationary

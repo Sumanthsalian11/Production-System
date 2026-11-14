@@ -83,6 +83,7 @@ const customerOrderSchema = new mongoose.Schema(
       default: ""
     },
       sampleType: { type: String, default: "" },
+        artwork: { fileName: { type: String, default: "" }, filePath: { type: String, default: "" } },
     lamination: { type: String, default: "" },
     paperGroup: { type: String, default: "" },
     paperSize:  { type: String, default: "" },
