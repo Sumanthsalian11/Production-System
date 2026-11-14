@@ -4545,28 +4545,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         />
                       </PoField>
 
-                      {isAdmin && selectedOrder.status === "PLANNED" && (
-                        <PoField
-                          className="wo-field fs-3"
-                          icon="bi-person-badge"
-                          label="Planner (Admin)"
-                          alwaysFloat
-                          caret
-                        >
-                          <select
-                            className="po-input"
-                            value={planningUserEdit}
-                            onChange={(e) => setPlanningUserEdit(e.target.value)}
-                          >
-                            {planningUserEdit && !filterOptions.planners.includes(planningUserEdit) && (
-                              <option value={planningUserEdit}>{planningUserEdit}</option>
-                            )}
-                            {filterOptions.planners.map((p) => (
-                              <option key={p} value={p}>{p}</option>
-                            ))}
-                          </select>
-                        </PoField>
-                      )}
+
 
                       <PoField
                         className="wo-field fs-4"
@@ -5645,29 +5624,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             )}
                           </td>
                           <td className="small">
-                            {isAdmin ? (
-                              <div>
-                                <select
-                                  className="form-select form-select-sm"
-                                  style={{ minWidth: 150, fontSize: 11.5 }}
-                                  value={wo.planningUser || ""}
-                                  onChange={(e) => handleChangePlanner(wo, e.target.value)}
-                                >
-                                  {wo.planningUser && !filterOptions.planners.includes(wo.planningUser) && (
-                                    <option value={wo.planningUser}>{wo.planningUser}</option>
-                                  )}
-                                  {!wo.planningUser && <option value="">-</option>}
-                                  {filterOptions.planners.map((p) => (
-                                    <option key={p} value={p}>{p}</option>
-                                  ))}
-                                </select>
-                                <div>{new Date(wo.createdAt).toLocaleDateString("en-IN")}</div>
-                              </div>
-                            ) : wo.planningUser ? (
-                              `${wo.planningUser} - ${new Date(wo.createdAt).toLocaleDateString("en-IN")}`
-                            ) : (
-                              "-"
-                            )}
+                            {wo.planningUser
+                              ? `${wo.planningUser} - ${new Date(wo.createdAt).toLocaleDateString("en-IN")}`
+                              : "-"}
                           </td>
                           <td>
                             {wo.userLocations && wo.userLocations.length > 0

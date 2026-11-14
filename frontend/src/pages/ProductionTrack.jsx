@@ -256,6 +256,7 @@ function ProductionRealDashboard() {
   const [itemStages, setItemStages] = useState([]);
   const [showEntryModal, setShowEntryModal] = useState(false); // entry popup (opens after Fetch / Edit / Off Day)
   const [fetchedWoNo, setFetchedWoNo] = useState(""); // WO number the entry details were actually loaded for
+  const [woRecs, setWoRecs] = useState([]); // saved entries of the fetched WO (for the left-panel donut)
   const [hiddenSummaryPairs, setHiddenSummaryPairs] = useState([]); // "activityId__machineId" hidden in Summary Report
 
   const [skipSheetFedDivide, setSkipSheetFedDivide] = useState(false); // tick = no "/ 2" for Sheet Fed
@@ -1488,6 +1489,30 @@ const statusColumns = useMemo(() => {
     return Array.isArray(res.data) ? res.data : [];
   };
 
+  // saved entries of the fetched work order (re-loads after every save / edit / delete)
+  useEffect(() => {
+    if (!token || !showEntryModal || isOffDay || !fetchedWoNo) {
+      setWoRecs([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecords({ workOrderExact: Number(fetchedWoNo) })
+      .then((rows) => {
+        if (cancelled) return;
+        setWoRecs(
+          rows.map((r) => ({
+            id: r._id,
+            prod: Number(r.productionQty) || 0,
+            waste: Number(r.wastageQty) || 0,
+            acts: (r.machiness || []).map((m) => String(m.activityId?._id || m.activityId)),
+            at: new Date(r.createdAt).getTime() || 0,
+          }))
+        );
+      })
+      .catch((err) => console.error("Error loading WO totals:", err));
+    return () => { cancelled = true; };
+  }, [fetchedWoNo, showEntryModal, isOffDay, productionList]);
+
   const listReqId = useRef(0);
   const fetchSummary = async () => {
     const myId = ++listReqId.current;
@@ -2510,8 +2535,40 @@ const statusColumns = useMemo(() => {
     if (tableWrapRef.current) tableWrapRef.current.scrollTop = 0;
   };
 
-  // presentation-only helper for the Waste Overview donut
-  const wastePct = Math.min(100, Math.max(0, Number(wastePercent) || 0));
+  // Left-panel totals = already saved entries of this WO (same activity, if one is selected) + the entry being filled now
+  const curActId = String(
+    activityMachinePairs[0]?.activityId?._id || activityMachinePairs[0]?.activityId || ""
+  );
+  // before an activity is picked, use the current stage (activity of the latest saved production entry)
+  const latestStageRec = [...woRecs]
+    .filter((r) => r.prod > 0)
+    .sort((a, b) => b.at - a.at)[0];
+  const totalsActId = curActId || latestStageRec?.acts?.[0] || "";
+  const savedRecs = woRecs.filter(
+    (r) => r.id !== editingId && (!totalsActId || r.acts.includes(totalsActId))
+  );
+  const totalProd = savedRecs.reduce((s, r) => s + r.prod, 0) + (Number(form.productionQty) || 0);
+  const totalWaste = savedRecs.reduce((s, r) => s + r.waste, 0) + (Number(form.wastageQty) || 0);
+  const orderQtyNum = Number(workOrderDetails?.orderQty) || 0;
+  const prodPctRaw = orderQtyNum > 0 ? (totalProd / orderQtyNum) * 100 : 0;
+  const prodPctShown = Number(prodPctRaw.toFixed(1)); // number written in the circle (can go above 100)
+  const wastePct = Math.min(100, Math.max(0, prodPctRaw)); // ring fill, capped at 100 (name kept so the donut style needs no change)
+
+  // Current stage = activity of the latest saved production entry of this WO
+  const latestProdRec = [...woRecs]
+    .filter((r) => r.prod > 0)
+    .sort((a, b) => b.at - a.at)[0];
+  const currentStageId = latestProdRec?.acts?.[0] || "";
+  const currentStageName = currentStageId
+    ? activities.find((a) => String(a._id) === currentStageId)?.activityName || "-"
+    : "Not started";
+  const stageIdx = currentStageId
+    ? allowedActivities.findIndex((a) => String(a._id) === currentStageId)
+    : -1;
+  const currentStageNo =
+    stageIdx >= 0 && allowedActivities.length < activities.length
+      ? `Stage ${stageIdx + 1} of ${allowedActivities.length}`
+      : "";
 
   return (
     <div className="container mt-2 production-dashboard-page">
@@ -3298,21 +3355,31 @@ const statusColumns = useMemo(() => {
                 <p>Record machine production, wastage and status</p>
 
                 {workOrderDetails && (
-                  <div className="pd-left-stats">
+                  <div className="pd-left-stats" style={{ flexDirection: "column", alignItems: "stretch" }}>
                     <div
-                      className="gl-donut"
                       style={{
-                        background: `conic-gradient(#e8734a ${wastePct * 3.6}deg, rgba(255, 255, 255, 0.55) 0deg)`
+                        width: "100%",
+                        textAlign: "center",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        background: "rgba(255, 255, 255, 0.12)",
+                        border: "1px solid rgba(255, 255, 255, 0.28)"
                       }}
                     >
-                      <div className="gl-donut-inner">
-                        <b>{wastePct}%</b>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.8, textTransform: "uppercase", color: "#ffb59c" }}>
+                        Current stage
                       </div>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: "#ffffff", lineHeight: 1.2 }}>
+                        {currentStageName}
+                      </div>
+                      {currentStageNo && (
+                        <div style={{ fontSize: 12, fontWeight: 600, color: "#c9dde1" }}>{currentStageNo}</div>
+                      )}
                     </div>
                     <div className="pd-left-stat-list">
                       <span>Order Qty<b>{workOrderDetails.orderQty ?? "-"}</b></span>
-                      <span>Production<b>{form.productionQty === "" ? 0 : form.productionQty}</b></span>
-                      <span>Wastage<b>{form.wastageQty === "" ? 0 : form.wastageQty}</b></span>
+                      <span>Production<b>{totalProd.toLocaleString("en-IN")}</b></span>
+                      <span>Wastage<b>{totalWaste.toLocaleString("en-IN")}</b></span>
                     </div>
                   </div>
                 )}
