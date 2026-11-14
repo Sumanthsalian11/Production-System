@@ -923,6 +923,7 @@ function NewIndent() {
 
   const handlePaperChange = (e) => {
     const { name, value } = e.target;
+    setErrors((prev) => ({ ...prev, [name]: "" }));
     setForm((prev) => {
       const next = { ...prev, [name]: value };
       if (!value) return next;
@@ -946,9 +947,14 @@ function NewIndent() {
     if (!form.quantity) newErrors.quantity = "Required";
     if (!form.location) newErrors.location = "Required";
 if (!form.deliveryDate) newErrors.deliveryDate = "Required";
+if (!norm(form.paperGroup))    newErrors.paperGroup    = "Required";
+if (!norm(form.gsm))           newErrors.gsm           = "Required";
+if (!norm(form.lamination))    newErrors.lamination    = "Required";
+if (!norm(form.finish))        newErrors.finish        = "Required";
+if (!norm(form.specification)) newErrors.specification = "Required";
+    if (!form.sampleType) newErrors.sampleType = "Required";
     if (searchMode === "sample") {
       if (!form.sampleRequestType) newErrors.sampleRequestType = "Required";
-      if (!form.sampleType) newErrors.sampleType = "Required";
     } else if (REQUIRE_ARTWORK_UPLOAD && !masterArt.length && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
       newErrors.artwork = "Upload an artwork version. The PO reviewer will approve or reject it.";
       Swal.fire({
@@ -967,6 +973,11 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
       deliveryDate: searchMode === "sample" ? "Required Date" : "Delivery Date",
       sampleRequestType: "Request Type",
       sampleType: "Sample Type",
+paperGroup: "Group",
+gsm: "GSM",
+lamination: "Lamination",
+finish: "Finish",
+specification: "Specification",
       artwork: "Artwork (upload a version)",
       splits: "Extra Location / Quantity rows (fill or remove)"
     };
@@ -3124,7 +3135,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     </select>
                   </PoField> */}
 
-                  <PoField className="col-6 col-md-3" icon="bi-collection" label="Group" alwaysFloat caret>
+                  <PoField className="col-6 col-md-3" icon="bi-collection" label="Group" required alwaysFloat caret
+  after={errors.paperGroup && <small className="indent-error-text">{errors.paperGroup}</small>}>
                     <select name="paperGroup" className="po-input" value={form.paperGroup}
                             title={form.paperGroup} onChange={handlePaperChange}>
                       <option value="">Select Group</option>
@@ -3140,7 +3152,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                     </select>
                   </PoField>
 
-                  <PoField className="col-6 col-md-3" icon="bi-speedometer2" label="GSM" alwaysFloat caret>
+                  <PoField className="col-6 col-md-3" icon="bi-speedometer2" label="GSM" required alwaysFloat caret
+  after={errors.gsm && <small className="indent-error-text">{errors.gsm}</small>}>
                     <select name="gsm" className="po-input" value={form.gsm}
                             title={form.gsm} onChange={handlePaperChange}>
                       <option value="">Select GSM</option>
@@ -3247,7 +3260,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                 </div>
 
                 <div className="row g-2">
-                  <PoField className="col-6 col-md-4" icon="bi-layers" label="Lamination" filled={has(form.lamination)}>
+                  <PoField className="col-6 col-md-4" icon="bi-layers" label="Lamination" required filled={has(form.lamination)}
+  after={errors.lamination && <small className="indent-error-text">{errors.lamination}</small>}>
                     <input
                       type="text"
                       name="lamination"
@@ -3258,7 +3272,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                       />
                   </PoField>
 
-                  <PoField className="col-6 col-md-4" icon="bi-stars" label="Finish" filled={has(form.finish)}>
+                  <PoField className="col-6 col-md-4" icon="bi-stars" label="Finish" required filled={has(form.finish)}
+  after={errors.finish && <small className="indent-error-text">{errors.finish}</small>}>
                     <input
                       type="text"
                       name="finish"
@@ -3307,7 +3322,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   </PoField>
 )}
 
-                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Sample Type" required={searchMode === "sample"} alwaysFloat caret after={errors.sampleType && <small className="indent-error-text">{errors.sampleType}</small>}>
+                  <PoField className="col-6 col-md-4" icon="bi-tag" label="Sample Type" required alwaysFloat caret after={errors.sampleType && <small className="indent-error-text">{errors.sampleType}</small>}>
                     <select
                       name="sampleType"
                       className="po-input"
@@ -3544,7 +3559,8 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <span>Specification</span>
                 </div>
                 <div className="row g-2">
-                  <PoField className="col-12" icon="bi-card-checklist" label="Specification" filled={has(form.specification)} area>
+                  <PoField className="col-12" icon="bi-card-checklist" label="Specification" required filled={has(form.specification)} area
+  after={errors.specification && <small className="indent-error-text">{errors.specification}</small>}>
                     <textarea
                       name="specification"
                       className="po-input"
@@ -4112,7 +4128,6 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
                   <th>Type of Billing</th>
                   <th>Customer Copy</th>
                   <th>Artwork</th>
-                
                   <th>Status</th>
                   <th>Remarks</th>
                   <th>Specification</th>
@@ -4125,7 +4140,7 @@ if (!form.deliveryDate) newErrors.deliveryDate = "Required";
               <tbody>
                 {filteredIndents.length === 0 ? (
                   <tr>
-                    <td colSpan={34} className="text-center text-muted py-4">
+                    <td colSpan={33} className="text-center text-muted py-4">
                       <div className="d-flex flex-column align-items-center gap-2">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10"></circle>

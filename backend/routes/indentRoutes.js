@@ -262,6 +262,17 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
       return res.status(400).json({ message: "Required fields missing" });
     }
 
+    const missing = [];
+    if (!String(paperGroup || "").trim())             missing.push("Group");
+    if (!String(gsm || "").trim())                    missing.push("GSM");
+    if (!String(lamination || "").trim())             missing.push("Lamination");
+    if (!String(finish || "").trim())                 missing.push("Finish");
+    if (!String(sampleType || "").trim())             missing.push("Sample Type");
+    if (!String(req.body.specification || "").trim()) missing.push("Specification");
+    if (missing.length) {
+      return res.status(400).json({ message: "Required: " + missing.join(", ") });
+    }
+
     // Generate Indent Number (e.g., IND_001)
     const lastIndent = await IndentRequest.findOne(
       isSample ? { indentType: "sample" } : { indentType: { $ne: "sample" } }
@@ -604,7 +615,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         location: indent.location?._id || indent.location,
         orderType: orderType,
         remarks: remarks || "",
-        remarks2: item.remark || "",
+        remarks2: req.body.remarks2 || "",
         user: userData?.name || "System",
         userLocations:
           orderType === "Inhouse" && planningLocation
@@ -629,7 +640,8 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         millName: item.millName || "",
         paperGroup: item.paperGroup || "",
         paperSize: item.paperSize || "",
-        gsm: item.gsm || ""
+        gsm: item.gsm || "",
+        specification: item.specification || ""
       };
 
       // Add PO fields for Inhouse/Stationary
@@ -983,6 +995,18 @@ router.put("/:id", authMiddleware, indentUploadFields, watermarkUploadedPdfs, as
       return res.status(404).json({
         message: "Indent not found"
       });
+    }
+
+    const missing = [];
+    if (!String(paperGroup || "").trim())             missing.push("Group");
+    if (!String(gsm || "").trim())                    missing.push("GSM");
+    if (!String(lamination || "").trim())             missing.push("Lamination");
+    if (!String(finish || "").trim())                 missing.push("Finish");
+    if (!String(sampleType || "").trim())             missing.push("Sample Type");
+    if (!String(sampleType || "").trim())             missing.push("Sample Type");
+    if (!String(req.body.specification || "").trim()) missing.push("Specification");
+    if (missing.length) {
+      return res.status(400).json({ message: "Required: " + missing.join(", ") });
     }
 
     indent.location = location;

@@ -610,6 +610,9 @@ const PAGE_SIZE = 30;
           itemPdfPath: order.itemPdfPath,
           jobSize: order.jobSize,
           lamination: order.lamination,
+          finish: order.finish,
+          sampleType: order.sampleType,
+          specification: order.specification,
           paperGroup: order.paperGroup,
           paperSize: order.paperSize,
           millName: order.millName,
@@ -724,6 +727,7 @@ const PAGE_SIZE = 30;
     setIndentForm({
       orderType: "",
       remarks: "",
+      remarks2: "",
       purchaseOrderNo: "",
       poDate: "",
       planningLocation: "",
@@ -912,6 +916,9 @@ const PAGE_SIZE = 30;
       "Customer": order.customerName,
       "Job Size": order.jobSize || "",
       "Lamination": order.lamination || "",
+"Finish": order.finish || "",
+"Sample Type": order.sampleType || "",
+"Specification": order.specification || "",
       "Paper": [order.paperGroup, order.paperSize, order.millName].filter(Boolean).join(" / "),
       "GSM": order.gsm || "",
       "Quantity": order.quantity,
@@ -2594,7 +2601,10 @@ const PAGE_SIZE = 30;
                       <th>Quantity</th>
                       <th>Location</th>
                      
-                      <th>Artwork</th>
+                      <th>Lamination</th>
+<th>Finish</th>
+<th>Remarks</th>
+<th>Artwork</th>
                       <th>Created By</th>
                       <th>Created Date</th>
                       <th>Action</th>
@@ -2603,7 +2613,7 @@ const PAGE_SIZE = 30;
                   <tbody>
                     {filteredIndents.length === 0 ? (
                       <tr>
-                        <td colSpan="15" className="p-4 text-center text-muted">
+                        <td colSpan="14" className="p-4 text-center text-muted">
                           {indentRequests.length === 0
                             ? "No New Indent Requests"
                             : "No requests match the filters"}
@@ -2649,6 +2659,25 @@ const PAGE_SIZE = 30;
               
                           <td className="fw-bold">{indent.items[0]?.quantity}</td>
                           <td><LocCell list={indent.locationList} /></td>
+<td>{indent.items[0]?.lamination || "-"}</td>
+<td>{indent.items[0]?.finish || "-"}</td>
+<td
+  className="cell-expandable"
+  style={{
+    maxWidth: "220px",
+    whiteSpace:
+      expandedCell === `ind-rem-${indent._id}` ? "normal" : "nowrap"
+  }}
+  onClick={() =>
+    setExpandedCell(
+      expandedCell === `ind-rem-${indent._id}` ? null : `ind-rem-${indent._id}`
+    )
+  }
+>
+  {expandedCell === `ind-rem-${indent._id}`
+    ? indent.items[0]?.remark || "-"
+    : truncateText(indent.items[0]?.remark)}
+</td>
                           <td>
                             {(() => {
                               const it = indent.items[0] || {};
@@ -2776,6 +2805,18 @@ const PAGE_SIZE = 30;
                       "col-md-4"
                     ],
                     [
+                      "Finish",
+                      selectedIndent.items[0]?.finish || "-",
+                      "bi-stars",
+                      "col-md-4"
+                    ],
+                    [
+                      "Specification",
+                      selectedIndent.items[0]?.specification || "-",
+                      "bi-card-checklist",
+                      "col-12"
+                    ],
+                    [
                       "Lamination",
                       selectedIndent.items[0]?.lamination || "-",
                       "bi-layers",
@@ -2819,6 +2860,8 @@ const PAGE_SIZE = 30;
                       "bi-calendar-check",
                       "col-md-4"
                     ]
+                  ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
+                  ["Remarks", selectedIndent.items[0]?.remark || "-", "bi-chat-left-text", "col-12"]
                   ].map(([label, value, icon, colClass], i) => (
                     <PoField
                       key={i}
@@ -3808,7 +3851,7 @@ const PAGE_SIZE = 30;
             >
               <table
                 className="table table-striped table-bordered table-hover align-middle text-center mb-0 small"
-                style={{ minWidth: "1950px" }}
+                style={{ minWidth: "2350px" }}
               >
                 <thead className="table-dark sticky-top">
                   <tr>
@@ -3822,6 +3865,9 @@ const PAGE_SIZE = 30;
                     <th>Customer</th>
                     <th>Job Size</th>
                     <th>Lamination</th>
+<th>Finish</th>
+<th>Sample Type</th>
+<th>Specification</th>
                     <th>Paper</th>
                     <th>GSM</th>
                     <th>Order Qty</th>
@@ -3841,7 +3887,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="23" className="p-4 text-center text-muted">
+                      <td colSpan="26" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -3952,6 +3998,25 @@ const PAGE_SIZE = 30;
                             : truncateText(order.jobSize, 15)}
                         </td>
                         <td>{order.lamination || "-"}</td>
+<td>{order.finish || "-"}</td>
+<td>{order.sampleType || "-"}</td>
+<td
+  className="cell-expandable"
+  style={{
+    maxWidth: "220px",
+    whiteSpace:
+      expandedCell === `spec-${order._id}` ? "normal" : "nowrap"
+  }}
+  onClick={() =>
+    setExpandedCell(
+      expandedCell === `spec-${order._id}` ? null : `spec-${order._id}`
+    )
+  }
+>
+  {expandedCell === `spec-${order._id}`
+    ? order.specification || "-"
+    : truncateText(order.specification)}
+</td>
                         <td>
                           {[order.paperGroup, order.paperSize, order.millName]
                             .filter(Boolean)

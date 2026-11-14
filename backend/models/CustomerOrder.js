@@ -78,6 +78,20 @@ const customerOrderSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    finish: {
+      type: String,
+      default: ""
+    },
+      sampleType: { type: String, default: "" },
+    lamination: { type: String, default: "" },
+    paperGroup: { type: String, default: "" },
+    paperSize:  { type: String, default: "" },
+    millName:   { type: String, default: "" },
+    gsm:        { type: String, default: "" },
+    specification: {
+      type: String,
+      default: ""
+    },
     ticketNo: {
       type: String,
       default: ""
