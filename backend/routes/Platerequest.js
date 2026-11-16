@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const PlateRequest = require("../models/Platerequest");
 const WorkOrder = require("../models/WorkOrder");
+const PlateReason = require("../models/PlateReason");
 const authMiddleware = require("../middleware/authMiddleware");
 
 // =============================================
@@ -86,7 +87,14 @@ router.get("/", authMiddleware, async (req, res) => {
 // =============================================
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { workOrderId, remarks, activity, machine } = req.body;
+    const { workOrderId, remarks, activity, machine, impressions, reasons } = req.body;
+
+    if (!impressions || !String(impressions).trim()) {
+      return res.status(400).json({ message: "Please enter No. of Impressions" });
+    }
+    if (!Array.isArray(reasons) || reasons.length === 0) {
+      return res.status(400).json({ message: "Please select a Reason" });
+    }
 
     if (!workOrderId) {
       return res.status(400).json({ message: "workOrderId is required" });
@@ -111,6 +119,9 @@ router.post("/", authMiddleware, async (req, res) => {
       activities: [activity],
       machineNames: [machine],
       userLocations: workOrder.userLocations || [],
+      impressions: String(impressions).trim(),
+      reasons: reasons,
+      reason: reasons.join(", "),
       remarks: remarks || "",
       requestedBy: req.user.name
     });
@@ -167,6 +178,65 @@ router.post("/:id/reject", authMiddleware, async (req, res) => {
     res.json(request);
   } catch (err) {
     console.error("REJECT PLATE REQUEST ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// PLATE REQUEST REASONS (maintained in Admin Dashboard)
+// =============================================
+router.get("/reasons", authMiddleware, async (req, res) => {
+  try {
+    const reasons = await PlateReason.find().sort({ name: 1 });
+    res.json(reasons);
+  } catch (err) {
+    console.error("FETCH PLATE REASONS ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/reasons", authMiddleware, async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Reason is required" });
+
+    const exists = await PlateReason.findOne({
+      name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i")
+    });
+    if (exists) return res.status(400).json({ message: "Reason already exists" });
+
+    const reason = await PlateReason.create({ name });
+    res.status(201).json(reason);
+  } catch (err) {
+    console.error("CREATE PLATE REASON ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/reasons/:id", authMiddleware, async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Reason is required" });
+
+    const reason = await PlateReason.findByIdAndUpdate(
+      req.params.id,
+      { name },
+      { new: true }
+    );
+    if (!reason) return res.status(404).json({ message: "Reason not found" });
+    res.json(reason);
+  } catch (err) {
+    console.error("UPDATE PLATE REASON ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete("/reasons/:id", authMiddleware, async (req, res) => {
+  try {
+    await PlateReason.findByIdAndDelete(req.params.id);
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    console.error("DELETE PLATE REASON ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });

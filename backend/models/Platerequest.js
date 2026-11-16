@@ -14,6 +14,9 @@ const plateRequestSchema = new mongoose.Schema(
     productType: { type: String, default: "" },
     activities: [{ type: String }],
     machineNames: [{ type: String }],
+    impressions: { type: String, default: "" },
+    reason: { type: String, default: "" },
+    reasons: [{ type: String }],
     remarks: { type: String, default: "" },
 
     requestedBy: { type: String, required: true },

@@ -482,6 +482,8 @@ const [qtyValidationActs, setQtyValidationActs] = useState([]); // activity ids 
 const [qtyWaste, setQtyWaste] = useState("");
 const [suppliers, setSuppliers] = useState([]);
 const [newSupplier, setNewSupplier] = useState("");
+const [plateReasons, setPlateReasons] = useState([]);
+const [newPlateReason, setNewPlateReason] = useState("");
 const [showSupplierList, setShowSupplierList] = useState(false);
 const [supplierFilter, setSupplierFilter] = useState("");
   const [newPriority, setNewPriority] = useState("");
@@ -865,6 +867,67 @@ const [supplierFilter, setSupplierFilter] = useState("");
       setRoutingUser("");
       setRoutingLocs([]);
       fetchRouting();
+    }
+  }, [activeSection]);
+
+  const fetchPlateReasons = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/platerequest/reasons`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPlateReasons(res.data || []);
+    } catch (err) {
+      console.error("Error fetching plate reasons:", err);
+    }
+  };
+
+  const addPlateReason = async () => {
+    if (!newPlateReason.trim()) return showAlert("Enter a reason");
+    try {
+      await axios.post(
+        `${BASE_URL}/api/platerequest/reasons`,
+        { name: newPlateReason.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewPlateReason("");
+      fetchPlateReasons();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save reason");
+    }
+  };
+
+  const savePlateReason = async (id) => {
+    if (!editingValue.trim()) return showAlert("Reason cannot be empty");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/platerequest/reasons/${id}`,
+        { name: editingValue.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditingId(null);
+      setEditingValue("");
+      fetchPlateReasons();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to update reason");
+    }
+  };
+
+  const deletePlateReason = async (id) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/platerequest/reasons/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchPlateReasons();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "plateReasons") {
+      setNewPlateReason("");
+      fetchPlateReasons();
     }
   }, [activeSection]);
 
@@ -1580,6 +1643,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "indentMail", label: "Mail Settings", icon: Activity },
     { id: "indentRouting", label: "Indent Routing", icon: MapPin },
     { id: "roles", label: "Roles", icon: Activity },
+    { id: "plateReasons", label: "Plate Request Reasons", icon: Layers },
   ];
 
   const MASTER_LISTS = {
@@ -3459,6 +3523,74 @@ const [supplierFilter, setSupplierFilter] = useState("");
               </div>
             </>
           )}
+        </motion.div>
+      )}
+
+      {/* PLATE REQUEST REASONS */}
+      {activeSection === "plateReasons" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Layers size={18} /> Plate Request Reasons</span>
+          </div>
+
+          <div className="pro-form-row">
+            <input
+              className="pro-input"
+              placeholder="Reason"
+              value={newPlateReason}
+              onChange={(e) => setNewPlateReason(e.target.value)}
+            />
+            <button className="pro-btn primary" onClick={addPlateReason}>
+              <PlusCircle size={16} /> Add
+            </button>
+          </div>
+
+          <div style={scrollContainerStyle}>
+            <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+              {plateReasons.map((r) => (
+                <li key={r._id} className="d-flex justify-content-between align-items-center">
+                  {editingId === r._id ? (
+                    <>
+                      <input
+                        className="pro-input"
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                      />
+                      <button className="pro-btn primary" onClick={() => savePlateReason(r._id)}>
+                        Save
+                      </button>
+                      <button
+                        className="pro-btn"
+                        onClick={() => { setEditingId(null); setEditingValue(""); }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{r.name}</span>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          className="pro-btn"
+                          onClick={() => { setEditingId(r._id); setEditingValue(r.name); }}
+                        >
+                          Edit
+                        </button>
+                        <button className="pro-btn" onClick={() => deletePlateReason(r._id)}>
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+              {plateReasons.length === 0 && (
+                <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+                  No reasons added yet
+                </li>
+              )}
+            </ul>
+          </div>
         </motion.div>
       )}
 

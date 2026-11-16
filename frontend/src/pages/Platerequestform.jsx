@@ -1,9 +1,10 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { jwtDecode } from "jwt-decode";
 import BASE_URL from "../config/api";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
 
 // ============================================================================
 // 🎨 CRISP 3D SVG ICONS (Embedded directly - zero external icon dependencies)
@@ -87,6 +88,52 @@ function PoField({ icon, label, required, filled, alwaysFloat, caret, className 
     </div>
   );
 }
+// Dropdown with checkboxes (multiple reasons)
+function ReasonMultiSelect({ options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const toggle = (name) =>
+    onChange(value.includes(name) ? value.filter((v) => v !== name) : [...value, name]);
+
+  return (
+    <div ref={ref} className="pr-multi">
+      <div className="po-input pr-multi-btn" onClick={() => setOpen((o) => !o)}>
+        {value.length === 0 ? (
+          <span className="pr-multi-ph">Select Reasons</span>
+        ) : (
+          value.join(", ")
+        )}
+      </div>
+      {open && (
+        <div className="pr-multi-menu">
+          {options.map((o) => (
+            <label key={o._id} className="pr-multi-item">
+              <input
+                type="checkbox"
+                checked={value.includes(o.name)}
+                onChange={() => toggle(o.name)}
+              />
+              <span>{o.name}</span>
+            </label>
+          ))}
+          {options.length === 0 && (
+            <div className="pr-multi-item">No reasons added in Admin</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const has = (v) => v !== "" && v !== null && v !== undefined;
 
 function PlateRequestForm() {
@@ -97,7 +144,27 @@ function PlateRequestForm() {
   const [selectedWoDetails, setSelectedWoDetails] = useState(null);
   const [fetching, setFetching] = useState(false);
   const [remarks, setRemarks] = useState("");
+  const [impressions, setImpressions] = useState("");
+  const [reasons, setReasons] = useState([]);
+  const [plateReasons, setPlateReasons] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Preload logo from public folder for the PDF header
+  const logoRef = useRef(null);
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      c.getContext("2d").drawImage(img, 0, 0);
+      logoRef.current = {
+        data: c.toDataURL("image/png"),
+        ratio: img.naturalWidth / img.naturalHeight
+      };
+    };
+    img.src = "/Logo.png";
+  }, []);
 
   // Cascading activity -> machine selection
   const [selectedActivity, setSelectedActivity] = useState("");
@@ -123,6 +190,20 @@ function PlateRequestForm() {
 
   useEffect(() => {
     fetchMyRequests();
+  }, []);
+
+  useEffect(() => {
+    const loadReasons = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/api/platerequest/reasons`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setPlateReasons(res.data || []);
+      } catch (err) {
+        console.error("Error fetching reasons:", err);
+      }
+    };
+    loadReasons();
   }, []);
 
   const fetchWorkOrder = async () => {
@@ -239,6 +320,8 @@ function PlateRequestForm() {
     setWoNumber("");
     setSelectedWoDetails(null);
     setRemarks("");
+    setImpressions("");
+    setReasons([]);
     setSelectedActivity("");
     setSelectedMachine("");
   };
@@ -268,6 +351,28 @@ function PlateRequestForm() {
       return;
     }
 
+    if (!String(impressions).trim()) {
+      Swal.fire({
+        title: "Missing Impressions",
+        text: "Please enter the No. of Impressions.",
+        icon: "warning",
+        confirmButtonColor: "#043a45",
+        width: "360px"
+      });
+      return;
+    }
+
+    if (reasons.length === 0) {
+      Swal.fire({
+        title: "Missing Reason",
+        text: "Please select a Reason.",
+        icon: "warning",
+        confirmButtonColor: "#043a45",
+        width: "360px"
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await axios.post(
@@ -276,7 +381,9 @@ function PlateRequestForm() {
           workOrderId: selectedWoDetails._id,
           remarks: remarks.trim(),
           activity: selectedActivity,
-          machine: selectedMachine
+          machine: selectedMachine,
+          impressions: impressions.trim(),
+          reasons: reasons
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -304,6 +411,151 @@ function PlateRequestForm() {
     setSubmitting(false);
   };
 
+  const drawRequestPage = (doc, req) => {
+    
+    const L = 10, R = 200, W = R - L;
+    const DOC_ID = "MPI_SP_QS_PP_T007_Pre-Press Plate Requesition Form _V2.00";
+    const reasonList = req.reasons?.length ? req.reasons : req.reason ? [req.reason] : [];
+    let y = 10;
+
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(0);
+    doc.setTextColor(0);
+
+    // bordered cell with wrapped text (max 2 lines)
+    const cell = (x, yy, w, h, text, bold, size = 8.5) => {
+      doc.rect(x, yy, w, h);
+      if (!text) return;
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(String(text), w - 4).slice(0, 2);
+      const step = size * 0.4;
+      const startY = yy + h / 2 - ((lines.length - 1) * step) / 2 + size * 0.125;
+      lines.forEach((ln, i) => doc.text(ln, x + 2, startY + i * step));
+    };
+
+    // ----- header -----
+    doc.rect(L, y, W, 14);
+    if (logoRef.current) {
+      try {
+        const logoH = 11;
+        doc.addImage(logoRef.current.data, "PNG", L + 2, y + 1.5, logoH * logoRef.current.ratio, logoH);
+      } catch (e) {
+        console.error("Logo error:", e);
+      }
+    }
+    y += 14;
+
+    cell(L, y, W, 6, "Confidential Document", true, 9);
+    y += 6;
+    cell(L, y, W, 6, "Document ID: " + DOC_ID, true, 9);
+    y += 6;
+
+    doc.setFillColor(120, 120, 120);
+    doc.rect(L, y, W, 7, "FD");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text("Pre-Press Plate Requesition Form", L + 2, y + 5);
+    doc.setTextColor(0);
+    y += 7;
+
+    // ----- top fields -----
+    const rows = [
+      ["Date:", req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-IN") : "", "Dept.:", ""],
+      ["Job Name:", req.jobDescription || req.jobName || "", "Shift:", ""],
+      ["W.O. No.:", String(req.efiWoNumber || ""), "Incharge:", ""],
+      ["Machine:", (req.machineNames || []).join(", "), "No. of Impressions:", req.impressions || ""]
+    ];
+    rows.forEach(([l1, v1, l2, v2]) => {
+      cell(L, y, 25, 8, l1, true);
+      cell(L + 25, y, 80, 8, v1, false);
+      cell(L + 105, y, 35, 8, l2, true);
+      cell(L + 140, y, 50, 8, v2, false);
+      y += 8;
+    });
+
+    // ----- details of plates required -----
+    const details = [req.remarks || "-"];
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    const detailLines = details.flatMap((t) => doc.splitTextToSize(t, W - 6));
+    const detailH = Math.max(30, 10 + detailLines.length * 4.5);
+    doc.rect(L, y, W, detailH);
+    doc.setFont("helvetica", "bold");
+    doc.text("Details of the Plates required:", L + 2, y + 5);
+    doc.setFont("helvetica", "normal");
+    detailLines.forEach((ln, i) => doc.text(ln, L + 4, y + 11 + i * 4.5));
+    y += detailH;
+
+    // ----- reasons table -----
+    doc.setFillColor(225, 225, 225);
+    doc.rect(L, y, W, 7, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.text("Reason for the Cancellation of the plate", L + W / 2, y + 4.8, { align: "center" });
+    y += 7;
+
+    const c1 = 18, c2 = 72, c3 = W - c1 - c2;
+    cell(L, y, c1, 7, "Sl.no.", true);
+    cell(L + c1, y, c2, 7, "Reasons", true);
+    cell(L + c1 + c2, y, c3, 7, "Remarks if any", true);
+    y += 7;
+
+    reasonList.forEach((r, i) => {
+      if (y + 7 > 280) {
+        doc.addPage();
+        y = 10;
+      }
+      cell(L, y, c1, 7, String(i + 1), false);
+      cell(L + c1, y, c2, 7, r, false);
+      cell(L + c1 + c2, y, c3, 7, "", false);
+      y += 7;
+    });
+    if (reasonList.length === 0) {
+      cell(L, y, W, 7, "No reason selected", false);
+      y += 7;
+    }
+
+    // ----- footer -----
+    if (y + 20 > 287) {
+      doc.addPage();
+      y = 10;
+    }
+    const fh = 18;
+    const fcell = (x, w, label, val) => {
+      doc.rect(x, y, w, fh);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.splitTextToSize(label, w - 4).forEach((ln, i) => doc.text(ln, x + 2, y + 4.5 + i * 3.8));
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(String(val || ""), x + 2, y + 15);
+    };
+    fcell(L, 70, "Details of person filling the form Signature:", req.requestedBy);
+    fcell(L + 70, 60, "Received in CTP by:", req.reviewedBy);
+    fcell(L + 130, 60, "Shift Supervisor:", "");
+
+    
+  };
+
+  const downloadPdf = () => {
+    if (!displayedRequests.length) {
+      Swal.fire({ title: "No Data", text: "No requests to export", icon: "info", confirmButtonColor: "#043a45" });
+      return;
+    }
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    displayedRequests.forEach((req, i) => {
+      if (i > 0) doc.addPage();
+      drawRequestPage(doc, req);
+    });
+    const fileName =
+      displayedRequests.length === 1
+        ? `Plate_Requisition_${displayedRequests[0].efiWoNumber}`
+        : `Plate_Requisitions_${new Date().toISOString().slice(0, 10)}`;
+    doc.save(`${fileName}.pdf`);
+  };
+
   const exportToExcel = () => {
     if (!displayedRequests.length) {
       Swal.fire({ title: "No Data", text: "No requests to export", icon: "info", confirmButtonColor: "#043a45" });
@@ -318,6 +570,8 @@ function PlateRequestForm() {
       "Product Type": r.productType || "-",
       "Activity": r.activities?.length ? r.activities.join(", ") : "-",
       "Machine": r.machineNames?.length ? r.machineNames.join(", ") : "-",
+      "Impressions": r.impressions || "-",
+      "Reason": r.reason || "-",
       "Remarks": r.remarks || "-",
       "Status": r.status,
       "Requested By": r.requestedBy || "-",
@@ -738,6 +992,29 @@ function PlateRequestForm() {
         .pr-root .pr-table tbody tr:nth-child(8)  { animation-delay: 1.05s; }
         .pr-root .pr-table tbody tr:nth-child(n+9) { animation-delay: 1.1s; }
 
+        /* reasons multi-select dropdown */
+        .pr-root .pr-split.pr-glass { overflow: visible; }
+        .pr-root .pr-split .po-side { border-radius: 8px 0 0 8px; }
+        .pr-root .pr-split .po-main { border-radius: 0 8px 8px 0; }
+        .pr-multi { position: relative; width: 100%; }
+        .pr-multi-btn {
+          display: flex; align-items: center; cursor: pointer;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+          padding-right: 28px !important;
+        }
+        .pr-multi-ph { color: #6b7685; }
+        .pr-multi-menu {
+          position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+          max-height: 220px; overflow-y: auto; background: #ffffff;
+          border: 1px solid var(--field-line); border-radius: 6px;
+          box-shadow: 0 8px 20px rgba(16, 24, 40, 0.15);
+        }
+        .pr-multi-item {
+          display: flex; align-items: center; gap: 8px; margin: 0;
+          padding: 7px 10px; font-size: 12px; font-weight: 500; color: #000000; cursor: pointer;
+        }
+        .pr-multi-item:hover { background: #f1f7f8; }
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .pr-root,
@@ -877,7 +1154,27 @@ function PlateRequestForm() {
                     </select>
                   </PoField>
 
-                  <PoField icon="bi-chat-left-text" label="Remarks / Notes (Optional)" alwaysFloat>
+                  <PoField icon="bi-123" label="No. of Impressions" required alwaysFloat>
+                    <input
+                      type="text"
+                      
+                      className="po-input"
+                      placeholder="Enter impressions"
+                      value={impressions}
+                      onChange={(e) => setImpressions(e.target.value)}
+                      required
+                    />
+                  </PoField>
+
+                  <PoField icon="bi-question-circle" label="Reasons" required alwaysFloat caret>
+                    <ReasonMultiSelect
+                      options={plateReasons}
+                      value={reasons}
+                      onChange={setReasons}
+                    />
+                  </PoField>
+
+                  <PoField icon="bi-chat-left-text" label="Remarks / Notes" alwaysFloat>
                     <input
                       type="text"
                       className="po-input"
@@ -1046,6 +1343,14 @@ function PlateRequestForm() {
               <Icons.Excel /> Export Excel
             </button>
 
+            <button
+              type="button"
+              className="pr-btn pr-btn-ghost"
+              onClick={downloadPdf}
+            >
+              <Icons.File /> Export PDF
+            </button>
+
             {(filterWoNo || filterCustomer || filterProductType || filterStatus || filterUserLocation || filterFromDate || filterToDate) && (
               <button
                 className="pr-btn pr-btn-ghost"
@@ -1075,6 +1380,8 @@ function PlateRequestForm() {
                   <th>Product Type</th>
                   <th>Activity</th>
                   <th>Machine</th>
+                  <th>Impressions</th>
+                  <th>Reason</th>
                   <th>Remarks</th>
                   <th>Status</th>
                   <th>Requested By</th>
@@ -1086,13 +1393,13 @@ function PlateRequestForm() {
               <tbody>
                 {myRequestsLoading ? (
                   <tr>
-                    <td colSpan="12" className="pr-empty">
+                    <td colSpan="14" className="pr-empty">
                       Loading plate requests...
                     </td>
                   </tr>
                 ) : displayedRequests.length === 0 ? (
                   <tr>
-                    <td colSpan="12" className="pr-empty">
+                    <td colSpan="14" className="pr-empty">
                       No Plate Requests Found
                     </td>
                   </tr>
@@ -1141,7 +1448,10 @@ function PlateRequestForm() {
                       >
                         {req.machineNames?.length ? req.machineNames.join(", ") : "-"}
                       </td>
-                      <td
+                     
+                      <td className="pr-center">{req.impressions || "-"}</td>
+                      <td>{req.reason || "-"}</td>
+                       <td
                         style={truncCellStyle(`${req._id}-remarks`)}
                         onClick={() =>
                           setExpandedCellKey((k) => (k === `${req._id}-remarks` ? null : `${req._id}-remarks`))
@@ -1169,6 +1479,7 @@ function PlateRequestForm() {
                           {req.createdAt ? new Date(req.createdAt).toLocaleString("en-IN") : "-"}
                         </span>
                       </td>
+                      
                       <td className="pr-strong">{req.reviewedBy || "-"}</td>
                       <td
                         style={truncCellStyle(`${req._id}-revRemarks`)}
