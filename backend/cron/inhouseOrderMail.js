@@ -27,15 +27,26 @@ const resolveFile = (p) => {
 };
 
 // recipients: product type setting -> "all product types" setting -> .env
-async function getRecipients() {
-  const cfg = await MailSettings.findOne({ key: "inhouseOrder" }).lean();
-  const to = cfg?.toEmails?.length ? cfg.toEmails : toList(process.env.INHOUSE_ORDER_MAIL_TO);
-  const ccAll = cfg?.ccEmails?.length ? cfg.ccEmails : toList(process.env.INHOUSE_ORDER_MAIL_CC);
+async function getRecipients(userLocations = []) {
+  const locs = [].concat(userLocations || []).map((l) => String(l || "").trim()).filter(Boolean);
+  const cfgs = [];
+  for (const l of locs) {
+    const c = await MailSettings.findOne({ key: `inhouseOrder::${l}` }).lean();
+    if (c) cfgs.push(c);
+  }
+  if (!cfgs.length) {
+    const c = await MailSettings.findOne({ key: "inhouseOrder" }).lean();
+    if (c) cfgs.push(c);
+  }
+  const toDb = [...new Set(cfgs.flatMap((c) => c.toEmails || []))];
+  const ccDb = [...new Set(cfgs.flatMap((c) => c.ccEmails || []))];
+  const to = toDb.length ? toDb : toList(process.env.INHOUSE_ORDER_MAIL_TO);
+  const ccAll = ccDb.length ? ccDb : toList(process.env.INHOUSE_ORDER_MAIL_CC);
   return { to, cc: ccAll.filter((c) => !to.includes(c)) };
 }
 
 // orders = array of order objects (see route); one mail is sent per product type
-async function sendInhouseOrderMail(orders = [], planningLocation = "") {
+async function sendInhouseOrderMail(orders = [], planningLocation = "", userLocation = "") {
   try {
     const list = (orders || []).map((o) => (o.toObject ? o.toObject() : o));
     if (!list.length) return;
@@ -46,7 +57,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
     const td = "border:1px solid #999;padding:5px 8px;font-size:12px;vertical-align:top";
 
     for (const [materialType, rowsList] of Object.entries(groups)) {
-      const { to, cc } = await getRecipients();
+      const { to, cc } = await getRecipients(userLocation);
       if (!to.length) {
         console.warn("Inhouse mail: no TO set in Mail Settings, mail skipped");
         continue;

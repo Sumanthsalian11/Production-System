@@ -1197,7 +1197,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
       const res = await axios.get(`${BASE_URL}/api/mail-settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setMailList((res.data || []).filter((m) => !m.key.startsWith("inhouseOrder::")));
+      setMailList(res.data || []);
     } catch (err) {
       console.error("Error fetching mail settings:", err);
     }
@@ -4887,7 +4887,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </select>
           </div>
 
-          {(mailKey === "floorProduction" || mailKey === "persoProduction" || mailKey === "dispatchReport") && (
+          {(mailKey === "floorProduction" || mailKey === "persoProduction" || mailKey === "dispatchReport" || mailKey === "inhouseOrder") && (
             <div className="activity-name-field" style={{ marginBottom: "10px" }}>
               <label>User Location (blank = all locations)</label>
               <select
@@ -5014,7 +5014,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                   <li key={m.key} className="d-flex justify-content-between align-items-center">
                     <span>
                       <strong>{mailLabel(m.key.split("::")[0])}</strong>
-                      {m.key.includes("::") ? ` • ${m.key.startsWith("inhouseOrder") ? "Product Type" : "Location"}: ${m.key.split("::")[1]}` : m.key.startsWith("inhouseOrder") ? " • All Product Types" : " • All Locations"}{m.key.split("::")[0] !== "inhouseOrder" && ` • Time: ${m.sendTime}`} • TO:{" "}
+                      {m.key.includes("::") ? ` • Location: ${m.key.split("::")[1]}` : " • All Locations"}{m.key.split("::")[0] !== "inhouseOrder" && ` • Time: ${m.sendTime}`} • TO:{" "}
                       {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"} • Machines:{" "}
                       {(m.machineIds || []).length ? `${m.machineIds.length} selected` : "All"}
                     </span>
