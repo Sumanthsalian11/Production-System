@@ -746,7 +746,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     });
 
     if (orderType === "Inhouse") {
-      sendInhouseOrderMail(mailOrders, planningLocation || "", userData?.locations || []);
+      sendInhouseOrderMail(mailOrders, planningLocation || "");
     }
 
   } catch (err) {

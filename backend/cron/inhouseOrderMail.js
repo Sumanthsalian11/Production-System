@@ -26,27 +26,23 @@ const resolveFile = (p) => {
   return candidates.find((f) => fs.existsSync(f) && fs.statSync(f).isFile()) || null;
 };
 
-// recipients: product type setting -> "all product types" setting -> .env
-async function getRecipients(userLocations = []) {
-  const locs = [].concat(userLocations || []).map((l) => String(l || "").trim()).filter(Boolean);
-  const cfgs = [];
-  for (const l of locs) {
-    const c = await MailSettings.findOne({ key: `inhouseOrder::${l}` }).lean();
-    if (c) cfgs.push(c);
+// recipients: location setting -> "all locations" setting -> .env
+async function getRecipients(planningLocation = "") {
+  const loc = String(planningLocation || "").trim();
+  let cfg = null;
+  if (loc) {
+    cfg = await MailSettings.findOne({ key: `inhouseOrder::${loc}` }).lean();
   }
-  if (!cfgs.length) {
-    const c = await MailSettings.findOne({ key: "inhouseOrder" }).lean();
-    if (c) cfgs.push(c);
+  if (!cfg || !cfg.toEmails?.length) {
+    cfg = await MailSettings.findOne({ key: "inhouseOrder" }).lean();
   }
-  const toDb = [...new Set(cfgs.flatMap((c) => c.toEmails || []))];
-  const ccDb = [...new Set(cfgs.flatMap((c) => c.ccEmails || []))];
-  const to = toDb.length ? toDb : toList(process.env.INHOUSE_ORDER_MAIL_TO);
-  const ccAll = ccDb.length ? ccDb : toList(process.env.INHOUSE_ORDER_MAIL_CC);
+  const to = cfg?.toEmails?.length ? cfg.toEmails : toList(process.env.INHOUSE_ORDER_MAIL_TO);
+  const ccAll = cfg?.ccEmails?.length ? cfg.ccEmails : toList(process.env.INHOUSE_ORDER_MAIL_CC);
   return { to, cc: ccAll.filter((c) => !to.includes(c)) };
 }
 
 // orders = array of order objects (see route); one mail is sent per product type
-async function sendInhouseOrderMail(orders = [], planningLocation = "", userLocation = "") {
+async function sendInhouseOrderMail(orders = [], planningLocation = "") {
   try {
     const list = (orders || []).map((o) => (o.toObject ? o.toObject() : o));
     if (!list.length) return;
@@ -57,7 +53,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "", userLoca
     const td = "border:1px solid #999;padding:5px 8px;font-size:12px;vertical-align:top";
 
     for (const [materialType, rowsList] of Object.entries(groups)) {
-      const { to, cc } = await getRecipients(userLocation);
+      const { to, cc } = await getRecipients(planningLocation);
       if (!to.length) {
         console.warn("Inhouse mail: no TO set in Mail Settings, mail skipped");
         continue;
