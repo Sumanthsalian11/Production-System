@@ -10,6 +10,7 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const ChatMessage = require("../models/ChatMessage");
 const ChatProfile = require("../models/ChatProfile");
+const ChatGroup = require("../models/ChatGroup");
 const authMiddleware = require("../middleware/authMiddleware"); // 👈 adjust path to your auth middleware file
 const { verifyLDAPUser } = require("../utils/ldapAuth");
 
@@ -90,6 +91,21 @@ router.post("/login", authMiddleware, async (req, res) => {
   }
 });
 
+/* ---------- auto login (ERP session already proves identity) ---------- */
+router.post("/auto-login", authMiddleware, async (req, res) => {
+  try {
+    if (!req.user._id) return res.status(400).json({ message: "The built-in admin account has no chat profile." });
+    const user = await User.findOne({ _id: req.user._id, isInternal: true }).select("_id");
+    if (!user) return res.status(403).json({ message: "Chat not available for this account" });
+
+    await ChatProfile.findOneAndUpdate({ user: user._id }, { $setOnInsert: { user: user._id } }, { upsert: true });
+    const token = jwt.sign({ id: user._id, chat: true }, process.env.JWT_SECRET, { expiresIn: "12h" });
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 /* ---------- my profile ---------- */
 router.get("/profile", chatAuth, async (req, res) => {
   const user = await User.findById(req.chatUserId).select("name email role");
@@ -119,7 +135,7 @@ router.get("/users", chatAuth, async (req, res) => {
       User.find({ isInternal: true, _id: { $ne: me } }).select("name email role").lean(),
       ChatProfile.find().lean(),
       ChatMessage.aggregate([
-        { $match: { $or: [{ from: me }, { to: me }], deletedFor: { $ne: me } } },
+        { $match: { group: null, $or: [{ from: me }, { to: me }], deletedFor: { $ne: me } } },
         { $sort: { createdAt: -1 } },
         {
           $group: {
@@ -169,7 +185,14 @@ router.get("/users", chatAuth, async (req, res) => {
 
 router.get("/unread", chatAuth, async (req, res) => {
   await ChatMessage.updateMany({ to: req.chatUserId, deliveredAt: null }, { deliveredAt: new Date() });
-  const count = await ChatMessage.countDocuments({ to: req.chatUserId, readAt: null, deletedFor: { $ne: req.chatUserId } });
+  let count = await ChatMessage.countDocuments({ to: req.chatUserId, readAt: null, deletedFor: { $ne: req.chatUserId } });
+  const gids = (await ChatGroup.find({ members: req.chatUserId }).select("_id").lean()).map((g) => g._id);
+  count += await ChatMessage.countDocuments({
+    group: { $in: gids },
+    from: { $ne: req.chatUserId },
+    readBy: { $ne: req.chatUserId },
+    deletedFor: { $ne: req.chatUserId },
+  });
   res.json({ count });
 });
 
@@ -200,6 +223,7 @@ router.get("/messages/:userId", chatAuth, async (req, res) => {
         attachment: m.deletedAll || !m.attachment?.file ? null : { name: m.attachment.name, mime: m.attachment.mime, size: m.attachment.size },
         createdAt: m.createdAt,
         read: !!m.readAt,
+        forwarded: !!m.forwarded,
         delivered: !!m.deliveredAt || !!m.readAt,
       }))
     );
@@ -243,7 +267,7 @@ router.get("/file/:id", chatAuth, async (req, res) => {
     const m = await ChatMessage.findById(req.params.id);
     const me = String(req.chatUserId);
     if (!m || m.deletedAll || !m.attachment?.file) return res.status(404).json({ message: "File not found" });
-    if (String(m.from) !== me && String(m.to) !== me) return res.status(403).json({ message: "Not allowed" });
+    if (!(await canAccess(m, me))) return res.status(403).json({ message: "Not allowed" });
 
     const safeImg = /^image\/(png|jpe?g|gif|webp)$/.test(m.attachment.mime || "");
     res.sendFile(path.join(UPLOAD_DIR, path.basename(m.attachment.file)), {
@@ -259,10 +283,10 @@ router.get("/file/:id", chatAuth, async (req, res) => {
 
 /* ---------- delete ---------- */
 router.put("/message/:id/delete-for-me", chatAuth, async (req, res) => {
-  await ChatMessage.updateOne(
-    { _id: req.params.id, $or: [{ from: req.chatUserId }, { to: req.chatUserId }] },
-    { $addToSet: { deletedFor: req.chatUserId } }
-  );
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: "Invalid message" });
+  const m = await ChatMessage.findById(req.params.id);
+  if (!m || !(await canAccess(m, req.chatUserId))) return res.status(404).json({ message: "Message not found" });
+  await ChatMessage.updateOne({ _id: m._id }, { $addToSet: { deletedFor: req.chatUserId } });
   res.json({ ok: true });
 });
 
@@ -274,6 +298,211 @@ router.put("/message/:id/delete-for-all", chatAuth, async (req, res) => {
   m.text = "";
   m.attachment = undefined;
   await m.save();
+  res.json({ ok: true });
+});
+
+/* ---------- helper ---------- */
+const canAccess = async (m, uid) => {
+  uid = String(uid);
+  if (m.group) return !!(await ChatGroup.findOne({ _id: m.group, members: uid }).select("_id"));
+  return String(m.from) === uid || String(m.to) === uid;
+};
+
+/* ---------- groups ---------- */
+router.post("/groups", chatAuth, async (req, res) => {
+  try {
+    const name = String(req.body.name || "").trim().slice(0, 60);
+    const ids = [...new Set((req.body.members || []).map(String))].filter(
+      (i) => mongoose.isValidObjectId(i) && i !== String(req.chatUserId)
+    );
+    if (!name) return res.status(400).json({ message: "Group name required" });
+    if (!ids.length) return res.status(400).json({ message: "Select at least one member" });
+    const valid = await User.find({ _id: { $in: ids }, isInternal: true }).select("_id");
+    const g = await ChatGroup.create({
+      name,
+      createdBy: req.chatUserId,
+      members: [req.chatUserId, ...valid.map((u) => u._id)],
+    });
+    res.status(201).json({ id: g._id });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/groups", chatAuth, async (req, res) => {
+  try {
+    const me = new mongoose.Types.ObjectId(req.chatUserId);
+    const groups = await ChatGroup.find({ members: me }).populate("members", "name").lean();
+    const gids = groups.map((g) => g._id);
+    const convos = await ChatMessage.aggregate([
+      { $match: { group: { $in: gids }, deletedFor: { $ne: me } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$group",
+          last: { $first: "$$ROOT" },
+          unread: {
+            $sum: {
+              $cond: [
+                { $and: [{ $ne: ["$from", me] }, { $not: [{ $in: [me, { $ifNull: ["$readBy", []] }] }] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    const cm = Object.fromEntries(convos.map((c) => [String(c._id), c]));
+    res.json(
+      groups.map((g) => {
+        const c = cm[String(g._id)];
+        return {
+          id: g._id,
+          isGroup: true,
+          name: g.name,
+          role: `${g.members.length} members`,
+          about: g.members.map((m) => m.name).join(", "),
+          unread: c?.unread || 0,
+          lastAt: c?.last?.createdAt || g.createdAt,
+          lastText: c
+            ? c.last.deletedAll
+              ? "🚫 This message was deleted"
+              : c.last.text || (c.last.attachment?.name ? `📎 ${c.last.attachment.name}` : "")
+            : "",
+          lastMine: c ? String(c.last.from) === String(me) : false,
+        };
+      })
+    );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get("/group-messages/:groupId", chatAuth, async (req, res) => {
+  try {
+    const me = req.chatUserId;
+    const gid = req.params.groupId;
+    if (!mongoose.isValidObjectId(gid)) return res.status(400).json({ message: "Invalid group" });
+    const g = await ChatGroup.findOne({ _id: gid, members: me }).lean();
+    if (!g) return res.status(404).json({ message: "Group not found" });
+
+    const msgs = await ChatMessage.find({ group: gid, deletedFor: { $ne: me } })
+      .sort({ createdAt: -1 })
+      .limit(300)
+      .populate("from", "name")
+      .lean();
+    msgs.reverse();
+
+    await ChatMessage.updateMany({ group: gid, from: { $ne: me }, readBy: { $ne: me } }, { $addToSet: { readBy: me } });
+
+    const others = g.members.map(String).filter((id) => id !== String(me));
+    res.json(
+      msgs.map((m) => ({
+        _id: m._id,
+        mine: String(m.from?._id) === String(me),
+        sender: m.from?.name || "Unknown",
+        text: m.deletedAll ? "" : m.text,
+        deletedAll: m.deletedAll,
+        attachment: m.deletedAll || !m.attachment?.file ? null : { name: m.attachment.name, mime: m.attachment.mime, size: m.attachment.size },
+        createdAt: m.createdAt,
+        forwarded: !!m.forwarded,
+        delivered: true,
+        read: others.every((id) => (m.readBy || []).some((r) => String(r) === id)),
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/group-send/:groupId", chatAuth, (req, res) => {
+  upload.single("file")(req, res, async (uploadErr) => {
+    if (uploadErr) return res.status(400).json({ message: uploadErr.message });
+    try {
+      const gid = req.params.groupId;
+      if (!mongoose.isValidObjectId(gid)) return res.status(400).json({ message: "Invalid group" });
+      const g = await ChatGroup.findOne({ _id: gid, members: req.chatUserId }).select("_id");
+      if (!g) return res.status(404).json({ message: "Group not found" });
+
+      const text = String(req.body.text || "").trim();
+      if (!text && !req.file) return res.status(400).json({ message: "Nothing to send" });
+
+      const msg = await ChatMessage.create({
+        from: req.chatUserId,
+        group: g._id,
+        text,
+        attachment: req.file
+          ? { file: req.file.filename, name: req.file.originalname, mime: req.file.mimetype, size: req.file.size }
+          : undefined,
+      });
+      res.status(201).json({ _id: msg._id });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+});
+
+/* ---------- forward ---------- */
+router.post("/forward", chatAuth, async (req, res) => {
+  try {
+    const me = req.chatUserId;
+    const { messageId, targets } = req.body; // targets: [{ id, isGroup }]
+    if (!mongoose.isValidObjectId(messageId) || !Array.isArray(targets) || !targets.length)
+      return res.status(400).json({ message: "Invalid request" });
+
+    const src = await ChatMessage.findById(messageId);
+    if (!src || src.deletedAll || !(await canAccess(src, me))) return res.status(404).json({ message: "Message not found" });
+
+    for (const t of targets.slice(0, 20)) {
+      if (!mongoose.isValidObjectId(t?.id)) continue;
+      const doc = { from: me, text: src.text, forwarded: true };
+
+      if (t.isGroup) {
+        const g = await ChatGroup.findOne({ _id: t.id, members: me }).select("_id");
+        if (!g) continue;
+        doc.group = g._id;
+      } else {
+        const u = await User.findOne({ _id: t.id, isInternal: true }).select("_id");
+        if (!u) continue;
+        doc.to = u._id;
+      }
+
+      if (src.attachment?.file) {
+        const srcPath = path.join(UPLOAD_DIR, path.basename(src.attachment.file));
+        if (fs.existsSync(srcPath)) {
+          const newName = crypto.randomBytes(16).toString("hex") + path.extname(srcPath);
+          fs.copyFileSync(srcPath, path.join(UPLOAD_DIR, newName));
+          doc.attachment = { file: newName, name: src.attachment.name, mime: src.attachment.mime, size: src.attachment.size };
+        }
+      }
+      if (!doc.text && !doc.attachment) continue;
+      await ChatMessage.create(doc);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/* ---------- clear chat (for me only) ---------- */
+router.put("/clear/:userId", chatAuth, async (req, res) => {
+  const me = req.chatUserId;
+  const other = req.params.userId;
+  if (!mongoose.isValidObjectId(other)) return res.status(400).json({ message: "Invalid user" });
+  await ChatMessage.updateMany(
+    { group: null, $or: [{ from: me, to: other }, { from: other, to: me }] },
+    { $addToSet: { deletedFor: me } }
+  );
+  res.json({ ok: true });
+});
+
+router.put("/clear-group/:groupId", chatAuth, async (req, res) => {
+  const gid = req.params.groupId;
+  if (!mongoose.isValidObjectId(gid)) return res.status(400).json({ message: "Invalid group" });
+  const g = await ChatGroup.findOne({ _id: gid, members: req.chatUserId }).select("_id");
+  if (!g) return res.status(404).json({ message: "Group not found" });
+  await ChatMessage.updateMany({ group: gid }, { $addToSet: { deletedFor: req.chatUserId } });
   res.json({ ok: true });
 });
 

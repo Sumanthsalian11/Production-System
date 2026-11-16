@@ -75,6 +75,7 @@ export default function ChatPanel({ onClose }) {
   const [loginErr, setLoginErr] = useState("");
   const [loginBusy, setLoginBusy] = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [autoBusy, setAutoBusy] = useState(!sessionStorage.getItem("chatToken"));
 
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
@@ -89,6 +90,12 @@ export default function ChatPanel({ onClose }) {
   const [aboutDraft, setAboutDraft] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [showAll, setShowAll] = useState(false);
+  const [fwdMsg, setFwdMsg] = useState(null);
+  const [fwdSel, setFwdSel] = useState([]);
+  const [showGroup, setShowGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupSel, setGroupSel] = useState([]);
+  const [headMenu, setHeadMenu] = useState(false);
 
   const endRef = useRef(null);
   const fileRef = useRef(null);
@@ -113,6 +120,22 @@ export default function ChatPanel({ onClose }) {
     window.addEventListener("resize", h);
     return () => window.removeEventListener("resize", h);
   }, []);
+
+  /* ---------- auto login using the ERP session ---------- */
+  useEffect(() => {
+    if (token) { setAutoBusy(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await axios.post(`${API}/auto-login`, {}, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+        if (cancelled) return;
+        sessionStorage.setItem("chatToken", r.data.token);
+        setToken(r.data.token);
+      } catch { /* fall back to manual login form */ }
+      if (!cancelled) setAutoBusy(false);
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line
 
   /* ---------- login ---------- */
   const doLogin = async (e) => {
@@ -142,12 +165,15 @@ export default function ChatPanel({ onClose }) {
 
   /* ---------- data ---------- */
   const loadUsers = useCallback(async () => {
-    try { setUsers((await api.get("/users")).data); } catch { /* ignore */ }
+    try {
+      const [u, g] = await Promise.all([api.get("/users"), api.get("/groups")]);
+      setUsers([...u.data, ...g.data].sort((a, b) => (b.lastAt ? new Date(b.lastAt) : 0) - (a.lastAt ? new Date(a.lastAt) : 0)));
+    } catch { /* ignore */ }
   }, [api]);
 
   const loadMsgs = useCallback(async () => {
     if (!active) return;
-    try { setMsgs((await api.get(`/messages/${active.id}`)).data); } catch { /* ignore */ }
+    try { setMsgs((await api.get(active.isGroup ? `/group-messages/${active.id}` : `/messages/${active.id}`)).data); } catch { /* ignore */ }
   }, [api, active]);
 
   useEffect(() => {
@@ -179,7 +205,7 @@ export default function ChatPanel({ onClose }) {
       const fd = new FormData();
       fd.append("text", text.trim());
       if (file) fd.append("file", file);
-      await api.post(`/send/${active.id}`, fd);
+      await api.post(active.isGroup ? `/group-send/${active.id}` : `/send/${active.id}`, fd);
       setText("");
       setFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -203,6 +229,39 @@ export default function ChatPanel({ onClose }) {
     loadMsgs();
   };
 
+  const clearChat = async () => {
+    if (!window.confirm("Clear all messages in this chat?")) return;
+    try {
+      await api.put(active.isGroup ? `/clear-group/${active.id}` : `/clear/${active.id}`);
+      setHeadMenu(false);
+      if (active.isGroup) setMsgs([]);
+      else setActive(null);
+      loadUsers();
+    } catch { alert("Could not clear chat"); }
+  };
+
+  const createGroup = async () => {
+    try {
+      const r = await api.post("/groups", { name: groupName, members: groupSel });
+      const name = groupName.trim();
+      setShowGroup(false); setGroupName(""); setGroupSel([]);
+      await loadUsers();
+      setActive({ id: r.data.id, isGroup: true, name, role: "Group" });
+      setView("chat");
+    } catch (err) { alert(err.response?.data?.message || "Could not create group"); }
+  };
+
+  const doForward = async () => {
+    try {
+      await api.post("/forward", {
+        messageId: fwdMsg._id,
+        targets: fwdSel.map((id) => ({ id, isGroup: !!users.find((u) => u.id === id)?.isGroup })),
+      });
+      setFwdMsg(null); setFwdSel([]);
+      loadMsgs(); loadUsers();
+    } catch (err) { alert(err.response?.data?.message || "Forward failed"); }
+  };
+
   const saveAbout = async () => {
     try {
       await api.put("/profile", { about: aboutDraft });
@@ -215,7 +274,7 @@ export default function ChatPanel({ onClose }) {
     const q = search.toLowerCase().trim();
     const matches = !q || u.name.toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
     if (showAll) return matches; // "New chat" screen: every user
-    return matches && (!!u.lastAt || u.unread > 0 || u.id === active?.id); // main list: only chatted people
+    return matches && (u.isGroup || !!u.lastAt || u.unread > 0 || u.id === active?.id); // main list: only chatted people
   });
 
   const showList = !isMobile || !active;
@@ -312,8 +371,33 @@ export default function ChatPanel({ onClose }) {
           <button className="wa-iconbtn" title="Close" onClick={onClose}><i className="bi bi-x-lg" /></button>
         </div>
 
+        {fwdMsg && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 1100, background: "rgba(0,0,0,.45)", display: "flex", alignItems: "center", justifyContent: "center" }}
+            onMouseDown={(e) => e.target === e.currentTarget && setFwdMsg(null)}>
+            <div style={{ background: "#fff", borderRadius: 12, width: "min(380px,92vw)", maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div className="wa-newhead">
+                <button onClick={() => setFwdMsg(null)}><i className="bi bi-x-lg" /></button>
+                <span>Forward to…</span>
+              </div>
+              <div className="wa-users">
+                {users.map((u) => (
+                  <label key={u.id} className="wa-user" style={{ margin: 0 }}>
+                    <input type="checkbox" checked={fwdSel.includes(u.id)}
+                      onChange={() => setFwdSel((s) => (s.includes(u.id) ? s.filter((x) => x !== u.id) : [...s, u.id]))} />
+                    <Avatar name={u.name} size={34} />
+                    <div className="wa-user-name">{u.name}{u.isGroup ? " (group)" : ""}</div>
+                  </label>
+                ))}
+              </div>
+              <button className="wa-send" style={{ width: "auto", borderRadius: 8, margin: 12, padding: "8px 22px" }}
+                disabled={!fwdSel.length} onClick={doForward}>Forward ({fwdSel.length})</button>
+            </div>
+          </div>
+        )}
+
         {/* ===== LOGIN ===== */}
-        {!token && (
+        {!token && autoBusy && <div className="wa-empty" style={{ background: "#efeae2" }}>Opening chat…</div>}
+        {!token && !autoBusy && (
           <div style={{ flex: 1, display: "flex", background: "#efeae2", padding: 20, overflowY: "auto" }}>
             <form className="wa-login" onSubmit={doLogin}>
               <div style={{ textAlign: "center", fontSize: "2.4rem", color: "#25d366" }}><i className="bi bi-chat-dots-fill" /></div>
@@ -340,6 +424,29 @@ export default function ChatPanel({ onClose }) {
           <div className="wa-body">
             {showList && (
               <div className="wa-list">
+                {showGroup && (
+                  <div style={{ position: "absolute", inset: 0, background: "#fff", zIndex: 6, display: "flex", flexDirection: "column" }}>
+                    <div className="wa-newhead">
+                      <button onClick={() => { setShowGroup(false); setGroupSel([]); setGroupName(""); }}><i className="bi bi-arrow-left" /></button>
+                      <span>New group</span>
+                    </div>
+                    <div className="wa-search">
+                      <input placeholder="Group name" value={groupName} maxLength={60} onChange={(e) => setGroupName(e.target.value)} />
+                    </div>
+                    <div className="wa-users">
+                      {users.filter((u) => !u.isGroup).map((u) => (
+                        <label key={u.id} className="wa-user" style={{ margin: 0 }}>
+                          <input type="checkbox" checked={groupSel.includes(u.id)}
+                            onChange={() => setGroupSel((s) => (s.includes(u.id) ? s.filter((x) => x !== u.id) : [...s, u.id]))} />
+                          <Avatar name={u.name} size={34} />
+                          <div className="wa-user-name">{u.name}</div>
+                        </label>
+                      ))}
+                    </div>
+                    <button className="wa-send" style={{ width: "auto", borderRadius: 8, margin: 12, padding: "8px 22px" }}
+                      disabled={!groupName.trim() || !groupSel.length} onClick={createGroup}>Create group</button>
+                  </div>
+                )}
                 {profile && !showAll && (
                   <div className="wa-user" onClick={() => { setView("profile"); setActive(null); }} style={{ background: "#f7f8fa" }}>
                     <Avatar name={profile.name} />
@@ -352,7 +459,8 @@ export default function ChatPanel({ onClose }) {
                 {showAll && (
                   <div className="wa-newhead">
                     <button onClick={() => { setShowAll(false); setSearch(""); }}><i className="bi bi-arrow-left" /></button>
-                    <span>New chat</span>
+                    <span style={{ flex: 1 }}>New chat</span>
+                    <button title="New group" onClick={() => { setShowGroup(true); setShowAll(false); setSearch(""); }}><i className="bi bi-people-fill" /></button>
                   </div>
                 )}
                 <div className="wa-search">
@@ -422,7 +530,15 @@ export default function ChatPanel({ onClose }) {
                       <Avatar name={active.name} size={38} />
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontWeight: 600 }}>{active.name}</div>
-                        <div style={{ fontSize: ".72rem", color: "#667781" }}>{active.about || active.role}</div>
+                        <div style={{ fontSize: ".72rem", color: "#667781", maxWidth: isMobile ? 160 : 420, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{active.about || active.role}</div>
+                      </div>
+                      <div style={{ marginLeft: "auto", position: "relative" }}>
+                        <button className="wa-clip" onClick={() => setHeadMenu(!headMenu)}><i className="bi bi-three-dots-vertical" /></button>
+                        {headMenu && (
+                          <div className="wa-menu" style={{ top: 36, right: 0 }}>
+                            <button onClick={clearChat}>Clear chat</button>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -433,19 +549,22 @@ export default function ChatPanel({ onClose }) {
                           <div key={m._id} style={{ display: "contents" }}>
                             {newDay && <div className="wa-day">{fmtDay(m.createdAt)}</div>}
                             <div className={`wa-msg ${m.mine ? "me" : "them"} ${m.deletedAll ? "del" : ""}`}>
-                              {!m.deletedAll && (
+                              {(
                                 <button className="wa-chev" onClick={(e) => { e.stopPropagation(); setMenuId(menuId === m._id ? null : m._id); }}>
                                   <i className="bi bi-chevron-down" />
                                 </button>
                               )}
                               {menuId === m._id && (
                                 <div className="wa-menu">
+                                  {!m.deletedAll && <button onClick={() => { setFwdMsg(m); setFwdSel([]); setMenuId(null); }}>Forward</button>}
                                   <button onClick={() => delForMe(m._id)}>Delete for me</button>
-                                  {m.mine && <button onClick={() => delForAll(m._id)}>Delete for everyone</button>}
+                                  {m.mine && !m.deletedAll && <button onClick={() => delForAll(m._id)}>Delete for everyone</button>}
                                 </div>
                               )}
                               {m.deletedAll ? "🚫 This message was deleted" : (
                                 <>
+                                  {active.isGroup && !m.mine && <div style={{ fontSize: ".72rem", fontWeight: 700, color: colorOf(m.sender) }}>{m.sender}</div>}
+                                  {m.forwarded && <div style={{ fontSize: ".7rem", color: "#667781", fontStyle: "italic" }}><i className="bi bi-arrow-90deg-right" /> Forwarded</div>}
                                   {m.attachment && <Attachment msg={m} api={api} />}
                                   {m.text}
                                 </>

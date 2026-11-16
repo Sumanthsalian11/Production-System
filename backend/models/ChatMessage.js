@@ -3,7 +3,10 @@ const mongoose = require("mongoose");
 const chatMessageSchema = new mongoose.Schema(
   {
     from: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    to: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    to: { type: mongoose.Schema.Types.ObjectId, ref: "User", index: true },
+    group: { type: mongoose.Schema.Types.ObjectId, ref: "ChatGroup", default: null, index: true },
+    readBy: [{ type: mongoose.Schema.Types.ObjectId }],
+    forwarded: { type: Boolean, default: false },
     text: { type: String, default: "" },
     attachment: {
       file: String, // stored file name on disk
