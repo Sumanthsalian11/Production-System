@@ -326,6 +326,7 @@ router.put("/:id", authMiddleware, upload.single("attachment"), async (req, res)
         remarks,
         remarks2,
         itemPdfPath: itemPdfPath !== undefined ? itemPdfPath : undefined,
+        orderNature: req.body.orderNature !== undefined ? req.body.orderNature : undefined,
         orderWastePct:
           req.body.orderWastePct !== undefined
             ? Number(req.body.orderWastePct) || 0

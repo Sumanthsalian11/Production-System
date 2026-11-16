@@ -617,6 +617,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         estimatedCost: Math.max(0, Number(req.body.estimatedCost) || 0),
         location: indent.location?._id || indent.location,
         orderType: orderType,
+        orderNature: ["Fresh", "Repeated"].includes(req.body.orderNature) ? req.body.orderNature : "",
         remarks: remarks || "",
         remarks2: req.body.remarks2 || "",
         user: userData?.name || "System",
@@ -693,6 +694,13 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
         ...savedOrder.toObject(),
         location: indent.location,
         indentType: indent.indentType,
+        orderNature: savedOrder.orderNature || "",
+        processedBy: userData?.name || "System",
+        processedAt: new Date().toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: true
+        }),
         artworkPath: mailArt ? mailArt.filePath : "",
         artworkName: mailArt ? mailArt.fileName : "",
         mailSplits: groupDocs.map((d) => ({

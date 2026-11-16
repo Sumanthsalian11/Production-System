@@ -71,6 +71,11 @@ const customerOrderSchema = new mongoose.Schema(
       type: String,
       enum: ["Inhouse", "Out Source"]
     },
+    orderNature: {
+      type: String,
+      enum: ["", "Fresh", "Repeated"],
+      default: ""
+    },
     remarks: {
       type: String,
       default: ""

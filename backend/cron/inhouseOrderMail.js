@@ -74,6 +74,9 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           <td style="${td}">${esc(o.finish)}</td>
           <td style="${td}">${esc(o.specification)}</td>
           <td style="${td}">${esc(o.sampleType || o.indentType)}</td>
+          <td style="${td}">${esc(o.orderNature)}</td>
+          <td style="${td}">${esc(o.processedBy)}</td>
+          <td style="${td};white-space:nowrap">${esc(o.processedAt)}</td>
         </tr>`;
 
           // single request: one normal row
@@ -98,7 +101,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           const totalRow = `<tr>
           <td style="${tt}" colspan="6"><b>Total Qty</b></td>
           <td style="${tt};text-align:right"><b>${esc(sum)}</b>${wasteNote}</td>
-          <td style="${tt}" colspan="7"></td>
+          <td style="${tt}" colspan="11"></td>
         </tr>`;
 
           return splitRows + totalRow;
@@ -115,6 +118,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           <th style="${th}">Quantity</th><th style="${th}">GSM</th><th style="${th}">Close size</th>
           <th style="${th}">Colour</th><th style="${th}">Lamination</th><th style="${th}">Finish</th>
           <th style="${th}">Specification</th><th style="${th}">Sample Type</th>
+          <th style="${th}">Order Nature</th><th style="${th}">Processed By</th><th style="${th}">Processed On</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

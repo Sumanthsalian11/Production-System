@@ -179,7 +179,8 @@ function CustomerDashboard() {
     poDate: "",
     expectedDeliveryDate: "",
     wastePct: "",
-    estimatedCost: ""
+    estimatedCost: "",
+    orderNature: ""
   });
 
   // ===== NORMAL PO STATES =====
@@ -637,7 +638,8 @@ const PAGE_SIZE = 30;
         )?.locationName || "",
       expectedDeliveryDate: order.expectedDeliveryDate?.slice(0, 10) || "",
       wastePct: order.orderWastePct ?? "",
-      estimatedCost: order.estimatedCost ?? ""
+      estimatedCost: order.estimatedCost ?? "",
+      orderNature: order.orderNature || ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -733,7 +735,8 @@ const PAGE_SIZE = 30;
       planningLocation: "",
       expectedDeliveryDate: indent.items[0]?.deliveryDate?.slice(0, 10) || "",
       wastePct: "",
-      estimatedCost: ""
+      estimatedCost: "",
+      orderNature: ""
     });
     setErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -748,6 +751,7 @@ const PAGE_SIZE = 30;
   const validateIndentForm = () => {
     let newErrors = {};
     if (!indentForm.orderType) newErrors.orderType = "Required";
+    if (!indentForm.orderNature) newErrors.orderNature = "Required";
     if (indentForm.wastePct === "" || indentForm.wastePct === null || indentForm.wastePct === undefined) {
       newErrors.wastePct = "Required";
     } else if (!Number.isFinite(Number(indentForm.wastePct)) || Number(indentForm.wastePct) < 0) {
@@ -801,6 +805,7 @@ const PAGE_SIZE = 30;
         fd.append("quantity", o.quantity || "");
         fd.append("location", o.location?._id || o.location || "");
         fd.append("orderType", indentForm.orderType);
+        fd.append("orderNature", indentForm.orderNature || "");
         fd.append("remarks", indentForm.remarks || "");
         fd.append("remarks2", indentForm.remarks2 || "");
         fd.append("itemPdfPath", o.itemPdfPath || "");
@@ -858,7 +863,8 @@ const PAGE_SIZE = 30;
           poDate: "",
           expectedDeliveryDate: "",
           wastePct: "",
-          estimatedCost: ""
+          estimatedCost: "",
+          orderNature: ""
         });
         fetchIndentRequests();
         fetchPendingArtworks();
@@ -929,6 +935,7 @@ const PAGE_SIZE = 30;
         ? order.locationSplits.map((l) => `${l.locationName}: ${l.quantity}`).join(" | ")
         : order.location?.locationName || "",
       "Order Type": order.orderType || "",
+      "Order Nature": order.orderNature || "",
       "Supplier Name": order.remarks || "",
       "User": order.user || "System"
     }));
@@ -3035,6 +3042,27 @@ const PAGE_SIZE = 30;
                       </select>
                     </PoField>
 
+                    <PoField
+                      className="col-md-4"
+                      icon="bi-arrow-repeat"
+                      label="Order Nature"
+                      required
+                      alwaysFloat
+                      caret
+                      error={errors.orderNature}
+                    >
+                      <select
+                        name="orderNature"
+                        className="po-input"
+                        value={indentForm.orderNature}
+                        onChange={handleIndentFormChange}
+                      >
+                        <option value="">Select</option>
+                        <option value="Fresh">Fresh</option>
+                        <option value="Repeated">Repeated</option>
+                      </select>
+                    </PoField>
+
                     {indentForm.orderType === "Inhouse" && (
                       <PoField
                         className="col-md-4"
@@ -3882,6 +3910,7 @@ const PAGE_SIZE = 30;
                     <th>Estimated Cost</th>
                     <th>Location</th>
                     <th>Order Type</th>
+                    <th>Order Nature</th>
                     <th>Supplier Name</th>
                     <th>Remarks</th>
                     <th>Attachment</th>
@@ -3894,7 +3923,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="27" className="p-4 text-center text-muted">
+                      <td colSpan="28" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -4098,6 +4127,7 @@ const PAGE_SIZE = 30;
                             {order.orderType || "-"}
                           </span>
                         </td>
+                        <td>{order.orderNature || "-"}</td>
                         <td
                           className="cell-expandable"
                           style={{
