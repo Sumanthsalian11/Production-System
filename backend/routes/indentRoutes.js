@@ -201,6 +201,22 @@ function pickLatestArtwork(versions) {
   return v ? { fileName: v.fileName, filePath: v.filePath } : null;
 }
 
+// remembers the paper / finish details against the product code (never blocks the indent save)
+async function saveItemDefaults(productCode, b) {
+  try {
+    if (!productCode) return;
+    const set = {};
+    ["paperGroup", "paperSize", "gsm", "lamination", "finish", "specification"].forEach((k) => {
+      const v = String(b[k] ?? "").trim();
+      if (v) set[k] = v;
+    });
+    if (!Object.keys(set).length) return;
+    await Item.updateOne({ itemCode: productCode }, { $set: set });
+  } catch (e) {
+    console.error("SAVE ITEM DEFAULTS ERROR:", e.message);
+  }
+}
+
 // Serve uploaded indent files
 router.use("/files", express.static(uploadDir));
 
@@ -372,6 +388,8 @@ router.post("/", authMiddleware, indentUploadFields, watermarkUploadedPdfs, asyn
       });
       savedList.push(await doc.save());
     }
+
+    await saveItemDefaults(productCode, req.body);
 
     res.status(201).json(savedList.length === 1 ? savedList[0] : savedList);
     sendIndentRequestMail(savedList.map((s) => s._id));
@@ -1129,6 +1147,7 @@ router.put("/:id", authMiddleware, indentUploadFields, watermarkUploadedPdfs, as
     ];
 
     await indent.save();
+    await saveItemDefaults(productCode, req.body);
 
     res.status(200).json({
       message: "Indent updated successfully",

@@ -82,6 +82,12 @@ router.post("/bulk-upload", upload.single("file"), async (req, res) => {
         wasteQty:     pick("wasteQty", "Waste Qty", "Waste Quantity"),
         jobSize:      pick("jobSize", "Job Size (MM)", "Job Size"),
         inkDetails:   pick("inkDetails", "Ink Details"),
+        paperGroup:   pick("paperGroup", "Group", "Paper Group"),
+        paperSize:    pick("paperSize", "Paper Size", "Size"),
+        gsm:          pick("gsm", "GSM"),
+        lamination:   pick("lamination", "Lamination"),
+        finish:       pick("finish", "Finish"),
+        specification: pick("specification", "Specification"),
       };
       if (data.wasteQty === "") delete data.wasteQty;
 

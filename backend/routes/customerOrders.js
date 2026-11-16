@@ -3,6 +3,7 @@ const router = express.Router();
 const CustomerOrder = require("../models/CustomerOrder");
 const authMiddleware = require("../middleware/authMiddleware");
 const User = require("../models/User");
+const Item = require("../models/Item");
 const multer = require("multer");
 const path = require("path");
 
@@ -78,6 +79,16 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
 
     const attachment = req.file ? req.file.filename : "";
 
+    // artwork must be one of the versions saved against this product code
+    let artwork = { fileName: "", filePath: "" };
+    if (req.body.artworkFilePath) {
+      const master = await Item.findOne({ itemCode: String(productCode) })
+        .select("artworkVersions")
+        .lean();
+      const hit = master && (master.artworkVersions || []).find((v) => v.filePath === req.body.artworkFilePath);
+      if (hit) artwork = { fileName: hit.fileName, filePath: hit.filePath };
+    }
+
     const newOrder = new CustomerOrder({
       ...(purchaseOrderNo && { purchaseOrderNo }),
       ...(poDate && { poDate }),
@@ -96,6 +107,7 @@ router.post("/", authMiddleware, upload.single("attachment"), async (req, res) =
       orderType,
       ticketNo,
       attachment,
+      artwork,
       orderWastePct: Number(req.body.orderWastePct) || 0,
       itemPdfPath: itemPdfPath || "",
       remarks,

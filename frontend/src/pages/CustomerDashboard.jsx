@@ -226,6 +226,17 @@ const PAGE_SIZE = 30;
   const orderReq = useRef(0);
   const submitLockRef = useRef(false);
 
+  // ===== ARTWORK (saved against the product code, same as New Indent) =====
+  const REQUIRE_ARTWORK_UPLOAD = true; // set false to switch the rule off
+  const [masterArt, setMasterArt] = useState([]);
+  const [awFile, setAwFile] = useState(null);
+  const [awNote, setAwNote] = useState("");
+  const awFileInputRef = useRef(null);
+  const [artConfirm, setArtConfirm] = useState(null); // { file, kind, url, isPdf, isImg }
+  const [artRead, setArtRead] = useState(false);
+  const artReviewedRef = useRef(false);
+  const artSubmitOkRef = useRef(false);
+
 
   const poDateRef = useRef();
   const productCodeRef = useRef();
@@ -273,6 +284,94 @@ const PAGE_SIZE = 30;
     remarks2: "",
     itemPdfPath: ""
   });
+
+  // artwork saved against the typed product code
+  useEffect(() => {
+    let live = true;
+    artReviewedRef.current = false;
+    const code = form.productCode;
+    if (!code) { setMasterArt([]); return; }
+    axios
+      .get(`${BASE_URL}/api/master/items/${code}`)
+      .then((r) => { if (live) setMasterArt(r.data?.artworkVersions || []); })
+      .catch(() => { if (live) setMasterArt([]); });
+    return () => { live = false; };
+  }, [form.productCode]);
+
+  const latestMaster = masterArt[masterArt.length - 1] || null;
+  const nextMasterVer = masterArt.length
+    ? Math.max(...masterArt.map((v) => v.version || 0)) + 1
+    : 1;
+
+  const changeMasterArtwork = async (file, noteText) => {
+    if (!file || !form.productCode) return;
+    const fd = new FormData();
+    fd.append("artwork", file);
+    fd.append("note", noteText || "");
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/api/master/items/${form.productCode}/artwork`,
+        fd,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setMasterArt(res.data?.artworkVersions || []);
+      setErrors((p) => ({ ...p, artwork: "" }));
+      setAwFile(null);
+      setAwNote("");
+      if (awFileInputRef.current) awFileInputRef.current.value = "";
+      Swal.fire({ icon: "success", title: "Artwork saved as V" + nextMasterVer, timer: 1500, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: "error", title: "Upload failed", text: err.response?.data?.message || "Could not save artwork" });
+    }
+  };
+
+  // opens the preview window; nothing is saved until the user confirms
+  const openArtConfirm = (file, kind) => {
+    if (!file) return;
+    setArtRead(false);
+    setArtConfirm({
+      file,
+      kind,
+      url: URL.createObjectURL(file),
+      isPdf: /\.pdf$/i.test(file.name),
+      isImg: /\.(png|jpe?g)$/i.test(file.name)
+    });
+  };
+
+  // shows the latest saved artwork before the order is saved
+  const openLatestConfirm = () => {
+    const last = masterArt[masterArt.length - 1];
+    if (!last) return;
+    setArtRead(false);
+    setArtConfirm({
+      file: { name: "V" + last.version + " - " + last.fileName },
+      kind: "savelatest",
+      url: BASE_URL + last.filePath,
+      isPdf: /\.pdf$/i.test(last.fileName || ""),
+      isImg: /\.(png|jpe?g)$/i.test(last.fileName || "")
+    });
+  };
+
+  const closeArtConfirm = () => {
+    if (artConfirm?.url && artConfirm.url.startsWith("blob:")) URL.revokeObjectURL(artConfirm.url);
+    setArtConfirm(null);
+    setArtRead(false);
+  };
+
+  const saveArtConfirm = () => {
+    if (!artConfirm || !artRead) return;
+    artReviewedRef.current = true;
+    const { file, kind, url } = artConfirm;
+    if (url && url.startsWith("blob:")) URL.revokeObjectURL(url);
+    setArtConfirm(null);
+    setArtRead(false);
+    if (kind === "savelatest") {
+      artSubmitOkRef.current = true;
+      handleSubmit({ preventDefault() {} });
+      return;
+    }
+    changeMasterArtwork(file, awNote);
+  };
 
   const getMinExpectedDate = () => {
     if (!form.poDate) return "";
@@ -464,6 +563,9 @@ const PAGE_SIZE = 30;
     if (!form.quantity) newErrors.quantity = "Required";
     if (!form.location) newErrors.location = "Required";
     if (!form.orderType) newErrors.orderType = "Required";
+    if (!editingId && REQUIRE_ARTWORK_UPLOAD && form.productCode && !masterArt.length) {
+      newErrors.artwork = "Upload an artwork version for this product code.";
+    }
     if (form.expectedDeliveryDate < form.poDate) {
       newErrors.expectedDeliveryDate = "Expected date must be after PO date";
     }
@@ -474,7 +576,15 @@ const PAGE_SIZE = 30;
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submitLockRef.current) return;
+    const okToSave = artSubmitOkRef.current;
+    artSubmitOkRef.current = false;
     if (!validateForm()) return;
+
+    // show the item's latest artwork first; save only after the confirm checkbox + Save
+    if (!editingId && !okToSave && !artReviewedRef.current && masterArt.length > 0) {
+      openLatestConfirm();
+      return;
+    }
 
     submitLockRef.current = true;
     setIsSubmitting(true);
@@ -498,6 +608,11 @@ const PAGE_SIZE = 30;
       formData.append("remarks", form.remarks);
       formData.append("remarks2", form.remarks2);
       formData.append("itemPdfPath", form.itemPdfPath || "");
+      if (!editingId && latestMaster) {
+        formData.append("artworkFileName", latestMaster.fileName || "");
+        formData.append("artworkFilePath", latestMaster.filePath || "");
+        formData.append("artworkVersion", String(latestMaster.version || ""));
+      }
 
       formData.append("user", loggedInUser);
 
@@ -547,6 +662,10 @@ const PAGE_SIZE = 30;
         });
 
         fetchOrders();
+        artReviewedRef.current = false;
+        setAwFile(null);
+        setAwNote("");
+        if (awFileInputRef.current) awFileInputRef.current.value = "";
         resetForm();
       }
     } catch (err) {
@@ -2411,6 +2530,76 @@ const PAGE_SIZE = 30;
         </div>
       )}
 
+      {/* Artwork confirm popup (preview before upload / save) */}
+      {artConfirm && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 2200, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={closeArtConfirm}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 1100, height: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+          >
+            <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+              <i className="bi bi-file-earmark-pdf" style={{ color: "#e4572e" }}></i>
+              <b style={{ fontSize: 14 }}>Review artwork before saving</b>
+              <span>{artConfirm.file.name}</span>
+              <button type="button" className="btn btn-sm btn-danger ms-auto" onClick={closeArtConfirm}>Cancel</button>
+            </div>
+
+            <div style={{ flex: 1, overflow: "hidden", background: "#f4f6f8" }}>
+              {artConfirm.isPdf ? (
+                <iframe title="Artwork preview" src={artConfirm.url} style={{ width: "100%", height: "100%", border: "none" }} />
+              ) : artConfirm.isImg ? (
+                <div style={{ width: "100%", height: "100%", overflow: "auto", textAlign: "center", padding: 12 }}>
+                  <img src={artConfirm.url} alt="Artwork preview" style={{ maxWidth: "100%" }} />
+                </div>
+              ) : (
+                <div className="d-flex align-items-center justify-content-center h-100 text-center p-4">
+                  Preview is not available for this file type ({artConfirm.file.name}).
+                  <br />
+                  You can still confirm and save it.
+                </div>
+              )}
+            </div>
+
+            <div className="px-3 py-3 d-flex flex-wrap align-items-center gap-3" style={{ borderTop: "1px solid #e3e7ec" }}>
+              {artConfirm.kind === "master" && (
+                <input
+                  type="text"
+                  placeholder="Version note (optional)"
+                  value={awNote}
+                  onChange={(e) => setAwNote(e.target.value)}
+                  style={{ flex: "1 1 260px", minWidth: 220, height: 40, padding: "6px 12px", border: "1px solid #cfd6de", borderRadius: 6, fontSize: 14, color: "#000", background: "#fff" }}
+                />
+              )}
+              <div className="form-check m-0">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="art-read-check"
+                  style={{ width: 22, height: 22, minWidth: 22, float: "none", margin: "0 10px 0 0", cursor: "pointer", appearance: "auto", WebkitAppearance: "checkbox", accentColor: "#e4572e", border: "2px solid #000", opacity: 1, display: "inline-block", verticalAlign: "middle" }}
+                  checked={artRead}
+                  onChange={(e) => setArtRead(e.target.checked)}
+                />
+                <label className="form-check-label fw-bold" htmlFor="art-read-check">
+                  I have read and checked this artwork file.
+                </label>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary ms-auto px-4"
+                style={{ opacity: artRead ? 1 : 0.5, cursor: artRead ? "pointer" : "not-allowed" }}
+                disabled={!artRead}
+                onClick={saveArtConfirm}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       <div
         className={`position-fixed top-0 start-50 translate-middle-x mt-3 ${
@@ -3719,6 +3908,81 @@ const PAGE_SIZE = 30;
                       </PoField>
                     )}
                   </div>
+
+                  {!editingId && (
+                    <>
+                      <div className="po-section">Artwork Management</div>
+
+                      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <span className="fw-semibold">Latest artwork:</span>
+                        <span className={`badge ${latestMaster ? "bg-primary" : "bg-warning text-dark"}`}>
+                          {latestMaster ? "V" + latestMaster.version : "No artwork"}
+                        </span>
+                        <small>Order needs an artwork version saved against the product code.</small>
+                      </div>
+
+                      <div className="row g-2 mb-2">
+                        <PoField className="col-12 col-md-4" icon="bi-paperclip" label="Artwork File" alwaysFloat>
+                          <input
+                            ref={awFileInputRef}
+                            type="file"
+                            className="po-input"
+                            accept=".pdf,.ai,.psd,.png,.jpg,.jpeg,.cdr,.zip"
+                            onChange={(e) => setAwFile(e.target.files?.[0] || null)}
+                          />
+                        </PoField>
+
+                        <PoField className="col-12 col-md-5" icon="bi-pencil" label="Version Note" filled={has(awNote)}>
+                          <input
+                            type="text"
+                            className="po-input"
+                            value={awNote}
+                            onChange={(e) => setAwNote(e.target.value)}
+                          />
+                        </PoField>
+
+                        <div className="col-12 col-md-3">
+                          <button
+                            type="button"
+                            className="btn btn-info w-100"
+                            disabled={!form.productCode || !awFile}
+                            onClick={() => openArtConfirm(awFile, "master")}
+                          >
+                            {masterArt.length ? "Upload V" + nextMasterVer : "Upload V1"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {errors.artwork && <div className="po-err mb-2">{errors.artwork}</div>}
+
+                      {masterArt.length > 0 && (
+                        <div className="table-responsive mb-2" style={{ fontSize: "12px" }}>
+                          <table className="table table-bordered table-sm align-middle mb-0">
+                            <thead>
+                              <tr><th>Ver</th><th>File</th><th>Uploaded</th><th>Note</th></tr>
+                            </thead>
+                            <tbody>
+                              {[latestMaster].filter(Boolean).map((v) => (
+                                <tr key={v.version}>
+                                  <td>V{v.version}</td>
+                                  <td>
+                                    <a href={`${BASE_URL}${v.filePath}`} onClick={(e) => openArtwork(e, v.filePath, v.fileName)}>
+                                      {v.fileName}
+                                    </a>
+                                  </td>
+                                  <td>
+                                    {v.uploadedAt ? new Date(v.uploadedAt).toLocaleString("en-IN") : "-"}
+                                    <br /><small>{v.uploadedBy}</small>
+                                  </td>
+                                  <td>{v.note || "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   <button className="po-submit" type="submit" disabled={isSubmitting}>
                     {isSubmitting

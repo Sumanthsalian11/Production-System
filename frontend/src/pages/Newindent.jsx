@@ -471,7 +471,13 @@ function NewIndent() {
       description: it.description || "",
       colorFront: it.colorFront ?? "",
       colorBack: it.colorBack ?? "",
-      jobSize: it.jobSize || ""
+      jobSize: it.jobSize || "",
+      paperGroup: it.paperGroup || prev.paperGroup,
+      paperSize: it.paperSize || prev.paperSize,
+      gsm: it.gsm || prev.gsm,
+      lamination: it.lamination || prev.lamination,
+      finish: it.finish || prev.finish,
+      specification: it.specification || prev.specification
     }));
   };
 
@@ -485,7 +491,13 @@ function NewIndent() {
         description: it.description || "",
         colorFront: it.colorFront ?? "",
         colorBack: it.colorBack ?? "",
-        jobSize: it.jobSize || ""
+        jobSize: it.jobSize || "",
+        paperGroup: it.paperGroup || prev.paperGroup,
+        paperSize: it.paperSize || prev.paperSize,
+        gsm: it.gsm || prev.gsm,
+        lamination: it.lamination || prev.lamination,
+        finish: it.finish || prev.finish,
+        specification: it.specification || prev.specification
       }));
     } else if (form.sampleRequestType !== "new") {
       // no matching item: clear the auto-filled values
@@ -797,7 +809,15 @@ function NewIndent() {
         wasteQty: res.data.wasteQty ?? "",
         jobSize: res.data.jobSize || "",
         inkDetails: res.data.inkDetails || "",
-        itemPdfPath: res.data.pdfPath || ""
+        itemPdfPath: res.data.pdfPath || "",
+
+        // remembered from the last indent of this product code
+        paperGroup: res.data.paperGroup || "",
+        paperSize: res.data.paperSize || "",
+        gsm: res.data.gsm || "",
+        lamination: res.data.lamination || "",
+        finish: res.data.finish || "",
+        specification: res.data.specification || ""
       }));
     } catch {
       setForm(prev => ({
@@ -1067,6 +1087,10 @@ specification: "Specification",
 
         resetForm();
         fetchIndents();
+        axios
+          .get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => setItemList(Array.isArray(r.data) ? r.data : (r.data?.data || [])))
+          .catch(() => {});
       }
     } catch (err) {
       console.error("Save Error:", err);
@@ -4117,7 +4141,7 @@ specification: "Specification",
                   <th>Lamination</th>
                   <th>Finish</th>
                   <th>Group</th>
-                  <th>Size</th>
+                  {/* <th>Size</th> */}
                   <th>GSM</th>
                   <th>Job No</th>
                   <th>SO No</th>
@@ -4227,7 +4251,7 @@ specification: "Specification",
                           : truncateText(ind.items[0]?.finish, 20)}
                       </td>
                       <td>{ind.items[0]?.paperGroup || "-"}</td>
-                      <td>{ind.items[0]?.paperSize || "-"}</td>
+                      {/* <td>{ind.items[0]?.paperSize || "-"}</td> */}
                       <td>{ind.items[0]?.gsm || "-"}</td>
                       <td>{ind.items[0]?.jobNo || "-"}</td>
                       <td>{ind.items[0]?.soNo || "-"}</td>

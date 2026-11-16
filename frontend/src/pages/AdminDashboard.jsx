@@ -527,6 +527,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
     wasteQty: "",
     jobSize: "",
     inkDetails: "",
+    paperGroup: "",
+    paperSize: "",
+    gsm: "",
+    lamination: "",
+    finish: "",
+    specification: "",
   });
   const [newItemPdf, setNewItemPdf] = useState(null);
   const [newItemKey, setNewItemKey] = useState(0);
@@ -1020,6 +1026,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
       jobSize: "",
       inkDetails: "",
       uniqueCode: "",
+      paperGroup: "",
+      paperSize: "",
+      gsm: "",
+      lamination: "",
+      finish: "",
+      specification: "",
     });
     setNewItemPdf(null);
     setNewTransportation("");
@@ -1895,6 +1907,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
       jobSize: "",
       inkDetails: "",
       uniqueCode: "",
+      paperGroup: "",
+      paperSize: "",
+      gsm: "",
+      lamination: "",
+      finish: "",
+      specification: "",
     });
     setNewItemPdf(null);
     setNewItemKey((k) => k + 1);
@@ -2124,12 +2142,19 @@ const [supplierFilter, setSupplierFilter] = useState("");
       "Job Size": i.jobSize || "",
       "Ink Details": i.inkDetails || "",
       "Unique Code": i.uniqueCode || "",
+      "Group": i.paperGroup || "",
+      "Paper Size": i.paperSize || "",
+      "GSM": i.gsm || "",
+      "Lamination": i.lamination || "",
+      "Finish": i.finish || "",
+      "Specification": i.specification || "",
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [
       { wch: 6 }, { wch: 20 }, { wch: 24 }, { wch: 36 }, { wch: 18 },
       { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 28 }, { wch: 14 },
+      { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 36 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -2853,6 +2878,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
                   customerName: custs.length === 1 ? custs[0] : "",
                   description: "", materialType: "", colorFront: "", colorBack: "",
                   wasteQty: "", jobSize: "", inkDetails: "",
+                  paperGroup: "", paperSize: "", gsm: "", lamination: "", finish: "", specification: "",
                 });
               }}
             />
@@ -2881,6 +2907,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
               ["wasteQty", "Waste Quantity"],
               ["jobSize", "Job Size"],
               ["inkDetails", "Ink Details"],
+              ["paperGroup", "Group"],
+              ["paperSize", "Paper Size"],
+              ["gsm", "GSM"],
+              ["lamination", "Lamination"],
+              ["finish", "Finish"],
+              ["specification", "Specification"],
             ].map(([key, placeholder]) => (
               <AddableSelect
                 key={key}
@@ -3052,10 +3084,17 @@ const [supplierFilter, setSupplierFilter] = useState("");
                               "wasteQty",
                               "jobSize",
                               "inkDetails",
+                              "paperGroup",
+                              "paperSize",
+                              "gsm",
+                              "lamination",
+                              "finish",
+                              "specification",
                             ].map((key) => (
                               <input
                                 key={key}
                                 className="pro-input"
+                                placeholder={key}
                                 value={editingData[key] || ""}
                                 onChange={(e) =>
                                   setEditingData({ ...editingData, [key]: e.target.value })
@@ -3075,7 +3114,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
                           <span>
                             <strong>{i.itemCode}</strong> • {i.customerName} • {i.description} •{" "}
                             {i.materialType} • {i.colorFront} • {i.colorBack} • {i.wasteQty} •{" "}
-                            {i.jobSize}
+                            {i.jobSize} • {i.paperGroup || "-"} • {i.paperSize || "-"} • {i.gsm || "-"} •{" "}
+                            {i.lamination || "-"} • {i.finish || "-"} • {i.specification || "-"}
                           </span>
                           <div style={{ display: "flex", gap: "8px" }}>
                             {(i.artworkVersions?.length > 0 || i.pdfPath) && (
@@ -3128,6 +3168,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
                                   wasteQty: i.wasteQty,
                                   jobSize: i.jobSize,
                                   inkDetails: i.inkDetails,
+                                  paperGroup: i.paperGroup,
+                                  paperSize: i.paperSize,
+                                  gsm: i.gsm,
+                                  lamination: i.lamination,
+                                  finish: i.finish,
+                                  specification: i.specification,
                                 });
                               }}
                             >
