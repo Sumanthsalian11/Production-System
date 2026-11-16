@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
+import opentype from "opentype.js";
 import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker&inline";
 
 const API = import.meta.env.VITE_API_URL;
@@ -57,6 +58,74 @@ const P = (f) => ({
   ucols: Math.max(1, parseInt(f.ucols, 10) || 1),
   ugap: Math.max(0, num(f.ugap)),
 });
+
+/* ---------- vector text (glyph outlines for the PDF) ---------- */
+const FONT_BYTES = new Map();   // uploaded fonts: family -> ArrayBuffer
+const OT_CACHE = new Map();     // "family|bold|italic" -> { font, fake } | null
+let LOCAL_P = null;
+const loadLocalFonts = () => (LOCAL_P ||= (async () => {
+  try { return window.queryLocalFonts ? await window.queryLocalFonts() : []; } catch { return []; }
+})());
+async function getOtFont(family, bold, italic) {
+  const key = `${family}|${bold}|${italic}`;
+  if (OT_CACHE.has(key)) return OT_CACHE.get(key);
+  let ent = null;
+  try {
+    let buf = FONT_BYTES.get(family) || null, fake = !!bold;
+    if (!buf && family === "Century") { const r = await fetch("/fonts/CENTURY.TTF"); if (r.ok) buf = await r.arrayBuffer(); }
+    if (buf && italic) buf = null;   // no real italic face -> keep the image fallback
+    if (!buf && !FONT_BYTES.has(family) && family !== "Century") {
+      const all = (await loadLocalFonts()).filter((x) => x.family.toLowerCase() === family.toLowerCase());
+      const isB = (x) => /bold|black|heavy/i.test(x.style), isI = (x) => /italic|oblique/i.test(x.style);
+      let m = all.find((x) => isB(x) === !!bold && isI(x) === !!italic);
+      fake = false;
+      if (!m && bold) { m = all.find((x) => !isB(x) && isI(x) === !!italic); fake = !!m; }
+      if (m) buf = await (await m.blob()).arrayBuffer();
+    }
+    if (buf) ent = { font: opentype.parse(buf), fake };
+  } catch { ent = null; }
+  OT_CACHE.set(key, ent);
+  return ent;
+}
+const otPeek = (family, bold, italic) => OT_CACHE.get(`${family}|${!!bold}|${!!italic}`) || null;
+const hexRgb = (h) => {
+  const v = parseInt(String(h).slice(1), 16) || 0;
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((a) => (a / 255).toFixed(3)).join(" ");
+};
+let MC = null;
+/* text runs of one box -> PDF path operators in artwork pixels (y down); null if a font is missing */
+function vecBox(b) {
+  if (!b || !b.runs || !b.runs.length) return null;
+  if (!MC) MC = document.createElement("canvas").getContext("2d");
+  const n2 = (v) => v.toFixed(2);
+  let out = "";
+  for (const r of b.runs) {
+    if (!r.t) continue;
+    const ent = otPeek(r.family, r.bold, r.italic);
+    if (!ent) return null;
+    MC.font = `${r.italic ? "italic " : ""}${r.bold ? 700 : 400} ${r.px}px "${r.family}", sans-serif`;
+    MC.textBaseline = "top";
+    const ab = MC.measureText(r.t).alphabeticBaseline;
+    const base = r.y + (typeof ab === "number" && ab < 0 ? -ab : r.px * (ent.font.ascender / ent.font.unitsPerEm));
+    const path = ent.font.getPath(r.t, r.x, base, r.px);
+    let d = "", cx = 0, cy = 0;
+    for (const c of path.commands) {
+      if (c.type === "M") { d += `${n2(c.x)} ${n2(c.y)} m `; cx = c.x; cy = c.y; }
+      else if (c.type === "L") { d += `${n2(c.x)} ${n2(c.y)} l `; cx = c.x; cy = c.y; }
+      else if (c.type === "C") { d += `${n2(c.x1)} ${n2(c.y1)} ${n2(c.x2)} ${n2(c.y2)} ${n2(c.x)} ${n2(c.y)} c `; cx = c.x; cy = c.y; }
+      else if (c.type === "Q") {
+        d += `${n2(cx + (2 / 3) * (c.x1 - cx))} ${n2(cy + (2 / 3) * (c.y1 - cy))} ${n2(c.x + (2 / 3) * (c.x1 - c.x))} ${n2(c.y + (2 / 3) * (c.y1 - c.y))} ${n2(c.x)} ${n2(c.y)} c `;
+        cx = c.x; cy = c.y;
+      } else if (c.type === "Z") d += "h ";
+    }
+    const col = hexRgb(r.c);
+    out += ent.fake
+      ? `${col} rg ${col} RG ${n2(r.px * 0.035)} w 1 j ${d}B\n`
+      : `${col} rg ${d}f\n`;
+    if (r.ul && r.w) out += `${col} rg ${n2(r.x)} ${n2(r.y + r.px * 1.05)} ${n2(r.w)} ${n2(Math.max(1, r.px * 0.06))} re f\n`;
+  }
+  return `q\n${out}Q\n`;
+}
 
 /* ---------- barcode ---------- */
 function makeBarcode(val, p) {
@@ -179,7 +248,7 @@ function makePdfWriter(wpt, hpt) {
       } else {
         const refs = shared.slice();
         patches.forEach((q, i) => {
-          const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : imageObj(q.blob, q.w, q.h, "/DCTDecode");
+          const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : q.flate ? imageObj(q.blob, q.w, q.h, "/FlateDecode") : imageObj(q.blob, q.w, q.h, "/DCTDecode");
           refs.push(`/P${i} ${id} 0 R`);
         });
         res = `<< /XObject << ${refs.join(" ")} >> >>`;
@@ -195,19 +264,20 @@ function makePdfWriter(wpt, hpt) {
     },
     /* a page = shared artwork + small JPEG patches (number / barcode / QR / Excel text) placed on top.
        patches: [{ blob, x, y, w, h }] in artwork pixels, k = points per pixel */
-    addPage(patches, k) {
+    addPage(patches, k, extra = "") {
       const refs = [];
       let ops = "";
       if (bg) { refs.push(`/Bg ${bg} 0 R`); ops += `q ${W} 0 0 ${H} 0 0 cm /Bg Do Q\n`; }
       patches.forEach((q, i) => {
-        const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : imageObj(q.blob, q.w, q.h, "/DCTDecode");
+        const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : q.flate ? imageObj(q.blob, q.w, q.h, "/FlateDecode") : imageObj(q.blob, q.w, q.h, "/DCTDecode");
         refs.push(`/P${i} ${id} 0 R`);
         const w = q.w * k, h = q.h * k, x = q.x * k, y = hpt - q.y * k - h;
         ops += `q ${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm /P${i} Do Q\n`;
       });
       const cont = nextId++, page = nextId++;
       begin(cont);
-      text(`<< /Length ${ops.length} >>\nstream\n${ops}endstream\nendobj\n`);
+      const all = extra ? ops + `q ${k.toFixed(6)} 0 0 ${(-k).toFixed(6)} 0 ${hpt.toFixed(3)} cm\n${extra}Q\n` : ops;
+      text(`<< /Length ${all.length} >>\nstream\n${all}endstream\nendobj\n`);
       begin(page);
       text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << ${refs.join(" ")} >> >> /Contents ${cont} 0 R >>\nendobj\n`);
       kids.push(page);
@@ -235,6 +305,15 @@ const bitsBlob = (img) => {
 };
 const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 const deflate = (s) => new Response(new Blob([s]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+
+/* canvas -> lossless RGB (Flate) bytes, used for text patches so they stay perfectly sharp */
+const rgbFlate = async (cv) => {
+  const w = cv.width, h = cv.height;
+  const d = cv.getContext("2d").getImageData(0, 0, w, h).data;
+  const rgb = new Uint8Array(w * h * 3);
+  for (let i = 0, j = 0; i < d.length; i += 4) { rgb[j++] = d[i]; rgb[j++] = d[i + 1]; rgb[j++] = d[i + 2]; }
+  return new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
+};
 
 /* fast "store" ZIP writer (no compression): much quicker than JSZip for hundreds of JPEG pages */
 const CRC_T = (() => {
@@ -383,7 +462,10 @@ function render(S, ctx, n, s, p, preview, row, out) {
   ctx.fillStyle = p.nc;
   ctx.fillText(val, x + off, y);
   const w = off + ctx.measureText(val).width;
-  if (B) B.num = { x, y, w, h: px * 1.2 };
+  if (B) B.num = { x, y, w, h: px * 1.2, runs: [
+    ...(p.word ? [{ t: p.word, x, y, c: p.wc, px, bold: p.bold, family: p.family }] : []),
+    { t: val, x: x + off, y, c: p.nc, px, bold: p.bold, family: p.family },
+  ] };
 
   /* Excel columns */
   for (const c of S.cols) {
@@ -400,9 +482,13 @@ function render(S, ctx, n, s, p, preview, row, out) {
       tw = ctx.measureText(name).width;
     }
     ctx.fillStyle = c.color;
-    ctx.fillText(value, cx + tw, cy);
+    const vx = cx + tw;
+    ctx.fillText(value, vx, cy);
     tw += ctx.measureText(value).width;
-    if (B) B[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2 };
+    if (B) B[c.id] = { x: cx, y: cy, w: Math.max(tw, cpx * 2), h: cpx * 1.2, runs: [
+      ...(name ? [{ t: name, x: cx, y: cy, c: c.lc || c.color, px: cpx, bold: p.bold, family: p.family }] : []),
+      { t: value, x: vx, y: cy, c: c.color, px: cpx, bold: p.bold, family: p.family },
+    ] };
   }
 
   /* custom text items */
@@ -414,14 +500,16 @@ function render(S, ctx, n, s, p, preview, row, out) {
     const tx = num(t.x) * u, ty = num(t.y) * u;
     const lines = String(t.text).split("\n");
     let maxW = 0;
+    const runs = [];
     lines.forEach((ln, i) => {
       const ly = ty + i * tpx * 1.2;
       const lw = ctx.measureText(ln).width;
+      runs.push({ t: ln, x: tx, y: ly, c: t.color, px: tpx, bold: t.bold, italic: t.italic, family: t.family || p.family, ul: t.underline, w: lw });
       ctx.fillText(ln, tx, ly);
       if (t.underline && ln) ctx.fillRect(tx, ly + tpx * 1.05, lw, Math.max(1, tpx * 0.06));
       maxW = Math.max(maxW, lw);
     });
-    if (B) B[t.id] = { x: tx, y: ty, w: Math.max(maxW, tpx * 2), h: tpx * 1.2 * lines.length };
+    if (B) B[t.id] = { x: tx, y: ty, w: Math.max(maxW, tpx * 2), h: tpx * 1.2 * lines.length, runs };
   }
 
   /* what the barcode / QR encode: serial number or an Excel column */
@@ -767,6 +855,8 @@ export default function CertificateNumbering() {
       await face.load();
       document.fonts.add(face);
       await fontSave(name, data);
+      FONT_BYTES.set(name, data);
+      OT_CACHE.clear();
       setFonts((fs) => (fs.includes(name) ? fs : [name, ...fs]));
       say(`Font "${name}" saved.`, "ok");
     } catch { say("Could not read that font file.", "err"); }
@@ -784,6 +874,7 @@ export default function CertificateNumbering() {
             await face.load();
             document.fonts.add(face);
             names.push(name);
+            FONT_BYTES.set(name, data);
           } catch { /* skip a corrupt entry */ }
         }
         if (names.length) setFonts((fs) => [...names.filter((n) => !fs.includes(n)), ...fs]);
@@ -1498,6 +1589,7 @@ export default function CertificateNumbering() {
   }
 
   async function generate(kind, slot = 0) {
+    loadLocalFonts();   // browser asks once for permission to read installed fonts (needed for Arial etc.)
     if (running) return;
     bind(slot);
     try { await generateInner(kind, slot); } finally { bind(actRef.current); }
@@ -1563,9 +1655,11 @@ export default function CertificateNumbering() {
       /* crop each drawn element (with a small margin) out of the rendered page and JPEG-encode it */
       const patchesFor = (boxes) => {
         const jobs = [];
+        let vec = "";
         for (const k of Object.keys(boxes)) {
           const b = boxes[k];
           if (!b) continue;
+          if (b.runs) { const v = vecBox(b); if (v) { vec += v; continue; } }
           if ((k === "bar" && p.qz) || k === "qr") {
             const bx0 = Math.ceil(b.x), by0 = Math.ceil(b.y);
             const bw = Math.floor(b.x + b.w) - bx0, bh = Math.floor(b.y + b.h) - by0;
@@ -1586,10 +1680,15 @@ export default function CertificateNumbering() {
           const c = document.createElement("canvas");
           c.width = w; c.height = h;
           c.getContext("2d", { alpha: false }).drawImage(off, x0, y0, w, h, 0, 0, w, h);
-          jobs.push(toBlob(c, "image/jpeg", PATCH_Q).then((blob) => ({ blob, x: x0, y: y0, w, h })));
+          jobs.push(rgbFlate(c).then((blob) => ({ blob, flate: true, x: x0, y: y0, w, h })));
         }
-        return Promise.all(jobs);
+        return Promise.all(jobs).then((arr) => { arr.vec = vec; return arr; });
       };
+
+      /* fonts for vector text */
+      const vecFonts = [[p.family, p.bold, false], ...(S.texts || []).filter((t) => t.on && t.text).map((t) => [t.family || p.family, t.bold, t.italic])];
+      for (const [fa, bo, it] of vecFonts) await getOtFont(fa, !!bo, !!it);
+      const fontsOK = vecFonts.every(([fa, bo, it]) => otPeek(fa, bo, it));
 
       /* ----- compact mode (PDF + hidden background) ----- */
       let stat = null;
@@ -1608,7 +1707,9 @@ export default function CertificateNumbering() {
           const tf = `${t.italic ? "italic " : ""}${t.bold ? 700 : 400} ${tpx}px "${t.family || p.family}", sans-serif`;
           items.push({ m: await makeMask(String(t.text).split("\n"), tf, tpx, t.underline), x: num(t.x) * u, y: num(t.y) * u, c: t.color });
         }
-        stat = { u, mctx, glyphs, word, items, offW: p.word ? mctx.measureText(p.word + " ").width : 0 };
+        stat = fontsOK
+          ? { u, mctx, glyphs, word: null, items: [], offW: 0, vec: true }
+          : { u, mctx, glyphs, word, items, offW: p.word ? mctx.measureText(p.word + " ").width : 0 };
       }
       const rgb = (h) => {
         const v = parseInt(h.slice(1), 16);
@@ -1621,7 +1722,7 @@ export default function CertificateNumbering() {
         let ops = `q ${K.toFixed(6)} 0 0 ${(-K).toFixed(6)} 0 ${hpt.toFixed(3)} cm\n`;
         if (stat.word) ops += `${rgb(p.wc)} rg\n` + put("W", stat.word, nx, ny);
         ops += `${rgb(p.nc)} rg\n`;
-        for (let i = 0; i < val.length; i++) {
+        for (let i = 0; !stat.vec && i < val.length; i++) {
           const dx = stat.mctx.measureText(val.slice(0, i)).width;
           ops += put("G" + val[i], stat.glyphs[val[i]], nx + stat.offW + dx, ny);
         }
@@ -1664,6 +1765,11 @@ export default function CertificateNumbering() {
         const rest = {};
         for (const k of Object.keys(boxes)) if (k !== "num" && k !== "bar" && k !== "qr" && !k.startsWith("txt_")) rest[k] = boxes[k];
         return patchesFor(rest).then(async (got) => {
+          if (stat.vec) {
+            ops += vecBox(boxes.num) || "";
+            for (const k of Object.keys(boxes)) if (k.startsWith("txt_")) ops += vecBox(boxes[k]) || "";
+          }
+          ops += got.vec || "";
           got.forEach((t, i) => { ops += `q ${t.w} 0 0 ${-t.h} ${t.x} ${t.y + t.h} cm /P${i} Do Q\n`; });
           return { z: await deflate(ops + "Q\n"), got };
         });
@@ -1695,7 +1801,7 @@ export default function CertificateNumbering() {
           cur.pdf.addCompact(got.z, got.got);
           cur.bytes += got.z.size + got.got.reduce((s, t) => s + t.blob.size, 0);
         } else if (PDF) {
-          cur.pdf.addPage(got, K);
+          cur.pdf.addPage(got, K, got.vec);
           cur.bytes += got.reduce((s, t) => s + t.blob.size, 0);
         } else {
           await cur.zip.file(`${pad(q.n, p.digits)}.jpg`, got);

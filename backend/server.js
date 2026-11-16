@@ -97,8 +97,6 @@ app.use("/api/artwork", artworkRoutes);
 app.use("/api/platerequest", require("./routes/Platerequest"));
 const ocrHandwritingRoutes = require("./routes/Ocrhandwriting"); // adjust path to wherever you save the file
 app.use(ocrHandwritingRoutes);
-const chatRouter = require("./routes/chat.js");
-app.use(chatRouter);
 const billingReportRoutes = require("./routes/billingReport"); // adjust filename/path if different
 app.use("/api/billing-report", billingReportRoutes);
 const inventoryDashboardRoutes = require("./routes/Inventorydashboard");
