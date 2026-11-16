@@ -171,7 +171,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
       await sendMail({
         to,
         cc,
-        subject: `Inhouse Order Planned - ${indentNos}`,
+        subject: `Inhouse Order Planned${planningLocation ? " (" + planningLocation + ")" : ""} - ${indentNos}`,
         html,
         attachments
       });
