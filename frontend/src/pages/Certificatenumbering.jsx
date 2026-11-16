@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import * as XLSX from "xlsx";
-import opentype from "opentype.js";
 import PdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?worker&inline";
 
 const API = import.meta.env.VITE_API_URL;
@@ -59,73 +58,8 @@ const P = (f) => ({
   ugap: Math.max(0, num(f.ugap)),
 });
 
-/* ---------- vector text (glyph outlines for the PDF) ---------- */
-const FONT_BYTES = new Map();   // uploaded fonts: family -> ArrayBuffer
-const OT_CACHE = new Map();     // "family|bold|italic" -> { font, fake } | null
-let LOCAL_P = null;
-const loadLocalFonts = () => (LOCAL_P ||= (async () => {
-  try { return window.queryLocalFonts ? await window.queryLocalFonts() : []; } catch { return []; }
-})());
-async function getOtFont(family, bold, italic) {
-  const key = `${family}|${bold}|${italic}`;
-  if (OT_CACHE.has(key)) return OT_CACHE.get(key);
-  let ent = null;
-  try {
-    let buf = FONT_BYTES.get(family) || null, fake = !!bold;
-    if (!buf && family === "Century") { const r = await fetch("/fonts/CENTURY.TTF"); if (r.ok) buf = await r.arrayBuffer(); }
-    if (buf && italic) buf = null;   // no real italic face -> keep the image fallback
-    if (!buf && !FONT_BYTES.has(family) && family !== "Century") {
-      const all = (await loadLocalFonts()).filter((x) => x.family.toLowerCase() === family.toLowerCase());
-      const isB = (x) => /bold|black|heavy/i.test(x.style), isI = (x) => /italic|oblique/i.test(x.style);
-      let m = all.find((x) => isB(x) === !!bold && isI(x) === !!italic);
-      fake = false;
-      if (!m && bold) { m = all.find((x) => !isB(x) && isI(x) === !!italic); fake = !!m; }
-      if (m) buf = await (await m.blob()).arrayBuffer();
-    }
-    if (buf) ent = { font: opentype.parse(buf), fake };
-  } catch { ent = null; }
-  OT_CACHE.set(key, ent);
-  return ent;
-}
-const otPeek = (family, bold, italic) => OT_CACHE.get(`${family}|${!!bold}|${!!italic}`) || null;
-const hexRgb = (h) => {
-  const v = parseInt(String(h).slice(1), 16) || 0;
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((a) => (a / 255).toFixed(3)).join(" ");
-};
-let MC = null;
-/* text runs of one box -> PDF path operators in artwork pixels (y down); null if a font is missing */
-function vecBox(b) {
-  if (!b || !b.runs || !b.runs.length) return null;
-  if (!MC) MC = document.createElement("canvas").getContext("2d");
-  const n2 = (v) => v.toFixed(2);
-  let out = "";
-  for (const r of b.runs) {
-    if (!r.t) continue;
-    const ent = otPeek(r.family, r.bold, r.italic);
-    if (!ent) return null;
-    MC.font = `${r.italic ? "italic " : ""}${r.bold ? 700 : 400} ${r.px}px "${r.family}", sans-serif`;
-    MC.textBaseline = "top";
-    const ab = MC.measureText(r.t).alphabeticBaseline;
-    const base = r.y + (typeof ab === "number" && ab < 0 ? -ab : r.px * (ent.font.ascender / ent.font.unitsPerEm));
-    const path = ent.font.getPath(r.t, r.x, base, r.px);
-    let d = "", cx = 0, cy = 0;
-    for (const c of path.commands) {
-      if (c.type === "M") { d += `${n2(c.x)} ${n2(c.y)} m `; cx = c.x; cy = c.y; }
-      else if (c.type === "L") { d += `${n2(c.x)} ${n2(c.y)} l `; cx = c.x; cy = c.y; }
-      else if (c.type === "C") { d += `${n2(c.x1)} ${n2(c.y1)} ${n2(c.x2)} ${n2(c.y2)} ${n2(c.x)} ${n2(c.y)} c `; cx = c.x; cy = c.y; }
-      else if (c.type === "Q") {
-        d += `${n2(cx + (2 / 3) * (c.x1 - cx))} ${n2(cy + (2 / 3) * (c.y1 - cy))} ${n2(c.x + (2 / 3) * (c.x1 - c.x))} ${n2(c.y + (2 / 3) * (c.y1 - c.y))} ${n2(c.x)} ${n2(c.y)} c `;
-        cx = c.x; cy = c.y;
-      } else if (c.type === "Z") d += "h ";
-    }
-    const col = hexRgb(r.c);
-    out += ent.fake
-      ? `${col} rg ${col} RG ${n2(r.px * 0.035)} w 1 j ${d}B\n`
-      : `${col} rg ${d}f\n`;
-    if (r.ul && r.w) out += `${col} rg ${n2(r.x)} ${n2(r.y + r.px * 1.05)} ${n2(r.w)} ${n2(Math.max(1, r.px * 0.06))} re f\n`;
-  }
-  return `q\n${out}Q\n`;
-}
+/* uploaded fonts: family -> ArrayBuffer (also sent to the server when a job uses them) */
+const FONT_BYTES = new Map();
 
 /* ---------- barcode ---------- */
 function makeBarcode(val, p) {
@@ -181,11 +115,6 @@ function getQR(S, val, p) {
 
 /* ---------- artwork helpers ---------- */
 const MAX_ART = 14 * 1024 * 1024; // stays under MongoDB's 16 MB document limit
-const JPG_Q = 1;                  // preserve artwork quality in simplex PDF pages
-const PATCH_Q = 1;                      // quality of the number / Excel-text patches
-const BG_MAX = 1.2 * 1024 * 1024;       // retained for existing size decisions
-const BG_Q = 1;                         // preserve artwork quality when JPEG encoding is required
-const PDF_TARGET = 6 * 1024 * 1024;   // target size of each PDF file (5-6 MB)
 const toBlob = (cv, type, q) => new Promise((res) => cv.toBlob(res, type, q));
 const loadImg = (blob) =>
   new Promise((res, rej) => {
@@ -204,187 +133,7 @@ const loadImg = (blob) =>
 function makePreviewImg(_img) {
   return null;
 }
-/* Streaming PDF writer: pages are JPEG blobs appended to a Blob list, so the PDF is never one giant string
-   (jsPDF fails with "Invalid string length" past ~512 MB; this has no such limit). */
-function makePdfWriter(wpt, hpt) {
-  const enc = new TextEncoder();
-  const parts = [];
-  const offs = [];
-  let pos = 0, nextId = 3;
-  const kids = [];
-  const text = (t) => { const b = enc.encode(t); parts.push(b); pos += b.length; };
-  const blobPart = (b) => { parts.push(b); pos += b.size; };
-  const begin = (id) => { offs[id] = pos; text(`${id} 0 obj\n`); };
-  const W = wpt.toFixed(3), H = hpt.toFixed(3);
-  let bg = 0, shared = [], resId = 0;
-  const imageObj = (blob, wPx, hPx, filter, gray) => {
-    const id = nextId++;
-    begin(id);
-    text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} ${gray ? "/ColorSpace /DeviceGray /BitsPerComponent 1" : "/ColorSpace /DeviceRGB /BitsPerComponent 8"} /Filter ${filter} /Length ${blob.size} >>\nstream\n`);
-    blobPart(blob);
-    text("\nendstream\nendobj\n");
-    return id;
-  };
-  text("%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
-  return {
-    get pages() { return kids.length; },
-    /* the artwork is stored ONCE in the file and shared by every page */
-    setBackground(blob, wPx, hPx, filter) { bg = imageObj(blob, wPx, hPx, filter); },
-    /* shared 1-bit stencil (digit / word / custom text), stored once per file */
-    useMask(name, blob, wPx, hPx) {
-      const id = nextId++;
-      begin(id);
-      text(`<< /Type /XObject /Subtype /Image /Width ${wPx} /Height ${hPx} /ImageMask true /BitsPerComponent 1 /Filter /FlateDecode /Length ${blob.size} >>\nstream\n`);
-      blobPart(blob);
-      text("\nendstream\nendobj\n");
-      shared.push(`/${name} ${id} 0 R`);
-    },
-    /* compact page: compressed content stream + optional patches (Excel text) */
-    addCompact(z, patches) {
-      let res;
-      if (!patches.length) {
-        if (!resId) { resId = nextId++; begin(resId); text(`<< /XObject << ${shared.join(" ")} >> >>\nendobj\n`); }
-        res = `${resId} 0 R`;
-      } else {
-        const refs = shared.slice();
-        patches.forEach((q, i) => {
-          const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : q.flate ? imageObj(q.blob, q.w, q.h, "/FlateDecode") : imageObj(q.blob, q.w, q.h, "/DCTDecode");
-          refs.push(`/P${i} ${id} 0 R`);
-        });
-        res = `<< /XObject << ${refs.join(" ")} >> >>`;
-      }
-      const cont = nextId++, page = nextId++;
-      begin(cont);
-      text(`<< /Filter /FlateDecode /Length ${z.size} >>\nstream\n`);
-      blobPart(z);
-      text("\nendstream\nendobj\n");
-      begin(page);
-      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources ${res} /Contents ${cont} 0 R >>\nendobj\n`);
-      kids.push(page);
-    },
-    /* a page = shared artwork + small JPEG patches (number / barcode / QR / Excel text) placed on top.
-       patches: [{ blob, x, y, w, h }] in artwork pixels, k = points per pixel */
-    addPage(patches, k, extra = "") {
-      const refs = [];
-      let ops = "";
-      if (bg) { refs.push(`/Bg ${bg} 0 R`); ops += `q ${W} 0 0 ${H} 0 0 cm /Bg Do Q\n`; }
-      patches.forEach((q, i) => {
-        const id = q.bits ? imageObj(q.blob, q.w, q.h, "/FlateDecode", true) : q.flate ? imageObj(q.blob, q.w, q.h, "/FlateDecode") : imageObj(q.blob, q.w, q.h, "/DCTDecode");
-        refs.push(`/P${i} ${id} 0 R`);
-        const w = q.w * k, h = q.h * k, x = q.x * k, y = hpt - q.y * k - h;
-        ops += `q ${w.toFixed(3)} 0 0 ${h.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)} cm /P${i} Do Q\n`;
-      });
-      const cont = nextId++, page = nextId++;
-      begin(cont);
-      const all = extra ? ops + `q ${k.toFixed(6)} 0 0 ${(-k).toFixed(6)} 0 ${hpt.toFixed(3)} cm\n${extra}Q\n` : ops;
-      text(`<< /Length ${all.length} >>\nstream\n${all}endstream\nendobj\n`);
-      begin(page);
-      text(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << ${refs.join(" ")} >> >> /Contents ${cont} 0 R >>\nendobj\n`);
-      kids.push(page);
-    },
-    finish() {
-      begin(2);
-      text(`<< /Type /Pages /Count ${kids.length} /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] >>\nendobj\n`);
-      begin(1);
-      text("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-      const xref = pos;
-      let x = `xref\n0 ${nextId}\n0000000000 65535 f \n`;
-      for (let i = 1; i < nextId; i++) x += `${String(offs[i]).padStart(10, "0")} 00000 n \n`;
-      text(x + `trailer\n<< /Size ${nextId} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
-      return new Blob(parts, { type: "application/pdf" });
-    },
-  };
-}
-/* 1-bit black/white image -> Flate-compressed bytes (barcode / QR patches) */
-const bitsBlob = (img) => {
-  const { width: w, height: h, data: d } = img, rb = (w + 7) >> 3, out = new Uint8Array(rb * h);
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (d[(y * w + x) * 4] >= 128) out[y * rb + (x >> 3)] |= 0x80 >> (x & 7);
-  return new Response(new Blob([out]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
-};
 const nextFrame = () => new Promise((r) => setTimeout(r, 30));
-const deflate = (s) => new Response(new Blob([s]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
-
-/* canvas -> lossless RGB (Flate) bytes, used for text patches so they stay perfectly sharp */
-const rgbFlate = async (cv) => {
-  const w = cv.width, h = cv.height;
-  const d = cv.getContext("2d").getImageData(0, 0, w, h).data;
-  const rgb = new Uint8Array(w * h * 3);
-  for (let i = 0, j = 0; i < d.length; i += 4) { rgb[j++] = d[i]; rgb[j++] = d[i + 1]; rgb[j++] = d[i + 2]; }
-  return new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
-};
-
-/* fast "store" ZIP writer (no compression): much quicker than JSZip for hundreds of JPEG pages */
-const CRC_T = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
-  return t;
-})();
-const crc32 = (u8) => {
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-};
-function makeZipWriter() {
-  const enc = new TextEncoder();
-  const parts = [], ents = [];
-  let pos = 0;
-  return {
-    async file(name, blob) {
-      const u8 = new Uint8Array(await blob.arrayBuffer());
-      const nb = enc.encode(name), crc = crc32(u8), size = u8.length;
-      const h = new DataView(new ArrayBuffer(30));
-      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
-      h.setUint16(8, 0, true); h.setUint16(10, 0, true); h.setUint16(12, 0x21, true);
-      h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
-      h.setUint16(26, nb.length, true); h.setUint16(28, 0, true);
-      ents.push({ nb, crc, size, off: pos });
-      parts.push(new Uint8Array(h.buffer), nb, blob);
-      pos += 30 + nb.length + size;
-    },
-    finish() {
-      const cdStart = pos;
-      for (const e of ents) {
-        const d = new DataView(new ArrayBuffer(46));
-        d.setUint32(0, 0x02014b50, true); d.setUint16(4, 20, true); d.setUint16(6, 20, true); d.setUint16(8, 0x0800, true);
-        d.setUint16(10, 0, true); d.setUint16(12, 0, true); d.setUint16(14, 0x21, true);
-        d.setUint32(16, e.crc, true); d.setUint32(20, e.size, true); d.setUint32(24, e.size, true);
-        d.setUint16(28, e.nb.length, true); d.setUint32(42, e.off, true);
-        parts.push(new Uint8Array(d.buffer), e.nb);
-        pos += 46 + e.nb.length;
-      }
-      const z = new DataView(new ArrayBuffer(22));
-      z.setUint32(0, 0x06054b50, true); z.setUint16(8, ents.length, true); z.setUint16(10, ents.length, true);
-      z.setUint32(12, pos - cdStart, true); z.setUint32(16, cdStart, true);
-      parts.push(new Uint8Array(z.buffer));
-      return new Blob(parts, { type: "application/zip" });
-    },
-  };
-}
-
-/* text -> shared 1-bit mask, drawn at 3x so the edges stay sharp (used by the compact PDF) */
-async function makeMask(lines, font, px, ul) {
-  const pd = Math.ceil(px * 0.25);
-  const mc = document.createElement("canvas").getContext("2d");
-  mc.font = font;
-  const wd = Math.max(1, ...lines.map((l) => mc.measureText(l).width));
-  const W = Math.ceil(wd + 2 * pd), H = Math.ceil(px * 1.2 * lines.length + 2 * pd);
-  const SS = Math.max(3, Math.min(8, Math.floor(16000 / Math.max(W, H))));
-  const c = document.createElement("canvas");
-  c.width = W * SS; c.height = H * SS;
-  const x = c.getContext("2d", { alpha: false });
-  x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height);
-  x.scale(SS, SS);
-  x.fillStyle = "#000"; x.font = font; x.textBaseline = "top";
-  lines.forEach((ln, i) => {
-    const ly = pd + i * px * 1.2;
-    x.fillText(ln, pd, ly);
-    if (ul && ln) x.fillRect(pd, ly + px * 1.05, x.measureText(ln).width, Math.max(1, px * 0.06));
-  });
-  const blob = await bitsBlob(x.getImageData(0, 0, c.width, c.height));
-  return { blob, w: c.width, h: c.height, pw: W, ph: H, pad: pd };
-}
 
 /* first page of a PDF -> PNG blob, rendered so that 1 page-mm = 1 artwork-mm at the returned dpi */
 async function rasterPdf(file, dpi) {
@@ -413,33 +162,8 @@ async function rasterPdf(file, dpi) {
   return { blob, dpi: Math.round(scale * 72), pages };
 }
 
-/* artwork as one lossless image for the PDF (Flate); falls back to a near-lossless JPEG if the browser can't deflate */
-async function makeBackground(S, p) {
-  if (!S.img || p.noArt) return null;
-  const c = document.createElement("canvas");
-  c.width = S.w; c.height = S.h;
-  const x = c.getContext("2d", { alpha: false });
-  x.fillStyle = "#fff";
-  x.fillRect(0, 0, S.w, S.h);
-  x.drawImage(S.img, 0, 0, S.w, S.h);
-  try {
-    const d = x.getImageData(0, 0, S.w, S.h).data;
-    const rgb = new Uint8Array(S.w * S.h * 3);
-    for (let i = 0, j = 0; i < d.length; i += 4) { rgb[j++] = d[i]; rgb[j++] = d[i + 1]; rgb[j++] = d[i + 2]; }
-    const z = await new Response(new Blob([rgb]).stream().pipeThrough(new CompressionStream("deflate"))).blob();
-    if (z.size <= BG_MAX) return { blob: z, filter: "/FlateDecode" };
-    const j = await toBlob(c, "image/jpeg", BG_Q);
-    if (j && j.size < z.size) return { blob: j, filter: "/DCTDecode" };
-    return { blob: z, filter: "/FlateDecode" };
-  } catch {
-    const j = await toBlob(c, "image/jpeg", 1);
-    if (!j) throw new Error("Could not prepare the artwork for the PDF.");
-    return { blob: j, filter: "/DCTDecode" };
-  }
-}
-
-/* ---------- render one certificate (row = Excel row for this certificate, if any) ----------
-   out (optional): receives the bounding box of every drawn element, used to build PDF patches */
+/* ---------- render one certificate for the on-screen preview (row = Excel row for this certificate, if any)
+   out (optional): receives the bounding box of every drawn element */
 function render(S, ctx, n, s, p, preview, row, out) {
   const B = preview ? S.box : out;
   const u = p.dpi / 25.4, px = (p.pt * p.dpi) / 72, val = pad(n, p.digits);
@@ -766,7 +490,7 @@ export default function CertificateNumbering() {
 
   const cvRefs = useRef([null, null, null]);
   const S = useRef({ img: null, w: 2480, h: 1754, box: { num: null, bar: null, qr: null }, bc: new Map(), rows: [], cols: [], blob: null, prev: null, tplCols: new Map(), clearBusy: false, slots: [blankSlot(), blankSlot(), blankSlot()] }).current;
-  /* S.img / S.w / S.h / S.prev / S.blob / S.box always mirror one slot, so render() and generate() work unchanged */
+  /* S.img / S.w / S.h / S.prev / S.blob / S.box always mirror one slot, so render() works unchanged */
   const bind = (i) => { const s = S.slots[i]; S.img = s.img; S.blob = s.blob; S.prev = s.prev; S.w = s.w; S.h = s.h; S.box = s.box; };
   const drag = useRef(null);
   const stopFlag = useRef(false);
@@ -856,7 +580,6 @@ export default function CertificateNumbering() {
       document.fonts.add(face);
       await fontSave(name, data);
       FONT_BYTES.set(name, data);
-      OT_CACHE.clear();
       setFonts((fs) => (fs.includes(name) ? fs : [name, ...fs]));
       say(`Font "${name}" saved.`, "ok");
     } catch { say("Could not read that font file.", "err"); }
@@ -1478,8 +1201,8 @@ export default function CertificateNumbering() {
     say("");
   };
 
-  /* ---------- generate ---------- */
-  const tick = () => new Promise((r) => setTimeout(r, 0));
+  /* ---------- generate (runs on the server; same output, same file names, same messages) ---------- */
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const saveBlob = (name, blob) => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1504,99 +1227,13 @@ export default function CertificateNumbering() {
     return data;
   }
 
-  async function generateSimplex(kind, slot) {
-    const p = P(f);
-    if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
-      say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
-    }
-    if (String(p.to).length > p.digits) {
-      say(`"To" needs ${String(p.to).length} digits. Raise Digits to match.`, "err"); return;
-    }
-    const total = p.to - p.from + 1;
-    if (sheet && total > S.rows.length) {
-      say(`Range has ${total.toLocaleString()} certificates but the Excel has only ${S.rows.length.toLocaleString()} rows.`, "err"); return;
-    }
-    const u = p.dpi / 25.4, gap = Math.round(p.ugap * u);
-    const per = p.ups * p.ucols;
-    const SW = S.w * p.ucols + gap * (p.ucols - 1), SH = S.h * p.ups + gap * (p.ups - 1);
-    if (SW * SH > 250e6) { say("Sheet is too large for this browser. Lower UPS / columns or the DPI.", "err"); return; }
-    const sheets = Math.ceil(total / per);
-    try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
-    for (const t of S.texts || []) {
-      if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
-    }
-    setRunning(true);
-    stopFlag.current = false;
-    setProgress(0);
-    let reprint = false;
-    try { reprint = !!(await reserve(p)).reprint; }
-    catch (err) { say(err.message, "err"); setRunning(false); return; }
-
-    const off = document.createElement("canvas");
-    off.width = SW; off.height = SH;
-    const ctx = off.getContext("2d", { alpha: false });
-    const ZIP = kind === "zip";
-    const PDF = true;
-    const wpt = (SW * 72) / p.dpi, hpt = (SH * 72) / p.dpi;
-    let cur = null, done = 0;
-    const zipBundle = ZIP ? makeZipWriter() : null;
-    let zipCount = 0;
-    const closeFile = async (c) => {
-      const pdfBlob = c.pdf.finish();
-      const base = `sheets_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}`;
-      if (ZIP) {
-        await zipBundle.file(`Certificates/${base}.pdf`, pdfBlob);
-        zipCount++;
-      } else saveBlob(`${base}.pdf`, pdfBlob);
-    };
-    try {
-      S.bmp = S.img && !p.noArt && window.createImageBitmap ? await createImageBitmap(S.img) : null;
-      for (let si = 0; si < sheets && !stopFlag.current; si++) {
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, SW, SH);
-        let last = p.from + si * per;
-        for (let i = 0; i < per; i++) {
-          const n = p.from + si * per + i;
-          if (n > p.to) break;
-          const col = Math.floor(i / p.ups), row = i % p.ups;   // fills down the column first
-          ctx.save();
-          ctx.translate(col * (S.w + gap), row * (S.h + gap));
-          render(S, ctx, n, 1, p, false, S.rows[n - p.from]);
-          ctx.restore();
-          last = n; done++;
-        }
-        const blob = await toBlob(off, "image/jpeg", JPG_Q);
-        if (!blob) throw new Error("Could not encode a sheet (too large for this browser).");
-        if (!cur) cur = { a: p.from + si * per, last, count: 0, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : makeZipWriter() };
-        if (PDF) cur.pdf.addPage([{ blob, x: 0, y: 0, w: SW, h: SH }], 72 / p.dpi);
-        else await cur.zip.file(`sheet_${pad(si + 1, 3)}.jpg`, blob);
-        cur.last = last; cur.count++; cur.bytes += blob.size;
-        setProgress((done / total) * 100);
-        say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
-        await tick();
-        if (cur.count >= p.per || cur.bytes >= 1.9 * 1024 * 1024 * 1024) { const c = cur; cur = null; await closeFile(c); }
-      }
-      if (!stopFlag.current && cur) await closeFile(cur);
-      if (ZIP && zipCount) saveBlob(`sheets_${pad(p.from, p.digits)}-${pad(p.to, p.digits)}_art${slot + 1}.zip`, zipBundle.finish());
-      if (stopFlag.current) say("Stopped.");
-      else say(`Done. ${total.toLocaleString()} certificates on ${sheets.toLocaleString()} sheets${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
-    } catch (err) {
-      say("Failed: " + (err.message || err), "err");
-    } finally {
-      if (S.bmp) { try { S.bmp.close(); } catch { /* ignore */ } S.bmp = null; }
-      setRunning(false);
-    }
-  }
-
   async function generate(kind, slot = 0) {
-    loadLocalFonts();   // browser asks once for permission to read installed fonts (needed for Arial etc.)
     if (running) return;
     bind(slot);
-    try { await generateInner(kind, slot); } finally { bind(actRef.current); }
+    try { await generateServer(kind, slot); } finally { bind(actRef.current); }
   }
 
-  async function generateInner(kind, slot) {
-    if (f.mode === "simplex") return generateSimplex(kind, slot);
+  async function generateServer(kind, slot) {
     const p = P(f);
     if (!Number.isInteger(p.from) || !Number.isInteger(p.to) || p.from < 0 || p.to < p.from) {
       say("Enter a valid range: From and To are whole numbers and To ≥ From.", "err"); return;
@@ -1608,233 +1245,82 @@ export default function CertificateNumbering() {
     if (sheet && total > S.rows.length) {
       say(`Range has ${total.toLocaleString()} certificates but the Excel has only ${S.rows.length.toLocaleString()} rows. Lower "To" or add rows.`, "err"); return;
     }
-    try { await document.fonts.load(`${p.bold ? 700 : 400} 20px "${p.family}"`); } catch { /* ignore */ }
-
-    for (const t of S.texts || []) {
-      if (t.family) { try { await document.fonts.load(`20px "${t.family}"`); } catch { /* ignore */ } }
+    const simplex = f.mode === "simplex";
+    if (simplex) {
+      const u = p.dpi / 25.4, gap = Math.round(p.ugap * u);
+      const SW = S.w * p.ucols + gap * (p.ucols - 1), SH = S.h * p.ups + gap * (p.ups - 1);
+      if (SW * SH > 250e6) { say("Sheet is too large for this browser. Lower UPS / columns or the DPI.", "err"); return; }
     }
+
     setRunning(true);
     stopFlag.current = false;
     setProgress(0);
     let reprint = false;
+    try { reprint = !!(await reserve(p)).reprint; }
+    catch (err) { say(err.message, "err"); setRunning(false); return; }
+
+    let jobId = null;
     try {
-      const r = await reserve(p);
-      reprint = !!r.reprint;
-    } catch (err) {
-      say(err.message, "err");
-      setRunning(false);
-      return;
-    }
-
-    const off = document.createElement("canvas");
-    off.width = S.w; off.height = S.h;
-    const ctx = off.getContext("2d", { alpha: false });   // opaque canvas: faster fill + JPEG encode
-    const wpt = (S.w * 72) / p.dpi, hpt = (S.h * 72) / p.dpi;
-    let done = 0;
-
-    try {
-      /* decode the artwork once; drawImage from a bitmap avoids re-decoding it on every page */
-      S.bmp = S.img && !p.noArt && window.createImageBitmap ? await createImageBitmap(S.img) : null;
-
-      /* split output by size: a new file starts once ~1.9 GB is reached (viewers fail on PDFs of 2 GB+) */
-      const MAX_FILE = 1.9 * 1024 * 1024 * 1024;
-      const ZIP = kind === "zip";
-      const PDF = true;
-      /* PDF output is generated for both download choices; ZIP wraps that PDF as a single archive entry. */
-      const bg = PDF ? await makeBackground(S, p) : null;
-      const bgBytes = bg ? bg.blob.size : 0;
-      const COMPACT = PDF && p.noArt;   // PDF + hidden background → tiny vector pages
-      const pageRoom = PDF && !COMPACT ? Math.max(1024 * 1024, PDF_TARGET - bgBytes) : Infinity;
-      const K = 72 / p.dpi;
-      const INFLIGHT = PDF ? 8 : S.w * S.h > 24e6 ? 4 : Math.min(16, Math.max(8, navigator.hardwareConcurrency || 8));
-      const pending = [];
-      let cur = null;
-      const zipBundle = ZIP ? makeZipWriter() : null;
-      let zipCount = 0;
-
-      /* crop each drawn element (with a small margin) out of the rendered page and JPEG-encode it */
-      const patchesFor = (boxes) => {
-        const jobs = [];
-        let vec = "";
-        for (const k of Object.keys(boxes)) {
-          const b = boxes[k];
-          if (!b) continue;
-          if (b.runs) { const v = vecBox(b); if (v) { vec += v; continue; } }
-          if ((k === "bar" && p.qz) || k === "qr") {
-            const bx0 = Math.ceil(b.x), by0 = Math.ceil(b.y);
-            const bw = Math.floor(b.x + b.w) - bx0, bh = Math.floor(b.y + b.h) - by0;
-            if (bw >= 1 && bh >= 1) {
-              const bc = document.createElement("canvas");
-              bc.width = bw; bc.height = bh;
-              const bctx = bc.getContext("2d", { alpha: false });
-              bctx.drawImage(off, bx0, by0, bw, bh, 0, 0, bw, bh);
-              jobs.push(bitsBlob(bctx.getImageData(0, 0, bw, bh)).then((blob) => ({ blob, bits: true, x: bx0, y: by0, w: bw, h: bh })));
-              continue;
-            }
-          }
-          const pad4 = Math.ceil(Math.max(4, Math.min(b.h * 0.25, 40)));
-          const x0 = Math.max(0, Math.floor(b.x - pad4)), y0 = Math.max(0, Math.floor(b.y - pad4));
-          const x1 = Math.min(S.w, Math.ceil(b.x + b.w + pad4)), y1 = Math.min(S.h, Math.ceil(b.y + b.h + pad4));
-          const w = x1 - x0, h = y1 - y0;
-          if (w < 1 || h < 1) continue;
-          const c = document.createElement("canvas");
-          c.width = w; c.height = h;
-          c.getContext("2d", { alpha: false }).drawImage(off, x0, y0, w, h, 0, 0, w, h);
-          jobs.push(rgbFlate(c).then((blob) => ({ blob, flate: true, x: x0, y: y0, w, h })));
-        }
-        return Promise.all(jobs).then((arr) => { arr.vec = vec; return arr; });
+      say("Uploading to server…");
+      const fd = new FormData();
+      const meta = {
+        f, cols: colsRef.current, texts: textsRef.current, rows: S.rows,
+        kind, slot, w: S.w, h: S.h,
       };
+      fd.append("meta", new Blob([JSON.stringify(meta)], { type: "application/json" }), "meta.json");
+      if (S.img && S.blob) fd.append("art", S.blob, "art");
+      const used = new Set([p.family, ...textsRef.current.filter((t) => t.on && t.text && t.family).map((t) => t.family)]);
+      used.forEach((name) => {
+        const data = FONT_BYTES.get(name);
+        if (data) fd.append("fonts", new Blob([data]), encodeURIComponent(name));
+      });
 
-      /* fonts for vector text */
-      const vecFonts = [[p.family, p.bold, false], ...(S.texts || []).filter((t) => t.on && t.text).map((t) => [t.family || p.family, t.bold, t.italic])];
-      for (const [fa, bo, it] of vecFonts) await getOtFont(fa, !!bo, !!it);
-      const fontsOK = vecFonts.every(([fa, bo, it]) => otPeek(fa, bo, it));
+      const r0 = await fetch(`${API}/api/numbering-jobs/generate`, { method: "POST", headers: authOnly(), body: fd });
+      const d0 = await r0.json().catch(() => ({}));
+      if (!r0.ok) throw new Error(d0.message || "Could not start the job on the server.");
+      jobId = d0.id;
 
-      /* ----- compact mode (PDF + hidden background) ----- */
-      let stat = null;
-      if (COMPACT) {
-        const u = p.dpi / 25.4, px = (p.pt * p.dpi) / 72;
-        const nf = `${p.bold ? 700 : 400} ${px}px "${p.family}", sans-serif`;
-        const mctx = document.createElement("canvas").getContext("2d");
-        mctx.font = nf;
-        const glyphs = {};
-        for (const d of "0123456789") glyphs[d] = await makeMask([d], nf, px, false);
-        const word = p.word ? await makeMask([p.word], nf, px, false) : null;
-        const items = [];
-        for (const t of S.texts || []) {
-          if (!t.on || !t.text) continue;
-          const tpx = ((num(t.pt) || 12) * p.dpi) / 72;
-          const tf = `${t.italic ? "italic " : ""}${t.bold ? 700 : 400} ${tpx}px "${t.family || p.family}", sans-serif`;
-          items.push({ m: await makeMask(String(t.text).split("\n"), tf, tpx, t.underline), x: num(t.x) * u, y: num(t.y) * u, c: t.color });
+      const got = new Set();
+      const grab = async (files) => {
+        for (const fl of files || []) {
+          if (got.has(fl.index)) continue;
+          got.add(fl.index);
+          const dl = await fetch(`${API}/api/numbering-jobs/generate/${jobId}/file/${fl.index}`, { headers: authOnly() });
+          if (!dl.ok) throw new Error(`Could not download ${fl.name}.`);
+          saveBlob(fl.name, await dl.blob());
         }
-        stat = fontsOK
-          ? { u, mctx, glyphs, word: null, items: [], offW: 0, vec: true }
-          : { u, mctx, glyphs, word, items, offW: p.word ? mctx.measureText(p.word + " ").width : 0 };
+      };
+      let stopSent = false, st;
+      for (;;) {
+        if (stopFlag.current && !stopSent) {
+          stopSent = true;
+          await fetch(`${API}/api/numbering-jobs/generate/${jobId}/stop`, { method: "POST", headers: authHeaders() }).catch(() => {});
+        }
+        const r = await fetch(`${API}/api/numbering-jobs/generate/${jobId}`, { headers: authHeaders(), cache: "no-store" });
+        st = await r.json();
+        if (!r.ok) throw new Error(st.message || "Lost contact with the server job.");
+        setProgress(st.total ? (st.done / st.total) * 100 : 0);
+        if (st.total) say(`Rendering ${st.done.toLocaleString()} of ${st.total.toLocaleString()}…`);
+        await grab(st.files);
+        if (st.state !== "running") {
+          // pick up any file that finished between the last poll and the end
+          const r2 = await fetch(`${API}/api/numbering-jobs/generate/${jobId}`, { headers: authHeaders(), cache: "no-store" });
+          const s2 = await r2.json();
+          await grab(s2.files);
+          st = s2;
+          break;
+        }
+        await sleep(500);
       }
-      const rgb = (h) => {
-        const v = parseInt(h.slice(1), 16);
-        return [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((a) => (a / 255).toFixed(3)).join(" ");
-      };
-      const put = (name, m, x, y) =>
-        `q ${m.pw} 0 0 ${-m.ph} ${(x - m.pad).toFixed(1)} ${(y - m.pad + m.ph).toFixed(1)} cm /${name} Do Q\n`;
-      const compactPage = (n, boxes) => {
-        const val = pad(n, p.digits), nx = p.nx * stat.u, ny = p.ny * stat.u;
-        let ops = `q ${K.toFixed(6)} 0 0 ${(-K).toFixed(6)} 0 ${hpt.toFixed(3)} cm\n`;
-        if (stat.word) ops += `${rgb(p.wc)} rg\n` + put("W", stat.word, nx, ny);
-        ops += `${rgb(p.nc)} rg\n`;
-        for (let i = 0; !stat.vec && i < val.length; i++) {
-          const dx = stat.mctx.measureText(val.slice(0, i)).width;
-          ops += put("G" + val[i], stat.glyphs[val[i]], nx + stat.offW + dx, ny);
-        }
-        stat.items.forEach((it, i) => { ops += `${rgb(it.c)} rg\n` + put("T" + i, it.m, it.x, it.y); });
 
-        /* barcode → vector bars */
-        if (boxes.bar && boxes.bar.cv) {
-          const b = boxes.bar, cv = b.cv;
-          const d = cv.getContext("2d").getImageData(0, cv.height >> 1, cv.width, 1).data;
-          let rects = "", s = -1;
-          for (let i = 0; i <= cv.width; i++) {
-            const dark = i < cv.width && d[i * 4 + 3] > 128 && d[i * 4] < 128;
-            if (dark && s < 0) s = i;
-            else if (!dark && s >= 0) { rects += `${s} 0 ${i - s} ${cv.height} re `; s = -1; }
-          }
-          ops += `q 1 0 0 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)} cm 0 g ${rects}f Q\n`;
-        }
-        /* QR → vector modules */
-        if (boxes.qr && boxes.qr.cv) {
-          const b = boxes.qr, cv = b.cv, W = cv.width;
-          const d = cv.getContext("2d").getImageData(0, 0, W, W).data;
-          const at = (x, y) => d[(y * W + x) * 4] < 128;
-          let i0 = 0;
-          while (i0 < W && !at(i0, i0)) i0++;
-          if (i0 < W) {
-            const cell = i0 / 4, nm = Math.round(W / cell) - 8;
-            let rects = "";
-            for (let r = 0; r < nm; r++) {
-              let s = -1;
-              for (let k = 0; k <= nm; k++) {
-                const dark = k < nm && at(Math.floor((k + 4.5) * cell), Math.floor((r + 4.5) * cell));
-                if (dark && s < 0) s = k;
-                else if (!dark && s >= 0) { rects += `${s} ${r} ${k - s} 1 re `; s = -1; }
-              }
-            }
-            ops += `q ${cell} 0 0 ${cell} ${(b.x + 4 * cell).toFixed(2)} ${(b.y + 4 * cell).toFixed(2)} cm 0 g ${rects}f Q\n`;
-          }
-        }
-        /* Excel columns still go through the normal patches */
-        const rest = {};
-        for (const k of Object.keys(boxes)) if (k !== "num" && k !== "bar" && k !== "qr" && !k.startsWith("txt_")) rest[k] = boxes[k];
-        return patchesFor(rest).then(async (got) => {
-          if (stat.vec) {
-            ops += vecBox(boxes.num) || "";
-            for (const k of Object.keys(boxes)) if (k.startsWith("txt_")) ops += vecBox(boxes[k]) || "";
-          }
-          ops += got.vec || "";
-          got.forEach((t, i) => { ops += `q ${t.w} 0 0 ${-t.h} ${t.x} ${t.y + t.h} cm /P${i} Do Q\n`; });
-          return { z: await deflate(ops + "Q\n"), got };
-        });
-      };
-
-      const closeFile = async (c) => {
-        const pdfBlob = c.pdf.finish();
-        const base = `certificates_${pad(c.a, p.digits)}-${pad(c.last, p.digits)}_art${slot + 1}`;
-        if (ZIP) {
-        await zipBundle.file(`Certificates/${base}.pdf`, pdfBlob);
-        zipCount++;
-      } else saveBlob(`${base}.pdf`, pdfBlob);
-      };
-      /* takes the oldest encoded page (order is preserved) and adds it to the current output file */
-      const take = async () => {
-        const q = pending.shift();
-        const got = await q.work;
-        if (COMPACT ? got.got.some((t) => !t.blob) : PDF ? got.some((t) => !t.blob) : !got) throw new Error("Could not encode a page (artwork too large for this browser).");
-        if (!cur) {
-          cur = { a: q.n, last: q.n, bytes: 0, pdf: PDF ? makePdfWriter(wpt, hpt) : null, zip: PDF ? null : makeZipWriter() };
-          if (cur.pdf && bg) { cur.pdf.setBackground(bg.blob, S.w, S.h, bg.filter); cur.bytes += bg.blob.size; }
-          if (COMPACT) {
-            for (const d of Object.keys(stat.glyphs)) { const g = stat.glyphs[d]; cur.pdf.useMask("G" + d, g.blob, g.w, g.h); cur.bytes += g.blob.size; }
-            if (stat.word) { cur.pdf.useMask("W", stat.word.blob, stat.word.w, stat.word.h); cur.bytes += stat.word.blob.size; }
-            stat.items.forEach((it, i) => { cur.pdf.useMask("T" + i, it.m.blob, it.m.w, it.m.h); cur.bytes += it.m.blob.size; });
-          }
-        }
-        if (COMPACT) {
-          cur.pdf.addCompact(got.z, got.got);
-          cur.bytes += got.z.size + got.got.reduce((s, t) => s + t.blob.size, 0);
-        } else if (PDF) {
-          cur.pdf.addPage(got, K, got.vec);
-          cur.bytes += got.reduce((s, t) => s + t.blob.size, 0);
-        } else {
-          await cur.zip.file(`${pad(q.n, p.digits)}.jpg`, got);
-          cur.bytes += got.size;
-        }
-        cur.last = q.n;
-        cur.count = (cur.count || 0) + 1;
-        done++;
-        if (done % 20 === 0 || done === total) {
-          setProgress((done / total) * 100);
-          say(`Rendering ${done.toLocaleString()} of ${total.toLocaleString()}…`);
-          await tick();
-        }
-        if (cur.bytes >= MAX_FILE || cur.bytes - bgBytes >= pageRoom || cur.count >= p.per) { const c = cur; cur = null; await closeFile(c); }
-      };
-
-      for (let n = p.from; n <= p.to && !stopFlag.current; n++) {
-        if (pending.length >= INFLIGHT) await take();
-        const boxes = {};
-        render(S, ctx, n, 1, p, false, S.rows[n - p.from], boxes);
-        pending.push({ n, work: COMPACT ? compactPage(n, boxes) : PDF ? patchesFor(boxes) : toBlob(off, "image/jpeg", JPG_Q) });
-      }
-      if (!stopFlag.current) {
-        while (pending.length) await take();
-        if (cur) await closeFile(cur);
-      }
-      if (ZIP && zipCount) saveBlob(`certificates_${pad(p.from, p.digits)}-${pad(p.to, p.digits)}_art${slot + 1}.zip`, zipBundle.finish());
-      if (stopFlag.current) say("Stopped.");
+      if (st.state === "error") throw new Error(st.error || "Generation failed.");
+      if (st.state === "stopped" || stopFlag.current) say("Stopped.");
+      else if (simplex) say(`Done. ${total.toLocaleString()} certificates on ${st.sheets.toLocaleString()} sheets${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
       else say(`Done. ${total.toLocaleString()} certificates generated${reprint ? " (re-print of an issued range)" : ""}.`, "ok");
     } catch (err) {
       say("Failed: " + (err.message || err), "err");
     } finally {
-      if (S.bmp) { try { S.bmp.close(); } catch { /* ignore */ } S.bmp = null; }
+      if (jobId) fetch(`${API}/api/numbering-jobs/generate/${jobId}`, { method: "DELETE", headers: authHeaders() }).catch(() => {});
       setRunning(false);
     }
   }
@@ -2238,8 +1724,6 @@ export default function CertificateNumbering() {
 
       {/* workspace grid: dynamically expands preview canvas */}
       <div className={`cn-work ${!sideOpen ? "no-side" : ""} ${!propsOpen ? "no-props" : ""}`} ref={workRef}>
-        
-       
 
         {/* ---------- left: slim tool rail ---------- */}
         <nav className="cn-rail" aria-label="Tools">
@@ -2309,9 +1793,6 @@ export default function CertificateNumbering() {
                 </>
               )}
               <span className="cn-dim">{dims[act].w}×{dims[act].h}px</span>
-
-
-
             </div>
 
             <div className="cn-tool-center">
@@ -2345,7 +1826,7 @@ export default function CertificateNumbering() {
                 </button>
               )}
               <div className="cn-gen-btns">
-                
+
                 {running && <button className="cn-btn stop sm" type="button" onClick={() => { stopFlag.current = true; }}><Ic n="stop" /> Stop</button>}
               </div>            </div>
           </div>

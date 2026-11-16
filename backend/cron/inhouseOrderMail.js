@@ -63,6 +63,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
           <td style="${td}">${esc(locName)}</td>
           <td style="${td}">${esc(fmtDate(reqDate || o.expectedDeliveryDate))}</td>
           <td style="${td}">${esc(o.productCode)}</td>
+          <td style="${td}">${esc(o.customerName)}</td>
           <td style="${td}">${esc(o.description)}</td>
           <td style="${td}">${esc(o.paperGroup)}</td>
           <td style="${td};text-align:right">${esc(qty)}</td>
@@ -110,7 +111,7 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
       <table style="border-collapse:collapse;font-family:Arial,sans-serif">
         <thead><tr>
           <th style="${th}">Indent No</th><th style="${th}">Location</th><th style="${th}">Required date</th>
-          <th style="${th}">Product Code</th><th style="${th}">Description</th><th style="${th}">Paper Group</th>
+          <th style="${th}">Product Code</th><th style="${th}">Customer Name</th><th style="${th}">Description</th><th style="${th}">Paper Group</th>
           <th style="${th}">Quantity</th><th style="${th}">GSM</th><th style="${th}">Close size</th>
           <th style="${th}">Colour</th><th style="${th}">Lamination</th><th style="${th}">Finish</th>
           <th style="${th}">Specification</th><th style="${th}">Sample Type</th>
