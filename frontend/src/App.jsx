@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState, createContext, useContext, lazy, Suspense } from "react";
 import axios from "axios";
 import BASE_URL from "./config/api";
@@ -12,6 +12,8 @@ import InternalLogin from "./pages/InternalLogin";
 
 /* PROTECTED ROUTE */
 import BaseProtectedRoute from "./components/ProtectedRoute";
+import { getAllModules } from "./config/menuItems";
+import { jwtDecode } from "jwt-decode";
 
 /* LAZY-LOADED DASHBOARDS & TOOLS (Code-split for maximum performance) */
 const QRScannerPage = lazy(() => import("./pages/Qrscannerpage"));
@@ -58,8 +60,30 @@ const RolesCtx = createContext({ extra: [], ready: true });
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
 const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
   const { extra, ready } = useContext(RolesCtx);
+  const location = useLocation();
   // wait until the roles for the current token are loaded, otherwise a custom role is rejected right after login
   if (!ready) return <LoadingOverlay />;
+
+  // per-user module restriction (blocks typing the URL manually)
+  let userRole = "";
+  let userModules = [];
+  try {
+    const decoded = jwtDecode(localStorage.getItem("token") || "");
+    userRole = String(decoded.role || "").toLowerCase();
+    userModules = decoded.modules || [];
+  } catch {}
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const isMenuPath = getAllModules().some((m) => m.to === path);
+  if (
+    userRole !== "admin" &&
+    Array.isArray(userModules) &&
+    userModules.length > 0 &&
+    isMenuPath &&
+    !userModules.includes(path)
+  ) {
+    return <Navigate to={userModules[0]} replace />;
+  }
+
   return <BaseProtectedRoute {...props} allowedRoles={allowedRoles.length > 1 ? [...allowedRoles, ...extra] : allowedRoles} />;
 };
 
