@@ -8,6 +8,7 @@ router.post("/customer/register", authController.customerRegister);
 router.post("/customer/login", authController.customerLogin);
 router.post("/logout", protect, authController.logout);
 router.post("/internal/user/:id/revoke-sessions", protect, authController.revokeUserSessions);
+router.post("/internal/user/:id/unlock", protect, authController.unlockUser);
 /* INTERNAL */
 router.post("/internal/register", authController.internalRegister);
 router.post("/internal/login", authController.internalLogin);

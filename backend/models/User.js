@@ -60,6 +60,10 @@ const userSchema = new mongoose.Schema(
       default: "local",
     },
 
+    // account lockout (non-admin)
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null },
+
     // optional domain username; if empty the user's email is used for the bind
     ldapUsername: {
       type: String,

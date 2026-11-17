@@ -45,6 +45,8 @@ function InternalLogin() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [lockEndsAt, setLockEndsAt] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const [loading, setLoading] = useState(false);
   const showLoader = useDelayedLoading(loading, 10);
 
@@ -330,6 +332,16 @@ function InternalLogin() {
     };
   }, [darkMode]);
 
+  // ---- LOCK COUNTDOWN ----
+  useEffect(() => {
+    if (!lockEndsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [lockEndsAt]);
+
+  const lockRemaining = lockEndsAt ? Math.max(0, Math.ceil((lockEndsAt - now) / 1000)) : 0;
+  const lockText = `${String(Math.floor(lockRemaining / 60)).padStart(2, "0")}:${String(lockRemaining % 60).padStart(2, "0")}`;
+
   // ---- ORIGINAL ANNOUNCEMENT LOGIC (unchanged) ----
   const announcementData = useMemo(() => {
     if (!rawAnnouncement) return null;
@@ -410,6 +422,12 @@ function InternalLogin() {
       else setError("Your role is not recognised. Contact your administrator.");
     } catch (err) {
       const d = err.response?.data;
+      if (err.response?.status === 423 && d?.remainingSeconds) {
+        setLockEndsAt(Date.now() + d.remainingSeconds * 1000);
+        setNow(Date.now());
+      } else {
+        setLockEndsAt(null);
+      }
       setError((d?.message || "Invalid credentials. Check your details and try again.") + (d?.debug ? `  [${d.debug}]` : ""));
     }
 
@@ -608,6 +626,11 @@ function InternalLogin() {
             </div>
             <h3 className="modal-title">Authentication Failed</h3>
             <p className="modal-desc">{error}</p>
+            {lockEndsAt && lockRemaining > 0 && (
+              <p className="modal-desc" style={{ fontWeight: 700, fontSize: "1.4rem", letterSpacing: "2px" }}>
+                🔒 Unlocks in {lockText}
+              </p>
+            )}
             <button className="modal-dismiss-btn" onClick={() => setError("")}>
               Dismiss &amp; Retry
             </button>

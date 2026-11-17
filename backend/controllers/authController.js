@@ -166,6 +166,14 @@ exports.internalLogin = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials", debug: `No user found for "${identifier}"` });
     }
 
+    // ---- Lockout check (non-admin only) ----
+    if (user.role !== "ADMIN" && user.lockUntil && user.lockUntil > new Date()) {
+      return res.status(423).json({
+        message: "Account locked due to too many failed attempts. Contact an administrator to unlock sooner.",
+        remainingSeconds: Math.ceil((user.lockUntil.getTime() - Date.now()) / 1000),
+      });
+    }
+
     let isMatch = false;
     let debug = "";
 
@@ -189,7 +197,26 @@ exports.internalLogin = async (req, res) => {
     }
 
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials", debug: debug || `Local password mismatch (authType: ${user.authType})` });
+      if (user.role !== "ADMIN") {
+        const MAX_ATTEMPTS = 5;
+        const attempts = (user.failedLoginAttempts || 0) + 1;
+        if (attempts >= MAX_ATTEMPTS) {
+          await User.updateOne(
+            { _id: user._id },
+            { $set: { failedLoginAttempts: 0, lockUntil: new Date(Date.now() + 30 * 60 * 1000) } }
+          );
+          return res.status(423).json({
+            message: "Too many failed attempts. Account locked. Contact an administrator to unlock sooner.",
+            remainingSeconds: 30 * 60,
+          });
+        }
+        await User.updateOne({ _id: user._id }, { $set: { failedLoginAttempts: attempts } });
+        return res.status(400).json({
+          message: `Invalid credentials. ${MAX_ATTEMPTS - attempts} attempt(s) left before the account is locked.`,
+          debug: debug || `Local password mismatch (authType: ${user.authType})`,
+        });
+      }
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
     if (role && user.role !== role) {
@@ -202,6 +229,8 @@ exports.internalLogin = async (req, res) => {
     }
 
     // Store login location, or use the user's first location
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
     user.loginLocation = location || user.locations?.[0] || "";
     await user.save();
 
@@ -434,6 +463,21 @@ exports.deleteAnnouncement = async (req, res) => {
   try {
     await Announcement.deleteMany({});
     res.json({ message: "Announcement deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+// Admin: unlock a locked user account
+exports.unlockUser = async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    await User.updateOne(
+      { _id: req.params.id },
+      { $set: { failedLoginAttempts: 0, lockUntil: null } }
+    );
+    res.json({ message: "User unlocked successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

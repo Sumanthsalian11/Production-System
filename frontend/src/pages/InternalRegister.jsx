@@ -419,6 +419,23 @@ const handleChange = (e) => {
     fetchUsers();
   };
 
+  const isUserLocked = (u) => u.lockUntil && new Date(u.lockUntil) > new Date();
+
+  const unlockUser = async (id) => {
+    if (!window.confirm("Unlock this user account?")) return;
+    const token = localStorage.getItem("token");
+    try {
+      await axios.post(`${BASE_URL}/api/auth/internal/user/${id}/unlock`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess("User unlocked ✅");
+      setTimeout(() => setSuccess(""), 2000);
+      fetchUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to unlock user");
+    }
+  };
+
   const startEdit = (user) => {
     setEditUserId(user._id);
     setForm({
@@ -2015,6 +2032,11 @@ const handleChange = (e) => {
                           <div>
                             <div style={styles.userName}>{user.name}</div>
                             <div style={styles.userEmail}>{user.email}</div>
+                            {isUserLocked(user) && (
+                              <div style={{ fontSize: "0.7rem", fontWeight: 700, color: C.danger }}>
+                                🔒 Locked until {new Date(user.lockUntil).toLocaleTimeString()}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -2139,6 +2161,14 @@ const handleChange = (e) => {
                           >
                             ✏️ Edit
                           </button>
+                          {isUserLocked(user) && (
+                            <button
+                              style={{ ...styles.actionBtn, background: "#fff3d6", color: "#78350f", borderColor: "#f2d291" }}
+                              onClick={() => unlockUser(user._id)}
+                            >
+                              🔓 Unlock
+                            </button>
+                          )}
                           <button
                             style={{ ...styles.actionBtn, ...styles.deleteBtn }}
                             onClick={() => deleteUser(user._id)}
