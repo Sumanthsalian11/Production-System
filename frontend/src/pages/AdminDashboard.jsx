@@ -1142,6 +1142,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
     { key: "dispatchReport", label: "Dispatch Report", defaultTime: "18:00" },
     { key: "inhouseOrder", label: "Inhouse Order Mail (on save)", defaultTime: "00:00" },
+    { key: "outsourceOrder", label: "Outsource Order Mail (on save)", defaultTime: "00:00" },
   ];
   const [mailKey, setMailKey] = useState("indentSummary");
   const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00", machineIds: [] });
@@ -4959,7 +4960,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
             />
           </div>
 
-          {mailKey !== "inhouseOrder" && (
+          {mailKey !== "inhouseOrder" && mailKey !== "outsourceOrder" && (
             <div className="activity-name-field" style={{ marginBottom: "12px" }}>
               <label>Send Time (every day)</label>
               <input
@@ -5104,7 +5105,9 @@ const [supplierFilter, setSupplierFilter] = useState("");
                   <li key={m.key} className="d-flex justify-content-between align-items-center">
                     <span>
                       <strong>{mailLabel(m.key.split("::")[0])}</strong>
-                      {m.key.includes("::") ? ` • Location: ${m.key.split("::")[1]}` : " • All Locations"}{m.key.split("::")[0] !== "inhouseOrder" && ` • Time: ${m.sendTime}`} • TO:{" "}
+                      {m.key.split("::")[0] !== "outsourceOrder" &&
+                        (m.key.includes("::") ? ` • Location: ${m.key.split("::")[1]}` : " • All Locations")}
+                      {!["inhouseOrder", "outsourceOrder"].includes(m.key.split("::")[0]) && ` • Time: ${m.sendTime}`} • TO:{" "}
                       {(m.toEmails || []).join(", ") || "-"} • CC: {(m.ccEmails || []).join(", ") || "-"} • Machines:{" "}
                       {(m.machineIds || []).length ? `${m.machineIds.length} selected` : "All"}
                     </span>

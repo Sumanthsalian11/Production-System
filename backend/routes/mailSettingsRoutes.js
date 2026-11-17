@@ -9,6 +9,7 @@ const DEFAULT_TIMES = {
   floorProduction: "10:00",
   dispatchReport: "18:00",
   inhouseOrder: "00:00",
+  outsourceOrder: "00:00",
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

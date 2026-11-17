@@ -12,6 +12,7 @@ const IndentRouting = require("../models/IndentRouting");
 const Dispatch = require("../models/Dispatch");
 const sendIndentRequestMail = require("../utils/indentRequestMail");
 const sendInhouseOrderMail = require("../cron/inhouseOrderMail"); // change to the real file name of your inhouse mail file
+const sendOutsourceOrderMail = require("../cron/outsourceOrderMail"); // change to the real file name of the file that contains sendOutsourceOrderMail
 
 const mongoose = require("mongoose");
 const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
@@ -747,6 +748,8 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
 
     if (orderType === "Inhouse") {
       sendInhouseOrderMail(mailOrders, planningLocation || "");
+    } else if (orderType === "Out Source") {
+      sendOutsourceOrderMail(createdOrders);
     }
 
   } catch (err) {
