@@ -56,6 +56,53 @@ const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
 const JobValidation = lazy(() => import("./pages/Jobvalidation"));
 const RawMaterialIndent = lazy(()=> import("./pages/Rawmaterialindent"));
 
+/* SESSION HANDLING: refreshed tokens, background polling, forced logout */
+const BACKGROUND_URLS = ["/api/auth/announcement", "/api/messenger/unread"];
+
+const tokenId = (t) => {
+  try {
+    return t ? jwtDecode(t).sid || t : null;
+  } catch {
+    return t || null;
+  }
+};
+
+const clearSession = () => {
+  try {
+    localStorage.removeItem("token");
+    localStorage.removeItem("role");
+    sessionStorage.clear();
+  } catch {}
+  window.location.href = import.meta.env.BASE_URL || "/";
+};
+
+axios.interceptors.request.use((config) => {
+  if (BACKGROUND_URLS.some((u) => String(config.url || "").includes(u))) {
+    config.headers = config.headers || {};
+    config.headers["X-Background"] = "1";
+  }
+  return config;
+});
+
+axios.interceptors.response.use(
+  (res) => {
+    const fresh = res.headers?.["x-refreshed-token"];
+    if (fresh) {
+      try {
+        localStorage.setItem("token", fresh);
+      } catch {}
+    }
+    return res;
+  },
+  (err) => {
+    const url = String(err.config?.url || "");
+    if (err.response?.status === 401 && localStorage.getItem("token") && !url.includes("/internal/login")) {
+      clearSession();
+    }
+    return Promise.reject(err);
+  }
+);
+
 const RolesCtx = createContext({ extra: [], ready: true });
 // Master roles are added to every route except ADMIN-only ones (those have a single allowed role)
 const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
@@ -90,6 +137,30 @@ const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
 function App() {
   const location = useLocation();
 
+  // auto logout after 15 minutes without mouse / keyboard activity
+  useEffect(() => {
+    let timer;
+    const doLogout = async () => {
+      const t = localStorage.getItem("token");
+      if (!t) return;
+      try {
+        await axios.post(`${BASE_URL}/api/auth/logout`, {}, { headers: { Authorization: `Bearer ${t}` } });
+      } catch {}
+      clearSession();
+    };
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(doLogout, 15 * 60 * 1000);
+    };
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    reset();
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+  }, []);
+
   const [extraRoles, setExtraRoles] = useState(() => {
     try {
       const cached = sessionStorage.getItem("extraRoles");
@@ -117,21 +188,21 @@ function App() {
       } catch {}
       return;
     }
-    if (token === rolesToken && extraRoles.length > 0) return;
+    if (tokenId(token) === rolesToken && extraRoles.length > 0) return;
 
     axios
       .get(`${BASE_URL}/api/master/roles`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => {
         const roles = (r.data || []).map((x) => String(x.name).toUpperCase());
         setExtraRoles(roles);
-        setRolesToken(token);
+        setRolesToken(tokenId(token));
         try {
           sessionStorage.setItem("extraRoles", JSON.stringify(roles));
-          sessionStorage.setItem("extraRolesToken", token);
+          sessionStorage.setItem("extraRolesToken", tokenId(token));
         } catch {}
       })
       .catch(() => {})
-      .finally(() => setRolesToken(token));
+      .finally(() => setRolesToken(tokenId(token)));
   }, [location.pathname, rolesToken]);
 
   return (
@@ -141,7 +212,7 @@ function App() {
       <RolesCtx.Provider
         value={{
           extra: extraRoles,
-          ready: !localStorage.getItem("token") || rolesToken === localStorage.getItem("token"),
+          ready: !localStorage.getItem("token") || rolesToken === tokenId(localStorage.getItem("token")),
         }}
       >
         <Suspense fallback={<LoadingOverlay />}>

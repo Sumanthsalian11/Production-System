@@ -398,7 +398,16 @@ export default function DashboardLayout() {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await axios.post(
+        `${BASE_URL}/api/auth/logout`,
+        {},
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+    } catch {
+      // token may already be expired or revoked; continue logging out locally
+    }
     localStorage.removeItem("token");
     sessionStorage.removeItem("chatToken");
     navigate("/");

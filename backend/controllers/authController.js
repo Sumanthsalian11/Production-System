@@ -3,22 +3,31 @@ const CustomerOrder = require("../models/CustomerOrder");
 const WorkOrder = require("../models/WorkOrder");
 const PrintingInstruction = require("../models/Print");
 const jwt = require("jsonwebtoken");
+const Session = require("../models/Session");
+const { TOKEN_TTL } = require("../utils/sessionConfig");
 const Announcement = require("../models/Announcement");
 const { verifyLDAPUser } = require("../utils/ldapAuth");
 
 // Helper: generate JWT token
-const generateToken = (user) => {
+const generateToken = async (user, req) => {
+  const session = await Session.create({
+    userId: user._id,
+    name: user.name,
+    ip: req?.ip || "",
+    userAgent: req?.headers?.["user-agent"] || ""
+  });
   return jwt.sign(
     { 
       id: user._id, 
       role: user.role,
       name: user.name,
       locations: user.locations,
-      modules: user.modules,        // ✅ ADD THIS
-      location: user.loginLocation
+      modules: user.modules,
+      location: user.loginLocation,
+      sid: String(session._id)
     },
     process.env.JWT_SECRET,
-    { expiresIn: "1d" }
+    { expiresIn: TOKEN_TTL }
   );
 };
 
@@ -61,7 +70,7 @@ exports.customerLogin = async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(400).json({ message: "Invalid credentials" });
 
-    const token = generateToken(user);
+    const token = await generateToken(user, req);
     res.json({ token, role: user.role });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -112,15 +121,22 @@ exports.internalLogin = async (req, res) => {
       identifier === process.env.ADMIN_EMAIL &&
       password === process.env.ADMIN_PASSWORD
     ) {
+      const adminSession = await Session.create({
+        userId: null,
+        name: "Admin",
+        ip: req.ip || "",
+        userAgent: req.headers["user-agent"] || ""
+      });
       const token = jwt.sign(
         {
           role: process.env.ADMIN_ROLE,
           name: "Admin",
           locations: [],
           modules: [],
+          sid: String(adminSession._id),
         },
         process.env.JWT_SECRET,
-        { expiresIn: "1d" }
+        { expiresIn: TOKEN_TTL }
       );
 
       return res.json({
@@ -189,7 +205,7 @@ exports.internalLogin = async (req, res) => {
     user.loginLocation = location || user.locations?.[0] || "";
     await user.save();
 
-    const token = generateToken(user);
+    const token = await generateToken(user, req);
     res.json({ token, role: user.role });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -248,6 +264,10 @@ exports.deleteInternalUser = async (req, res) => {
     }
 
     await User.findByIdAndDelete(userId);
+    await Session.updateMany(
+      { userId, revoked: false },
+      { revoked: true, revokedReason: "user-deleted" }
+    );
 
     res.json({ message: "User deleted successfully" });
   } catch (error) {
@@ -279,6 +299,10 @@ exports.changePassword = async (req, res) => {
 
     user.password = newPassword;
     await user.save();
+    await Session.updateMany(
+      { userId: user._id, revoked: false, _id: { $ne: req.sid } },
+      { revoked: true, revokedReason: "password-changed" }
+    );
 
     res.json({ message: "Password changed successfully" });
   } catch (error) {
@@ -343,6 +367,11 @@ await PrintingInstruction.updateMany(
   { userLocations: user.locations }
 );
 
+    await Session.updateMany(
+      { userId: user._id, revoked: false, _id: { $ne: req.sid } },
+      { revoked: true, revokedReason: "user-updated" }
+    );
+
     res.json({ message: "User updated successfully" });
 
   } catch (error) {
@@ -369,6 +398,33 @@ exports.getAnnouncement = async (req, res) => {
   try {
     const announcement = await Announcement.findOne().sort({ createdAt: -1 });
     res.json(announcement || null);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.logout = async (req, res) => {
+  try {
+    if (req.sid) {
+      await Session.updateOne({ _id: req.sid }, { revoked: true, revokedReason: "logout" });
+    }
+    res.json({ message: "Logged out" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Admin: force-logout every active session of one user
+exports.revokeUserSessions = async (req, res) => {
+  try {
+    if (String(req.user.role || "").toUpperCase() !== "ADMIN") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    const r = await Session.updateMany(
+      { userId: req.params.id, revoked: false },
+      { revoked: true, revokedReason: "admin-revoked" }
+    );
+    res.json({ message: "Sessions revoked", count: r.modifiedCount });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
