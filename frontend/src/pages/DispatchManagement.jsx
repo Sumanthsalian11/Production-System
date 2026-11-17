@@ -2,10 +2,10 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import * as XLSX from "xlsx";
- import Swal from "sweetalert2";
+import Swal from "sweetalert2";
 import { jwtDecode } from "jwt-decode";
 import { saveAs } from "file-saver";
-  import BASE_URL from "../config/api";
+import BASE_URL from "../config/api";
 
 /* ---------- small inline icons (presentation only) ---------- */
 const svgProps = {
@@ -38,6 +38,35 @@ const IconHash = (p) => (
 const IconSearch = (p) => (
   <svg {...svgProps} {...p}>
     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+const IconList = (p) => (
+  <svg {...svgProps} {...p}>
+    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" />
+    <line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+  </svg>
+);
+const IconFilter = (p) => (
+  <svg {...svgProps} {...p}>
+    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+  </svg>
+);
+const IconEdit = (p) => (
+  <svg {...svgProps} width={14} height={14} {...p}>
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+const IconTrash = (p) => (
+  <svg {...svgProps} width={14} height={14} {...p}>
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+const IconSave = (p) => (
+  <svg {...svgProps} {...p}>
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" />
   </svg>
 );
 
@@ -887,342 +916,332 @@ const uniqueCustomers = [
 
 return(
 
-<div className="dm-wrap">
+<div className="pd-root">
 <style>{`
-  /* ---------- Light aqua-glass design (same family as Reel Register) ---------- */
-  .dm-wrap {
-    --ink: #0b2f4f; --muted: #4a6f8c; --hint: #8fb0c8;
+  /* ---------- Theme tokens (same as Production page) ---------- */
+  .pd-root {
+    --brand: #e4572e;
+    --brand-dark: #c9461f;
+    --brand-soft: #fdeee8;
+    --teal: #0b3a45;
+    --teal-mid: #0f5560;
+    --teal-soft: #e3f1f4;
+    --ink: #000000;
+    --line: #d1d5db;
+    --line-soft: #e5e7eb;
+    --field-line: #9ca3af;
+    --surface: #ffffff;
+    --page: #f4f6f8;
+    --ok: #1f9d6b;
+    --warn: #d98a00;
+    --danger: #d64545;
+  }
+
+  /* ---------- Page ---------- */
+  .pd-root {
     min-height: 100vh;
-    padding: 10px 20px 30px;
-    font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
-    font-size: 13px;
-    color: var(--ink);
-    background:
-      radial-gradient(circle at 12% 6%, rgba(255, 255, 255, 0.9) 0, rgba(255, 255, 255, 0) 30%),
-      radial-gradient(circle at 88% 18%, rgba(160, 222, 250, 0.7) 0, rgba(160, 222, 250, 0) 32%),
-      radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.7) 0, rgba(255, 255, 255, 0) 45%),
-      linear-gradient(165deg, #eaf8ff 0%, #d2eefb 45%, #bde5f7 80%, #dff4fd 100%);
-    background-attachment: fixed;
+    padding: 14px 18px 28px;
+    box-sizing: border-box;
+    font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    color: #000000;
+    background: var(--page);
   }
-  .dm-wrap * { box-sizing: border-box; }
-  .dm-inner { max-width: 1500px; margin: 0 auto; }
+  .pd-root * { box-sizing: border-box; }
+  .pd-shell { max-width: 100%; margin: 0 auto; }
 
-  /* header */
-  .dm-header {
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
-    padding: 8px 20px; margin-bottom: 10px; border-radius: 28px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(222, 244, 254, 0.8) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 14px 30px rgba(40, 120, 170, 0.18), inset 0 1px 0 #fff, inset 0 -10px 22px rgba(140, 210, 245, 0.2);
-  }
-  .dm-brand { display: flex; align-items: center; gap: 14px; }
-  .dm-emblem {
-    width: 40px; height: 40px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; color: #0a6fb8;
-    background: radial-gradient(circle at 30% 25%, #ffffff 0%, #bfe5f8 50%, #8fd0f0 100%);
-    border: 1px solid #86c6e8;
-    box-shadow: 0 6px 14px rgba(40, 120, 170, 0.22), inset 0 2px 3px rgba(255, 255, 255, 0.9);
-  }
-  .dm-header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.4px; color: #0a4f8c; }
-  .dm-header p { margin: 0; font-size: 11.5px; font-weight: 600; color: var(--muted); }
-  .dm-user-chip {
-    display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px; border-radius: 30px;
-    background: linear-gradient(180deg, #ffffff 0%, #dff6ff 100%); color: #0a4f8c;
-    border: 1px solid #a9d9f2; font-size: 13px; font-weight: 800;
-    box-shadow: 0 4px 12px rgba(40, 120, 170, 0.15), inset 0 1px 0 #fff;
-  }
-  .dm-user-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-
-  /* glass card */
-  .dm-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(228, 246, 255, 0.9) 100%);
-    border: 1px solid rgba(255, 255, 255, 0.95); border-radius: 20px;
-    box-shadow: 0 14px 32px rgba(40, 120, 170, 0.16), inset 0 1px 0 #fff;
-    padding: 10px 16px 12px; margin-bottom: 12px; position: relative; overflow: hidden;
-  }
-  .dm-pill {
-    display: inline-flex; align-items: center; gap: 9px; margin: 0 0 8px;
-    padding: 4px 16px 4px 12px; font-size: 11.5px; font-weight: 800; color: #0a4f8c;
-    text-transform: uppercase; letter-spacing: 0.7px;
-    background: linear-gradient(180deg, #ffffff 0%, #d6effc 100%);
-    border: 1px solid #a9d9f2; border-radius: 999px;
-    box-shadow: 0 3px 8px rgba(40, 120, 170, 0.12), inset 0 1px 0 #fff;
-  }
-  .dm-pill::before {
-    content: ""; width: 9px; height: 9px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 25%, #b6ecff, #2a9be0 70%);
-    box-shadow: 0 0 0 3px rgba(42, 155, 224, 0.2);
+  /* ---------- Cards ---------- */
+  .pd-glass {
+    position: relative;
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-bottom: 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+    overflow: hidden;
   }
 
-  /* fetch-by switch */
-  .dm-fetchby { display: flex; gap: 18px; margin: 0 0 10px; }
-  .dm-fetchby label { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .pd-edit-chip {
+    display: inline-block; margin: 4px 0 0;
+    font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 4px;
+    color: #8a5a00; background: #fff3d6;
+    border: 1px solid #f2d291;
+  }
 
-  /* lookup */
-  .dm-lookup { display: flex; gap: 12px; align-items: flex-end; max-width: 620px; flex-wrap: wrap; }
-  .dm-lookup .dm-field { flex: 1; min-width: 220px; }
-
-  /* fields */
-  .dm-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .dm-label { font-size: 11.5px; font-weight: 800; color: var(--ink); margin: 0 0 0 2px; }
-  .dm-input, .dm-select, .dm-textarea {
-    width: 100%; min-height: 34px; padding: 6px 11px;
-    border: 1.5px solid #9ccbe6; border-radius: 12px; background: #fff; color: var(--ink);
-    font-size: 13.5px; font-weight: 600; outline: none; font-family: inherit;
-    box-shadow: inset 0 2px 5px rgba(10, 80, 130, 0.1);
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  /* ---------- Section headings ---------- */
+  .card-heading-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
   }
-  .dm-textarea { resize: vertical; line-height: 1.35; }
-  .dm-input:hover, .dm-select:hover, .dm-textarea:hover { border-color: #5fb4de; }
-  .dm-input:focus, .dm-select:focus, .dm-textarea:focus {
-    border-color: #1b9be0; box-shadow: 0 0 0 4px rgba(27, 155, 224, 0.2), 0 6px 14px rgba(27, 155, 224, 0.12);
-  }
-  .dm-input[readonly], .dm-textarea[readonly] {
-    background: linear-gradient(180deg, #eaf7ff 0%, #d6effc 100%); color: #0a4f8c; border-color: #86c6e8; font-weight: 800;
-  }
-  .dm-tat-late  { border-color: #ee8f8f !important; color: #b91c1c !important; font-weight: 800 !important; background: #fff1f1 !important; }
-  .dm-tat-early { border-color: #7fd3ab !important; color: #07583b !important; font-weight: 800 !important; background: #effcf5 !important; }
-  .dm-tat-ontime{ border-color: #5fb4de !important; }
-
-  /* WO info cards */
-  .dm-info-grid { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 10px; margin-bottom: 10px; }
-  .dm-info {
-    display: flex; align-items: center; gap: 11px; min-width: 0; padding: 7px 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #f6fcff 100%);
-    border: 1px solid #dcedf8; border-radius: 18px;
-    box-shadow: 0 6px 16px rgba(40, 120, 170, 0.1), inset 0 1px 0 #fff;
-  }
-  .dm-bubble {
-    width: 38px; height: 38px; border-radius: 13px; flex-shrink: 0;
+  .heading-with-icon { display: flex; align-items: center; gap: 10px; }
+  .heading-icon-badge {
+    width: 30px; height: 30px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 5px 10px rgba(40, 90, 130, 0.16), inset 0 2px 3px rgba(255, 255, 255, 0.85), inset 0 -3px 5px rgba(0, 0, 0, 0.06);
+    color: var(--brand) !important;
+    background: var(--brand-soft) !important;
+    border: 1px solid #f7d3c6;
+    box-shadow: none;
   }
-  .dm-bubble.lavender { background: linear-gradient(145deg, #efe7ff, #c9b8fb); color: #6d4fd6; }
-  .dm-bubble.peach    { background: linear-gradient(145deg, #fff0d1, #ffc978); color: #c2650a; }
-  .dm-bubble.mint     { background: linear-gradient(145deg, #dcf9ea, #8fe0b8); color: #107a4d; }
-  .dm-info-text { min-width: 0; }
-  .dm-info-label { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .dm-info-value { font-size: 13.5px; font-weight: 800; color: var(--ink); word-break: break-word; }
+  .card-heading-row h2 { font-size: 15px; font-weight: 700; margin: 0; color: #000000; }
+  .section-pill-tag {
+    font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--teal-soft); color: var(--teal-mid); border: 1px solid #bdd9df;
+  }
 
-  /* form grid (6 columns so the whole form sits on the first screen) */
-  .dm-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px 12px; }
-  .dm-span-3 { grid-column: span 3; }
-  .dm-actions { display: flex; justify-content: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(10, 111, 184, 0.35); }
+  /* ---------- fetch-by switch ---------- */
+  .pd-fetchby { display: flex; gap: 18px; margin: 0 0 10px; }
+  .pd-fetchby label {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 700; color: #000000; cursor: pointer; margin: 0;
+  }
+  .pd-fetchby input { accent-color: var(--brand); }
 
-  /* buttons */
-  .dm-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    min-height: 34px; padding: 6px 20px; border-radius: 12px; border: 1px solid transparent;
-    font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap; font-family: inherit;
+  /* ---------- lookup ---------- */
+  .wo-search-flex { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+  .wo-input-box { flex: 0 1 320px; min-width: 220px; }
+
+  /* ---------- Inputs & Labels ---------- */
+  .field-3d-wrapper { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .label-3d {
+    font-size: 11px; font-weight: 700; color: #000000; letter-spacing: 0.3px; text-transform: uppercase;
+    display: flex; justify-content: space-between; align-items: center; margin: 0;
+  }
+  .input-inset-3d, .select-inset-3d, .textarea-inset-3d {
+    width: 100%; padding: 8px 12px; border-radius: 6px;
+    border: 1px solid var(--field-line); background: #ffffff;
+    font-family: inherit; font-size: 13.5px; font-weight: 600; color: #000000; outline: none; box-sizing: border-box;
+    box-shadow: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .textarea-inset-3d { resize: vertical; line-height: 1.35; }
+  .select-inset-3d { cursor: pointer; }
+  .input-inset-3d:focus, .select-inset-3d:focus, .textarea-inset-3d:focus {
+    border-color: var(--teal-mid);
+    box-shadow: 0 0 0 3px rgba(15, 85, 96, 0.18);
+  }
+  .input-inset-3d[readonly], .textarea-inset-3d[readonly] {
+    background: #f3f4f6;
+    color: #1f2937; border-color: var(--line); cursor: not-allowed;
+    font-weight: 700;
+  }
+  .input-inset-3d::placeholder { color: #6b7280; font-weight: 400; }
+  .dm-muted { color: #374151; }
+
+  .dm-tat-late  { border-color: #f3c1c1 !important; color: #b42323 !important; font-weight: 800 !important; background: #fdecec !important; }
+  .dm-tat-early { border-color: #b7e4d0 !important; color: #167a52 !important; font-weight: 800 !important; background: #e4f6ee !important; }
+  .dm-tat-ontime{ border-color: #bdd9df !important; }
+
+  /* ---------- Buttons ---------- */
+  .push-btn-3d {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 9px 18px; border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600;
+    border: 1px solid transparent; cursor: pointer; outline: none; user-select: none; white-space: nowrap;
     transition: all 0.15s ease;
   }
-  .dm-btn:hover { transform: translateY(-1px); }
-  .dm-btn:active { transform: translateY(2px); }
-  .dm-btn-blue {
-    background: linear-gradient(180deg, #d6f0fd 0%, #9ed6f4 100%); color: #08406b; border-color: #7fc3e8;
-    box-shadow: 0 3px 0 #7fbbe0, 0 7px 12px rgba(40, 120, 170, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  .push-btn-3d:disabled { opacity: 0.5; cursor: not-allowed; }
+  .push-btn-primary {
+    color: #ffffff; text-shadow: none;
+    background: var(--brand); border-color: var(--brand);
+    box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
   }
-  .dm-btn-green {
-    background: linear-gradient(180deg, #d4f6e5 0%, #9ee3c0 100%); color: #07583b; border-color: #7fd3ab;
-    box-shadow: 0 3px 0 #84cba9, 0 7px 12px rgba(20, 168, 112, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  .push-btn-primary:hover:not(:disabled) { background: var(--brand-dark); border-color: var(--brand-dark); }
+  .push-btn-teal {
+    color: #ffffff; background: var(--teal); border-color: var(--teal);
   }
-  .dm-btn-gray {
-    background: linear-gradient(180deg, #ffffff 0%, #dcebf5 100%); color: #34526b; border-color: #aac3d4;
-    box-shadow: 0 3px 0 #b6cbd9, 0 7px 12px rgba(93, 124, 147, 0.14), inset 0 1px 0 #fff;
+  .push-btn-teal:hover:not(:disabled) { background: #072a33; border-color: #072a33; }
+  .push-btn-green {
+    color: #ffffff; background: var(--ok); border-color: var(--ok);
   }
-  .dm-btn-amber {
-    background: linear-gradient(180deg, #fff0c4 0%, #fcd477 100%); color: #7a4f00; border-color: #f3c35a;
-    box-shadow: 0 3px 0 #e9b845, 0 7px 12px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  .push-btn-green:hover:not(:disabled) { background: #187d55; border-color: #187d55; }
+  .push-btn-gray {
+    color: #000000; background: #ffffff; border-color: var(--field-line);
   }
-  .dm-btn-red {
-    background: linear-gradient(180deg, #ffdcdc 0%, #f7a3a3 100%); color: #8f1414; border-color: #ee8f8f;
-    box-shadow: 0 3px 0 #e08a8a, 0 7px 12px rgba(220, 38, 38, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  .push-btn-gray:hover:not(:disabled) { background: #f3f4f6; }
+  .push-btn-hero-save {
+    width: 100%; max-width: 260px; padding: 10px 18px; font-size: 13.5px; color: #ffffff;
+    background: var(--brand); border-color: var(--brand);
+    box-shadow: 0 1px 2px rgba(228, 87, 46, 0.35);
   }
-  .dm-btn-sm { min-height: 28px; padding: 3px 12px; font-size: 12px; border-radius: 10px; }
+  .push-btn-hero-save:hover { background: var(--brand-dark); border-color: var(--brand-dark); }
+  .push-btn-edit-mode { background: var(--teal); border-color: var(--teal); }
+  .push-btn-edit-mode:hover { background: #072a33 !important; border-color: #072a33 !important; }
 
-  /* filters */
-  .dm-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
-  .dm-filters .dm-field { width: 170px; }
+  /* ---------- Filters ---------- */
+  .pd-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+  .pd-filters .field-3d-wrapper { width: 170px; }
 
-  /* table */
-  .dm-table-wrap {
-    border-radius: 18px; border: 1px solid #a9d9f2; background: #fff; overflow: auto;
-    box-shadow: 0 10px 24px rgba(40, 120, 170, 0.14);
+  /* ---------- Table ---------- */
+  .table-scroll-container-3d {
+    width: 100%; overflow: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
   }
-  .dm-table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
-  .dm-table-wrap::-webkit-scrollbar-track { background: #eaf7ff; }
-  .dm-table-wrap::-webkit-scrollbar-thumb { background: #96d3f2; border-radius: 4px; }
-  .dm-table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: #fff; margin: 0; }
-  .dm-table th {
+  .colorful-3d-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 1100px; background: #ffffff; margin: 0; }
+  .colorful-3d-table thead th {
     position: sticky; top: 0; z-index: 3;
-    background: linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%); color: #08406b;
-    padding: 9px 12px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.3px;
-    white-space: nowrap; text-align: left; border: 1px solid #7fbfe4;
+    background: #dbe5ed !important;
+    color: #000000 !important;
+    padding: 11px 8px; text-align: center; font-weight: 700; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    border-bottom: 1px solid #b2c4d4 !important;
+    border-right: 1px solid #b2c4d4 !important;
+    white-space: nowrap;
   }
-  .dm-table td { padding: 7px 12px; border: 1px solid #d3e8f4; color: var(--ink); font-weight: 600; vertical-align: middle; background: #fff; }
-  .dm-table tbody tr:nth-child(even) td { background: #f3faff; }
-  .dm-table tbody tr:hover td { background: #d9f2fc; }
-  .dm-muted { color: var(--muted); }
+  .colorful-3d-table tbody td {
+    padding: 8px 8px; text-align: center; vertical-align: middle;
+    border-bottom: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;
+    font-weight: 600; color: #000000 !important; background: #ffffff;
+  }
+  .colorful-3d-table tbody tr:nth-child(even) td { background: #fafbfc; }
+  .colorful-3d-table tbody tr:hover td { background: var(--brand-soft); }
 
-  /* ---------- Split form: blue (fetched WO) | white (entry) ---------- */
-  .dm-split {
-    display: grid; grid-template-columns: minmax(300px, 32%) 1fr;
-    border-radius: 20px; overflow: hidden; margin-bottom: 12px; background: #ffffff;
-    box-shadow: 0 18px 42px rgba(40, 120, 180, 0.28);
+  .reel-tag-3d {
+    display: inline-block; white-space: nowrap; padding: 3px 9px; border-radius: 4px; font-weight: 700; color: #000000;
+    background: var(--teal-soft); border: 1px solid #bdd9df;
   }
-  .dm-split-left {
+  .btn-table-action-3d {
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 5px;
+    font-family: inherit; font-size: 11.5px; font-weight: 700; border: 1px solid transparent; cursor: pointer; transition: all 0.15s ease;
+  }
+  .btn-table-action-3d.edit { background: #ffffff; color: var(--teal-mid); border-color: var(--teal-mid); }
+  .btn-table-action-3d.edit:hover { background: var(--teal-mid); color: #ffffff; }
+  .btn-table-action-3d.delete { background: #fdecec; color: #b42323; border-color: #f3c1c1; }
+  .btn-table-action-3d.delete:hover { background: #f9d4d4; }
+
+  /* ---------- Split form: teal left, white right ---------- */
+  .pd-split {
+    display: grid; grid-template-columns: minmax(320px, 34%) 1fr;
+    border-radius: 8px; overflow: hidden; margin-bottom: 12px; background: #ffffff;
+    border: 1px solid var(--line);
+    box-shadow: 0 2px 8px rgba(16, 24, 40, 0.07);
+  }
+  .pd-split-left {
     position: relative; overflow: hidden; padding: 16px 20px 14px; color: #ffffff;
-    background: linear-gradient(170deg, #35a2ea 0%, #4f9cf0 48%, #86cbf8 100%);
+    background: linear-gradient(170deg, #0b3a45 0%, #0f5560 100%);
   }
-  .dm-split-left::before {
-    content: ''; position: absolute; width: 280px; height: 280px; border-radius: 50%;
-    right: -110px; top: -90px; background: rgba(255, 255, 255, 0.13);
+  .pd-left-brand { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ffb59c; }
+  .pd-left-hero { margin: 8px 0 6px; }
+  .pd-left-kicker { font-size: 11px; font-weight: 600; text-transform: uppercase; color: #c9dde1; }
+  .pd-left-big { font-size: 32px; font-weight: 700; line-height: 1.05; letter-spacing: -1px; word-break: break-all; }
+  .pd-left-sub { margin-top: 2px; font-size: 13px; font-weight: 500; color: #c9dde1; }
+  .pd-left-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+  .pd-lchip {
+    font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.28); color: #fff;
   }
-  .dm-split-left::after {
-    content: ''; position: absolute; width: 220px; height: 220px; border-radius: 50%;
-    left: -90px; bottom: -80px; background: rgba(255, 255, 255, 0.1);
+  .pd-lchip.ok { background: rgba(31, 157, 107, 0.35); border-color: rgba(120, 220, 175, 0.5); }
+  .pd-lchip.warn { background: rgba(228, 87, 46, 0.35); border-color: rgba(255, 181, 156, 0.55); }
+  .pd-left-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
+  .pd-lrow { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.14); }
+  .pd-lrow.wide { grid-column: span 2; }
+  .pd-licon {
+    flex: 0 0 26px; width: 26px; height: 26px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; color: #ffb59c;
+    background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18);
   }
-  .dm-split-left > * { position: relative; z-index: 1; }
-  .dm-left-brand { display: inline-flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; }
-  .dm-left-hero { margin: 8px 0 6px; }
-  .dm-left-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; opacity: 0.85; }
-  .dm-left-big { font-size: 32px; font-weight: 900; line-height: 1.05; letter-spacing: -1px; word-break: break-all; }
-  .dm-left-sub { margin-top: 2px; font-size: 13px; font-weight: 600; opacity: 0.95; }
-  .dm-left-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
-  .dm-lchip {
-    font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 14px;
-    background: rgba(255, 255, 255, 0.22); border: 1px solid rgba(255, 255, 255, 0.5); color: #fff;
-  }
-  .dm-lchip.ok { background: rgba(16, 185, 129, 0.35); }
-  .dm-lchip.warn { background: rgba(251, 191, 36, 0.4); }
-  .dm-left-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; }
-  .dm-lrow { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.22); }
-  .dm-lrow.wide { grid-column: span 2; }
-  .dm-licon {
-    flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; color: #fff;
-    background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.35);
-  }
-  .dm-licon svg { width: 13px; height: 13px; }
-  .dm-lbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .dm-llabel { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255, 255, 255, 0.8); }
-  .dm-lvalue { font-size: 12.5px; font-weight: 700; color: #ffffff; word-break: break-word; }
+  .pd-licon svg { width: 13px; height: 13px; }
+  .pd-lbody { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .pd-llabel { font-size: 9px; font-weight: 600; text-transform: uppercase; color: #9fc0c7; }
+  .pd-lvalue { font-size: 12.5px; font-weight: 600; color: #ffffff; word-break: break-word; }
 
-  .dm-split-right { background: #ffffff; padding: 14px 22px 16px; }
-  .dm-right-title { margin: 0; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase; color: #2f4156; }
-  .dm-right-rule { height: 2px; margin: 6px auto 2px; width: 100%; background: linear-gradient(90deg, transparent, #cfe6f5, transparent); }
-  .dm-sub-head { margin: 10px 0 6px; font-size: 12px; font-weight: 800; color: #1b8fd6; }
-  .dm-edit-chip {
-    display: inline-block; margin: 4px 0 0; padding: 3px 12px; font-size: 11px; font-weight: 800; border-radius: 999px;
-    color: #0a4f8c; background: linear-gradient(180deg, #fff7d6, #ffe9a3); border: 1px solid #fde68a;
+  .pd-split-right { background: #ffffff; padding: 14px 22px 16px; }
+  .pd-right-title { margin: 0; font-size: 16px; font-weight: 800; color: #000000; }
+  .pd-right-rule { height: 1px; margin: 6px auto 2px; width: 100%; background: var(--line); }
+  .pd-sub-head {
+    margin: 10px 0 6px; font-size: 12px; font-weight: 800; color: #000000;
+    padding-left: 8px; border-left: 3px solid var(--brand);
   }
-  .dm-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
-  .dm-span-2 { grid-column: span 2; }
-  .dm-span-4 { grid-column: span 4; }
-  .dm-split-right .dm-label { font-size: 10px; font-weight: 700; color: #5b6f82; }
-  .dm-split-right .dm-input,
-  .dm-split-right .dm-select,
-  .dm-split-right .dm-textarea {
-    border-radius: 4px; border: 1px solid #cfd9e4; box-shadow: none; padding: 7px 10px; font-size: 12.5px;
-  }
-  .dm-split-right .dm-input:focus,
-  .dm-split-right .dm-select:focus,
-  .dm-split-right .dm-textarea:focus { border-color: #35a2ea; box-shadow: 0 0 0 3px rgba(53, 162, 234, 0.18); }
-  .dm-split-right .dm-input[readonly],
-  .dm-split-right .dm-textarea[readonly] { background: #f1f5f9; color: #0b2f4f; border-color: #cfd9e4; font-weight: 700; }
-  .dm-split-right .dm-actions { border-top: none; margin-top: 12px; padding-top: 0; }
-  .dm-save { width: 100%; max-width: 340px; }
+  .pd-form-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; }
+  .pd-span-2 { grid-column: span 2; }
+  .pd-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 14px; }
 
   @media (max-width: 1100px) {
-    .dm-split { grid-template-columns: 1fr; }
-    .dm-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .dm-span-4 { grid-column: span 2; }
+    .pd-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
-  @media (max-width: 640px) {
-    .dm-form-grid { grid-template-columns: 1fr; }
-    .dm-span-2, .dm-span-4 { grid-column: span 1; }
+  @media (max-width: 900px) {
+    .pd-split { grid-template-columns: 1fr; }
+    .pd-split-right { padding: 16px 14px; }
   }
-
-  @media (max-width: 1100px) {
-    .dm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .dm-info-grid { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 640px) {
-    .dm-wrap { padding: 8px; }
-    .dm-grid { grid-template-columns: 1fr; }
-    .dm-span-3 { grid-column: span 1; }
-    .dm-header { border-radius: 20px; }
+  @media (max-width: 600px) {
+    .pd-form-grid { grid-template-columns: 1fr; }
+    .pd-span-2 { grid-column: span 1; }
   }
 
-  /* ---------- entrance animations ---------- */
-  @keyframes dmfadeup {
-    from { opacity: 0; transform: translatey(24px) scale(0.98); }
+  /* =====================================================================
+     page entrance animation (css only, same as Production page)
+     ===================================================================== */
+  @keyframes pgfadeup {
+    from { opacity: 0; transform: translatey(18px); }
+    to   { opacity: 1; transform: translatey(0); }
+  }
+  @keyframes pgpop {
+    from { opacity: 0; transform: translatey(16px) scale(0.98); }
     to   { opacity: 1; transform: translatey(0) scale(1); }
   }
-  @keyframes dmslideleft {
-    from { opacity: 0; transform: translatex(-28px); }
+  @keyframes pgslideright {
+    from { opacity: 0; transform: translatex(-18px); }
     to   { opacity: 1; transform: translatex(0); }
   }
-  @keyframes dmslideright {
-    from { opacity: 0; transform: translatex(28px); }
-    to   { opacity: 1; transform: translatex(0); }
+  @keyframes pgfade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
   }
-  @keyframes dmrowin {
-    from { opacity: 0; transform: translatex(-12px); }
-    to   { opacity: 1; transform: translatex(0); }
+  @keyframes pgrow {
+    from { opacity: 0; transform: translatey(8px); }
+    to   { opacity: 1; transform: translatey(0); }
   }
 
-  /* "backwards" fill so nothing stays locked after the animation ends */
-  .dm-inner > .dm-card { animation: dmfadeup 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
-  .dm-inner > .dm-card:nth-of-type(1) { animation-delay: 0.05s; }
+  .pd-root { animation: pgfade 0.45s ease-out backwards; }
+  .pd-root .pd-glass { animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s backwards; }
+  .pd-root .pd-split { animation: pgpop 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s backwards; }
+  .pd-root .pd-split-left { animation: pgslideright 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards; }
+  .pd-root .pd-split-right .pd-right-title,
+  .pd-root .pd-split-right .pd-sub-head,
+  .pd-root .pd-split-right .pd-form-grid,
+  .pd-root .pd-split-right .pd-actions {
+    animation: pgfadeup 0.45s ease-out backwards;
+  }
+  .pd-root .pd-split-right .pd-right-title { animation-delay: 0.25s; }
+  .pd-root .pd-split-right .pd-sub-head    { animation-delay: 0.30s; }
+  .pd-root .pd-split-right .pd-form-grid   { animation-delay: 0.36s; }
+  .pd-root .pd-split-right .pd-actions     { animation-delay: 0.50s; }
+  .pd-root .pd-split ~ .pd-glass { animation: pgfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards; }
 
-  /* split form: appears after "fetch details" is clicked */
-  .dm-split { animation: dmfadeup 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
-  .dm-split-left  { animation: dmslideleft 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s backwards; }
-  .dm-split-right { animation: dmslideright 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s backwards; }
-  .dm-form-grid .dm-field { animation: dmfadeup 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
-  .dm-form-grid .dm-field:nth-child(1)  { animation-delay: 0.30s; }
-  .dm-form-grid .dm-field:nth-child(2)  { animation-delay: 0.34s; }
-  .dm-form-grid .dm-field:nth-child(3)  { animation-delay: 0.38s; }
-  .dm-form-grid .dm-field:nth-child(4)  { animation-delay: 0.42s; }
-  .dm-form-grid .dm-field:nth-child(5)  { animation-delay: 0.46s; }
-  .dm-form-grid .dm-field:nth-child(6)  { animation-delay: 0.50s; }
-  .dm-form-grid .dm-field:nth-child(7)  { animation-delay: 0.54s; }
-  .dm-form-grid .dm-field:nth-child(8)  { animation-delay: 0.58s; }
-  .dm-form-grid .dm-field:nth-child(n+9) { animation-delay: 0.62s; }
-
-  /* table rows slide in one by one (first 12 staggered) */
-  .dm-table tbody tr { animation: dmrowin 0.4s ease backwards; }
-  .dm-table tbody tr:nth-child(1)  { animation-delay: 0.45s; }
-  .dm-table tbody tr:nth-child(2)  { animation-delay: 0.50s; }
-  .dm-table tbody tr:nth-child(3)  { animation-delay: 0.55s; }
-  .dm-table tbody tr:nth-child(4)  { animation-delay: 0.60s; }
-  .dm-table tbody tr:nth-child(5)  { animation-delay: 0.65s; }
-  .dm-table tbody tr:nth-child(6)  { animation-delay: 0.70s; }
-  .dm-table tbody tr:nth-child(7)  { animation-delay: 0.75s; }
-  .dm-table tbody tr:nth-child(8)  { animation-delay: 0.80s; }
-  .dm-table tbody tr:nth-child(9)  { animation-delay: 0.85s; }
-  .dm-table tbody tr:nth-child(10) { animation-delay: 0.90s; }
-  .dm-table tbody tr:nth-child(11) { animation-delay: 0.95s; }
-  .dm-table tbody tr:nth-child(12) { animation-delay: 1.00s; }
-  .dm-table tbody tr:nth-child(n+13) { animation-delay: 1.05s; }
+  .pd-root .colorful-3d-table tbody tr { animation: pgrow 0.35s ease-out backwards; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(1)  { animation-delay: 0.50s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(2)  { animation-delay: 0.55s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(3)  { animation-delay: 0.60s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(4)  { animation-delay: 0.65s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(5)  { animation-delay: 0.70s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(6)  { animation-delay: 0.75s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(7)  { animation-delay: 0.80s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(8)  { animation-delay: 0.85s; }
+  .pd-root .colorful-3d-table tbody tr:nth-child(n+9) { animation-delay: 0.90s; }
 
   @media (prefers-reduced-motion: reduce) {
-    .dm-wrap *, .dm-wrap *::before, .dm-wrap *::after { animation: none !important; }
+    .pd-root, .pd-root * { animation: none !important; }
   }
 `}</style>
 
-<div className="dm-inner">
+<div className="pd-shell">
 
 
 {/* WORK ORDER CARD */}
 
-<div className="dm-card">
+<section className="pd-glass">
 
-<div className="dm-pill">Search Work Order / Ticket</div>
+<div className="card-heading-row">
+  <div className="heading-with-icon">
+    <div className="heading-icon-badge">
+      <IconSearch />
+    </div>
+    <h2>Search Work Order / Ticket</h2>
+  </div>
+  <span className="section-pill-tag">Step 1</span>
+</div>
 
-<div className="dm-fetchby">
+<div className="pd-fetchby">
   <label>
     <input type="radio" checked={fetchBy === "wo"} onChange={() => switchFetchBy("wo")} />
     Work Order No
@@ -1233,37 +1252,38 @@ return(
   </label>
 </div>
 
-<div className="dm-lookup">
+<div className="wo-search-flex">
   {fetchBy === "wo" ? (
-    <div className="dm-field">
-      <label className="dm-label">Work Order Number</label>
+    <div className="wo-input-box field-3d-wrapper">
+      <label className="label-3d">Work Order Number</label>
       <input
         type="number"
         name="efiWoNumber"
         value={form.efiWoNumber}
         onChange={handleChange}
-        className="dm-input"
+        placeholder="Enter WO Number (e.g. 104523)"
+        className="input-inset-3d"
       />
     </div>
   ) : (
-    <div className="dm-field">
-      <label className="dm-label">Ticket ID</label>
+    <div className="wo-input-box field-3d-wrapper">
+      <label className="label-3d">Ticket ID</label>
       <input
         type="text"
         name="ticketNo"
         value={form.ticketNo}
         onChange={handleChange}
         placeholder="e.g. OS_01"
-        className="dm-input"
+        className="input-inset-3d"
       />
     </div>
   )}
 
   {fetchLocOptions.length > 1 && (
-    <div className="dm-field">
-      <label className="dm-label">Select Location</label>
+    <div className="wo-input-box field-3d-wrapper">
+      <label className="label-3d">Select Location</label>
       <select
-        className="dm-select"
+        className="select-inset-3d"
         key={`${fetchBy}-${form.efiWoNumber || form.ticketNo}-${fetchLocOptions.length}`}
         value={fetchLocation}
         onChange={(e) => {
@@ -1283,106 +1303,106 @@ return(
   )}
 
   <button
-    className="dm-btn dm-btn-blue"
+    className="push-btn-3d push-btn-primary"
     type="button"
     onClick={() => (fetchBy === "wo" ? fetchWorkOrder("") : fetchByTicket(""))}>
     <IconSearch width={14} height={14} /> Fetch Details
   </button>
 </div>
-</div>
+</section>
 
 
-{/* SPLIT FORM: blue = fetched Work Order, white = dispatch entry */}
+{/* SPLIT FORM: teal = fetched Work Order, white = dispatch entry */}
 {form.customer && (
 
-<form className="dm-split" onSubmit={handleSubmit}>
+<form className="pd-split" onSubmit={handleSubmit}>
 
-  {/* LEFT (BLUE): FETCHED WORK ORDER */}
-  <aside className="dm-split-left">
-    <div className="dm-left-brand">
+  {/* LEFT: FETCHED WORK ORDER */}
+  <aside className="pd-split-left">
+    <div className="pd-left-brand">
       <IconTruck /> <span>Work Order</span>
     </div>
 
-    <div className="dm-left-hero">
-      <div className="dm-left-kicker">{form.ticketNo ? "Active Ticket" : "Active WO"}</div>
-      <div className="dm-left-big">#{form.efiWoNumber || form.ticketNo}</div>
-      <div className="dm-left-sub">{form.customer}</div>
+    <div className="pd-left-hero">
+      <div className="pd-left-kicker">{form.ticketNo ? "Active Ticket" : "Active WO"}</div>
+      <div className="pd-left-big">#{form.efiWoNumber || form.ticketNo}</div>
+      <div className="pd-left-sub">{form.customer}</div>
     </div>
 
-    <div className="dm-left-chips">
-      <span className="dm-lchip ok">Verified Record</span>
-      {editingId && <span className="dm-lchip warn">Editing</span>}
+    <div className="pd-left-chips">
+      <span className="pd-lchip ok">Verified Record</span>
+      {editingId && <span className="pd-lchip warn">Editing</span>}
       {form.splitLocation && (
-        <span className="dm-lchip">
+        <span className="pd-lchip">
           {locations.find((x) => String(x._id) === String(form.splitLocation).split("#")[0])?.locationName || form.splitLocation}
         </span>
       )}
     </div>
 
-    <div className="dm-left-list">
-      <div className="dm-lrow wide">
-        <span className="dm-licon"><IconBox /></span>
-        <div className="dm-lbody">
-          <span className="dm-llabel">Product Name</span>
-          <span className="dm-lvalue">{form.productName}</span>
+    <div className="pd-left-list">
+      <div className="pd-lrow wide">
+        <span className="pd-licon"><IconBox /></span>
+        <div className="pd-lbody">
+          <span className="pd-llabel">Product Name</span>
+          <span className="pd-lvalue">{form.productName}</span>
         </div>
       </div>
 
-      <div className="dm-lrow">
-        <span className="dm-licon"><IconHash /></span>
-        <div className="dm-lbody">
-          <span className="dm-llabel">PO No</span>
-          <span className="dm-lvalue">{form.purchaseOrderNo || "-"}</span>
+      <div className="pd-lrow">
+        <span className="pd-licon"><IconHash /></span>
+        <div className="pd-lbody">
+          <span className="pd-llabel">PO No</span>
+          <span className="pd-lvalue">{form.purchaseOrderNo || "-"}</span>
         </div>
       </div>
 
-      <div className="dm-lrow">
-        <span className="dm-licon"><IconTruck /></span>
-        <div className="dm-lbody">
-          <span className="dm-llabel">Product Type</span>
-          <span className="dm-lvalue">{form.productType || "-"}</span>
+      <div className="pd-lrow">
+        <span className="pd-licon"><IconTruck /></span>
+        <div className="pd-lbody">
+          <span className="pd-llabel">Product Type</span>
+          <span className="pd-lvalue">{form.productType || "-"}</span>
         </div>
       </div>
 
     </div>
   </aside>
 
-  {/* RIGHT (WHITE): ENTRY FIELDS */}
-  <section className="dm-split-right">
-    <h2 className="dm-right-title">Dispatch Entry</h2>
-    <div className="dm-right-rule"></div>
+  {/* RIGHT: ENTRY FIELDS */}
+  <section className="pd-split-right">
+    <h2 className="pd-right-title">Dispatch Entry</h2>
+    <div className="pd-right-rule"></div>
 
     {editingId && (
-      <div className="dm-edit-chip">✎ Editing dispatch {form.efiWoNumber || form.ticketNo}</div>
+      <div className="pd-edit-chip">✎ Editing dispatch {form.efiWoNumber || form.ticketNo}</div>
     )}
 
-    <div className="dm-sub-head">Dispatch Details</div>
+    <div className="pd-sub-head">Dispatch Details</div>
 
-    <div className="dm-form-grid">
+    <div className="pd-form-grid">
 
-      <div className="dm-field">
-        <label className="dm-label">Total Order Qty</label>
-        <input value={form.totalQty} className="dm-input" readOnly />
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Total Order Qty</label>
+        <input value={form.totalQty} className="input-inset-3d" readOnly />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Dispatch Qty</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Dispatch Qty</label>
         <input
           type="text"
           name="dispatchQty"
           value={form.dispatchQty}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Balance Qty to dispatch</label>
-        <input value={form.balanceQty} className="dm-input" readOnly />
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Balance Qty to dispatch</label>
+        <input value={form.balanceQty} className="input-inset-3d" readOnly />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Extra Qty</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Extra Qty</label>
         <input
           type="number"
           min={0}
@@ -1395,36 +1415,36 @@ return(
               showAlert("Negative values are not allowed","error");
             }
           }}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Expected Delivery</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Expected Delivery</label>
         <input
           type="date"
           value={form.expectedDeliveryDate}
-          className="dm-input"
+          className="input-inset-3d"
           readOnly
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Dispatch Date</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Dispatch Date</label>
         <input
           type="date"
           name="dispatchDate"
           value={form.dispatchDate}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">TAT</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">TAT</label>
         <input
           value={form.delayLabel}
-          className={`dm-input ${
+          className={`input-inset-3d ${
             form.delayDays > 0
               ? "dm-tat-late"
               : form.delayDays < 0
@@ -1435,13 +1455,13 @@ return(
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Transportation</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Transportation</label>
         <select
           name="courier"
           value={form.courier}
           onChange={handleChange}
-          className="dm-select"
+          className="select-inset-3d"
           required={fetchBy === "wo"}>
           <option value="">Select Transportation</option>
           {transportations.map(t=>(
@@ -1450,44 +1470,44 @@ return(
         </select>
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Vehicle Number</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Vehicle Number</label>
         <input
           name="trackingNumber"
           value={form.trackingNumber}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Invoice No</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Invoice No</label>
         <input
           name="invoiceNo"
           value={form.invoiceNo}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Invoice Date</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Invoice Date</label>
         <input
           type="date"
           name="invoiceDate"
           value={form.invoiceDate}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">Location</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">Location</label>
         <select
           name="location"
           value={form.location}
           onChange={handleChange}
-          className="dm-select"
+          className="select-inset-3d"
         >
           <option value="">Select Location</option>
           {locations.map((loc) => (
@@ -1498,62 +1518,62 @@ return(
         </select>
       </div>
 
-      <div className="dm-field dm-span-2">
-        <label className="dm-label">Delivery Address</label>
+      <div className="field-3d-wrapper pd-span-2">
+        <label className="label-3d">Delivery Address</label>
         <textarea
           rows="2"
           name="deliveryAddress"
           value={form.deliveryAddress}
           onChange={handleChange}
           readOnly={form.location !== ""}
-          className="dm-textarea"
+          className="textarea-inset-3d"
         />
       </div>
 
-      <div className="dm-field dm-span-2">
-        <label className="dm-label">Remarks</label>
+      <div className="field-3d-wrapper pd-span-2">
+        <label className="label-3d">Remarks</label>
         <textarea
           rows="2"
           name="remarks"
           value={form.remarks}
           onChange={handleChange}
-          className="dm-textarea"
+          className="textarea-inset-3d"
         />
       </div>
 
     </div>
 
-    <div className="dm-form-grid" style={{ marginTop: 8 }}>
+    <div className="pd-form-grid" style={{ marginTop: 8 }}>
 
-      <div className="dm-field">
-        <label className="dm-label">No. of Packets</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">No. of Packets</label>
         <input
           type="text"
           name="noOfPackets"
           value={form.noOfPackets}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field">
-        <label className="dm-label">No. of Boxes</label>
+      <div className="field-3d-wrapper">
+        <label className="label-3d">No. of Boxes</label>
         <input
           type="text"
           name="noOfBoxes"
           value={form.noOfBoxes}
           onChange={handleChange}
-          className="dm-input"
+          className="input-inset-3d"
         />
       </div>
 
-      <div className="dm-field dm-span-2">
-        <label className="dm-label">Attachment</label>
+      <div className="field-3d-wrapper pd-span-2">
+        <label className="label-3d">Attachment</label>
         <input
           key={fileInputKey}
           type="file"
           accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx,.doc,.docx"
-          className="dm-input"
+          className="input-inset-3d"
           onChange={(e) => {
             const f = e.target.files?.[0] || null;
             if (f && f.size > 50 * 1024 * 1024) {
@@ -1577,9 +1597,13 @@ return(
 
     </div>
 
-    <div className="dm-actions">
-      <button className="dm-btn dm-btn-green dm-save" type="submit">
-        {editingId ? "Update" : "Save"}
+    <div className="pd-actions">
+      <button
+        className={`push-btn-3d push-btn-hero-save ${editingId ? "push-btn-edit-mode" : ""}`}
+        type="submit"
+      >
+        {editingId ? <IconEdit /> : <IconSave />}
+        <span>{editingId ? "Update" : "Save"}</span>
       </button>
     </div>
   </section>
@@ -1589,31 +1613,38 @@ return(
 
 {/* FILTERS */}
 
-<div className="dm-card">
+<section className="pd-glass">
 
-<div className="dm-pill">Filters</div>
+<div className="card-heading-row">
+  <div className="heading-with-icon">
+    <div className="heading-icon-badge">
+      <IconFilter />
+    </div>
+    <h2>Filters</h2>
+  </div>
+</div>
 
-<div className="dm-filters">
+<div className="pd-filters">
 
-<div className="dm-field">
-<label className="dm-label">WO Number</label>
+<div className="field-3d-wrapper">
+<label className="label-3d">WO Number</label>
 <input
 type="text"
 name="woNumber"
 value={filters.woNumber}
 onChange={handleFilterChange}
 placeholder="Search WO / Ticket"
-className="dm-input"
+className="input-inset-3d"
 />
 </div>
 
-<div className="dm-field">
-<label className="dm-label">Customer</label>
+<div className="field-3d-wrapper">
+<label className="label-3d">Customer</label>
 <select
 name="customer"
 value={filters.customer}
 onChange={handleFilterChange}
-className="dm-select"
+className="select-inset-3d"
 >
 <option value="">All Customers</option>
 
@@ -1625,45 +1656,45 @@ className="dm-select"
 
 </select>
 </div>
-<div className="dm-field">
-<label className="dm-label">Dispatch Date</label>
+<div className="field-3d-wrapper">
+<label className="label-3d">Dispatch Date</label>
 <input
 type="date"
 name="dispatchDate"
 value={filters.dispatchDate}
 onChange={handleFilterChange}
-className="dm-input"
+className="input-inset-3d"
 />
 </div>
 
-<div className="dm-field">
-<label className="dm-label">From Date</label>
+<div className="field-3d-wrapper">
+<label className="label-3d">From Date</label>
 <input
 type="date"
 name="fromDate"
 value={filters.fromDate}
 max={filters.toDate || undefined}
 onChange={handleFilterChange}
-className="dm-input"
+className="input-inset-3d"
 />
 </div>
 
-<div className="dm-field">
-<label className="dm-label">To Date</label>
+<div className="field-3d-wrapper">
+<label className="label-3d">To Date</label>
 <input
 type="date"
 name="toDate"
 value={filters.toDate}
 min={filters.fromDate || undefined}
 onChange={handleFilterChange}
-className="dm-input"
+className="input-inset-3d"
 />
 </div>
 
-<div className="dm-field">
-  <label className="dm-label">User Location</label>
+<div className="field-3d-wrapper">
+  <label className="label-3d">User Location</label>
   <select
-    className="dm-select"
+    className="select-inset-3d"
     value={locationFilter}
     onChange={(e) => setLocationFilter(e.target.value)}
   >
@@ -1679,7 +1710,7 @@ className="dm-input"
 </div>
 
 <button
-className="dm-btn dm-btn-gray"
+className="push-btn-3d push-btn-gray"
 onClick={() => {
   setFilters({
     woNumber: "",
@@ -1695,7 +1726,7 @@ Clear
 </button>
 
 <button
-className="dm-btn dm-btn-green"
+className="push-btn-3d push-btn-green"
 onClick={exportExcel}
 >
 Export Excel
@@ -1711,7 +1742,7 @@ Export Excel
 
 <button
   type="button"
-  className="dm-btn dm-btn-blue"
+  className="push-btn-3d push-btn-teal"
   onClick={() => document.getElementById("dm-import-input").click()}
 >
   Import Excel
@@ -1721,16 +1752,23 @@ Export Excel
 
 </div>
 
-</div>
+</section>
 
 {/* DISPATCH TABLE */}
 
-<div className="dm-card">
+<section className="pd-glass">
 
-<div className="dm-pill">Dispatch Records</div>
+<div className="card-heading-row">
+  <div className="heading-with-icon">
+    <div className="heading-icon-badge">
+      <IconList />
+    </div>
+    <h2>Dispatch Records</h2>
+  </div>
+</div>
 
-  <div className="dm-table-wrap" style={{ maxHeight: "350px", overflowY: "auto" }}>
-      <table className="dm-table">
+  <div className="table-scroll-container-3d" style={{ maxHeight: "350px", overflowY: "auto" }}>
+      <table className="colorful-3d-table">
 <thead>
       <tr>
         <th>WO / Ticket</th>
@@ -1769,7 +1807,7 @@ Export Excel
           .slice(0, 30)
           .map((d) => (
             <tr key={d._id}>
-              <td>{d.efiWoNumber || d.ticketNo}</td>
+              <td><span className="reel-tag-3d">{d.efiWoNumber || d.ticketNo}</span></td>
               <td>{d.purchaseOrderNo || "-"}</td> 
            <td>
 {d.poDate ? new Date(d.poDate).toLocaleDateString("en-IN") : "-"}
@@ -1920,19 +1958,21 @@ Export Excel
 </td>
           <td>
   {isAdmin ? (
-    <div style={{ display: "flex", gap: "8px" }}>
+    <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
       <button
-        className="dm-btn dm-btn-sm dm-btn-amber"
+        type="button"
+        className="btn-table-action-3d edit"
         onClick={() => handleEdit(d)}
       >
-        Edit
+        <IconEdit /> Edit
       </button>
 
       <button
-        className="dm-btn dm-btn-sm dm-btn-red"
+        type="button"
+        className="btn-table-action-3d delete"
         onClick={() => handleDelete(d._id)}
       >
-        Delete
+        <IconTrash /> Del
       </button>
     </div>
   ) : (
@@ -1944,7 +1984,7 @@ Export Excel
       </tbody>
     </table>
   </div>
-</div>
+</section>
 
 </div>
 </div>
