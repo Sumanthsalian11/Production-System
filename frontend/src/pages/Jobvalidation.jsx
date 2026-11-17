@@ -30,7 +30,7 @@ const LABELS = { paper: "Paper", production: "Machines", ink: "Ink", plate: "Pla
 const PARTS = ["paper", "production", "ink", "plate", "film", "gum", "other"];
 
 /* ---------------- file parsing (upload) ---------------- */
-const KINDS = ["production", "consumption", "planning"];
+const KINDS = ["consumption"];
 const lc = (s) => String(s == null ? "" : s).trim().toLowerCase();
 const p2 = (n) => (n < 10 ? "0" : "") + n;
 
@@ -191,12 +191,14 @@ export default function JobValidation() {
   const lastStamp = useRef(null);
   const monthRef = useRef("");
   monthRef.current = month;
+  const [usePlanning, setUsePlanning] = useState(false);
+  const planningRef = useRef(false);
 
   const load = useCallback(async (m, quiet) => {
     if (!quiet) setLoading(true);
     setError("");
     try {
-      const r = await axios.get(`${API}/report`, { ...authCfg(), params: { month: m || "" } });
+      const r = await axios.get(`${API}/report`, { ...authCfg(), params: { month: m || "", planning: planningRef.current ? 1 : 0 } });
       setData(r.data);
       lastStamp.current = r.data.stamp;
       setMonth(r.data.month);
@@ -309,6 +311,18 @@ export default function JobValidation() {
             {data && data.months.concat(["ALL"]).map((m) => <option key={m} value={m}>{monthName(m)}</option>)}
           </select>
         </div>
+        <label className="jv-ctl" style={{ cursor: "pointer", gap: 6 }}>
+          <input
+            type="checkbox"
+            checked={usePlanning}
+            onChange={(e) => {
+              planningRef.current = e.target.checked;
+              setUsePlanning(e.target.checked);
+              load(month);
+            }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Planning</span>
+        </label>
         <FilesMenu onChanged={() => load("")} /><button className="jv-btn primary" onClick={() => setShowUpload(true)}>Upload data</button>
         <button className="jv-btn" onClick={() => setShowSetup(true)}>Setup</button>
         <button className="jv-btn" disabled={loading} onClick={() => load(month)}>Refresh</button>
@@ -549,7 +563,7 @@ function JobDetail({ r }) {
               <thead><tr><th>Stage</th><th>Machine</th><th className="num">Hours</th><th className="num">Rate</th><th className="num">Rs</th></tr></thead>
               <tbody>
                 {r.rateInfo.length ? r.rateInfo.map((x, i) => (
-                  <tr key={i}><td>{x.stage}</td><td>{x.machine}</td><td className="num">{n2(x.hrs)} h</td><td className="num">{n0(x.rate)}/h</td><td className="num">{n0(x.hrs * x.rate)}</td></tr>
+                  <tr key={i}><td>{x.stage}</td><td>{x.machine}{x.rateMachine && x.rateMachine !== x.machine ? <div className="jv-jobdesc">rate of {x.rateMachine}</div> : null}</td><td className="num">{n2(x.hrs)} h</td><td className="num">{x.noRate ? <span className="neg">no rate</span> : n0(x.rate) + "/h"}</td><td className="num">{n0(x.hrs * x.rate)}</td></tr>
                 )) : <tr><td colSpan={5}>No machine hours costed.</td></tr>}
               </tbody>
             </table>
@@ -570,14 +584,13 @@ function JobDetail({ r }) {
             )}
             <h3>Hours: logged and used</h3>
             <table>
-              <thead><tr><th>Stage</th><th className="num">Logged</th><th className="num">Used in cost</th></tr></thead>
+              <thead><tr><th>Stage</th><th>Machine</th><th className="num">Logged</th><th className="num">Used in cost</th></tr></thead>
               <tbody>
-                <tr><td>Printing</td><td className="num">{n2(r.hrs.printing)}</td><td className="num">{n2(r.hrs.printing)}</td></tr>
-                <tr><td>Cutting</td><td className="num">{n2(r.actualHrs.cutting)}</td><td className="num">{n2(r.hrs.cutting)}</td></tr>
-                <tr><td>Die punch</td><td className="num">{n2(r.actualHrs.die)}</td><td className="num">{n2(r.hrs.die)}</td></tr>
-                <tr><td>W&amp;D</td><td className="num">{n2(r.actualHrs.wd)}</td><td className="num">{n2(r.hrs.wd)}</td></tr>
-                <tr><td>Make ready (not costed)</td><td className="num">{n2(r.makeReadyHrs)}</td><td className="num"></td></tr>
-                <tr><td>Idle and breakdown</td><td className="num">{n2(r.lostHrs)}</td><td className="num">-</td></tr>
+                {(r.actRows || []).map((x, i) => (
+                  <tr key={i}><td>{x.stage}</td><td>{x.machine}</td><td className="num">{n2(x.logged)}</td><td className="num">{n2(x.used)}</td></tr>
+                ))}
+                <tr><td colSpan={2}>Make ready (not costed)</td><td className="num">{n2(r.makeReadyHrs)}</td><td className="num"></td></tr>
+                <tr><td colSpan={2}>Idle and breakdown</td><td className="num">{n2(r.lostHrs)}</td><td className="num">-</td></tr>
               </tbody>
             </table>
             <h3>Job</h3>

@@ -313,28 +313,41 @@ function buildReport(D, monthWanted) {
     pRows.forEach((pr) => { const c = String(pick_(pr, ["paper code"]) || "").trim(); if (c) codes[c] = 1; });
     if (!Object.keys(codes).length) all.forEach((x) => { const c = String(pick_(x.r, ["material code"]) || "").trim(); if (c) codes[c] = 1; });
 
-    // ---- production aggregation
+    // ---- production aggregation: stage = activity, machine = machine, exactly as logged
     const hrsBy = { Printing: 0, Cutting: 0, "Die punch": 0, "W&D": 0, Shrink: 0, Other: 0 };
-    const qtyBy = {}, printMachines = {}, breakdowns = {};
+    const qtyBy = {}, printMachines = {}, breakdowns = {}, actHrs = {};
     let wasteAll = 0, lost = 0, costed = 0, mr = 0;
     all.forEach((x) => {
       const r = x.r;
       const status = String(pick_(r, ["machine status"]) || "").trim().toUpperCase();
       const h = hoursOf_(pick_(r, ["from time (12h)", "from time"]), pick_(r, ["to time (12h)", "to time"]));
-      const machine = String(pick_(r, ["machine"]) || "").trim();
-      const cat = classify_(pick_(r, ["stage"]), machine);
-      if (cfg.costStatuses.indexOf(status) >= 0) {
-        costed += h;
-        hrsBy[cat] = (hrsBy[cat] || 0) + h;
-        if (cat === "Printing") printMachines[machine] = (printMachines[machine] || 0) + h;
+      const isCosted = cfg.costStatuses.indexOf(status) >= 0;
+      // an entry with several activity/machine pairs is stored as "A, B" / "M1, M2": split it back into pairs
+      const stages = String(pick_(r, ["stage"]) || "").split(",").map((s) => s.trim());
+      const macs = String(pick_(r, ["machine"]) || "").split(",").map((s) => s.trim());
+      const nPairs = Math.max(stages.length, macs.length);
+      let firstCat = "Printing";
+      for (let i = 0; i < nPairs; i++) {
+        const stageName = stages[i] !== undefined ? stages[i] : stages[0];
+        const machine = macs[i] !== undefined ? macs[i] : macs[0];
+        const cat = classify_(stageName, machine);
+        if (i === 0) firstCat = cat;
+        if (isCosted && h > 0) {
+          hrsBy[cat] = (hrsBy[cat] || 0) + h;
+          if (cat === "Printing" && machine) printMachines[machine] = (printMachines[machine] || 0) + h;
+          const key = stageName + "||" + machine;
+          const a = (actHrs[key] = actHrs[key] || { stage: stageName || "-", machine: machine || "", cat, logged: 0 });
+          a.logged += h;
+        }
       }
+      if (isCosted) costed += h;
       if (status.indexOf("MAKE READY") >= 0) mr += h;
       else if (status.indexOf("IDLE") >= 0 || status.indexOf("BREAK") >= 0) {
         lost += h;
         const why = String(pick_(r, ["remarks"]) || "").trim();
         if (status.indexOf("BREAK") >= 0 && why) breakdowns[why] = (breakdowns[why] || 0) + h;
       }
-      qtyBy[cat] = (qtyBy[cat] || 0) + num_(pick_(r, ["production qty"]));
+      qtyBy[firstCat] = (qtyBy[firstCat] || 0) + num_(pick_(r, ["production qty"]));
       wasteAll += num_(pick_(r, ["wastage qty"]));
     });
     // production qty = qty at the first stage that has any
@@ -346,46 +359,27 @@ function buildReport(D, monthWanted) {
     const planWaste = num_(pick_(pl, ["waste %"]));
     const wasteLimit = planWaste > 0 ? planWaste : cfg.wasteLimit;
 
-    // ---- stage hours
-    const norm = {
-      cutting: route.cutting && route.cutSpeed ? prodQty / route.cutSpeed : 0,
-      die: route.die && route.dieSpeed ? prodQty / route.dieSpeed : 0,
-      wd: route.wd && route.wdSpeed ? prodQty / route.wdSpeed : 0,
-    };
-    const pickHrs = (actual, normal, applicable) => {
-      if (!applicable) return 0;
-      if (cfg.basis === "ACTUAL") return actual;
-      if (cfg.basis === "ACTUAL_ELSE_NORM") return actual > 0 ? actual : normal;
-      return normal;
-    };
-    const hrs = {
-      printing: route.printing ? hrsBy.Printing : 0,
-      cutting: pickHrs(hrsBy.Cutting, norm.cutting, !!route.cutting),
-      die: pickHrs(hrsBy["Die punch"], norm.die, !!route.die),
-      wd: pickHrs(hrsBy["W&D"], norm.wd, !!route.wd),
-      shrink: route.shrink ? hrsBy.Shrink : 0,
-    };
+    // hours per group for the table columns = logged hours only (no norms)
+    const hrs = { printing: hrsBy.Printing, cutting: hrsBy.Cutting, die: hrsBy["Die punch"], wd: hrsBy["W&D"], shrink: hrsBy.Shrink };
 
-    // ---- machine cost
-    const stageCost = { printing: 0, cutting: 0, die: 0, wd: 0, shrink: 0 }, rateInfo = [], missingRate = {};
-    if (route.printing && route.printing.toUpperCase() !== "ACTUAL") {
-      const fr = rateFor(route.printing);
-      if (fr) { stageCost.printing = hrs.printing * fr.rate; rateInfo.push({ stage: "Printing", machine: fr.name, rate: fr.rate, hrs: hrs.printing }); }
-      else missingRate[route.printing] = true;
-    } else if (route.printing) {
-      Object.keys(printMachines).forEach((m) => {
-        const rr = rateFor(m);
-        if (rr) { stageCost.printing += printMachines[m] * rr.rate; rateInfo.push({ stage: "Printing", machine: rr.name, rate: rr.rate, hrs: printMachines[m] }); }
-        else missingRate[m] = true;
-      });
-    }
-    [["cutting", "Cutting", route.cutting], ["die", "Die punch", route.die], ["wd", "W&D", route.wd], ["shrink", "Shrink", route.shrink]].forEach((st) => {
-      if (!st[2]) return;
-      const rr = rateFor(st[2]);
-      if (rr) { stageCost[st[0]] = hrs[st[0]] * rr.rate; rateInfo.push({ stage: st[1], machine: rr.name, rate: rr.rate, hrs: hrs[st[0]] }); }
-      else missingRate[st[2]] = true;
+    // ---- machine cost = logged hours of each (activity, machine) x the rate of that machine
+    const stageCost = { printing: 0, cutting: 0, die: 0, wd: 0, shrink: 0, other: 0 }, rateInfo = [], missingRate = {}, actRows = [];
+    const catKey = { Printing: "printing", Cutting: "cutting", "Die punch": "die", "W&D": "wd", Shrink: "shrink", Other: "other" };
+    Object.keys(actHrs).forEach((k) => {
+      const a = actHrs[k];
+      const rr = rateFor(a.machine);
+      let used = 0;
+      if (rr) {
+        used = a.logged;
+        stageCost[catKey[a.cat] || "other"] += a.logged * rr.rate;
+        rateInfo.push({ stage: a.stage, machine: a.machine, rateMachine: rr.name, rate: rr.rate, hrs: a.logged });
+      } else {
+        missingRate[a.machine || "(no machine)"] = true;
+        rateInfo.push({ stage: a.stage, machine: a.machine || "-", rateMachine: "", rate: 0, hrs: a.logged, noRate: true });
+      }
+      actRows.push({ stage: a.stage, machine: a.machine || "-", logged: round_(a.logged, 2), used: round_(used, 2) });
     });
-    const prodCost = stageCost.printing + stageCost.cutting + stageCost.die + stageCost.wd + stageCost.shrink;
+    const prodCost = Object.keys(stageCost).reduce((s, k) => s + stageCost[k], 0);
 
     // ---- SAP consumption (net: issues are negative, returns positive)
     const sap = { paper: { kg: 0, val: 0, n: 0 }, ink: { kg: 0, val: 0, n: 0 }, plate: { kg: 0, val: 0, n: 0 }, film: { kg: 0, val: 0, n: 0 }, gum: { kg: 0, val: 0, n: 0 } };
@@ -448,7 +442,7 @@ function buildReport(D, monthWanted) {
     if (D.plan.rows.length && !pRows.length) flag("warn", "WO not found in Planning");
     if (!started) flag("warn", "Paper issued in SAP but no production entries for this WO");
     if (started && !rt.found) flag("info", 'Product type "' + productType + '" not in PRODUCT ROUTES, DEFAULT route used');
-    if (started && !hrs.printing && prodQty > 0 && route.printing) flag("crit", "Production qty logged but no printing hours (stage or status not recognised)");
+    if (started && prodQty > 0 && !costed) flag("crit", "Production qty logged but no hours with a costed status (" + cfg.costStatuses.join(", ") + ")");
     Object.keys(missingRate).forEach((m) => flag("crit", 'No running-cost rate for machine "' + m + '" (add it under Machine rates)'));
     if (started && !sap.paper.n) flag("warn", "No paper issue found in Consumption for this WO");
     if (started && sap.paper.n && paperKg > 0 && sap.paper.val <= 0) flag("info", "Paper has no SAP value (free-issue or non-valued), paper cost is 0");
@@ -466,11 +460,9 @@ function buildReport(D, monthWanted) {
     }
     if (started && wastePct > wasteLimit) flag(wastePct > wasteLimit * 2 ? "crit" : "warn", "Waste " + round_(wastePct, 1) + "% (limit " + wasteLimit + "%)");
     if (started && totalTime > 0 && (lost / (lost + costed + mr)) * 100 > cfg.idleShare) flag("warn", "Idle + breakdown is " + round_((lost / (lost + costed + mr)) * 100, 0) + "% of logged time");
-    [["Cutting", hrsBy.Cutting, norm.cutting], ["Die punch", hrsBy["Die punch"], norm.die], ["W&D", hrsBy["W&D"], norm.wd]].forEach((c) => {
-      if (c[1] > 0 && c[2] > 0 && (Math.abs(c[1] - c[2]) / c[2]) * 100 > cfg.normVar) flag("info", c[0] + " logged " + round_(c[1], 1) + " h vs norm " + round_(c[2], 1) + " h");
-    });
+
     if (started && woQty > 0 && woQty < cfg.smallQty) flag("info", "Small qty");
-    if (started && route.other) flag("info", "Route also has " + route.other + " (no rate defined, not costed)");
+
     if (started && src.plate === "colours x rate") flag("info", "Plates taken as " + colours + " (= no. of colours), enter actual plates under Job overrides if different");
     if (started && coloursEst && src.ink === "norm") flag("info", "Colours not in Planning, default " + cfg.defColours + " used");
 
@@ -493,7 +485,7 @@ function buildReport(D, monthWanted) {
       actualHrs: { cutting: round_(hrsBy.Cutting, 2), die: round_(hrsBy["Die punch"], 2), wd: round_(hrsBy["W&D"], 2) },
       lostHrs: round_(lost, 2), costedHrs: round_(costed, 2), makeReadyHrs: round_(mr, 2),
       stageCost, rateInfo, cost, perUnit: round_(perUnit, 4), per1000: round_(perUnit * 1000, 2), sources: src,
-      status, flags, breakdowns: bd, started,
+      status, flags, breakdowns: bd, started, actRows,
     });
   });
 

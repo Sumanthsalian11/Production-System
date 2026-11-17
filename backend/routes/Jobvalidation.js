@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { JobValidationMeta, JobValidationRow, JobValidationSetup } = require("../models/JobValidation");
 const { buildReport, defaultSetup, UPLOAD_SPEC } = require("../utils/jobValidationEngine");
+const { loadLiveProduction, loadLivePlanning, liveStamp } = require("../utils/jobValidationLive");
 
 // TODO: protect with your existing auth middleware, e.g.
 // const auth = require("../middleware/auth");  router.use(auth);
@@ -60,21 +61,26 @@ async function loadKind(kind) {
   return { rows, meta };
 }
 
-async function loadData() {
-  const [setup, prod, cons, plan] = await Promise.all([getSetup(), loadKind("production"), loadKind("consumption"), loadKind("planning")]);
+async function loadData(includePlanning) {
+  const [setup, prod, cons, plan] = await Promise.all([
+    getSetup(),
+    loadLiveProduction(),
+    loadKind("consumption"),
+    includePlanning ? loadLivePlanning() : Promise.resolve({ rows: [], meta: null }),
+  ]);
   return { setup, prod, cons, plan };
 }
 
 async function dataStamp() {
   const metas = await JobValidationMeta.find({ active: true }).lean();
   const setup = await JobValidationSetup.findOne({ key: "main" }).select("updatedAt").lean();
-  return metas.map((m) => `${m.kind}:${m.batchId}:${m.rowCount}`).sort().join("|") + "|" + (setup ? new Date(setup.updatedAt).getTime() : 0);
+  return metas.filter((m) => m.kind === "consumption").map((m) => `${m.kind}:${m.batchId}:${m.rowCount}`).sort().join("|") + "|" + (setup ? new Date(setup.updatedAt).getTime() : 0) + "|" + (await liveStamp());
 }
 
 /* ---------------- report ---------------- */
 router.get("/report", async (req, res) => {
   try {
-    const D = await loadData();
+    const D = await loadData(String(req.query.planning) === "1");
     const out = buildReport(D, String(req.query.month || ""));
     out.stamp = await dataStamp();
     out.generatedAt = new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
