@@ -435,6 +435,17 @@ function InternalLogin() {
   };
 
   const hasBar = Boolean(announcementData?.text);
+
+  // dark theme: make popup cards clearly visible
+  const dmCard = darkMode
+    ? {
+        background: "#1e293b",
+        border: "1px solid #64748b",
+        boxShadow: "0 0 0 1px rgba(148,163,184,0.25), 0 20px 60px rgba(0,0,0,0.8)"
+      }
+    : {};
+  const dmTitle = darkMode ? { color: "#ffffff" } : {};
+  const dmText = darkMode ? { color: "#e2e8f0" } : {};
   const accent = announcementData?.type === "critical" ? "#ef4444" : "#ffb000";
   const themeVars = {
     "--ann-accent": accent,
@@ -619,15 +630,30 @@ function InternalLogin() {
 
       {/* ERROR MODAL */}
       {error && (
-        <div className="modal-backdrop" onClick={() => setError("")}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} role="alert">
+        <div
+          className="modal-backdrop"
+          onClick={() => setError("")}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 1,
+            background: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)"
+          }}
+        >
+          <div className="modal-card" style={dmCard} onClick={(e) => e.stopPropagation()} role="alert">
             <div className="modal-icon-badge">
               <FaExclamationTriangle />
             </div>
-            <h3 className="modal-title">Authentication Failed</h3>
-            <p className="modal-desc">{error}</p>
+            <h3 className="modal-title" style={dmTitle}>Authentication Failed</h3>
+            <p className="modal-desc" style={dmText}>{error}</p>
             {lockEndsAt && lockRemaining > 0 && (
-              <p className="modal-desc" style={{ fontWeight: 700, fontSize: "1.4rem", letterSpacing: "2px" }}>
+              <p className="modal-desc" style={{ fontWeight: 700, fontSize: "1.4rem", letterSpacing: "2px", ...dmTitle }}>
                 🔒 Unlocks in {lockText}
               </p>
             )}
@@ -640,9 +666,25 @@ function InternalLogin() {
 
       {/* ANNOUNCEMENT MODAL */}
       {showDetailModal && hasBar && (
-        <div className="modal-backdrop" onClick={() => setShowDetailModal(false)}>
+        <div
+          className="modal-backdrop"
+          onClick={() => setShowDetailModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 1,
+            background: "rgba(15, 23, 42, 0.45)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)"
+          }}
+        >
           <div
             className="modal-card ann-modal"
+            style={dmCard}
             role="dialog"
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
@@ -658,7 +700,7 @@ function InternalLogin() {
                 <FaTimes />
               </button>
             </div>
-            <p className="modal-desc ann-modal__text">{announcementData.text}</p>
+            <p className="modal-desc ann-modal__text" style={dmText}>{announcementData.text}</p>
             <button className="ann-modal__action" onClick={() => setShowDetailModal(false)}>
               Got it
             </button>
