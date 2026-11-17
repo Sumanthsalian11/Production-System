@@ -20,7 +20,8 @@ app.use(
   cors({
     origin: ["https://mpi2apps.mpimanipal.com", "http://localhost:5173"], // your frontend
     methods: ["GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Background"],
+    exposedHeaders: ["X-Refreshed-Token"],
     credentials: true,
   }),
 );
