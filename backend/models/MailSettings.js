@@ -7,6 +7,11 @@ const mailSettingsSchema = new mongoose.Schema(
     ccEmails: { type: [String], default: [] },
     sendTime: { type: String, default: "15:00" }, // 24h "HH:MM"
     machineIds: { type: [String], default: [] }, // machines to include in the mail (empty = all machines)
+        // inhouseOrder only: product types per recipient (empty = that user gets all types)
+    userTypes: {
+      type: [{ _id: false, email: String, productTypes: [String] }],
+      default: [],
+    },
   },
   { timestamps: true }
 );

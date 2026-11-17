@@ -1149,6 +1149,16 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [showMailList, setShowMailList] = useState(false);
   const [editingMailKey, setEditingMailKey] = useState(null);
   const [mailLocation, setMailLocation] = useState("");
+  const [mailUserTypes, setMailUserTypes] = useState({}); // inhouse mail only: { email: [productTypes] }
+  const allProductTypes = useMemo(
+    () => [...new Set(items.map((i) => String(i.materialType || "").trim()).filter(Boolean))].sort(),
+    [items]
+  );
+  const toggleUserType = (email, type) =>
+    setMailUserTypes((prev) => {
+      const cur = prev[email] || [];
+      return { ...prev, [email]: cur.includes(type) ? cur.filter((t) => t !== type) : [...cur, type] };
+    });
 
   const mailLabel = (key) => MAIL_REPORTS.find((r) => r.key === key)?.label || key;
   const mailDefaultTime = (key) => MAIL_REPORTS.find((r) => r.key === key)?.defaultTime || "10:00";
@@ -1190,6 +1200,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     setMailSettings({ toText: "", ccText: "", sendTime: mailDefaultTime(key), machineIds: [] });
     setEditingMailKey(null);
     setMailLocation("");
+    setMailUserTypes({});
   };
 
   const fetchMailList = async () => {
@@ -1210,10 +1221,25 @@ const [supplierFilter, setSupplierFilter] = useState("");
     const bad = [...toEmails, ...ccEmails].find((e) => !emailRe.test(e));
     if (bad) return showAlert(`Invalid email: ${bad}`);
     if (!mailSettings.sendTime) return showAlert("Select the send time");
+
+    // product types per user: sent only for the inhouse order mail
+    const userTypes =
+      mailKey === "inhouseOrder"
+        ? [...new Set([...toEmails, ...ccEmails].map((e) => e.toLowerCase()))]
+            .filter((e) => (mailUserTypes[e] || []).length > 0)
+            .map((e) => ({ email: e, productTypes: mailUserTypes[e] }))
+        : [];
+
     try {
       await axios.put(
         `${BASE_URL}/api/mail-settings/${encodeURIComponent(mailLocation ? `${mailKey}::${mailLocation}` : mailKey)}`,
-        { toEmails, ccEmails, sendTime: mailSettings.sendTime, machineIds: mailSettings.machineIds || [] },
+        {
+          toEmails,
+          ccEmails,
+          sendTime: mailSettings.sendTime,
+          machineIds: mailSettings.machineIds || [],
+          userTypes,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       showAlert("Mail settings saved successfully");
@@ -4992,6 +5018,70 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </div>
           )}
 
+          {mailKey === "inhouseOrder" && (() => {
+            const emails = [
+              ...new Set(
+                [...parseEmails(mailSettings.toText), ...parseEmails(mailSettings.ccText)].map((e) => e.toLowerCase())
+              ),
+            ];
+            return (
+              <div className="machine-picker" style={{ marginBottom: "12px" }}>
+                <div className="picker-header">
+                  <span>Product types per user (none ticked = user gets all product types)</span>
+                </div>
+
+                {emails.length === 0 && (
+                  <div style={{ padding: 8, color: "#4a6f8c" }}>
+                    Enter TO / CC emails above, then tick the product types for each user.
+                  </div>
+                )}
+
+                {emails.map((email) => {
+                  const sel = mailUserTypes[email] || [];
+                  return (
+                    <div
+                      key={email}
+                      style={{ margin: "8px 0", paddingBottom: 8, borderBottom: "1px dashed #cfe8f6" }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                        <strong>{email}</strong>
+                        <span style={{ fontSize: 12, color: "#4a6f8c" }}>
+                          {sel.length ? `${sel.length} selected` : "All product types"}
+                        </span>
+                        <button
+                          type="button"
+                          className="pro-btn"
+                          onClick={() => setMailUserTypes((p) => ({ ...p, [email]: allProductTypes }))}
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          className="pro-btn"
+                          onClick={() => setMailUserTypes((p) => ({ ...p, [email]: [] }))}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="machine-grid">
+                        {allProductTypes.map((t) => (
+                          <label key={t} className={`machine-tile ${sel.includes(t) ? "selected" : ""}`}>
+                            <input
+                              type="checkbox"
+                              checked={sel.includes(t)}
+                              onChange={() => toggleUserType(email, t)}
+                            />
+                            <span>{t}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <div style={{ display: "flex", gap: "8px" }}>
             <button className="pro-btn primary" onClick={saveMailSettings}>
               {editingMailKey ? "Update Settings" : "Save Settings"}
@@ -5030,6 +5120,9 @@ const [supplierFilter, setSupplierFilter] = useState("");
                             sendTime: m.sendTime,
                             machineIds: (m.machineIds || []).map(String),
                           });
+                          setMailUserTypes(
+                            Object.fromEntries((m.userTypes || []).map((u) => [u.email, u.productTypes || []]))
+                          );
                           setEditingMailKey(m.key);
                         }}
                       >

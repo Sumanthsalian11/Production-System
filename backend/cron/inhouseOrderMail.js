@@ -38,26 +38,57 @@ async function getRecipients(planningLocation = "") {
   }
   const to = cfg?.toEmails?.length ? cfg.toEmails : toList(process.env.INHOUSE_ORDER_MAIL_TO);
   const ccAll = cfg?.ccEmails?.length ? cfg.ccEmails : toList(process.env.INHOUSE_ORDER_MAIL_CC);
-  return { to, cc: ccAll.filter((c) => !to.includes(c)) };
+  return { to, cc: ccAll.filter((c) => !to.includes(c)), userTypes: cfg?.userTypes || [] };
 }
 
-// orders = array of order objects (see route); one mail is sent per product type
+const norm = (v) => String(v || "").trim().toLowerCase();
+
+// splits orders into mail groups: same TO/CC people + only the orders they should get
+async function buildMailGroups(list, planningLocation) {
+  const { to, cc, userTypes } = await getRecipients(planningLocation);
+
+  const typeMap = {};
+  userTypes.forEach((u) => {
+    typeMap[norm(u.email)] = (u.productTypes || []).map(norm).filter(Boolean);
+  });
+
+  // a user with no product types gets everything; otherwise only those types
+  const allowed = (email, order) => {
+    const t = typeMap[norm(email)];
+    if (!t || !t.length) return true;
+    return t.includes(norm(order.materialType));
+  };
+
+  const groups = new Map();
+  for (const o of list) {
+    let t = to.filter((e) => allowed(e, o));
+    let c = cc.filter((e) => allowed(e, o));
+    if (!t.length && c.length) { t = c; c = []; } // all TO users filtered out -> CC users become TO
+    if (!t.length) continue;                      // nobody should get this product type
+
+    const key = t.join(",") + "|" + c.join(",");
+    if (!groups.has(key)) groups.set(key, { to: t, cc: c, orders: [] });
+    groups.get(key).orders.push(o);
+  }
+  return [...groups.values()];
+}
+
+// orders = array of order objects (see route); one mail is sent per recipient group
 async function sendInhouseOrderMail(orders = [], planningLocation = "") {
   try {
     const list = (orders || []).map((o) => (o.toObject ? o.toObject() : o));
     if (!list.length) return;
 
-    const groups = { "": list };
+    const mailGroups = await buildMailGroups(list, planningLocation);
+    if (!mailGroups.length) {
+      console.warn("Inhouse mail: no recipients set (or none for these product types), mail skipped");
+      return;
+    }
 
     const th = "border:1px solid #999;padding:5px 8px;background:#a9d0d9;text-align:left;font-size:12px";
     const td = "border:1px solid #999;padding:5px 8px;font-size:12px;vertical-align:top";
 
-    for (const [materialType, rowsList] of Object.entries(groups)) {
-      const { to, cc } = await getRecipients(planningLocation);
-      if (!to.length) {
-        console.warn("Inhouse mail: no TO set in Mail Settings, mail skipped");
-        continue;
-      }
+    for (const { to, cc, orders: rowsList } of mailGroups) {
 
           const rows = rowsList
         .map((o) => {
