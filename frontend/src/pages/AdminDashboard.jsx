@@ -1151,6 +1151,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
   const [editingMailKey, setEditingMailKey] = useState(null);
   const [mailLocation, setMailLocation] = useState("");
   const [mailUserTypes, setMailUserTypes] = useState({}); // inhouse mail only: { email: [productTypes] }
+  const [openTypeUser, setOpenTypeUser] = useState(null); // TO user whose product-type popup is open
+  const [typeUserSearch, setTypeUserSearch] = useState("");
   const allProductTypes = useMemo(
     () => [...new Set(items.map((i) => String(i.materialType || "").trim()).filter(Boolean))].sort(),
     [items]
@@ -1202,6 +1204,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
     setEditingMailKey(null);
     setMailLocation("");
     setMailUserTypes({});
+    setOpenTypeUser(null);
+    setTypeUserSearch("");
   };
 
   const fetchMailList = async () => {
@@ -1226,7 +1230,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     // product types per user: sent only for the inhouse order mail
     const userTypes =
       mailKey === "inhouseOrder"
-        ? [...new Set([...toEmails, ...ccEmails].map((e) => e.toLowerCase()))]
+        ? [...new Set(toEmails.map((e) => e.toLowerCase()))] // TO only, CC excluded
             .filter((e) => (mailUserTypes[e] || []).length > 0)
             .map((e) => ({ email: e, productTypes: mailUserTypes[e] }))
         : [];
@@ -5019,66 +5023,119 @@ const [supplierFilter, setSupplierFilter] = useState("");
             </div>
           )}
 
-          {mailKey === "inhouseOrder" && (() => {
-            const emails = [
-              ...new Set(
-                [...parseEmails(mailSettings.toText), ...parseEmails(mailSettings.ccText)].map((e) => e.toLowerCase())
-              ),
-            ];
+                   {mailKey === "inhouseOrder" && (() => {
+            const emails = [...new Set(parseEmails(mailSettings.toText).map((e) => e.toLowerCase()))]; // TO only
+            const q = typeUserSearch.trim().toLowerCase();
+            const visible = q ? emails.filter((e) => e.includes(q)) : emails;
+            const popupSel = openTypeUser ? mailUserTypes[openTypeUser] || [] : [];
+
             return (
               <div className="machine-picker" style={{ marginBottom: "12px" }}>
                 <div className="picker-header">
-                  <span>Product types per user (none ticked = user gets all product types)</span>
+                  <span>Product types per TO user (click a user to choose; none ticked = all)</span>
+                  <strong>{emails.length} users</strong>
+                </div>
+                <div style={{ fontSize: 12, color: "#4a6f8c", fontWeight: 600, margin: "4px 0 6px" }}>
+                  CC users always receive all product types.
                 </div>
 
                 {emails.length === 0 && (
                   <div style={{ padding: 8, color: "#4a6f8c" }}>
-                    Enter TO / CC emails above, then tick the product types for each user.
+                    Enter TO emails above, then click a user to pick product types.
                   </div>
                 )}
 
-                {emails.map((email) => {
-                  const sel = mailUserTypes[email] || [];
-                  return (
-                    <div
-                      key={email}
-                      style={{ margin: "8px 0", paddingBottom: 8, borderBottom: "1px dashed #cfe8f6" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                        <strong>{email}</strong>
-                        <span style={{ fontSize: 12, color: "#4a6f8c" }}>
-                          {sel.length ? `${sel.length} selected` : "All product types"}
+                {emails.length > 5 && (
+                  <input
+                    className="pro-input"
+                    style={{ width: "100%", marginBottom: 8 }}
+                    placeholder="Search user email..."
+                    value={typeUserSearch}
+                    onChange={(e) => setTypeUserSearch(e.target.value)}
+                  />
+                )}
+
+                {/* compact user rows */}
+                <div style={{ maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
+                  {visible.map((email) => {
+                    const sel = mailUserTypes[email] || [];
+                    return (
+                      <div
+                        key={email}
+                        onClick={() => setOpenTypeUser(email)}
+                        style={{
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                          gap: 8, padding: "8px 12px", marginBottom: 6, cursor: "pointer",
+                          borderRadius: 12, background: "#fff", border: "1px solid #cfe8f6",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#eaf7ff")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                      >
+                        <strong style={{ fontSize: 13, wordBreak: "break-all" }}>{email}</strong>
+                        <span style={{ fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", color: sel.length ? "#107a4d" : "#4a6f8c" }}>
+                          {sel.length ? `${sel.length} / ${allProductTypes.length} types` : "All types"} ▸
                         </span>
-                        <button
-                          type="button"
-                          className="pro-btn"
-                          onClick={() => setMailUserTypes((p) => ({ ...p, [email]: allProductTypes }))}
-                        >
+                      </div>
+                    );
+                  })}
+                  {visible.length === 0 && emails.length > 0 && (
+                    <div style={{ padding: 8, color: "#4a6f8c", textAlign: "center" }}>No matching user</div>
+                  )}
+                </div>
+
+                {/* product type popup */}
+                {openTypeUser && (
+                  <div
+                    className="ad-msg-overlay"
+                    onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenTypeUser(null); }}
+                  >
+                    <div className="ad-msg-box" style={{ width: 640, textAlign: "left" }}>
+                      <h3 style={{ fontSize: 16, wordBreak: "break-all" }}>{openTypeUser}</h3>
+                      <p style={{ margin: "4px 0 10px", fontSize: 12.5 }}>
+                        Select the product types this user should receive. None ticked = all.{" "}
+                        <b>{popupSel.length} selected</b>
+                      </p>
+
+                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                        <button type="button" className="pro-btn"
+                          onClick={() => setMailUserTypes((p) => ({ ...p, [openTypeUser]: allProductTypes }))}>
                           Select All
                         </button>
-                        <button
-                          type="button"
-                          className="pro-btn"
-                          onClick={() => setMailUserTypes((p) => ({ ...p, [email]: [] }))}
-                        >
+                        <button type="button" className="pro-btn"
+                          onClick={() => setMailUserTypes((p) => ({ ...p, [openTypeUser]: [] }))}>
                           Clear
                         </button>
                       </div>
-                      <div className="machine-grid">
-                        {allProductTypes.map((t) => (
-                          <label key={t} className={`machine-tile ${sel.includes(t) ? "selected" : ""}`}>
-                            <input
-                              type="checkbox"
-                              checked={sel.includes(t)}
-                              onChange={() => toggleUserType(email, t)}
-                            />
-                            <span>{t}</span>
-                          </label>
-                        ))}
+
+                      <div style={{ maxHeight: 300, overflowY: "auto", paddingRight: 4 }}>
+                        <div
+                          className="machine-grid"
+                          style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}
+                        >
+                          {allProductTypes.map((t) => (
+                            <label key={t} className={`machine-tile ${popupSel.includes(t) ? "selected" : ""}`}>
+                              <input
+                                type="checkbox"
+                                checked={popupSel.includes(t)}
+                                onChange={() => toggleUserType(openTypeUser, t)}
+                              />
+                              <span>{t}</span>
+                            </label>
+                          ))}
+                          {allProductTypes.length === 0 && (
+                            <span style={{ color: "#4a6f8c" }}>No product types found in Items master</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="ad-msg-actions" style={{ marginTop: 14 }}>
+                        <button type="button" className="ad-msg-btn primary" onClick={() => setOpenTypeUser(null)}>
+                          Done
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
             );
           })()}
