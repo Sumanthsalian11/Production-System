@@ -4161,6 +4161,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                   <table className="table-modern">
                     <thead>
                       <tr>
+                        <th>Received Date</th>
                         <th>PO No</th>
                         <th>Customer Name</th>
                         <th>Job Description</th>
@@ -4168,7 +4169,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         <th>Location</th>
                         <th>Product Type</th>
                         <th>View PDF</th>
-                        <th>Status</th>
+                        
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -4184,9 +4185,26 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         )
                         .map(order => (
                           <tr key={order._id}>
+                          <div className="text-center fw-bold">
+  {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN") : "-"}
+</div>
                             <td className="fw-bold">{order.purchaseOrderNo || "-"}</td>
-                            <td>{order.customer?.name || order.customerName}</td>
-                            <td>{order.description || order.productName || "-"}</td>
+                            <td
+  className={expandedCell === order._id + "cust" ? "expanded" : "truncate"}
+  onClick={() =>
+    setExpandedCell(expandedCell === order._id + "cust" ? null : order._id + "cust")
+  }
+>
+  {order.customer?.name || order.customerName}
+</td>
+                            <td
+  className={expandedCell === order._id + "desc" ? "expanded" : "truncate"}
+  onClick={() =>
+    setExpandedCell(expandedCell === order._id + "desc" ? null : order._id + "desc")
+  }
+>
+  {order.description || order.productName || "-"}
+</td>
                             <td className="fw-bold text-primary">{order.quantity}</td>
                             <td>
   {order.locationSplits?.length > 1 ? (
@@ -4222,9 +4240,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                                 </a>
                               ) : "-"}
                             </td>
-                            <td>
-                              <span className="badge-3d badge-3d-warning">{order.status}</span>
-                            </td>
+            
                             <td>
                               <button
                                 className="btn-3d btn-3d-success btn-sm"
@@ -4285,6 +4301,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                   <table className="table-modern">
                     <thead>
                       <tr>
+                        <th>Received Date</th>
                         <th>PO No</th>
                         <th>Customer</th>
                         <th>Job Description</th>
@@ -4294,7 +4311,6 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         <th>Product Type</th>
                         <th>Product Code</th>
                         <th>View PDF</th>
-                        <th>Status</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -4311,9 +4327,24 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         )
                         .map(order => (
                           <tr key={order._id}>
+                            <td>{order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-IN") : "-"}</td>
                             <td className="fw-bold">{order.purchaseOrderNo || "-"}</td>
-                            <td>{order.products?.length ? order.products[0].customerName : order.customerName || "-"}</td>
-                            <td>{order.products?.length ? order.products[0].description : order.description || "-"}</td>
+                            <td
+  className={expandedCell === order._id + "pcust" ? "expanded" : "truncate"}
+  onClick={() =>
+    setExpandedCell(expandedCell === order._id + "pcust" ? null : order._id + "pcust")
+  }
+>
+  {order.products?.length ? order.products[0].customerName : order.customerName || "-"}
+</td>
+                            <td
+  className={expandedCell === order._id + "pdesc" ? "expanded" : "truncate"}
+  onClick={() =>
+    setExpandedCell(expandedCell === order._id + "pdesc" ? null : order._id + "pdesc")
+  }
+>
+  {order.products?.length ? order.products[0].description : order.description || "-"}
+</td>
                             <td className="fw-bold text-primary">{order.quantity || "-"}</td>
                             <td>{order.location || "-"}</td>
                             <td className="fw-bold">{order.workorder2 || "-"}</td>
@@ -4334,9 +4365,6 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                                   View
                                 </a>
                               ) : "-"}
-                            </td>
-                            <td>
-                              <span className="badge-3d badge-3d-warning">{order.status}</span>
                             </td>
                             <td>
                               <button
