@@ -51,6 +51,10 @@ const artUpload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 router.use("/artwork-files", express.static(artDir));
+
+// clean (no watermark) copies of artwork PDFs, used for the inhouse / outsource mails.
+const { ORIGINALS_DIR: originalsDir } = require("../utils/artworkClean");
+
 // BULK UPLOAD ITEMS VIA EXCEL
 router.post("/bulk-upload", upload.single("file"), async (req, res) => {
   try {
@@ -217,7 +221,10 @@ router.post("/:itemCode/artwork", authMiddleware, artUpload.single("artwork"), a
     }
 
     if (path.extname(req.file.originalname).toLowerCase() === ".pdf") {
-      try { await stampPdf(req.file.path); } catch (e) { console.error("WATERMARK ERROR:", e.message); }
+      try {
+        fs.copyFileSync(req.file.path, path.join(originalsDir, path.basename(req.file.path)));
+        await stampPdf(req.file.path);
+      } catch (e) { console.error("WATERMARK ERROR:", e.message); }
     }
 
     const user = await User.findById(req.user.id);

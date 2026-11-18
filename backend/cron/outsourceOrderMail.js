@@ -9,20 +9,7 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "");
 const toList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
-const UPLOAD_DIRS = ["uploads/indents", "uploads", "uploads/artwork", "uploads/newindent"];
-
-const resolveFile = (p) => {
-  if (!p) return null;
-  let clean = String(p).split("?")[0];
-  try { clean = decodeURIComponent(clean); } catch {}
-  const base = path.basename(clean);
-  const root = path.join(__dirname, "..");
-  const candidates = [
-    ...UPLOAD_DIRS.map((d) => path.join(root, d, base)),
-    path.join(root, clean)
-  ];
-  return candidates.find((f) => fs.existsSync(f) && fs.statSync(f).isFile()) || null;
-};
+const { getCleanArtwork, findUploaded } = require("../utils/artworkClean");
 
 // recipients: only TO and CC saved for "outsourceOrder" (no location), else .env
 async function getRecipients() {
@@ -94,8 +81,8 @@ async function sendOutsourceOrderMail(orders = []) {
     const attachments = [];
     const seen = new Set();
     let total = 0;
-    const addFile = (ref, name) => {
-      const file = resolveFile(ref);
+    const addFile = async (ref, name, isArtwork) => {
+      const file = isArtwork ? await getCleanArtwork(ref) : findUploaded(ref);
       if (!file || seen.has(file)) return;
       const size = fs.statSync(file).size;
       if (total + size > MAX_ATTACH_BYTES) {
@@ -108,8 +95,8 @@ async function sendOutsourceOrderMail(orders = []) {
     };
     for (const o of list) {
       const tag = o.ticketNo || o.indentNo || "order";
-      addFile(o.artwork?.filePath || o.artworkPath || o.itemPdfPath, `${tag}_${o.artwork?.fileName || "artwork"}`);
-      addFile(o.attachment, `${tag}_PO_${path.basename(String(o.attachment || ""))}`);
+      await addFile(o.artwork?.filePath || o.artworkPath || o.itemPdfPath, `${tag}_${o.artwork?.fileName || "artwork"}`, true);
+      await addFile(o.attachment, `${tag}_PO_${path.basename(String(o.attachment || ""))}`);
     }
 
     const ids = [...new Set(list.map((o) => o.ticketNo || o.indentNo).filter(Boolean))].join(", ");

@@ -17,6 +17,9 @@ const sendOutsourceOrderMail = require("../cron/outsourceOrderMail"); // change 
 const mongoose = require("mongoose");
 const { PDFDocument, StandardFonts, rgb, degrees } = require("pdf-lib");
 
+// clean (no watermark) copies of uploaded artwork PDFs, used for the inhouse / outsource mails
+const { ORIGINALS_DIR: originalsDir } = require("../utils/artworkClean");
+
 async function stampPdf(filePath) {
   const pdf = await PDFDocument.load(fs.readFileSync(filePath), { ignoreEncryption: true });
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -41,7 +44,10 @@ async function watermarkUploadedPdfs(req, res, next) {
   const files = ["artwork", "artworkFiles"].flatMap((n) => (req.files && req.files[n]) || []);
   for (const f of files) {
     if (path.extname(f.originalname).toLowerCase() !== ".pdf") continue;
-    try { await stampPdf(f.path); } catch (e) { console.error("WATERMARK ERROR:", f.originalname, e.message); }
+    try {
+      fs.copyFileSync(f.path, path.join(originalsDir, path.basename(f.path)));
+      await stampPdf(f.path);
+    } catch (e) { console.error("WATERMARK ERROR:", f.originalname, e.message); }
   }
   next();
 }

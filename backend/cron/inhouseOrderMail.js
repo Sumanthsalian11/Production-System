@@ -10,21 +10,7 @@ const toList = (v) => String(v || "").split(",").map((s) => s.trim()).filter(Boo
 
 const MAX_ATTACH_BYTES = 20 * 1024 * 1024;
 
-// "/api/newindent/files/abc.pdf" or "/uploads/..." -> real file on disk (null if not found)
-const UPLOAD_DIRS = ["uploads/indents", "uploads", "uploads/artwork", "uploads/newindent"];
-
-const resolveFile = (p) => {
-  if (!p) return null;
-  let clean = String(p).split("?")[0];
-  try { clean = decodeURIComponent(clean); } catch {}
-  const base = path.basename(clean);
-  const root = path.join(__dirname, "..");
-  const candidates = [
-    ...UPLOAD_DIRS.map((d) => path.join(root, d, base)),
-    path.join(root, clean)
-  ];
-  return candidates.find((f) => fs.existsSync(f) && fs.statSync(f).isFile()) || null;
-};
+const { getCleanArtwork } = require("../utils/artworkClean");
 
 // recipients: location setting -> "all locations" setting -> .env
 async function getRecipients(planningLocation = "") {
@@ -167,8 +153,8 @@ async function sendInhouseOrderMail(orders = [], planningLocation = "") {
       const seen = new Set();
       let total = 0;
       for (const o of rowsList) {
-        const ref = o.artworkPath || o.attachment || o.itemPdfPath;
-        const file = resolveFile(ref);
+        const ref = o.artworkPath || o.artwork?.filePath || o.itemPdfPath;
+        const file = await getCleanArtwork(ref);
         if (!file) {
           console.warn("Inhouse mail: artwork not found for", o.indentNo || o.ticketNo, "->", ref);
           continue;
