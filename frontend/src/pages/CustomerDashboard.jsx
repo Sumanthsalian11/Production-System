@@ -730,6 +730,7 @@ const PAGE_SIZE = 30;
           itemPdfPath: order.itemPdfPath,
           jobSize: order.jobSize,
           lamination: order.lamination,
+          jobNo: order.jobNo,
           finish: order.finish,
           sampleType: order.sampleType,
           specification: order.specification,
@@ -1042,6 +1043,7 @@ const PAGE_SIZE = 30;
       "Job Size": order.jobSize || "",
       "Lamination": order.lamination || "",
 "Finish": order.finish || "",
+"Job No": order.jobNo || "",
 "Sample Type": order.sampleType || "",
 "Artwork": order.artwork?.fileName || "",
 "Specification": order.specification || "",
@@ -2802,6 +2804,7 @@ const PAGE_SIZE = 30;
                       <th>Indent No</th>
                       <th>Product Code</th>
                       <th>Product Type</th>
+                      <th>Job No</th>
                       <th>Description</th>
                       <th>Customer</th>
                     
@@ -2817,7 +2820,7 @@ const PAGE_SIZE = 30;
                   <tbody>
                     {filteredIndents.length === 0 ? (
                       <tr>
-                        <td colSpan="14" className="p-4 text-center text-muted">
+                        <td colSpan="13" className="p-4 text-center text-muted">
                           {indentRequests.length === 0
                             ? "No New Indent Requests"
                             : "No requests match the filters"}
@@ -2836,6 +2839,7 @@ const PAGE_SIZE = 30;
                             {indent.items[0]?.productCode}
                           </td>
                           <td>{indent.items[0]?.materialType || "-"}</td>
+                          <td>{indent.items[0]?.jobNo || "-"}</td>
                           <td
                             className="cell-expandable"
                             style={{
@@ -3039,7 +3043,7 @@ const PAGE_SIZE = 30;
                       "bi-calendar-check",
                       "col-md-4"
                     ]
-                  ,["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
+                  ,["Job No", selectedIndent.items[0]?.jobNo || "-", "bi-hash", "col-md-4"],["Sample Type", selectedIndent.items[0]?.sampleType || "-", "bi-tag", "col-md-4"],
                   ["Finish", selectedIndent.items[0]?.finish || "-", "bi-stars", "col-12"],
                   ["Specification", selectedIndent.items[0]?.specification || "-", "bi-card-checklist", "col-12"],
                   ["Remarks", selectedIndent.items[0]?.remark || "-", "bi-chat-left-text", "col-12"]
@@ -4149,7 +4153,7 @@ const PAGE_SIZE = 30;
             >
               <table
                 className="table table-striped table-bordered table-hover align-middle text-center mb-0 small"
-                style={{ minWidth: "2350px" }}
+                style={{ minWidth: "2450px" }}
               >
                 <thead className="table-dark sticky-top">
                   <tr>
@@ -4164,6 +4168,7 @@ const PAGE_SIZE = 30;
                     <th>Job Size</th>
                     <th>Lamination</th>
 <th>Finish</th>
+<th>Job No</th>
 <th>Sample Type</th>
 <th>Artwork</th>
 <th>Specification</th>
@@ -4187,7 +4192,7 @@ const PAGE_SIZE = 30;
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan="28" className="p-4 text-center text-muted">
+                      <td colSpan="29" className="p-4 text-center text-muted">
                         No Orders Found
                       </td>
                     </tr>
@@ -4321,6 +4326,7 @@ const PAGE_SIZE = 30;
     ? order.finish || "-"
     : truncateText(order.finish, 15)}
 </td>
+<td>{order.jobNo || "-"}</td>
 <td>{order.sampleType || "-"}</td>
 <td>
   {order.artwork?.filePath ? (
