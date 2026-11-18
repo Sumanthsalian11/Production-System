@@ -155,15 +155,7 @@ customerOrderSchema.index({ productCode: 1, createdAt: -1 });
 customerOrderSchema.index({ customerName: 1, createdAt: -1 });
 customerOrderSchema.index({ poDate: 1, createdAt: -1 });
 customerOrderSchema.index({ location: 1 }); 
-customerOrderSchema.index(
-  { purchaseOrderNo: 1 },
-  {
-    unique: true,
-    partialFilterExpression: {
-      purchaseOrderNo: { $exists: true, $ne: null, $ne: "" }
-    }
-  }
-);
+customerOrderSchema.index({ purchaseOrderNo: 1 });
 customerOrderSchema.index({ indentNo: 1 });
 customerOrderSchema.index({ ticketNo: 1 });
 module.exports = mongoose.model("CustomerOrder", customerOrderSchema);
