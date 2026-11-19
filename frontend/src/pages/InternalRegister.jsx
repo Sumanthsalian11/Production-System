@@ -385,13 +385,18 @@ const handleChange = (e) => {
     const createdRole = form.role;
 
     try {
-      await axios.post(`${BASE_URL}/api/auth/internal/register`, {
-        ...form,
-        name: form.name.trim().replace(/\s+/g, " "),
-        ldapUsername: form.ldapUsername.trim(),
-        locations: selectedLocations,
-        modules: selectedModules
-      });
+      const token = localStorage.getItem("token");
+      await axios.post(
+        `${BASE_URL}/api/auth/internal/register`,
+        {
+          ...form,
+          name: form.name.trim().replace(/\s+/g, " "),
+          ldapUsername: form.ldapUsername.trim(),
+          locations: selectedLocations,
+          modules: selectedModules
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setSuccess("User registered successfully ✅");
       setTimeout(() => setSuccess(""), 2000);
       resetForm();
