@@ -13,8 +13,13 @@ const t12 = (t) => {
   H = H % 12 || 12;
   return `${H}:${m} ${ap}`;
 };
-const iso = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+const iso = (d) => {
+  if (!d) return "";
+  const x = new Date(d);
+  return isNaN(x) ? String(d).slice(0, 10) : x.toISOString().slice(0, 10);
+};
 const idOf = (v) => String((v && v._id) || v || "");
+const asArr = (v) => (Array.isArray(v) ? v : v && typeof v === "object" ? [v] : []);
 const join = (arr) => arr.filter((x) => x !== undefined && x !== null && x !== "").join(", ");
 
 async function nameMaps() {
@@ -37,10 +42,10 @@ async function loadLiveProduction() {
     "machine status": r.machineStatus || "",
     "from time (12h)": t12(r.productionFromTime),
     "to time (12h)": t12(r.productionToTime),
-    "stage": join((r.machiness || []).map((p) => a[idOf(p.activityId)] || p.activityId?.activityName)),
-    "machine": join((r.machiness || []).map((p) => m[idOf(p.machineId)] || p.machineId?.machineName)),
-    "material code": join((r.materials || []).map((x) => x.materialCode)),
-    "material description": join((r.materials || []).map((x) => x.materialDescription)),
+    "stage": join(asArr(r.machiness).map((p) => a[idOf(p.activityId)] || p.activityId?.activityName)),
+    "machine": join(asArr(r.machiness).map((p) => m[idOf(p.machineId)] || p.machineId?.machineName)),
+    "material code": join(asArr(r.materials).map((x) => x.materialCode)),
+    "material description": join(asArr(r.materials).map((x) => x.materialDescription)),
     "order qty": r.orderQty,
     "production qty": r.productionQty,
     "wastage qty": r.wastageQty,
@@ -66,7 +71,7 @@ async function loadLivePlanning() {
       "color front": wo.colorFront,
       "color back": wo.colorBack,
     };
-    const mats = wo.materials && wo.materials.length ? wo.materials : [{}];
+    const mats = asArr(wo.materials).length ? asArr(wo.materials) : [{}];
     return mats.map((x) => ({
       ...base,
       "paper code": x.materialCode != null ? String(x.materialCode) : "",
