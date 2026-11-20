@@ -1193,6 +1193,13 @@ export default function ProductionMachineStatusModule() {
   };
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "—");
+  const fmtSaved = (d) =>
+    d
+      ? new Date(d).toLocaleString("en-IN", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: true,
+        })
+      : "—";
   const fmtTime = (t) => {
     if (!t) return "—";
     const [h, m] = t.split(":");
@@ -1285,9 +1292,12 @@ export default function ProductionMachineStatusModule() {
     const groupMap = new Map();
 
     const ensureRow = (activityName, machineName, printerName) => {
+      activityName = persoActivity?.activityName || "Perso Printing"; // blank activity counts as Perso
+      machineName = String(machineName || "-").trim();
+      printerName = String(printerName || "-").trim();
       if (!groupMap.has(activityName)) groupMap.set(activityName, { activityName, rows: new Map() });
       const g = groupMap.get(activityName);
-      const key = `${machineName}__${printerName}`;
+      const key = `${machineName.toLowerCase()}__${printerName.toLowerCase()}`;
       if (!g.rows.has(key)) {
         g.rows.set(key, {
           machineName, printerName,
@@ -2238,7 +2248,12 @@ export default function ProductionMachineStatusModule() {
                       <td className="pms-wrap-text">{item.reason  || <span className="pms-muted">—</span>}</td>
                       <td>{item.paperSize   || <span className="pms-muted">—</span>}</td>
                       <td>{item.printerName || <span className="pms-muted">—</span>}</td>
-                      <td>{item.enteredBy}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{item.enteredBy}</div>
+                        <div style={{ fontSize: 11, color: "#64748b", fontWeight: 500 }}>
+                          {fmtSaved(item.createdAt)}
+                        </div>
+                      </td>
                       <td className="pms-wrap-text">{item.remarks || <span className="pms-muted">—</span>}</td>
                       <td>
                         {item.enteredBy === loggedInUser ? (

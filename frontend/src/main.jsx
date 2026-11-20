@@ -23,7 +23,7 @@ import '@fontsource/noto-sans/600.css';
 import '@fontsource/noto-sans/700.css';
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-   // <BrowserRouter basename="/Productionsystem">
+  //  <BrowserRouter basename="/Productionsystem">
 
   <BrowserRouter> 
     <App />

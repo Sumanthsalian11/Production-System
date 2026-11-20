@@ -21,6 +21,7 @@ products: [
     colorFront: { type: String, default: "" },
     colorBack: { type: String, default: "" },
     jobSize: { type: String, default: "" },
+    customerNameText: { type: String, default: "", trim: true },
         wasteQty: {
       type: Number,
       default: 0

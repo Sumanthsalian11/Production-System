@@ -256,6 +256,7 @@ const handleMaterialGroupChange = (value) => {
 const isPersow = orderMode === "PERSOW";
 
 const defaultProductRow = () => ({
+  customerNameText: "",
   productCode: "",
   materialType: "",
   description: "",
@@ -879,7 +880,7 @@ for (const row of productRows) {
   jobSize: row.jobSize,
   wasteQty: row.wasteQty,
   inkDetails: row.inkDetails,
-  products: [row],
+  products: [{ ...row, customerNameText: orderMode === "PERSOW" ? (row.customerNameText || "") : "" }],
   itemPdfPath: row.itemPdfPath || form.itemPdfPath || "",
 
   remainingQty:
@@ -1135,6 +1136,7 @@ const handleEdit = async (order) => {
           description: p.description ?? "",
           customerName: p.customerName ?? "",
           jobSize: p.jobSize ?? "",
+          customerNameText: p.customerNameText ?? "",
           colorFront: p.colorFront ?? "",
           colorBack: p.colorBack ?? "",
           wasteQty: Number(p.wasteQty ?? 0),
@@ -1148,6 +1150,7 @@ const handleEdit = async (order) => {
             description: order.description ?? "",
             customerName: order.customerName ?? "",
             jobSize: order.jobSize ?? "",
+            customerNameText: order.customerNameText ?? "",
             colorFront: order.colorFront ?? "",
             colorBack: order.colorBack ?? "",
             wasteQty: Number(order.wasteQty ?? 0),
@@ -1264,7 +1267,7 @@ if (found) {
     "Product Code": order.products?.length ? order.products.map(p => p.productCode).join(", ") : order.productCode,
       "Material": order.products?.length ? order.products.map(p => p.materialType).join(", ") : order.materialType,
       "Description": order.products?.length ? order.products.map(p => p.description).join(", ") : order.description,
-      "Customer": order.products?.length ? order.products.map(p => p.customerName).join(", ") : order.customerName,
+      "Bank Name": order.products?.length ? order.products.map(p => p.customerName).join(", ") : order.customerName,
  "Color Front": order.products?.length ? order.products.map(p => p.colorFront).join(", ") : order.colorFront,
       "Color Back": order.products?.length ? order.products.map(p => p.colorBack).join(", ") : order.colorBack,
 "Material Group": order.materialGroup,
@@ -1273,6 +1276,7 @@ if (found) {
 "Quantity": order.quantity,
 "Remaining Qty": order.remainingQty,
 "Job Size": order.products?.length ? order.products.map(p => p.jobSize).join(", ") : order.jobSize,
+"Customer Name": order.products?.length ? order.products.map(p => p.customerNameText || "").join(", ") : (order.customerNameText || ""),
 "Prefix": order.prefix,
 "Account Number": order.accountNumber,
 "Non MICR Digits": order.nonMicrDigits,
@@ -1429,7 +1433,7 @@ const productDataRows = [
     String(p.description || ""),
   ]),
   ...productRows.map((p, pi) => [
-    `Customer`,
+    `Bank Name`,
     String(p.customerName || ""),
     `Job Size`,
     String(p.jobSize || ""),
@@ -1437,6 +1441,9 @@ const productDataRows = [
   ...productRows.map((p, pi) => [
     `Color`,
     `${p.colorFront || ""}/${p.colorBack || ""}`,
+    ...(order.orderMode === "PERSOW" || order.workorder2
+      ? [`Customer Name`, String(p.customerNameText || "")]
+      : []),
   ]),
 ];
 
@@ -2205,17 +2212,29 @@ const expandTd = (order, key, value) => {
               <input className="pi-input" value={row.materialType} readOnly />
             </Field>
 
-            <Field col="col-md-3" icon="card-text" label="Description">
+            <Field col="col-md-2" icon="card-text" label="Description">
               <input className="pi-input" value={row.description} readOnly />
             </Field>
 
-            <Field col="col-md-2" icon="person" label="Customer">
+            <Field col="col-md-2" icon="person" label="Bank Name">
               <input className="pi-input" value={row.customerName} readOnly />
             </Field>
 
             <Field col="col-md-1" icon="aspect-ratio" label="Job Size">
               <input className="pi-input" value={row.jobSize} readOnly />
             </Field>
+
+            {orderMode === "PERSOW" && (
+              <Field col="col-md-2" icon="person-lines-fill" label="Customer Name">
+                <input
+                  className="pi-input"
+                  value={row.customerNameText}
+                  maxLength={150}
+                  placeholder="Type customer name"
+                  onChange={(e) => updateProductRow(index, "customerNameText", e.target.value)}
+                />
+              </Field>
+            )}
 
             {productRows.length > 1 && (
               <div className="col-md-auto d-flex align-items-end">
@@ -2803,7 +2822,7 @@ const expandTd = (order, key, value) => {
           <option key={i} value={cust}>{cust}</option>
         ))}
       </select>
-        <label className="po-field-label">Customer</label>
+        <label className="po-field-label">Bank Name</label>
       </div>
     </div>
 
@@ -2869,12 +2888,13 @@ const expandTd = (order, key, value) => {
           <th>Product</th>
           <th>Material</th>
           <th>Description</th>
-          <th>Customer</th>
+          <th>Bank Name</th>
 
           <th>Color Front</th>
           <th>Color Back</th>
           <th>Waste Qty</th>
           <th>Job Size</th>
+          <th>Customer Name </th>
           <th>Ink</th>
 
           <th>Qty</th>
@@ -3035,6 +3055,13 @@ const expandTd = (order, key, value) => {
               {order.products?.length
                 ? order.products.map((p, pi) => <div key={pi}>{p.jobSize || "--"}</div>)
                 : order.jobSize || "--"}
+            </td>
+
+            {/* Customer Name (Text) */}
+            <td>
+              {order.products?.length
+                ? order.products.map((p, pi) => <div key={pi}>{p.customerNameText || "--"}</div>)
+                : order.customerNameText || "--"}
             </td>
 
             {/* Ink Details */}

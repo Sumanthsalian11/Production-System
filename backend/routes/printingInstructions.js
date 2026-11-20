@@ -141,6 +141,7 @@ ticketId,
       materialType: req.body.materialType,
       description: req.body.description,
       customerName: req.body.customerName,
+      customerNameText: req.body.customerNameText || "",
 
       colorFront: String(req.body.colorFront || ""),
       colorBack: String(req.body.colorBack || ""),

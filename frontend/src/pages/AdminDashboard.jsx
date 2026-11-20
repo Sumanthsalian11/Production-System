@@ -1215,8 +1215,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { key: "persoProduction", label: "Perso Production Report", defaultTime: "10:00" },
     { key: "floorProduction", label: "Floor Production Report (W&D)", defaultTime: "10:00" },
     { key: "dispatchReport", label: "Dispatch Report", defaultTime: "18:00" },
-    { key: "inhouseOrder", label: "Inhouse Order Mail (on save)", defaultTime: "00:00" },
-    { key: "outsourceOrder", label: "Outsource Order Mail (on save)", defaultTime: "00:00" },
+    { key: "inhouseOrder", label: "Inhouse Order Mail", defaultTime: "00:00" },
+    { key: "outsourceOrder", label: "Outsource Order Mail", defaultTime: "00:00" },
   ];
   const [mailKey, setMailKey] = useState("indentSummary");
   const [mailSettings, setMailSettings] = useState({ toText: "", ccText: "", sendTime: "15:00", machineIds: [] });
