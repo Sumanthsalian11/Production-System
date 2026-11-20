@@ -215,6 +215,7 @@ function NewIndent() {
   const [woTrees, setWoTrees] = useState({}); // stage tree + completion per work order
   const [chartWo, setChartWo] = useState(null); // work order whose chart is open
   const [materials, setMaterials] = useState([]);
+  const [paperGroupList, setPaperGroupList] = useState([]); // [{ group, gsms: [] }]
   const [loggedInUser, setLoggedInUser] = useState("");
   const [errors, setErrors] = useState({});
   const [extraRows, setExtraRows] = useState([]);
@@ -551,6 +552,7 @@ function NewIndent() {
     fetchLocations();
     fetchIndents();
     fetchMaterials();
+    fetchPaperGroups();
     fetchIndenters();
   }, []);
 
@@ -921,6 +923,22 @@ function NewIndent() {
     }
   };
 
+  const fetchPaperGroups = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/paper-group`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPaperGroupList(
+        (res.data || []).map((x) => ({
+          group: norm(x.group),
+          gsms: (x.gsms || []).map((g) => norm(g)).filter(Boolean)
+        }))
+      );
+    } catch {
+      setPaperGroupList([]);
+    }
+  };
+
   // each dropdown shows only values that match the OTHER selected dropdowns
   const paperOptions = useMemo(() => {
     const out = {};
@@ -940,6 +958,35 @@ function NewIndent() {
     });
     return out;
   }, [materials, form.millName, form.paperGroup, form.paperSize, form.gsm]);
+
+  // Group comes from the Paper Group master; GSM shows only the GSMs of the chosen group
+  const sortNum = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const groupOptions = useMemo(
+    () => [...new Set([...paperGroupList.map((g) => g.group), ...(has(form.paperGroup) ? [form.paperGroup] : [])])].sort(sortNum),
+    [paperGroupList, form.paperGroup]
+  );
+  const gsmOptions = useMemo(() => {
+    const g = paperGroupList.find((x) => x.group === form.paperGroup);
+    const base = g ? g.gsms : paperGroupList.flatMap((x) => x.gsms);
+    return [...new Set([...base, ...(has(form.gsm) ? [form.gsm] : [])])].sort(sortNum);
+  }, [paperGroupList, form.paperGroup, form.gsm]);
+
+  const handleGroupChange = (e) => {
+    const value = e.target.value;
+    setErrors((prev) => ({ ...prev, paperGroup: "" }));
+    setForm((prev) => {
+      const next = { ...prev, paperGroup: value };
+      const g = paperGroupList.find((x) => x.group === value);
+      // clear the GSM if it does not belong to the newly chosen group
+      if (g && next.gsm && !g.gsms.includes(next.gsm)) next.gsm = "";
+      return next;
+    });
+  };
+
+  const handleGsmChange = (e) => {
+    setErrors((prev) => ({ ...prev, gsm: "" }));
+    setForm((prev) => ({ ...prev, gsm: e.target.value }));
+  };
 
   const handlePaperChange = (e) => {
     const { name, value } = e.target;
@@ -3166,9 +3213,9 @@ specification: "Specification",
                   <PoField className="col-6 col-md-3" icon="bi-collection" label="Group" required alwaysFloat caret
   after={errors.paperGroup && <small className="indent-error-text">{errors.paperGroup}</small>}>
                     <select name="paperGroup" className="po-input" value={form.paperGroup}
-                            title={form.paperGroup} onChange={handlePaperChange}>
+                            title={form.paperGroup} onChange={handleGroupChange}>
                       <option value="">Select Group</option>
-                      {paperOptions.paperGroup.map((v) => <option key={v} value={v}>{v}</option>)}
+                      {groupOptions.map((v) => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </PoField>
 
@@ -3183,9 +3230,9 @@ specification: "Specification",
                   <PoField className="col-6 col-md-3" icon="bi-speedometer2" label="GSM" required alwaysFloat caret
   after={errors.gsm && <small className="indent-error-text">{errors.gsm}</small>}>
                     <select name="gsm" className="po-input" value={form.gsm}
-                            title={form.gsm} onChange={handlePaperChange}>
+                            title={form.gsm} onChange={handleGsmChange}>
                       <option value="">Select GSM</option>
-                      {paperOptions.gsm.map((v) => <option key={v} value={v}>{v}</option>)}
+                      {gsmOptions.map((v) => <option key={v} value={v}>{v}</option>)}
                     </select>
                   </PoField>
                 </div>

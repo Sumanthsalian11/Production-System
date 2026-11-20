@@ -657,6 +657,80 @@ const [supplierFilter, setSupplierFilter] = useState("");
 
   const token = localStorage.getItem("token");
 
+  // ---- Paper Group master (one group has many GSM) ----
+  const [paperGroups, setPaperGroups] = useState([]);
+  const [newPaperGroup, setNewPaperGroup] = useState({ group: "", gsmText: "" });
+
+  const parseGsmList = (str) =>
+    [...new Set(String(str || "").split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean))];
+
+  const fetchPaperGroups = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/paper-group`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPaperGroups(res.data || []);
+    } catch (err) {
+      console.error("Error fetching paper groups:", err);
+    }
+  };
+
+  useEffect(() => { fetchPaperGroups(); }, []);
+
+  useEffect(() => {
+    if (activeSection === "paperGroupMaster") {
+      setNewPaperGroup({ group: "", gsmText: "" });
+      fetchPaperGroups();
+    }
+  }, [activeSection]);
+
+  const addPaperGroup = async () => {
+    if (!newPaperGroup.group.trim()) return showAlert("Enter paper group");
+    const gsms = parseGsmList(newPaperGroup.gsmText);
+    if (!gsms.length) return showAlert("Enter at least one GSM");
+    try {
+      await axios.post(
+        `${BASE_URL}/api/paper-group`,
+        { group: newPaperGroup.group.trim(), gsms },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewPaperGroup({ group: "", gsmText: "" });
+      fetchPaperGroups();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save paper group");
+    }
+  };
+
+  const savePaperGroup = async (id) => {
+    const gsms = parseGsmList(editingData.gsmText);
+    if (!(editingData.group || "").trim()) return showAlert("Group cannot be empty");
+    if (!gsms.length) return showAlert("Enter at least one GSM");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/paper-group/${id}`,
+        { group: editingData.group.trim(), gsms },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditingId(null);
+      setEditingData({});
+      fetchPaperGroups();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to update paper group");
+    }
+  };
+
+  const deletePaperGroup = async (id) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/paper-group/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchPaperGroups();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
+
   const [roles, setRoles] = useState([]);
   const [routingUsers, setRoutingUsers] = useState([]);
   const [routingRules, setRoutingRules] = useState([]);
@@ -1679,6 +1753,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "itemStages", label: "Item Stages", icon: Layers },
     { id: "locations", label: "Locations", icon: MapPin },
     { id: "materials", label: "Materials", icon: Layers },
+    { id: "paperGroupMaster", label: "Paper Group & GSM", icon: Layers },
     { id: "paperSize", label: "Paper Size", icon: Layers },
     { id: "printerName", label: "Printer Master", icon: Factory },
     { id: "inspection", label: "RM-IQC Specs", icon: Layers },
@@ -2383,6 +2458,84 @@ const [supplierFilter, setSupplierFilter] = useState("");
     safeMaterialPage * materialPageSize
   );
 
+  const renderPaperGroup = () => (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Layers size={18} /> Paper Group &amp; GSM</span>
+      </div>
+
+      <div className="pro-grid">
+        <input
+          className="pro-input"
+          placeholder="Paper Group (e.g. Maplitho)"
+          value={newPaperGroup.group}
+          onChange={(e) => setNewPaperGroup({ ...newPaperGroup, group: e.target.value })}
+        />
+        <input
+          className="pro-input"
+          placeholder="GSM values, comma separated (e.g. 70,80,100)"
+          value={newPaperGroup.gsmText}
+          onChange={(e) => setNewPaperGroup({ ...newPaperGroup, gsmText: e.target.value })}
+        />
+      </div>
+
+      <button className="pro-btn primary" onClick={addPaperGroup}>
+        <PlusCircle size={16} /> Add Paper Group
+      </button>
+
+      <div style={scrollContainerStyle}>
+        <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+          {paperGroups.map((r) => (
+            <li key={r._id} className="d-flex justify-content-between align-items-center">
+              {editingId === r._id ? (
+                <>
+                  <div className="pro-grid">
+                    <input
+                      className="pro-input"
+                      value={editingData.group || ""}
+                      onChange={(e) => setEditingData({ ...editingData, group: e.target.value })}
+                    />
+                    <input
+                      className="pro-input"
+                      placeholder="GSM values, comma separated"
+                      value={editingData.gsmText || ""}
+                      onChange={(e) => setEditingData({ ...editingData, gsmText: e.target.value })}
+                    />
+                  </div>
+                  <button className="pro-btn primary" onClick={() => savePaperGroup(r._id)}>Save</button>
+                  <button className="pro-btn" onClick={() => { setEditingId(null); setEditingData({}); }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span>
+                    <strong>{r.group}</strong> • GSM: {(r.gsms || []).join(", ") || "-"}
+                  </span>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      className="pro-btn"
+                      onClick={() => {
+                        setEditingId(r._id);
+                        setEditingData({ group: r.group, gsmText: (r.gsms || []).join(", ") });
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button className="pro-btn" onClick={() => deletePaperGroup(r._id)}>Delete</button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+          {paperGroups.length === 0 && (
+            <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+              No paper groups added yet
+            </li>
+          )}
+        </ul>
+      </div>
+    </motion.div>
+  );
+
   return (
     <motion.div
       className="pro-container ad-root"
@@ -2488,6 +2641,8 @@ const [supplierFilter, setSupplierFilter] = useState("");
           {/* RIGHT: the section form + stored records */}
           <div className="ad-right">
             <button type="button" className="ad-close" onClick={closeSection} aria-label="Close">✕</button>
+
+      {activeSection === "paperGroupMaster" && renderPaperGroup()}
 
       {/* 1. PRIORITIES */}
       {activeSection === "priorities" && (
