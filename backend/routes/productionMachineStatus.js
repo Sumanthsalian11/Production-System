@@ -828,7 +828,7 @@ router.get("/export", async (req, res) => {
       `attachment; filename="Production_Records_${stamp}.xlsx"`
     );
 
-    const wb = new ExcelJS.stream.xlsx.WorkbookWriter({ stream: res });
+    const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Production Records");
     ws.columns = [
       { header: "Sl No", key: "sl", width: 8 },
@@ -882,11 +882,12 @@ router.get("/export", async (req, res) => {
         size: item.paperSize || "",
         user: item.enteredBy || "",
         remarks: item.remarks || "",
-      }).commit();
+      });
     }
 
-    ws.commit();
-    await wb.commit();
+    const buf = await wb.xlsx.writeBuffer();
+    res.setHeader("Content-Length", buf.length);
+    res.end(Buffer.from(buf));
   } catch (err) {
     console.error("Export error:", err);
     if (!res.headersSent) {
