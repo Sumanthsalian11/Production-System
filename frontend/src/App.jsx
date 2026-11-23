@@ -137,29 +137,7 @@ const ProtectedRoute = ({ allowedRoles = [], ...props }) => {
 function App() {
   const location = useLocation();
 
-  // auto logout after 15 minutes without mouse / keyboard activity
-  useEffect(() => {
-    let timer;
-    const doLogout = async () => {
-      const t = localStorage.getItem("token");
-      if (!t) return;
-      try {
-        await axios.post(`${BASE_URL}/api/auth/logout`, {}, { headers: { Authorization: `Bearer ${t}` } });
-      } catch {}
-      clearSession();
-    };
-    const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(doLogout, 15 * 60 * 1000);
-    };
-    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
-    reset();
-    return () => {
-      clearTimeout(timer);
-      events.forEach((e) => window.removeEventListener(e, reset));
-    };
-  }, []);
+
 
   const [extraRoles, setExtraRoles] = useState(() => {
     try {

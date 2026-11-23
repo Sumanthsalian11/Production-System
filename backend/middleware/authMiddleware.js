@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Session = require("../models/Session");
-const { TOKEN_TTL, IDLE_TIMEOUT_MS, MAX_SESSION_MS } = require("../utils/sessionConfig");
+const { TOKEN_TTL } = require("../utils/sessionConfig");
 
 const authMiddleware = async (req, res, next) => {
   try {
@@ -25,20 +25,13 @@ const authMiddleware = async (req, res, next) => {
     if (!session || session.revoked) {
       return res.status(401).json({ message: "Session ended, please log in again" });
     }
-    if (now - session.createdAt.getTime() > MAX_SESSION_MS) {
-      await Session.updateOne({ _id: session._id }, { revoked: true, revokedReason: "max-age" });
-      return res.status(401).json({ message: "Session expired (8 hour limit), please log in again" });
-    }
-    if (now - session.lastActivity.getTime() > IDLE_TIMEOUT_MS) {
-      await Session.updateOne({ _id: session._id }, { revoked: true, revokedReason: "idle" });
-      return res.status(401).json({ message: "Logged out due to inactivity" });
-    }
+
 
     req.sid = String(session._id);
 
     // background polling must not keep the session alive
     if (req.header("X-Background") !== "1") {
-      if (now - session.lastActivity.getTime() > 30000) {
+      if (!session.lastActivity || now - session.lastActivity.getTime() > 30000) {
         await Session.updateOne({ _id: session._id }, { lastActivity: new Date(now) });
       }
 
