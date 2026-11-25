@@ -39,6 +39,7 @@ const menuItems = [
   { to: "/certificate-numbering", icon: "bi-file-earmark-text", label: "Special Job", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"] },
   { to: "/job-validation", icon: "bi-clipboard2-data", label: "Job Validation", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"] },
   {to:"/raw-material-indent", icon: "bi-file-earmark-plus", label: "Raw Material Indent", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"]},
+  { to: "/form-responses", icon: "bi-ui-checks", label: "Form Responses", roles: ["admin"] },
 ];
 
 export const BASE_ROLES = [

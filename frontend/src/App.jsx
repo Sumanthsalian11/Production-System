@@ -55,6 +55,7 @@ const CustomerSatisfaction = lazy(() => import("./pages/CustomerSatisfaction"));
 const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
 const JobValidation = lazy(() => import("./pages/Jobvalidation"));
 const RawMaterialIndent = lazy(()=> import("./pages/Rawmaterialindent"));
+const FormResponses = lazy(() => import("./pages/FormResponses"));
 
 /* SESSION HANDLING: refreshed tokens, background polling, forced logout */
 const BACKGROUND_URLS = ["/api/auth/announcement", "/api/messenger/unread"];
@@ -206,6 +207,14 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["ADMIN"]}>
                     <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/form-responses"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN"]}>
+                    <FormResponses />
                   </ProtectedRoute>
                 }
               />

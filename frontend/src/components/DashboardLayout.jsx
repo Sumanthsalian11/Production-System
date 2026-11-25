@@ -14,7 +14,7 @@ const APP_CATEGORIES = [
     color: "#3b7ddd",
     bgLight: "#eef4fd",
     borderGlow: "#c7dbf7",
-    routes: ["/internal-register", "/admin"]
+    routes: ["/internal-register", "/admin", "/form-responses"]
   },
   {
     title: "Planning & Prepress",

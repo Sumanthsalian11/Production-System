@@ -1069,7 +1069,27 @@ specification: "Specification",
     e.preventDefault();
     const okToSave = artSubmitOkRef.current;
     artSubmitOkRef.current = false;
-    if (!validateForm()) return;
+    // editing an indent whose latest artwork was rejected: a new version must be uploaded first
+    if (editingId) {
+      const liveArt = artworkVersions.filter((v) => v.status !== "Superseded");
+      const lastArt = liveArt[liveArt.length - 1];
+      const rejectedPaths = artworkVersions
+        .filter((v) => v.status === "Rejected")
+        .map((v) => v.filePath);
+      const stillRejected =
+        lastArt &&
+        (lastArt.status === "Rejected" ||
+          (lastArt.status === "Pending" && !lastArt.file && rejectedPaths.includes(lastArt.filePath)));
+      if (stillRejected) {
+        Swal.fire({
+          icon: "warning",
+          title: "Artwork was rejected",
+          text: "This artwork was rejected. Please upload another version before saving.",
+          confirmButtonColor: "#3085d6"
+        });
+        return;
+      }
+    }
 
     // no artwork version was added by the user: the item's latest saved artwork goes with the indent,
     // so show it first and save only after the confirm checkbox + Save

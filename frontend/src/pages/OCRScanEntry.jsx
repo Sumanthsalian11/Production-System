@@ -1949,3 +1949,14 @@ export default OCRScanEntry;
 
 // \\172.17.1.46\Vdpqc.process$ 
 // Rd9&nthi5#
+
+https://docs.google.com/forms/d/e/1FAIpQLSc8aEA8q7sA3gq76K1hhn3-dOTzAb8r5G0yMm11idI1jhPiBA/viewform?usp=publish-editor
+
+https://docs.google.com/spreadsheets/d/1P8OOj4ieOI6un2mZxDFIp0QV2U7MEteOyuXP0_LMArc/edit?resourcekey=&gid=1838200952#gid=1838200952
+
+
+
+
+
+
+https://docs.google.com/spreadsheets/d/e/2PACX-1vTo3VH9XUJkC9yoY5N-cWBSy37WxkKuo9LH1xXp0RUTKwardaGOzkQgYYg9y2x1bO_7b9XY_O2gBrmk/pub?gid=1838200952&single=true&output=csv

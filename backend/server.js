@@ -13,6 +13,8 @@ require("./cron/indentMailScheduler");
 require("./cron/productionMailCron");
 require("./cron/Persoproductionmail")
 require("./cron/dispatchMail");
+require("./cron/formSheetSync");
+
 // ================== MIDDLEWARES ==================
 app.set("trust proxy", 1);
 
@@ -129,6 +131,7 @@ const rawMaterialIndentRoutes = require("./routes/Rawmaterialindent");
 app.use("/api/raw-material-indent", rawMaterialIndentRoutes);
 app.use("/api/messenger", require("./routes/Chatmessenger"));
 app.use("/api/paper-group", require("./routes/paperGroup"));
+app.use("/api/form-responses", require("./routes/formResponses"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 
