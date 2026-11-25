@@ -212,7 +212,7 @@ function App() {
               <Route
                 path="/perso"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","PRODUCTION","SUPERVISOR","PLANNER","DISPATCH","INDENTER","SCANNER","KAS","PREPRESS","PURCHASE ORDER"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","PRODUCTION","SUPERVISOR","PLANNER","DISPATCH","SCANNER","KAS","PREPRESS","ORDER MANAGEMENT"]}>
                     <ProductionMachineStatusModule />
                   </ProtectedRoute>
                 }
@@ -226,7 +226,7 @@ function App() {
                 }
               />
               <Route path="/raw-material-indent" element={
-                <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                   <RawMaterialIndent />
                 </ProtectedRoute>
               }/>
@@ -234,7 +234,7 @@ function App() {
               <Route
   path="/job-validation"
   element={
-    <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+    <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
       <JobValidation />
     </ProtectedRoute>
   }
@@ -242,7 +242,7 @@ function App() {
               <Route
                 path="/plate-request"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","PRODUCTION","SUPERVISOR","PLANNER","DISPATCH","INDENTER","SCANNER","KAS","PREPRESS","PURCHASE ORDER"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","PRODUCTION","SUPERVISOR","PLANNER","DISPATCH","SCANNER","KAS","PREPRESS","ORDER MANAGEMENT"]}>
                     <PlateRequestform />
                   </ProtectedRoute>
                 }
@@ -251,7 +251,7 @@ function App() {
               <Route
                 path="/planner"
                 element={
-                  <ProtectedRoute allowedRoles={["PLANNER", "ADMIN","PURCHASE ORDER","INDENTER","SCANNER","KAS","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["PLANNER", "ADMIN","ORDER MANAGEMENT","SCANNER","KAS","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <PlannerDashboard />
                   </ProtectedRoute>
                 }
@@ -260,7 +260,7 @@ function App() {
               <Route
                 path="/certificate-numbering"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CertificateNumbering />
                   </ProtectedRoute>
                 }
@@ -268,7 +268,7 @@ function App() {
               <Route
                 path="/welcome-board"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <WelcomeBoardGenerator />
                   </ProtectedRoute>
                 }
@@ -277,7 +277,7 @@ function App() {
               <Route
                 path="/ocr-scan"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <OCRScanEntry />
                   </ProtectedRoute>
                 }
@@ -286,7 +286,7 @@ function App() {
               <Route
                 path="/new-in"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <NewIndent />
                   </ProtectedRoute>
                 }
@@ -294,7 +294,7 @@ function App() {
               <Route
                 path="/artwork-repository"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ArtworkRepository />
                   </ProtectedRoute>
                 }
@@ -302,7 +302,7 @@ function App() {
               <Route
                 path="/scan"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <QRScannerPage/>
                   </ProtectedRoute>
                 }
@@ -311,7 +311,7 @@ function App() {
               <Route
                 path="/po-details"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <PODetailsPage />
                   </ProtectedRoute>
                 }
@@ -320,7 +320,7 @@ function App() {
               <Route
                 path="/manual-box"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ManualBoxPage />
                   </ProtectedRoute>
                 }
@@ -328,7 +328,7 @@ function App() {
               <Route
                 path="/production-real"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ProductionRealDashboard/>
                   </ProtectedRoute>
                 }
@@ -337,7 +337,7 @@ function App() {
               <Route
                 path="/production-portal"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <LiveProductionPortal/>
                   </ProtectedRoute>
                 }
@@ -346,7 +346,7 @@ function App() {
               <Route
                 path="/dispatch"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <DispatchManagement/>
                   </ProtectedRoute>
                 }
@@ -355,7 +355,7 @@ function App() {
               <Route
                 path="/click-report"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ClickReport />
                   </ProtectedRoute>
                 }
@@ -364,7 +364,7 @@ function App() {
               <Route
                 path="/preprocess"
                 element={
-                  <ProtectedRoute allowedRoles={["PREPRESS", "ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["PREPRESS", "ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","SCANNER","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <PreprocessDashboard />
                   </ProtectedRoute>
                 }
@@ -372,17 +372,17 @@ function App() {
               <Route
                 path="/billing-report"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN", "KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN", "KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <BillingCountReport />
                   </ProtectedRoute>
                 }
               />
 
-              {/* PURCHASE ORDERS */}
+              {/* ORDER MANAGEMENTS */}
               <Route
                 path="/customer-dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CustomerDashboard />
                   </ProtectedRoute>
                 }
@@ -392,7 +392,7 @@ function App() {
               <Route
                 path="/production"
                 element={
-                  <ProtectedRoute allowedRoles={["PRODUCTION", "ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["PRODUCTION", "ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","DISPATCH","SUPERVISOR"]}>
                     <Production />
                   </ProtectedRoute>
                 }
@@ -400,7 +400,7 @@ function App() {
               <Route
                 path="/scheduler"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <Scheduler />
                   </ProtectedRoute>
                 }
@@ -409,7 +409,7 @@ function App() {
               <Route
                 path="/print"
                 element={
-                  <ProtectedRoute allowedRoles={["KAS", "ADMIN","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["KAS", "ADMIN","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <PrintingIns/>
                   </ProtectedRoute>
                 }
@@ -419,7 +419,7 @@ function App() {
               <Route
                 path="/waste"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <WastageReport />
                   </ProtectedRoute>
                 }
@@ -427,7 +427,7 @@ function App() {
               <Route
                 path="/receiving-inspection"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ReceivingInspectionDashboard/>
                   </ProtectedRoute>
                 }
@@ -435,7 +435,7 @@ function App() {
               <Route
                 path="/new-inspection"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <NewInspectionForm/>
                   </ProtectedRoute>
                 }
@@ -445,7 +445,7 @@ function App() {
               <Route
                 path="/summary"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <SummaryReport />
                   </ProtectedRoute>
                 }
@@ -454,7 +454,7 @@ function App() {
               <Route
                 path="/calibration"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CalibrationDashboard />
                   </ProtectedRoute>
                 }
@@ -463,7 +463,7 @@ function App() {
               <Route
                 path="/kas"
                 element={
-                  <ProtectedRoute allowedRoles={["KAS", "ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["KAS", "ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <KasArtworkDashboard />
                   </ProtectedRoute>
                 }
@@ -472,7 +472,7 @@ function App() {
               <Route
                 path="/production-report"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ProductionReport />
                   </ProtectedRoute>
                 }
@@ -480,7 +480,7 @@ function App() {
               <Route
                 path="/perso-machine-report"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <PersoReport />
                   </ProtectedRoute>
                 }
@@ -488,7 +488,7 @@ function App() {
               <Route
                 path="/perso-report"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <Productionreportt />
                   </ProtectedRoute>
                 }
@@ -497,7 +497,7 @@ function App() {
               <Route
                 path="/inventory-dashboard"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <InventoryDashboard />
                   </ProtectedRoute>
                 }
@@ -506,7 +506,7 @@ function App() {
               <Route
                 path="/shredding"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <ShreddingDashboard />
                   </ProtectedRoute>
                 }
@@ -514,7 +514,7 @@ function App() {
               <Route
                 path="/csat"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CustomerSatisfaction />
                   </ProtectedRoute>
                 }
@@ -522,7 +522,7 @@ function App() {
               <Route
                 path="/customer-onboarding"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <CustomerOnboarding />
                   </ProtectedRoute>
                 }
@@ -530,7 +530,7 @@ function App() {
               <Route
                 path="/inward-register"
                 element={
-                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "PURCHASE ORDER","INDENTER","SCANNER","PREPRESS","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <InwardRegister />
                   </ProtectedRoute>
                 }
