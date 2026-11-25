@@ -153,7 +153,19 @@ const STAGE_OPTIONS = (() => {
   return [...seen.entries()];
 })();
 
-const LIVE_STAGES = ["New Indent", "Purchase Order", "Planner (Work Order)", "Production Entry", "Dispatch", "Completed"];
+const LIVE_STAGES = ["Purchase Order", "Planner (Work Order)", "Production Entry", "Dispatch", "Completed"];
+
+// display name only; the stored value stays "Purchase Order" so the server filter keeps working
+const stageLabel = (s) => (s === "Purchase Order" ? "Order Management" : s);
+
+// stage filter = "reached or passed this stage"
+const STAGE_KEY = {
+  "New Indent": "indent",
+  "Purchase Order": "po",
+  "Planner (Work Order)": "planner",
+  "Production Entry": "production",
+  "Dispatch": "dispatch"
+};
 
 
 
@@ -335,6 +347,7 @@ function NewIndent() {
   // ===== TRACK TABLE =====
   const [searchQ, setSearchQ] = useState("");
   const [stageFilter, setStageFilter] = useState("");
+  const [woFilter, setWoFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [trackId, setTrackId] = useState(null);
   const [trackExtra, setTrackExtra] = useState({});
@@ -612,30 +625,11 @@ function NewIndent() {
   const fetchTrackRows = async () => {
     const q = qRef.current;
     try {
-      let params = { page: q.trackPage, limit: PAGE_SIZE, q: q.searchQ, productType: q.typeFilter };
-      if (q.stageFilter) {
-        const s = await axios.get(`${BASE_URL}/api/tracking/stage-page`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: {
-            stage: q.stageFilter,
-            q: q.searchQ,
-            productType: q.typeFilter,
-            limit: PAGE_SIZE,
-            cursor: stageCursors.current[q.trackPage - 1] || 0
-          }
-        });
-        const found = s.data?.indentNos || [];
-        stageCursors.current[q.trackPage] = s.data?.nextCursor;
-        setTrackMore(s.data?.nextCursor != null);
-        if (!found.length) {
-          setTrackRows([]);
-          setTrackTotal(0);
-          return;
-        }
-        params = { page: 1, limit: found.length, indentNos: found.join(",") };
-      } else {
-        setTrackMore(false);
-      }
+      // with a stage selected, load a big batch and filter it on this page
+      const params = q.stageFilter
+        ? { page: 1, limit: 1000, q: q.searchQ, productType: q.typeFilter }
+        : { page: q.trackPage, limit: PAGE_SIZE, q: q.searchQ, productType: q.typeFilter };
+      setTrackMore(false);
       const res = await axios.get(`${BASE_URL}/api/newindent`, {
         headers: { Authorization: `Bearer ${token}` },
         params
@@ -1020,14 +1014,15 @@ if (!norm(form.lamination))    newErrors.lamination    = "Required";
 if (!norm(form.finish))        newErrors.finish        = "Required";
 if (!norm(form.specification)) newErrors.specification = "Required";
     if (!form.sampleType) newErrors.sampleType = "Required";
-    if (searchMode === "sample") {
-      if (!form.sampleRequestType) newErrors.sampleRequestType = "Required";
-    } else if (REQUIRE_ARTWORK_UPLOAD && !masterArt.length && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
+    if (searchMode === "sample" && !form.sampleRequestType) {
+      newErrors.sampleRequestType = "Required";
+    }
+    if (REQUIRE_ARTWORK_UPLOAD && !masterArt.length && !artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved")) {
       newErrors.artwork = "Upload an artwork version. The PO reviewer will approve or reject it.";
       Swal.fire({
         icon: "warning",
         title: "Artwork needed",
-        text: "Upload an artwork version (the PO reviewer approves it), or use Sample Request.",
+        text: "Upload an artwork version (the PO reviewer approves it) before saving.",
         confirmButtonColor: "#3085d6"
       });
     }
@@ -1085,6 +1080,26 @@ specification: "Specification",
           icon: "warning",
           title: "Artwork was rejected",
           text: "This artwork was rejected. Please upload another version before saving.",
+          confirmButtonColor: "#3085d6"
+        });
+        return;
+      }
+    }
+
+    // Artwork is mandatory in all 3 modes (Product Code, Customer / Description, Sample Request)
+    if (REQUIRE_ARTWORK_UPLOAD) {
+      const hasItemArt = artCode && masterArt.length > 0; // saved against the item: confirmed in the popup below
+      const hasVersion = artworkVersions.some((v) => v.status === "Pending" || v.status === "Approved");
+      if (!hasItemArt && !hasVersion) {
+        const picked = !!awFile;
+        const msg = picked
+          ? 'You selected a file but have not uploaded it. Click "Upload Version" first.'
+          : "Artwork File is required. Choose a file and click Upload Version.";
+        setErrors((prev) => ({ ...prev, artwork: msg }));
+        Swal.fire({
+          icon: "warning",
+          title: "Artwork needed",
+          text: msg,
           confirmButtonColor: "#3085d6"
         });
         return;
@@ -1423,14 +1438,33 @@ specification: "Specification",
       return (
         (!q || hay.includes(q)) &&
         (!typeFilter || norm(it.materialType).toLowerCase() === norm(typeFilter).toLowerCase()) &&
-        (!stageFilter || (flow[ind.indentNo]?.current || "") === stageFilter)
+        (!stageFilter || (() => {
+          const fl = flow[ind.indentNo];
+          if (!fl) return false;
+          if (stageFilter === "Completed") return fl.current === "Completed";
+          if (fl.current === "Completed") return false;
+          if (fl.current === stageFilter) return true;
+          // fallback: the stage card itself is in progress
+          const word = stageFilter.split(" ")[0].toLowerCase();
+          const st = (fl.stages || []).find(
+            (s) => s.key === STAGE_KEY[stageFilter] || String(s.label || "").toLowerCase().includes(word)
+          );
+          return !!st && ["current", "partial"].includes(st.state);
+        })()) &&
+        (!woFilter.trim() ||
+          [flow[ind.indentNo]?.woNo, ...(extTickets[ind.indentNo]?.tickets || [])]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(woFilter.trim().toLowerCase()))
       );
     });
-  }, [trackRows, searchQ, stageFilter, typeFilter, flow]);
+  }, [trackRows, searchQ, stageFilter, typeFilter, flow, woFilter, extTickets]);
 
 
 
   const clearTrackFilters = () => {
+    setWoFilter("");
     setSearchQ("");
     setStageFilter("");
     setTypeFilter("");
@@ -3500,13 +3534,13 @@ specification: "Specification",
                   </span>
                   <small>
                     {searchMode === "sample"
-                      ? "Sample can go ahead with pending artwork."
+                      ? "Sample request needs an artwork version. Upload it before saving."
                       : "Production indent needs an artwork version. The PO reviewer approves or rejects it."}
                   </small>
                 </div>
 
                 <div className="row g-2 mb-2">
-                  <PoField className="col-12 col-md-4" icon="bi-paperclip" label="Artwork File" alwaysFloat>
+                  <PoField className="col-12 col-md-4" icon="bi-paperclip" label="Artwork File" required alwaysFloat>
                     {artCode && masterArt.length > 0 && (
                       <input
                         type="text"
@@ -4496,18 +4530,21 @@ specification: "Specification",
         <div className="bar-card" style={{ display: showTrack ? "block" : "none" }}>
           <div className="bar-head">
             <h5>Saved Indents and Tracking</h5>
-            <span className="bar-count">{trackTotal.toLocaleString("en-IN")} / {grandTotal.toLocaleString("en-IN")} indents</span>
+            <span className="bar-count">{(stageFilter ? trackIndents.length : trackTotal).toLocaleString("en-IN")} / {grandTotal.toLocaleString("en-IN")} indents</span>
           </div>
 
           <div className="bar-body">
             <div className="row g-2 align-items-end">
-              <PoField className="col-12 col-lg-4" icon="bi-search" label="Search indent, customer, product" filled={has(searchQ)}>
+              <PoField className="col-12 col-lg-3" icon="bi-search" label="Search indent, customer, product" filled={has(searchQ)}>
                 <input type="text" className="po-input" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} />
+              </PoField>
+              <PoField className="col-6 col-lg-2" icon="bi-hash" label="WO / Ticket" filled={has(woFilter)}>
+                <input type="text" className="po-input" value={woFilter} title={woFilter} onChange={(e) => setWoFilter(e.target.value)} />
               </PoField>
               <PoField className="col-6 col-lg-3" icon="bi-diagram-3" label="Stage" alwaysFloat caret>
                 <select className="po-input" value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
                   <option value="">All stages</option>
-                  {LIVE_STAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+                  {LIVE_STAGES.map((l) => <option key={l} value={l}>{l === "Purchase Order" ? "Order Management" : l}</option>)}
                 </select>
               </PoField>
               <PoField className="col-6 col-lg-2" icon="bi-tag" label="Product Type" alwaysFloat caret>
@@ -4567,7 +4604,7 @@ specification: "Specification",
                                   ))}
                                 </div>
                                 <small className="d-block mt-1">
-                                  {ind.holdReason ? "On hold" : fl.current}
+                                  {ind.holdReason ? "On hold" : stageLabel(fl.current)}
                                 </small>
                               </div>
                             );
@@ -4663,7 +4700,7 @@ specification: "Specification",
                       {chartWo && chartWo === fl.woNo && (
                         <WoStageChartModal woNo={chartWo} tree={woTrees[chartWo]} onClose={() => setChartWo(null)} />
                       )}
-                      <div className="trk-flow-title"><b className="trk-flow-h">Order flow</b>{fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}{fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}<span className="trk-chip trk-now">Now: <b>{fl.current}</b></span></div>
+                      <div className="trk-flow-title"><b className="trk-flow-h">Order flow</b>{fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}{fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}<span className="trk-chip trk-now">Now: <b>{stageLabel(fl.current)}</b></span></div>
                       <div className="trk-cards">
                         {fl.stages.map((st) => {
                           let stS = st.key === "production" && woTrees[fl.woNo]?.complete ? "done" : st.state;

@@ -149,6 +149,14 @@ function StageSteps({ tr }) {
   );
 }
 
+const TRACK_STAGES = ["New Indent", "Planner (Work Order)", "Production Entry", "Dispatch", "Completed"];
+const TRACK_STAGE_KEY = {
+  "Purchase Order": "po",
+  "Planner (Work Order)": "planner",
+  "Production Entry": "production",
+  "Dispatch": "dispatch"
+};
+
 function CustomerDashboard() {
   const navigate = useNavigate();
 
@@ -219,6 +227,8 @@ const PAGE_SIZE = 30;
   const [trackMap, setTrackMap] = useState({});
   const [trackListLoading, setTrackListLoading] = useState(false);
   const [trackSearch, setTrackSearch] = useState("");
+  const [trackWo, setTrackWo] = useState("");
+  const [trackStage, setTrackStage] = useState("");
   const [trackPage, setTrackPage] = useState(1);
   const [trackTotal, setTrackTotal] = useState(0);
   const TRACK_PAGE_SIZE = 30;
@@ -1211,7 +1221,7 @@ const PAGE_SIZE = 30;
     try {
       const o = await axios.get(`${BASE_URL}/api/customer-orders`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { page: p, limit: TRACK_PAGE_SIZE, search: s.trim() }
+        params: { page: p, limit: (trackStage || trackWo.trim()) ? 200 : TRACK_PAGE_SIZE, search: s.trim() }
       });
       const rows = o.data?.data || [];
       const indentNos = [...new Set(rows.map((r) => r.indentNo).filter(Boolean))];
@@ -1256,7 +1266,7 @@ const PAGE_SIZE = 30;
     const t = setTimeout(() => loadTrack(trackPage, trackSearch), 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, trackPage, trackSearch]);
+  }, [viewMode, trackPage, trackSearch, !!(trackStage || trackWo.trim())]);
 
   useEffect(() => {
     const wo = trackInfo?.woNo;
@@ -3467,7 +3477,7 @@ const PAGE_SIZE = 30;
             <div className="px-3 pt-3 pb-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
               <div className="row g-2">
                 <PoField
-                  className="col-12 col-lg-4"
+                  className="col-12 col-lg-3"
                   icon="bi-search"
                   label="Search Ticket / Customer / Product Code"
                   filled={has(trackSearch)}
@@ -3482,7 +3492,46 @@ const PAGE_SIZE = 30;
                     }}
                   />
                 </PoField>
-                <div className="col-12 col-lg-8 d-flex align-items-center justify-content-end gap-3">
+                <PoField
+                  className="col-6 col-lg-2"
+                  icon="bi-hash"
+                  label="WO / Ticket"
+                  filled={has(trackWo)}
+                >
+                  <input
+                    type="text"
+                    className="po-input"
+                    value={trackWo}
+                    onChange={(e) => {
+                      setTrackWo(e.target.value);
+                      setTrackPage(1);
+                    }}
+                  />
+                </PoField>
+                <PoField
+                  className="col-6 col-lg-3"
+                  icon="bi-diagram-3"
+                  label="Stage"
+                  alwaysFloat
+                  caret
+                >
+                  <select
+                    className="po-input"
+                    value={trackStage}
+                    onChange={(e) => {
+                      setTrackStage(e.target.value);
+                      setTrackPage(1);
+                    }}
+                  >
+                    <option value="">All stages</option>
+                    {TRACK_STAGES.map((l) => (
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </PoField>
+                <div className="col-12 col-lg-4 d-flex align-items-center justify-content-end gap-3">
                   <button
                     className="btn btn-sm btn-secondary"
                     disabled={trackPage <= 1 || trackListLoading}
@@ -3526,7 +3575,28 @@ const PAGE_SIZE = 30;
                     </tr>
                   ) : (
                     (() => {
-                      const rows = trackList;
+                      const rows = trackList.filter((o) => {
+                        const tr = trackMap[String(refOf(o))];
+                        if (trackWo.trim()) {
+                          const hay = [tr?.woNo, o.ticketNo].filter(Boolean).join(" ").toLowerCase();
+                          if (!hay.includes(trackWo.trim().toLowerCase())) return false;
+                        }
+                        if (trackStage) {
+                          if (trackStage === "New Indent") return Boolean(o.indentNo);
+                          if (!tr) return false;
+                          if (trackStage === "Completed") return tr.current === "Completed";
+                          if (tr.current === "Completed") return false;
+                          if (tr.current === trackStage) return true;
+                          const word = trackStage.split(" ")[0].toLowerCase();
+                          const st = (tr.stages || []).find(
+                            (s) =>
+                              s.key === TRACK_STAGE_KEY[trackStage] ||
+                              String(s.label || "").toLowerCase().includes(word)
+                          );
+                          return !!st && ["current", "partial"].includes(st.state);
+                        }
+                        return true;
+                      });
                       if (!rows.length)
                         return (
                           <tr>
