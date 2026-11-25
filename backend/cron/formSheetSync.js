@@ -16,7 +16,7 @@ async function syncOnce() {
   const API = process.env.FORM_SHEET_API_URL;
   const KEY = process.env.FORM_SHEET_KEY;
   if (!API || !KEY) {
-    console.log("FORM SYNC: FORM_SHEET_API_URL / FORM_SHEET_KEY missing in .env");
+    // console.log("FORM SYNC: FORM_SHEET_API_URL / FORM_SHEET_KEY missing in .env");
     return;
   }
   running = true;
