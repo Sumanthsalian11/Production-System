@@ -42,6 +42,7 @@ async function sendOutsourceOrderMail(orders = []) {
         // one full row (all details repeated); indent no, location and qty come from the caller
         const makeRow = (indentNo, locName, qty, reqDate) => `<tr>
           <td style="${td}">${esc(indentNo)}</td>
+          <td style="${td}">${esc(o.ticketNo)}</td>
           <td style="${td}">${esc(locName)}</td>
           <td style="${td}">${esc(fmtDate(reqDate || o.expectedDeliveryDate))}</td>
           <td style="${td}">${esc(o.productCode)}</td>
@@ -81,9 +82,9 @@ async function sendOutsourceOrderMail(orders = []) {
 
         const tt = `${td};background:#eef6f8`;
         const totalRow = `<tr>
-          <td style="${tt}" colspan="6"><b>Total Qty</b></td>
+          <td style="${tt}" colspan="8"><b>Total Qty</b></td>
           <td style="${tt};text-align:right"><b>${esc(sum)}</b>${wasteNote}</td>
-          <td style="${tt}" colspan="11"></td>
+          <td style="${tt}" colspan="10"></td>
         </tr>`;
 
         return splitRows + totalRow;
@@ -95,7 +96,7 @@ async function sendOutsourceOrderMail(orders = []) {
       <p>Please find below the details of the indent order planned as <b>Out Source</b>. The artwork is attached for your reference.</p>
       <table style="border-collapse:collapse;font-family:Arial,sans-serif">
         <thead><tr>
-          <th style="${th}">Indent No</th><th style="${th}">Location</th><th style="${th}">Required date</th>
+          <th style="${th}">Indent No</th><th style="${th}">Ticket Id</th><th style="${th}">Location</th><th style="${th}">Required date</th>
           <th style="${th}">Product Code</th><th style="${th}">Customer Name</th><th style="${th}">Description</th><th style="${th}">Paper Group</th>
           <th style="${th}">Quantity</th><th style="${th}">GSM</th><th style="${th}">Close size</th>
           <th style="${th}">Colour</th><th style="${th}">Lamination</th><th style="${th}">Finish</th>
