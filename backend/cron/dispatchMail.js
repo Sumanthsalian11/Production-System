@@ -79,6 +79,7 @@ const runDispatchReport = async (settings, location) => {
         <tr>
           <td style="${ctr}">${i + 1}</td>
           <td style="${ctr}font-weight:bold;">${escapeHtml(d.efiWoNumber || d.ticketNo)}</td>
+          <td style="${ctr}">${escapeHtml(d.productCode) || "-"}</td>
           <td>${escapeHtml(d.customer) || "-"}</td>
           <td>${escapeHtml(d.productName) || "-"}</td>
           <td>${escapeHtml(d.productType) || "-"}</td>
@@ -99,7 +100,7 @@ const runDispatchReport = async (settings, location) => {
 
     const totalRow = `
       <tr style="background:#1a2a3a;color:#ffffff;font-weight:bold;">
-        <td colspan="6" style="text-align:right;">TOTAL</td>
+        <td colspan="7" style="text-align:right;">TOTAL</td>
         <td style="text-align:right;">${sumDispatch.toLocaleString("en-IN")}</td>
         <td></td><td></td>
         <td style="${ctr}">${sumBoxes.toLocaleString("en-IN")}</td>
@@ -117,6 +118,7 @@ const runDispatchReport = async (settings, location) => {
           <tr>
             <th>#</th>
             <th>WO / TICKET</th>
+            <th>PRODUCT CODE</th>
             <th style="text-align:left;">CUSTOMER</th>
             <th style="text-align:left;">PRODUCT</th>
             <th style="text-align:left;">PRODUCT TYPE</th>
@@ -150,6 +152,7 @@ const runDispatchReport = async (settings, location) => {
       const excelRows = rows.map((d, i) => ({
         "Sl No": i + 1,
         "WO / Ticket": d.efiWoNumber || d.ticketNo || "",
+        "Product Code": d.productCode || "",
         "PO No": d.purchaseOrderNo || "",
         Customer: d.customer || "",
         Product: d.productName || "",

@@ -4771,8 +4771,8 @@ specification: "Specification",
             <table className="table table-bordered table-hover align-middle bg-white">
               <thead>
                 <tr>
-                  <th>Indent</th><th>Product Type</th><th>Customer</th><th>Product</th><th>Qty</th>
-                  <th>Due</th><th>Stage</th><th>WO / Ticket</th><th></th>
+                  <th>Indent</th><th>Product Type</th><th>Customer</th><th>Product</th><th>Order Qty</th>
+                  <th>Expected Date (deliverydate)</th><th>Stage</th><th>WO / Ticket</th><th></th>
                 </tr>
               </thead>
               <tbody>

@@ -3699,7 +3699,7 @@ const PAGE_SIZE = 30;
                     <th>Customer</th>
                     <th>Product Type</th>
                     <th>Product Code</th>
-                    <th>Qty</th>
+                    <th>Order Qty</th>
                     <th>Stage</th>
                     <th>WO / Ticket</th>
                   </tr>
