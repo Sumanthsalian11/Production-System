@@ -1684,8 +1684,24 @@ specification: "Specification",
 
   // ===== ADD CUSTOMER + ITEM TO THE ITEMS MASTER =====
   const saveNewItem = async () => {
-    if (!norm(newItem.customerName)) {
-      Swal.fire({ icon: "warning", title: "Required", text: "Customer name is required.", confirmButtonColor: "#3085d6" });
+    const reqFields = [
+      ["customerName", "Customer Name"],
+      ["description", "Description"],
+      ["materialType", "Product Type"],
+      ["colorFront", "Color Front"],
+      ["colorBack", "Color Back"],
+      ["jobSize", "Job Size"]
+    ];
+    const missingFields = reqFields.filter(([k]) => !norm(newItem[k])).map(([, l]) => l);
+    if (missingFields.length) {
+      Swal.fire({
+        icon: "warning",
+        title: "Please fill the mandatory fields",
+        html: "<ul style='text-align:left;margin:0 auto;display:inline-block'>" +
+          missingFields.map((l) => "<li>" + l + "</li>").join("") +
+          "</ul>",
+        confirmButtonColor: "#3085d6"
+      });
       return;
     }
     try {
@@ -2869,6 +2885,9 @@ specification: "Specification",
           display: none;
         }
 
+        /* SweetAlert must show above the popups on this page (they use z-index up to 2300) */
+        .swal2-container { z-index: 3000 !important; }
+
         /* respect users who disable motion */
         @media (prefers-reduced-motion: reduce) {
           .indent-app-container,
@@ -3149,7 +3168,7 @@ specification: "Specification",
                   <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(form.colorBack)}>
                     <input name="colorBack" className="po-input" value={form.colorBack} title={form.colorBack} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
-                  <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" hide filled={has(form.jobSize)}>
+                  <PoField className="col-12 col-md-4" icon="bi-aspect-ratio" label="Job Size" filled={has(form.jobSize)}>
                     <input name="jobSize" className="po-input" value={form.jobSize} title={form.jobSize} readOnly={searchMode !== "sample"} onChange={handleChange} />
                   </PoField>
                   <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" hide filled={has(form.wasteQty)}>
@@ -3825,22 +3844,22 @@ specification: "Specification",
                   <PoField className="col-12 col-md-4" icon="bi-person" label="Customer Name" required filled={has(newItem.customerName)}>
                     <input className="po-input" value={newItem.customerName} onChange={(e) => setNewItem((p) => ({ ...p, customerName: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-12" icon="bi-card-text" label="Description" filled={has(newItem.description)}>
+                  <PoField className="col-12" icon="bi-card-text" label="Description" required filled={has(newItem.description)}>
                     <input className="po-input" value={newItem.description} onChange={(e) => setNewItem((p) => ({ ...p, description: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-12 col-md-4" icon="bi-tag" label="Product Type" filled={has(newItem.materialType)}>
+                  <PoField className="col-12 col-md-4" icon="bi-tag" label="Product Type" required filled={has(newItem.materialType)}>
                     <input className="po-input" list="indent-newitem-types" value={newItem.materialType} onChange={(e) => setNewItem((p) => ({ ...p, materialType: e.target.value }))} />
                     <datalist id="indent-newitem-types">
                       {materialTypeOptions.map((t) => <option key={t} value={t} />)}
                     </datalist>
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" filled={has(newItem.colorFront)}>
+                  <PoField className="col-6 col-md-4" icon="bi-palette" label="Color Front" required filled={has(newItem.colorFront)}>
                     <input className="po-input" value={newItem.colorFront} onChange={(e) => setNewItem((p) => ({ ...p, colorFront: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" filled={has(newItem.colorBack)}>
+                  <PoField className="col-6 col-md-4" icon="bi-palette2" label="Color Back" required filled={has(newItem.colorBack)}>
                     <input className="po-input" value={newItem.colorBack} onChange={(e) => setNewItem((p) => ({ ...p, colorBack: e.target.value }))} />
                   </PoField>
-                  <PoField className="col-6 col-md-4" icon="bi-aspect-ratio" label="Job Size" hide filled={has(newItem.jobSize)}>
+                  <PoField className="col-6 col-md-4" icon="bi-aspect-ratio" label="Job Size" required filled={has(newItem.jobSize)}>
                     <input className="po-input" value={newItem.jobSize} onChange={(e) => setNewItem((p) => ({ ...p, jobSize: e.target.value }))} />
                   </PoField>
                   <PoField className="col-6 col-md-4" icon="bi-recycle" label="Waste Qty" hide filled={has(newItem.wasteQty)}>
