@@ -158,6 +158,9 @@ const LIVE_STAGES = ["Purchase Order", "Planner (Work Order)", "Production Entry
 // display name only; the stored value stays "Purchase Order" so the server filter keeps working
 const stageLabel = (s) => (s === "Purchase Order" ? "Order Management" : s);
 
+// stage card / button titles (server sends "Purchase Order")
+const cardLabel = (s) => (/^purchase order$/i.test(String(s || "").trim()) ? "Order Management" : s);
+
 // stage filter = "reached or passed this stage"
 const STAGE_KEY = {
   "New Indent": "indent",
@@ -4599,7 +4602,7 @@ specification: "Specification",
                                   {fl.stages.map((st, k) => (
                                     <span key={st.key} className="trk-step">
                                       {k > 0 && <i className={`trk-seg ${fl.stages[k - 1].state === "done" ? "on" : ""}`} />}
-                                      <b className={`trk-dot trk-d-${st.state}`} title={`${st.label}: ${st.state}`} />
+                                      <b className={`trk-dot trk-d-${st.state}`} title={`${cardLabel(st.label)}: ${st.state}`} />
                                     </span>
                                   ))}
                                 </div>
@@ -4728,7 +4731,7 @@ if (extOrders) {
                           const c = CL[stS] || ["#f4f6f8", "#b8c0cb"];
                           return (
                             <div key={st.key} title="Double-click for details" onDoubleClick={() => { setFlowSel(ind.indentNo + "|" + st.key); fetchFlowDetail(ind.indentNo); if (isExtOrder(ind)) fetchExtDetail(ind.indentNo); }} className="trk-card" style={{ "--c-bg": c[0], "--c-bd": c[1] }}>
-                              <b style={{ color: c[1] }}>{st.label}</b>
+                              <b style={{ color: c[1] }}>{cardLabel(st.label)}</b>
                               {(extLines || st.lines).map((ln, q) => <div key={q} className="trk-ln">{ln}</div>)}
                             </div>
                           );
@@ -4793,7 +4796,7 @@ if (extMode) {
                       color: x.key === tab ? "#fff" : "#000",
                       border: "1px solid " + (x.key === tab ? "#0b3a45" : "#8fbcc7")
                     }}
-                                    onClick={() => setFlowSel(ind.indentNo + "|" + x.key)}>{x.label}</button>
+                                    onClick={() => setFlowSel(ind.indentNo + "|" + x.key)}>{cardLabel(x.label)}</button>
                                 ))}
                               </div>
                               <div className="px-3 pb-3" style={{ overflow: "auto", flex: 1 }}>{body}</div>

@@ -137,17 +137,20 @@ function StageSteps({ tr }) {
       <div className="stp-row">
         {st.map((s, i) => (
           <span key={s.key} className="stp-item">
-            <span className={`stp-dot stp-${s.state || "idle"}`} title={s.label}></span>
+            <span className={`stp-dot stp-${s.state || "idle"}`} title={cardLabel(s.label)}></span>
             {i < st.length - 1 && (
               <span className={`stp-line ${s.state === "done" ? "stp-line-done" : ""}`}></span>
             )}
           </span>
         ))}
       </div>
-      <div className="stp-label">{tr.current}</div>
+      <div className="stp-label">{cardLabel(tr.current)}</div>
     </div>
   );
 }
+
+// stage card / button titles (server sends "Purchase Order")
+const cardLabel = (s) => (/^purchase order$/i.test(String(s || "").trim()) ? "Order Management" : s);
 
 const TRACK_STAGES = ["New Indent", "Planner (Work Order)", "Production Entry", "Dispatch", "Completed"];
 const TRACK_STAGE_KEY = {
@@ -2428,7 +2431,7 @@ const PAGE_SIZE = 30;
                       <b className="trk-flow-h">Order flow</b>
                       {fl.woNo ? <span className="trk-chip">WO <b>{fl.woNo}</b></span> : null}
                       {fl.poNo ? <span className="trk-chip">PO <b>{fl.poNo}</b></span> : null}
-                      <span className="trk-chip trk-now">Now: <b>{fl.current}</b></span>
+                      <span className="trk-chip trk-now">Now: <b>{cardLabel(fl.current)}</b></span>
                     </div>
                     {(() => {
                       const dk = detailKeyOf(trackOrder);
@@ -2499,7 +2502,7 @@ const PAGE_SIZE = 30;
                                     fetchFlowDetail(trackOrder);
                                   }}
                                 >
-                                  {x.label}
+                                  {cardLabel(x.label)}
                                 </button>
                               ))}
                             </div>
@@ -2526,7 +2529,7 @@ const PAGE_SIZE = 30;
                             }}
                             style={{ "--c-bg": c[0], "--c-bd": c[1] }}
                           >
-                            <b style={{ color: c[1] }}>{st.label}</b>
+                            <b style={{ color: c[1] }}>{cardLabel(st.label)}</b>
                             {st.lines.map((ln, q) => (
                               <div key={q} className="trk-ln">{ln}</div>
                             ))}
