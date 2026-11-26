@@ -41,6 +41,9 @@ const buildQuery = async (q) => {
 // ==========================================
 router.post("/", async (req, res) => {
   try {
+    if (!String(req.body.paperSize || "").trim()) {
+      return res.status(400).json({ message: "Paper size is required" });
+    }
     const newRecord = new ProductionMachineStatus({
       productionDate: req.body.productionDate,
       shift: req.body.shift,
@@ -88,6 +91,9 @@ router.post("/bulk", async (req, res) => {
   try {
     const entries = Array.isArray(req.body.entries) ? req.body.entries : [];
     if (!entries.length) return res.status(400).json({ message: "No entries to save" });
+    if (entries.some((b) => !String(b.paperSize || "").trim())) {
+      return res.status(400).json({ message: "Paper size is required" });
+    }
 
     const docs = entries.map((b) => {
       const _id = new mongoose.Types.ObjectId();
@@ -721,6 +727,9 @@ router.get("/last-used", async (req, res) => {
 // ==========================================
 router.put("/:id", async (req, res) => {
   try {
+    if (!String(req.body.paperSize || "").trim()) {
+      return res.status(400).json({ message: "Paper size is required" });
+    }
     const updated = await ProductionMachineStatus.findByIdAndUpdate(
       req.params.id,
       {

@@ -1332,7 +1332,7 @@ export default function ProductionMachineStatusModule() {
       const isProd = statusKey === "production" || statusKey === "working";
       const shift = String(item.shift || "").toLowerCase();
       const remarkList = (item.remarks || []).map((x) => String(x).trim()).filter(Boolean);
-      const sizeKey = item.paperSize?.trim() || "Not Set";
+      const sizeKey = item.paperSize?.trim() || "";
       const qty = isProd ? Number(item.totalPages) || 0 : 0;
 
       const durMins = item.mins || 0;
@@ -1346,10 +1346,10 @@ export default function ProductionMachineStatusModule() {
       }
 
       if (shift === "day") {
-        if (isProd) { row.dayQty += qty; row.dayEntered = true; row.dayBySize[sizeKey] = (row.dayBySize[sizeKey] || 0) + qty; }
+        if (isProd) { row.dayQty += qty; row.dayEntered = true; if (sizeKey) row.dayBySize[sizeKey] = (row.dayBySize[sizeKey] || 0) + qty; }
         remarkList.forEach((x) => row.dayRemarks.add(x));
       } else if (shift === "night") {
-        if (isProd) { row.nightQty += qty; row.nightEntered = true; row.nightBySize[sizeKey] = (row.nightBySize[sizeKey] || 0) + qty; }
+        if (isProd) { row.nightQty += qty; row.nightEntered = true; if (sizeKey) row.nightBySize[sizeKey] = (row.nightBySize[sizeKey] || 0) + qty; }
         remarkList.forEach((x) => row.nightRemarks.add(x));
       }
     });
