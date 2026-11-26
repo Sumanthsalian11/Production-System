@@ -404,15 +404,15 @@ function NewIndent() {
 
   // next running product code: P01, P02, ... (looks at the Items master and saved indents)
   const nextProductCode = useMemo(() => {
-    let max = 0;
+    // numeric codes only, starting at 9000
+    let max = 90000000;
     [
       ...itemList.map((it) => itemCodeOf(it)),
       ...indents.map((x) => String(x.items?.[0]?.productCode || ""))
     ].forEach((c) => {
-      const m = /^P(\d+)$/i.exec(c);
-      if (m) max = Math.max(max, Number(m[1]));
+      if (/^9000\d{4}$/.test(c)) max = Math.max(max, Number(c));
     });
-    return "P" + String(max + 1).padStart(2, "0");
+    return String(max + 1);
   }, [itemList, indents]);
 
   // Sample Request: Customer and Product Type dropdowns filter each other
@@ -1692,12 +1692,12 @@ specification: "Specification",
       // read the latest master so the serial continues correctly: P01, P02, P03 ...
       const cur = await axios.get(`${BASE_URL}/api/master/items`, { headers: { Authorization: `Bearer ${token}` } });
       const curList = Array.isArray(cur.data) ? cur.data : (cur.data?.data || []);
-      let max = 0;
+      // numeric codes only, starting at 9000
+      let max = 90000000;
       [...curList.map((it) => itemCodeOf(it)), ...indents.map((x) => String(x.items?.[0]?.productCode || ""))].forEach((c) => {
-        const m = /^P(\d+)$/i.exec(c);
-        if (m) max = Math.max(max, Number(m[1]));
+        if (/^9000\d{4}$/.test(c)) max = Math.max(max, Number(c));
       });
-      const code = "P" + String(max + 1).padStart(2, "0");
+      const code = String(max + 1);
 
       // no unique code is sent; ink is always CMYK
       const { uniqueCode, ...rest } = newItem;
