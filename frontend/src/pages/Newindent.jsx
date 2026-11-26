@@ -346,6 +346,8 @@ function NewIndent() {
   const [customerFilter, setCustomerFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [indenterFilter, setIndenterFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [statusOpen, setStatusOpen] = useState(false);
 
   // ===== TRACK TABLE =====
   const [searchQ, setSearchQ] = useState("");
@@ -576,7 +578,7 @@ function NewIndent() {
   const qRef = useRef({});
   qRef.current = {
     page, trackPage, showTrack, indentNoFilter, productCodeFilter, customerFilter,
-    locationFilter, indenterFilter, fromDate, toDate, searchQ, typeFilter, stageFilter
+    locationFilter, indenterFilter, fromDate, toDate, searchQ, typeFilter, stageFilter, statusFilter
   };
   const reqId = useRef(0);
 
@@ -596,7 +598,8 @@ function NewIndent() {
     location: q.locationFilter,
     indenter: q.indenterFilter,
     from: dayEdge(q.fromDate, false),
-    to: dayEdge(q.toDate, true)
+    to: dayEdge(q.toDate, true),
+    status: (q.statusFilter || []).join(",")
   });
 
   const fetchIndents = async () => {
@@ -688,12 +691,12 @@ function NewIndent() {
   const firstLoad = useRef(true);
   useEffect(() => {
     setPage(1);
-  }, [indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+  }, [indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate, statusFilter]);
   useEffect(() => {
     if (firstLoad.current) { firstLoad.current = false; return; }
     const t = setTimeout(() => fetchIndents(), 400);
     return () => clearTimeout(t);
-  }, [page, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+  }, [page, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate, statusFilter]);
 
   useEffect(() => {
     stageCursors.current = [0];
@@ -1414,13 +1417,14 @@ specification: "Specification",
     }
 
     setFilteredIndents(result);
-  }, [indents, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate]);
+  }, [indents, indentNoFilter, productCodeFilter, customerFilter, locationFilter, indenterFilter, fromDate, toDate, statusFilter]);
 
   // everyone who has raised an indent (plus the logged-in user, so the default is always in the list)
   const indenterOptions = [...new Set([loggedInUser, ...indenterList].filter(Boolean))].sort();
 
   const clearFilters = () => {
     setIndentNoFilter("");
+    setStatusFilter([]);
     setIndenterFilter("");
     setProductCodeFilter("");
     setCustomerFilter("");
@@ -4087,7 +4091,7 @@ specification: "Specification",
         })()}
 
         {/* ===== FILTERS (Saved Indents, shown by default) ===== */}
-        <div className="bar-card" style={{ display: showTrack ? "none" : "block" }}>
+        <div className="bar-card" style={{ display: showTrack ? "none" : "block", overflow: "visible" }}>
           <div className="bar-head">
             <h5>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -4157,6 +4161,69 @@ specification: "Specification",
                   ))}
                   </select>
               </PoField>
+              <div className="col-6 col-lg-2" style={{ position: "relative" }}>
+                <PoField icon="bi-flag" label="Status" alwaysFloat caret>
+                  <div
+                    className="po-input d-flex align-items-center"
+                    style={{ cursor: "pointer", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}
+                    onClick={() => setStatusOpen((o) => !o)}
+                  >
+                    {statusFilter.length === 0
+                      ? "All Status"
+                      : statusFilter.length === 1
+                      ? ({ PENDING_PO: "Pending PO", SAMPLE_REQUESTED: "Sample Requested", APPROVED: "Approved", REJECTED: "Rejected" }[statusFilter[0]])
+                      : `${statusFilter.length} selected`}
+                  </div>
+                </PoField>
+
+                {statusOpen && (
+                  <>
+                    <div
+                      style={{ position: "fixed", inset: 0, zIndex: 1990 }}
+                      onClick={() => setStatusOpen(false)}
+                    />
+                    <div
+                      style={{
+                        position: "absolute", top: "calc(100% + 2px)", left: 0, minWidth: 220, zIndex: 2100,
+                        background: "#fff", border: "1px solid #cfd6de", borderRadius: 6,
+                        boxShadow: "0 6px 18px rgba(0,0,0,.15)", padding: "8px 12px"
+                      }}
+                    >
+                      {[
+                        ["PENDING_PO", "Pending PO"],
+                        ["SAMPLE_REQUESTED", "Sample Requested"],
+                        ["APPROVED", "Approved"],
+                        ["REJECTED", "Rejected"]
+                      ].map(([val, lab]) => (
+                        <div key={val} className="form-check m-0 py-1">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id={`st-${val}`}
+                            checked={statusFilter.includes(val)}
+                            onChange={(e) =>
+                              setStatusFilter((p) =>
+                                e.target.checked ? [...p, val] : p.filter((x) => x !== val)
+                              )
+                            }
+                          />
+                          <label className="form-check-label" htmlFor={`st-${val}`} style={{ cursor: "pointer" }}>
+                            {lab}
+                          </label>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="btn-action-edit mt-1"
+                        onClick={() => setStatusFilter([])}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <PoField className="col-6 col-lg-3" icon="bi-calendar-event" label="From Date" alwaysFloat>
                 <input
                   type="date"

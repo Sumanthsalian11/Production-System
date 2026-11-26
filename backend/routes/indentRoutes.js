@@ -432,6 +432,10 @@ router.get("/", authMiddleware, async (req, res) => {
     if (req.query.productCode) f["items.productCode"] = rx(req.query.productCode);
     if (req.query.customer) f["items.customerName"] = rx(req.query.customer);
     if (req.query.indenter) f.user = req.query.indenter;
+    if (req.query.status) {
+      const st = String(req.query.status).split(",").map((s) => s.trim()).filter(Boolean);
+      if (st.length) f.status = { $in: st };
+    }
     if (req.query.location) f.location = req.query.location;
     if (req.query.from || req.query.to) {
       f.createdAt = {};

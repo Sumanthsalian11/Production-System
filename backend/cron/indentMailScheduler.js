@@ -3,6 +3,7 @@ const IndentRequest = require("../models/Indentrequest");
 const MailSettings = require("../models/MailSettings");
 const sendMail = require("../utils/mailSender");
 const { CC } = require("../utils/mailConfig");
+const XLSX = require("xlsx");
 
 const pad = (n) => String(n).padStart(2, "0");
 let lastRunKey = ""; // prevents sending twice in the same minute/day
@@ -119,11 +120,68 @@ cron.schedule("* * * * *", async () => {
       : [...new Set(indents.map((i) => i.userEmail).filter(Boolean))];
     const ccEmails = adminCc.length ? adminCc : CC;
 
+    // ===== Consolidated Excel: ALL indents still pending till this time =====
+    let attachments = [];
+    try {
+      const allPending = await IndentRequest.find({
+        createdAt: { $lte: toTime },
+        status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] },
+      })
+        .populate("location", "locationName")
+        .sort({ createdAt: 1 })
+        .lean();
+
+      const fmtDate = (d) =>
+        d ? new Date(d).toLocaleDateString("en-GB").replace(/\//g, "-") : "";
+
+      const excelRows = allPending.map((indent, i) => {
+        const item = indent.items?.[0] || {};
+        const ageDays = Math.floor((toTime - new Date(indent.createdAt)) / 86400000);
+        return {
+          "Sl No": i + 1,
+          "Indent No": indent.indentNo || "",
+          "Product Code": item.productCode || "",
+          "Product Type": item.materialType || "",
+          "Customer": item.customerName || "",
+          "Description": item.description || "",
+          "Qty": item.quantity || 0,
+          "Expected Dispatch Date": fmtDate(item.deliveryDate),
+          "Status": indent.status || "",
+          "Request Location": indent.location?.locationName || "",
+          "Requested By": indent.user || "",
+          "Requested At": new Date(indent.createdAt).toLocaleString("en-IN"),
+          "Pending Days": ageDays < 0 ? 0 : ageDays,
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(excelRows);
+      ws["!cols"] = [
+        { wch: 6 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 28 }, { wch: 40 },
+        { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 22 }, { wch: 13 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Pending Indents");
+      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      attachments = [
+        {
+          filename: `Pending_Indents_Consolidated_${fmtDate(toTime)}.xlsx`,
+          content: buffer,
+          contentType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      ];
+    } catch (xErr) {
+      // the normal summary mail still goes even if the Excel fails
+      console.error("❌ Consolidated Excel Error:", xErr);
+    }
+
     await sendMail({
       to: toEmails,
       cc: ccEmails,
       subject: `Pending Indent Summary`,
       html,
+      attachments,
     });
 
     console.log(`✅ Mail sent to: ${toEmails.join(", ")}`);
