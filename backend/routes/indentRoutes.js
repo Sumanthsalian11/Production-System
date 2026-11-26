@@ -767,7 +767,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     if (orderType === "Inhouse") {
       sendInhouseOrderMail(mailOrders, planningLocation || "");
     } else if (orderType === "Out Source") {
-      sendOutsourceOrderMail(createdOrders);
+      sendOutsourceOrderMail(mailOrders);
     }
 
   } catch (err) {
