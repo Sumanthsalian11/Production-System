@@ -265,6 +265,9 @@ function NewIndent() {
   const [showForm, setShowForm] = useState(false);
   const [showTrack, setShowTrack] = useState(false);
   const [chatId, setChatId] = useState(null);
+  const [infoId, setInfoId] = useState(null);
+  const [infoText, setInfoText] = useState("");
+  const [infoBusy, setInfoBusy] = useState(false);
   const [pdfPreview, setPdfPreview] = useState(null); // { url, name } for the watermarked PDF viewer
   const [showBell, setShowBell] = useState(true);
   // Lamination to Customer Copy columns are collapsed by default
@@ -673,6 +676,37 @@ function NewIndent() {
       setBellList(r.data || []);
     } catch {
       setBellList([]);
+    }
+  };
+
+  const sendInfoReply = async (ind) => {
+    const t = infoText.trim();
+    if (!t) {
+      Swal.fire({ icon: "warning", title: "Type your reply first", confirmButtonColor: "#3085d6" });
+      return;
+    }
+    if (infoBusy) return;
+    setInfoBusy(true);
+    try {
+      await axios.put(
+        `${BASE_URL}/api/newindent/${ind._id}/info-reply`,
+        { text: t },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setInfoText("");
+      setInfoId(null);
+      fetchBell();
+      fetchIndents();
+      Swal.fire({ icon: "success", title: "Reply sent", width: "350px", confirmButtonColor: "#3085d6" });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Could not send reply",
+        confirmButtonColor: "#d33"
+      });
+    } finally {
+      setInfoBusy(false);
     }
   };
 
@@ -4019,12 +4053,80 @@ specification: "Specification",
           );
         })()}
 
+        {/* ===== INFO REPLY POPUP ===== */}
+        {(() => {
+          const ind = bellList.find((x) => x._id === infoId);
+          if (!ind) return null;
+          const it = ind.items?.[0] || {};
+          return (
+            <div
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2300, display: "flex", alignItems: "center", justifyContent: "center" }}
+              onClick={() => setInfoId(null)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 680, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+              >
+                <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+                  <i className="bi bi-chat-dots" style={{ color: "#e4572e" }}></i>
+                  <b style={{ fontSize: 15 }}>More information requested</b>
+                  <span>{ind.indentNo}</span>
+                  <span className="text-muted">{it.customerName || ""}</span>
+                  <button type="button" className="btn-action-delete ms-auto" onClick={() => setInfoId(null)}>Close</button>
+                </div>
+
+                <div style={{ overflowY: "auto", padding: 16, background: "#f4f6f8", flex: 1 }}>
+                  {(ind.infoThread || []).map((m, i) => (
+                    <div key={i} className="d-flex mb-3" style={{ justifyContent: m.from === "indenter" ? "flex-end" : "flex-start" }}>
+                      <div
+                        style={{
+                          maxWidth: "82%",
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          background: m.from === "indenter" ? "#d9f2e6" : "#ffffff",
+                          border: "1px solid " + (m.from === "indenter" ? "#a9dcc3" : "#e3e7ec")
+                        }}
+                      >
+                        <div className="d-flex align-items-center gap-2 mb-1">
+                          <b>{m.by || (m.from === "indenter" ? "You" : "PO reviewer")}</b>
+                          <small>{m.from === "indenter" ? "replied" : "asked"}</small>
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                        <div style={{ textAlign: "right", marginTop: 4 }}>
+                          <small>{m.at ? new Date(m.at).toLocaleString("en-IN") : ""}</small>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="p-3" style={{ borderTop: "1px solid #e3e7ec" }}>
+                  <textarea
+                    className="form-control mb-2"
+                    rows={4}
+                    placeholder="Type your reply..."
+                    value={infoText}
+                    onChange={(e) => setInfoText(e.target.value)}
+                    style={{ color: "#000", border: "1px solid #cfd6de", borderRadius: 6, padding: 8, width: "100%" }}
+                  />
+                  <div className="text-end">
+                    <button type="button" className="btn btn-submit-indent" disabled={infoBusy} onClick={() => sendInfoReply(ind)}>
+                      {infoBusy ? "Sending..." : "Send"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* ===== ARTWORK UPDATES BELL ===== */}
         {(() => {
 
           if (showTrack) return null; // hide bell on Track
           const mine = bellList.filter((ind) => {
             if (ind.user !== loggedInUser) return false;
+            if (ind.infoState === "WAITING_INDENTER") return true;
             const a = latestArtOf(ind);
             if (!a) return false;
             // rejected: show unless the indent is already processed (APPROVED)
@@ -4058,6 +4160,23 @@ specification: "Specification",
                         <div className="text-center py-2">No artwork updates.</div>
                       ) : (
                         mine.map((ind) => {
+                          if (ind.infoState === "WAITING_INDENTER") {
+                            const last = (ind.infoThread || [])[(ind.infoThread || []).length - 1];
+                            return (
+                              <div key={ind._id} className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <b>{ind.indentNo}</b>
+                                <span className="custom-badge badge-pending">More info requested</span>
+                                <span>{last ? last.text : ""}</span>
+                                <button
+                                  type="button"
+                                  className="btn-action-edit ms-auto"
+                                  onClick={() => { setShowBell(false); setInfoText(""); setInfoId(ind._id); }}
+                                >
+                                  <i className="bi bi-chat-dots"></i> Info
+                                </button>
+                              </div>
+                            );
+                          }
                           const a = latestArtOf(ind);
                           return (
                             <div key={ind._id} className="d-flex flex-wrap align-items-center gap-2 mb-2">

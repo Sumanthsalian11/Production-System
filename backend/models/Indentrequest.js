@@ -108,6 +108,18 @@ groupId: { type: String, default: "" },
     ],
     holdReason: { type: String, default: "" },
     approvedAt: { type: Date },
+
+    // ===== NEED MORE INFO (reviewer <-> indenter chat) =====
+    infoState: { type: String, enum: ["", "WAITING_INDENTER", "REPLIED"], default: "" },
+    infoThread: [
+      {
+        _id: false,
+        from: { type: String, enum: ["reviewer", "indenter"] },
+        by:   { type: String, default: "" },
+        text: { type: String, default: "" },
+        at:   { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

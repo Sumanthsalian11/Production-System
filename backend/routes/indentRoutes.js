@@ -506,7 +506,10 @@ router.get("/my-artwork-updates", authMiddleware, async (req, res) => {
     const list = await IndentRequest.find({
       user: me.name,
       status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED", "REJECTED"] },
-      "items.artworkVersions.status": { $in: ["Rejected", "Approved"] }
+      $or: [
+        { "items.artworkVersions.status": { $in: ["Rejected", "Approved"] } },
+        { infoState: "WAITING_INDENTER" }
+      ]
     })
       .populate("location", "locationName")
       .sort({ createdAt: -1 })
@@ -587,6 +590,10 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
 
     if (!["PENDING_PO", "SAMPLE_REQUESTED"].includes(indent.status)) {
       return res.status(400).json({ message: "Indent already processed" });
+    }
+
+    if (indent.infoState === "WAITING_INDENTER") {
+      return res.status(400).json({ message: "Waiting for the indenter's reply to the info request." });
     }
 
     // 2. Validate based on order type
@@ -744,6 +751,7 @@ router.put("/process/:id", authMiddleware, async (req, res) => {
     // 4. Update indent status
     for (const d of groupDocs) {
       d.status = "APPROVED";
+      d.infoState = "";
       d.orderType = orderType;
       d.approvedAt = new Date();
       await d.save();
@@ -955,6 +963,89 @@ router.put("/:id/track", authMiddleware, async (req, res) => {
 // =============================================
 // ARTWORK REVIEW (PO reviewer approves / rejects one version)
 // =============================================
+// =============================================
+// NEED MORE INFO (PO reviewer -> indenter)
+// =============================================
+router.put("/:id/need-info", authMiddleware, async (req, res) => {
+  try {
+    const text = String(req.body.text || "").trim();
+    if (!text) return res.status(400).json({ message: "Please type what information you need" });
+
+    const reviewer = await User.findById(req.user.id);
+    if (!reviewer) return res.status(404).json({ message: "User not found" });
+
+    const indent = await IndentRequest.findById(req.params.id);
+    if (!indent) return res.status(404).json({ message: "Indent not found" });
+    if (!["PENDING_PO", "SAMPLE_REQUESTED"].includes(indent.status)) {
+      return res.status(400).json({ message: "Indent already processed" });
+    }
+
+    const docs = [indent];
+    if (indent.groupId) {
+      const sibs = await IndentRequest.find({
+        groupId: indent.groupId,
+        _id: { $ne: indent._id },
+        status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] }
+      });
+      docs.push(...sibs);
+    }
+    for (const d of docs) {
+      d.infoThread.push({ from: "reviewer", by: reviewer.name, text, at: new Date() });
+      d.infoState = "WAITING_INDENTER";
+      await d.save();
+    }
+
+    const fresh = await IndentRequest.findById(indent._id).populate("location", "locationName");
+    res.status(200).json(fresh);
+  } catch (err) {
+    console.error("NEED INFO ERROR:", err);
+    res.status(500).json({ message: "Error sending request" });
+  }
+});
+
+// =============================================
+// INFO REPLY (indenter -> PO reviewer)
+// =============================================
+router.put("/:id/info-reply", authMiddleware, async (req, res) => {
+  try {
+    const text = String(req.body.text || "").trim();
+    if (!text) return res.status(400).json({ message: "Please type your reply" });
+
+    const me = await User.findById(req.user.id);
+    if (!me) return res.status(404).json({ message: "User not found" });
+
+    const indent = await IndentRequest.findById(req.params.id);
+    if (!indent) return res.status(404).json({ message: "Indent not found" });
+    if (indent.user !== me.name) {
+      return res.status(403).json({ message: "Only the user who raised this indent can reply" });
+    }
+    if (indent.infoState !== "WAITING_INDENTER") {
+      return res.status(400).json({ message: "No information is being requested on this indent" });
+    }
+
+    const docs = [indent];
+    if (indent.groupId) {
+      const sibs = await IndentRequest.find({
+        groupId: indent.groupId,
+        _id: { $ne: indent._id },
+        status: { $in: ["PENDING_PO", "SAMPLE_REQUESTED"] }
+      });
+      docs.push(...sibs);
+    }
+    for (const d of docs) {
+      d.infoThread.push({ from: "indenter", by: me.name, text, at: new Date() });
+      d.infoState = "REPLIED";
+      await d.save();
+    }
+
+    const fresh = await IndentRequest.findById(indent._id).populate("location", "locationName");
+    res.status(200).json(fresh);
+  } catch (err) {
+    console.error("INFO REPLY ERROR:", err);
+    res.status(500).json({ message: "Error sending reply" });
+  }
+});
+
 router.put("/:id/artwork-review", authMiddleware, async (req, res) => {
   try {
     const { version, action, comment } = req.body;

@@ -175,6 +175,8 @@ function CustomerDashboard() {
   const [artworkComment, setArtworkComment] = useState("");
   const [rowComments, setRowComments] = useState({});
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [infoMsg, setInfoMsg] = useState("");
+  const [infoChatOpen, setInfoChatOpen] = useState(false);
   const [selectedIndent, setSelectedIndent] = useState(null);
   const [orFilter, setOrFilter] = useState({
     productCode: "",
@@ -1160,6 +1162,43 @@ const PAGE_SIZE = 30;
   };
 
   const has = (v) => v !== "" && v !== null && v !== undefined;
+
+  const sendNeedInfo = async () => {
+    const t = infoMsg.trim();
+    if (!t) {
+      Swal.fire({
+        icon: "warning",
+        title: "Message required",
+        text: "Please type what information you need.",
+        width: "350px",
+        confirmButtonColor: "#3085d6"
+      });
+      return;
+    }
+    if (reviewBusy || !selectedIndent) return;
+    setReviewBusy(true);
+    try {
+      await axios.put(
+        `${BASE_URL}/api/newindent/${selectedIndent._id}/need-info`,
+        { text: t },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const fresh = await fetchIndentRequests();
+      const g = groupIndents(fresh).find((x) => x.groupKey === selectedIndent.groupKey);
+      if (g) setSelectedIndent(g);
+      setInfoMsg("");
+      Swal.fire({ icon: "success", title: "Sent to indenter", width: "350px", confirmButtonColor: "#3085d6" });
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Error sending request",
+        confirmButtonColor: "#d33"
+      });
+    } finally {
+      setReviewBusy(false);
+    }
+  };
 
   // Waste % is entered on the indent form and prefilled from saved orders when editing.
   const shownWaste = () => indentForm.wastePct ?? "";
@@ -2615,6 +2654,52 @@ const PAGE_SIZE = 30;
         </div>
       )}
 
+      {/* Info chat popup */}
+      {infoChatOpen && selectedIndent && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 2300, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setInfoChatOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: 8, width: "94vw", maxWidth: 640, maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 10px 40px rgba(0,0,0,.3)" }}
+          >
+            <div className="d-flex align-items-center gap-2 px-3 py-2" style={{ borderBottom: "1px solid #e3e7ec" }}>
+              <i className="bi bi-chat-dots" style={{ color: "#e4572e" }}></i>
+              <b>Info conversation</b>
+              <span>{selectedIndent.indentNo}</span>
+              <button type="button" className="btn btn-sm btn-danger ms-auto" onClick={() => setInfoChatOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: 16, background: "#f4f6f8", flex: 1 }}>
+              {(selectedIndent.infoThread || []).map((m, i) => (
+                <div key={i} className="d-flex mb-3" style={{ justifyContent: m.from === "reviewer" ? "flex-end" : "flex-start" }}>
+                  <div
+                    style={{
+                      maxWidth: "82%",
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      background: m.from === "reviewer" ? "#d5e9ee" : "#ffffff",
+                      border: "1px solid " + (m.from === "reviewer" ? "#a9cdd6" : "#e3e7ec")
+                    }}
+                  >
+                    <div className="d-flex align-items-center gap-2 mb-1">
+                      <b>{m.by || (m.from === "reviewer" ? "PO reviewer" : "Indenter")}</b>
+                      <small>{m.from === "reviewer" ? "asked" : "replied"}</small>
+                    </div>
+                    <div style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
+                    <div style={{ textAlign: "right", marginTop: 4 }}>
+                      <small>{m.at ? new Date(m.at).toLocaleString("en-IN") : ""}</small>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       <div
         className={`position-fixed top-0 start-50 translate-middle-x mt-3 ${
@@ -2844,6 +2929,12 @@ const PAGE_SIZE = 30;
                         <tr key={indent._id}>
                           <td className="fw-bold text-primary">
                             #{indent.indentNo}
+                            {indent.infoState === "REPLIED" && (
+                              <span className="badge bg-success ms-1">Replied</span>
+                            )}
+                            {indent.infoState === "WAITING_INDENTER" && (
+                              <span className="badge bg-warning text-dark ms-1">Waiting</span>
+                            )}
                             {indent.indentType === "sample" && (
                               <span className="badge bg-info ms-1">Sample</span>
                             )}
@@ -3212,6 +3303,48 @@ const PAGE_SIZE = 30;
                         </div>
                       )}
 
+                      <div className="row g-2 mb-2">
+                        <PoField
+                          className="col-12 col-md-6"
+                          icon="bi-info-circle"
+                          label="Message to indenter (need more info)"
+                          filled={has(infoMsg)}
+                        >
+                          <input
+                            type="text"
+                            className="po-input"
+                            value={infoMsg}
+                            onChange={(e) => setInfoMsg(e.target.value)}
+                          />
+                        </PoField>
+                        <div className="col-6 col-md-3">
+                          <button
+                            type="button"
+                            className="btn btn-info w-100"
+                            disabled={reviewBusy || selectedIndent.infoState === "WAITING_INDENTER"}
+                            onClick={sendNeedInfo}
+                          >
+                            Need More Info
+                          </button>
+                        </div>
+                        {(selectedIndent.infoThread || []).length > 0 && (
+                          <div className="col-6 col-md-3">
+                            <button
+                              type="button"
+                              className="btn btn-secondary w-100"
+                              onClick={() => setInfoChatOpen(true)}
+                            >
+                              <i className="bi bi-chat-dots"></i> Chat ({selectedIndent.infoThread.length})
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {selectedIndent.infoState === "WAITING_INDENTER" && (
+                        <small className="text-danger d-block mb-1">
+                          Waiting for the indenter's reply. Processing is disabled until they respond.
+                        </small>
+                      )}
+
                       {!artworkApproved(selectedIndent) && (
                         <small className="text-danger d-block mb-1">
                           Approve an artwork version to enable processing.
@@ -3433,7 +3566,7 @@ const PAGE_SIZE = 30;
                       type="submit"
                       className="po-submit"
                       style={{ width: "auto", minWidth: "190px", margin: 0, padding: "10px 28px" }}
-                      disabled={isSubmitting || (!editingId && !artworkApproved(selectedIndent))}
+                      disabled={isSubmitting || (!editingId && (!artworkApproved(selectedIndent) || selectedIndent.infoState === "WAITING_INDENTER"))}
                     >
                       {isSubmitting
                         ? "Processing..."
