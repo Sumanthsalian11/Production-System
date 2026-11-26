@@ -84,6 +84,7 @@ delayLabel: {
   },
   userLocations: [{ type: String }],
   productType: { type: String, default: "" },
+productCode: { type: String, default: "" },
   noOfPackets: { type: Number, default: 0 },
   noOfBoxes: { type: Number, default: 0 },
   attachment: { type: String, default: "" },

@@ -129,6 +129,7 @@ exports.getOrderByTicketNo = async (req, res) => {
       customer: order.customerName,
       productName: order.description,
       productType: order.materialType || "",
+      productCode: order.productCode || "",
       totalQty,
       dispatchedQty,
       balanceQty: totalQty - dispatchedQty,
@@ -150,6 +151,13 @@ exports.createDispatch = async (req, res) => {
   try {
 
     const data = req.body;
+
+    if (String(data.noOfPackets ?? "").trim() === "") {
+      return res.status(400).json({ message: "No. of Packets is required" });
+    }
+    if (String(data.noOfBoxes ?? "").trim() === "") {
+      return res.status(400).json({ message: "No. of Boxes is required" });
+    }
 
     let delayDays = 0;
 let delayLabel = "On Time";
@@ -372,7 +380,7 @@ exports.bulkImportDispatch = async (req, res) => {
 
         // ---- load master + already dispatched qty (once per job) ----
         if (!jobCache[key]) {
-          let master, filter, total, customer, productName, productType, purchaseOrderNo, poDate, expected;
+          let master, filter, total, customer, productName, productType, productCode, purchaseOrderNo, poDate, expected;
 
           if (isWo) {
             master = await WorkOrder.findOne({ efiWoNumber: job });
@@ -382,6 +390,7 @@ exports.bulkImportDispatch = async (req, res) => {
             customer = master.customer;
             productName = master.productName;
             productType = master.productType || "";
+            productCode = master.productCode || "";
             purchaseOrderNo = master.purchaseOrderNo || "";
             poDate = toYMD(master.poDate);
             expected = toYMD(master.expectedDeliveryDate);
@@ -397,6 +406,7 @@ exports.bulkImportDispatch = async (req, res) => {
             customer = master.customerName;
             productName = master.description;
             productType = master.materialType || "";
+            productCode = master.productCode || "";
             purchaseOrderNo = master.purchaseOrderNo || "";
             poDate = toYMD(master.poDate);
             expected = toYMD(master.expectedDeliveryDate);
@@ -406,7 +416,7 @@ exports.bulkImportDispatch = async (req, res) => {
           const dispatched = existing.reduce((s, d) => s + Number(d.dispatchQty || 0), 0);
 
           jobCache[key] = {
-            filter, total, dispatched, customer, productName, productType,
+            filter, total, dispatched, customer, productName, productType, productCode,
             purchaseOrderNo, poDate, expected
           };
         }
@@ -461,6 +471,7 @@ exports.bulkImportDispatch = async (req, res) => {
           customer: c.customer || r.customer,
           productName: c.productName || r.productName,
           productType: c.productType || "",
+          productCode: c.productCode || "",
           totalQty: c.total,
           dispatchQty,
           balanceQty: balanceNow - dispatchQty,

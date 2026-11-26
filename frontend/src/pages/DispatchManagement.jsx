@@ -76,7 +76,7 @@ const CLEARED = {
   location: "", deliveryAddress: "", expectedDeliveryDate: "",
   delayDays: "", delayLabel: "", courier: "", trackingNumber: "",
   invoiceNo: "", invoiceDate: "", extraQty: "", remarks: "",
-  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: "", productType: "", splitLocation: ""
+  noOfPackets: "", noOfBoxes: "", attachment: "", attachmentName: "", productType: "", productCode: "", splitLocation: ""
 };
 
 export default function DispatchManagement() {
@@ -137,6 +137,7 @@ const showAlert = (message, icon = "warning") => {
 
 const [form, setForm] = useState({
 productType:"",
+productCode:"",
 noOfPackets:"",
 noOfBoxes:"",
 attachment:"",
@@ -276,6 +277,7 @@ remarks:dispatch.remarks,
 enteredBy:dispatch.enteredBy || "",
 userLocations: form.userLocations || [],
 productType: dispatch.productType || "",
+productCode: dispatch.productCode || "",
 noOfPackets: dispatch.noOfPackets ?? "",
 noOfBoxes: dispatch.noOfBoxes ?? "",
 attachment: dispatch.attachment || "",
@@ -325,6 +327,7 @@ setForm(prev => ({
 customer: wo.customer,
 productName: wo.productName,
 productType: wo.productType || "",
+productCode: wo.productCode || "",
 splitLocation: wo.selectedLocation || "",
 totalQty: wo.qtyInLvs,
 dispatchQty: "",
@@ -387,6 +390,7 @@ const fetchByTicket = async (selLoc = fetchLocation) => {
       customer: o.customer,
       productName: o.productName,
       productType: o.productType || "",
+      productCode: o.productCode || "",
       splitLocation: o.selectedLocation || "",
       totalQty: o.totalQty,
       dispatchQty: "",
@@ -524,6 +528,16 @@ if (!form.dispatchDate) {
   return;
 }
 
+if (String(form.noOfPackets ?? "").trim() === "") {
+  showAlert("No. of Packets is required","warning");
+  return;
+}
+
+if (String(form.noOfBoxes ?? "").trim() === "") {
+  showAlert("No. of Boxes is required","warning");
+  return;
+}
+
 if (fetchBy === "wo" && !form.courier) {
   showAlert("Transportation is required","warning");
   return;
@@ -639,6 +653,7 @@ const excelData = filteredDispatchList.map((item,index)=>({
 "SL NO": index+1,
 "Work Order": item.efiWoNumber || item.ticketNo,
 "Customer": item.customer,
+"Product Code": item.productCode || "",
 "Product": item.productName,
 "Product Type": item.productType || "",
 "Total Qty": item.totalQty,
@@ -799,8 +814,10 @@ const handleImportExcel = async (e) => {
         if (!address) address = loc.address || "";
       }
       if (!address) return fail("Delivery Address is required (or give a valid Location)");
-      const packets = txt(row.noOfPackets) === "" ? 0 : num(row.noOfPackets);
-      const boxes = txt(row.noOfBoxes) === "" ? 0 : num(row.noOfBoxes);
+      if (txt(row.noOfPackets) === "") return fail("No. of Packets is required");
+      if (txt(row.noOfBoxes) === "") return fail("No. of Boxes is required");
+      const packets = num(row.noOfPackets);
+      const boxes = num(row.noOfBoxes);
       if (!Number.isInteger(packets) || packets < 0) return fail("No. of Packets must be a whole number");
       if (!Number.isInteger(boxes) || boxes < 0) return fail("No. of Boxes must be a whole number");
       validRows.push({
@@ -1351,6 +1368,14 @@ return(
       <div className="pd-lrow">
         <span className="pd-licon"><IconHash /></span>
         <div className="pd-lbody">
+          <span className="pd-llabel">Product Code</span>
+          <span className="pd-lvalue">{form.productCode || "-"}</span>
+        </div>
+      </div>
+
+      <div className="pd-lrow">
+        <span className="pd-licon"><IconHash /></span>
+        <div className="pd-lbody">
           <span className="pd-llabel">PO No</span>
           <span className="pd-lvalue">{form.purchaseOrderNo || "-"}</span>
         </div>
@@ -1546,7 +1571,7 @@ return(
     <div className="pd-form-grid" style={{ marginTop: 8 }}>
 
       <div className="field-3d-wrapper">
-        <label className="label-3d">No. of Packets</label>
+        <label className="label-3d">No. of Packets *</label>
         <input
           type="text"
           name="noOfPackets"
@@ -1557,7 +1582,7 @@ return(
       </div>
 
       <div className="field-3d-wrapper">
-        <label className="label-3d">No. of Boxes</label>
+        <label className="label-3d">No. of Boxes *</label>
         <input
           type="text"
           name="noOfBoxes"
@@ -1774,6 +1799,7 @@ Export Excel
         <th>WO / Ticket</th>
         <th>PO No</th> 
         <th>Order Date</th>
+        <th>Product Code</th>
         <th>Customer</th>
         <th>Product name</th>
         <th>Product Type</th>
@@ -1812,7 +1838,9 @@ Export Excel
            <td>
 {d.poDate ? new Date(d.poDate).toLocaleDateString("en-IN") : "-"}
 </td>
+<td>{d.productCode || "-"}</td>
               <td>{d.customer}</td>
+              
               <td
   style={{
     cursor: "pointer",
