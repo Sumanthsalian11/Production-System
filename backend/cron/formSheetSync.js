@@ -27,7 +27,7 @@ async function syncOnce() {
     if (data.error) throw new Error("Apps Script says: " + data.error);
 
     const rows = data.rows || [];
-    if (rows.length < 2) return;
+    if (!rows.length) return; // nothing came back at all: don't touch the database
 
     const head = rows[0].map((h) => String(h).trim());
     // match columns by keyword, so renaming a question still works
@@ -44,10 +44,12 @@ async function syncOnce() {
     }
 
     let added = 0;
+    const sheetKeys = new Set();
     for (const r of rows.slice(1)) {
       const ts = String(r[iTime] || "").trim();
       if (!ts) continue;
       const key = `${ts}|${String(r[iEmail] || "").trim().toLowerCase()}`;
+      sheetKeys.add(key);
       try {
         await FormResponse.create({
           name: r[iName] || "",
@@ -64,6 +66,21 @@ async function syncOnce() {
       }
     }
     if (added) console.log(`FORM SYNC: saved ${added} new response(s)`);
+
+    // mirror deletes: remove saved rows that no longer exist in the sheet
+    const saved = await FormResponse.find({ source: "Google Form", sheetKey: { $exists: true, $ne: null } })
+      .select("sheetKey")
+      .lean();
+    const gone = saved.filter((d) => !sheetKeys.has(d.sheetKey));
+    if (gone.length) {
+      // safety: a sudden mass delete usually means a bad response, not a real cleanup
+      if (gone.length > 10 && gone.length >= saved.length * 0.5) {
+        console.log(`FORM SYNC: ${gone.length} of ${saved.length} rows look deleted, skipped for safety`);
+      } else {
+        await FormResponse.deleteMany({ _id: { $in: gone.map((d) => d._id) } });
+        console.log(`FORM SYNC: removed ${gone.length} response(s) deleted from the sheet`);
+      }
+    }
   } catch (err) {
     console.error("FORM SYNC ERROR:", err.message, err.cause ? "| cause: " + (err.cause.message || err.cause.code) : "");
   } finally {
