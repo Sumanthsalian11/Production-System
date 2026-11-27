@@ -812,6 +812,30 @@ function ProductionRealDashboard() {
     return map;
   }, [productionList]);
 
+  // Activity > Machine breakdown of the fetched work order's saved entries
+  const woBreakdown = useMemo(() => {
+    const acts = new Map();
+    [...woRecs].sort((a, b) => a.at - b.at).forEach((r) => {
+      r.pairs.forEach((p) => {
+        let a = acts.get(p.actId);
+        if (!a) {
+          a = { name: p.actName, machines: new Map() };
+          acts.set(p.actId, a);
+        }
+        let m = a.machines.get(p.macId);
+        if (!m) {
+          m = { name: p.macName, entries: 0, imp: 0, prod: 0, waste: 0 };
+          a.machines.set(p.macId, m);
+        }
+        m.entries += 1;
+        m.imp += r.imp;
+        m.prod += r.prod;
+        m.waste += r.waste;
+      });
+    });
+    return [...acts.values()].map((a) => ({ ...a, machines: [...a.machines.values()] }));
+  }, [woRecs]);
+
   const formatDate = (ts) => (ts ? new Date(ts).toLocaleDateString("en-IN") : "-");
 
   const formatWo = (wo) => (Number(wo) === 0 ? "Off Day" : `WO ${wo}`);
@@ -1506,6 +1530,14 @@ const statusColumns = useMemo(() => {
             waste: Number(r.wastageQty) || 0,
             acts: (r.machiness || []).map((m) => String(m.activityId?._id || m.activityId)),
             at: new Date(r.createdAt).getTime() || 0,
+            // new (only used by the breakdown panel)
+            imp: Number(r.productionImpression) || 0,
+            pairs: (r.machiness || []).map((m) => ({
+              actId: String(m.activityId?._id || m.activityId),
+              actName: m.activityId?.activityName || "-",
+              macId: String(m.machineId?._id || m.machineId),
+              macName: m.machineId?.machineName || "-",
+            })),
           }))
         );
       })
@@ -3242,6 +3274,13 @@ const statusColumns = useMemo(() => {
         .production-dashboard-page .card.mt-4 tbody tr:nth-child(8)  { animation-delay: 0.95s; }
         .production-dashboard-page .card.mt-4 tbody tr:nth-child(n+9) { animation-delay: 1s; }
 
+        /* ===== WORK ORDER PROGRESS PANEL ===== */
+        .production-dashboard-page .wo-progress-wrap { max-height: 170px; overflow-y: auto; border-radius: 6px; }
+        .production-dashboard-page .wo-progress-table thead th { font-size: 10.5px; padding: 5px 10px; position: sticky; top: 0; z-index: 1; }
+        .production-dashboard-page .wo-progress-table tbody td { font-size: 12px; padding: 4px 10px; }
+        .production-dashboard-page .wo-progress-act { font-weight: 700; text-align: center; background: #e6f3fa !important; }
+        .production-dashboard-page .wo-progress-empty { font-size: 12px; font-weight: 600; padding: 6px 4px; }
+
         /* ===== PAGE LOADER ===== */
         @keyframes pdSpin { to { transform: rotate(360deg); } }
         @keyframes pdLoaderIn { from { opacity: 0; } to { opacity: 1; } }
@@ -3413,6 +3452,55 @@ const statusColumns = useMemo(() => {
                   {editingId && <span className="gl-pill">Editing entry</span>}
                 </div>
               </div>
+
+              {/* WORK ORDER PROGRESS (activities > machines > entries) */}
+              {!isOffDay && fetchedWoNo && (
+                <div className="gl-inner first wo-progress">
+                  <div className="gl-group">
+                    <FiLayers className="pd-ico" />
+                    <span>
+                      Work Order Progress
+                      {woBreakdown.length > 0 &&
+                        ` · ${woBreakdown.length} activities · ${woBreakdown.reduce((s, a) => s + a.machines.length, 0)} machines · ${woRecs.length} entries`}
+                    </span>
+                  </div>
+
+                  {woBreakdown.length === 0 ? (
+                    <div className="wo-progress-empty">No entries saved for this work order yet.</div>
+                  ) : (
+                    <div className="table-responsive wo-progress-wrap">
+                      <table className="table table-bordered mb-0 wo-progress-table">
+                        <thead>
+                          <tr>
+                            <th>Activity</th>
+                            <th>Machine</th>
+                            <th>Entries</th>
+                            <th>Prod. Impression</th>
+                            <th>Production Qty</th>
+                            <th>Wastage Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {woBreakdown.map((a) =>
+                            a.machines.map((m, i) => (
+                              <tr key={`${a.name}-${m.name}`}>
+                                {i === 0 && (
+                                  <td rowSpan={a.machines.length} className="wo-progress-act">{a.name}</td>
+                                )}
+                                <td>{m.name}</td>
+                                <td className="text-end">{m.entries}</td>
+                                <td className="text-end">{m.imp.toLocaleString("en-IN")}</td>
+                                <td className="text-end">{m.prod.toLocaleString("en-IN")}</td>
+                                <td className="text-end">{m.waste.toLocaleString("en-IN")}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* WORK ORDER DETAILS */}
               {workOrderDetails && (
