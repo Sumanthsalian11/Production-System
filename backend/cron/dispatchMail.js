@@ -36,8 +36,12 @@ const runDispatchReport = async (settings, location) => {
     const ymd = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
     const dateStr = day.toLocaleDateString("en-GB").replace(/\//g, ".");
 
-    // dispatchDate is stored as "YYYY-MM-DD"; optional user-location filter
-    const filter = { dispatchDate: { $regex: `^${ymd}` } };
+    // rows ENTERED on that day (createdAt), not by dispatch date; optional user-location filter
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+    const filter = { createdAt: { $gte: dayStart, $lte: dayEnd } };
     if (location) {
       const loc = await Location.findOne({ locationName: location }).lean();
       if (!loc) {
