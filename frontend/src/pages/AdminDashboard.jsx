@@ -204,6 +204,8 @@ const AD_CSS = `
   }
   .ad-left::after { content: ""; position: absolute; right: -70px; top: -12%; height: 124%; width: 110px; background: #f7fcff; border-radius: 50%; }
   .ad-left-top, .ad-left-center, .ad-left-bottom { position: relative; z-index: 2; }
+  .ad-modal-wide { max-width: 1560px; height: 94vh; max-height: 94vh; }
+  .ad-modal-wide .ad-left { flex: 0 0 18%; }
   .ad-left-label { font-size: 12px; font-weight: 800; letter-spacing: 0.3px; }
   .ad-left-center { text-align: center; padding-right: 22px; }
   .ad-left-emblem {
@@ -722,7 +724,7 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
       </div>
       <p style={sapHint}>Rules are evaluated from top to bottom. Each rule has its own report category. Unmatched movements land in <em>Other / Unmapped</em>.</p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: 12, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 720px), 1fr))", gap: 12, alignItems: "start" }}>
         {rules.map((r, i) => (
           <div key={r.key} style={{ ...sapBox, margin: 0, padding: 0 }}>
             <button
@@ -750,8 +752,8 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
                             <td key={field} style={sapTd}>
                               <textarea
                                 className="pro-input"
-                                rows={2}
-                                style={{ minWidth: 130 }}
+                                rows={4}
+                                style={{ minWidth: 170 }}
                                 placeholder={["Movement type", "From location", "To location", "Stock type", "Product category"][j]}
                                 value={row[field] || ""}
                                 onChange={(e) => setRuleRow(i, rowIndex, field, e.target.value)}
@@ -1071,64 +1073,6 @@ function SapAuditPanel({ token, showAlert }) {
             {rows.length === 0 && <tr><td colSpan={5} style={{ ...sapTd, textAlign: "center", color: "#4a6f8c" }}>No audit entries recorded yet.</td></tr>}
           </tbody>
         </table>
-      </div>
-    </motion.div>
-  );
-}
-
-/* ------------------------------- Backup & plant ------------------------------- */
-function SapBackupPanel({ token, showAlert }) {
-  const api = useMemo(() => sapApi(token), [token]);
-  const [meta, setMeta] = useState(null);
-  useEffect(() => {
-    api.get("/settings").then((r) => setMeta(r.meta)).catch((e) => showAlert(sapErr(e)));
-  }, []); // eslint-disable-line
-  if (!meta) return <SapLoading />;
-
-  const savePlant = async () => {
-    try {
-      await api.put("/settings", { meta: { plantName: meta.plantName, defaultSheet: meta.defaultSheet } });
-      showAlert("Plant settings saved successfully");
-    } catch (e) { showAlert(sapErr(e)); }
-  };
-
-  const importFile = async (e) => {
-    const f = e.target.files[0];
-    e.target.value = "";
-    if (!f) return;
-    try {
-      const cfg = JSON.parse(await f.text());
-      if (!window.confirm("Import replaces all templates and updates rules, maps and settings. Continue?")) return;
-      await api.post("/config/import", cfg);
-      showAlert("Configuration imported successfully");
-    } catch (x) { showAlert(sapErr(x)); }
-  };
-
-  return (
-    <motion.div className="pro-card">
-      <div className="pro-card-header">
-        <span><Layers size={18} /> Stock: Backup &amp; Plant</span>
-      </div>
-
-      <div style={sapBox}>
-        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Plant Identity &amp; SAP Defaults</div>
-        <div style={sapGrid}>
-          <SapField label="Plant Display Name (report footers)"><input className="pro-input" value={meta.plantName ?? ""} onChange={(e) => setMeta({ ...meta, plantName: e.target.value })} /></SapField>
-          <SapField label="Default SAP Worksheet Name"><input className="pro-input" value={meta.defaultSheet ?? ""} onChange={(e) => setMeta({ ...meta, defaultSheet: e.target.value })} /></SapField>
-        </div>
-        <div style={{ marginTop: 10 }}><button className="pro-btn primary" onClick={savePlant}>Save plant settings</button></div>
-      </div>
-
-      <div style={sapBox}>
-        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Configuration Backup &amp; Migration</div>
-        <p style={sapHint}>Export rules, variant maps, templates and settings as one JSON file (uploaded SAP data is not included). Import the file exported from the old stock portal to load its configuration.</p>
-        <div style={sapRow}>
-          <button className="pro-btn primary" onClick={() => api.download("/config/export", "stock_portal_config.json").catch((e) => showAlert(sapErr(e)))}>Export Configuration (.json)</button>
-          <label className="pro-btn" style={{ cursor: "pointer" }}>
-            Import Configuration (.json)…
-            <input type="file" accept=".json" style={{ display: "none" }} onChange={importFile} />
-          </label>
-        </div>
       </div>
     </motion.div>
   );
@@ -2448,7 +2392,6 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "spMaps", label: "Stock: Variant Maps", icon: Layers },
     { id: "spTemplates", label: "Stock: Report Templates", icon: Layers },
     { id: "spAudit", label: "Stock: Audit Trail", icon: Activity },
-    { id: "spBackup", label: "Stock: Backup & Plant", icon: Layers },
   ];
 
   const MASTER_LISTS = {
@@ -3305,7 +3248,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
         const MetaIcon = meta ? meta.icon : Layers;
         return (
       <div className="ad-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) closeSection(); }}>
-        <div className="ad-modal">
+        <div className={`ad-modal ${activeSection === "spLogic" ? "ad-modal-wide" : ""}`}>
 
           {/* LEFT: brand panel */}
           <div className="ad-left">
@@ -4449,7 +4392,6 @@ const [supplierFilter, setSupplierFilter] = useState("");
       {activeSection === "spMaps" && <SapMapsPanel token={token} showAlert={showAlert} askConfirm={askConfirm} />}
       {activeSection === "spTemplates" && <SapTemplatesPanel token={token} showAlert={showAlert} askConfirm={askConfirm} />}
       {activeSection === "spAudit" && <SapAuditPanel token={token} showAlert={showAlert} />}
-      {activeSection === "spBackup" && <SapBackupPanel token={token} showAlert={showAlert} />}
 
       {/* PLATE REQUEST REASONS */}
       {activeSection === "plateReasons" && (

@@ -249,7 +249,11 @@ router.post('/logic/parse', logicWorkbookUpload.single('file'), (req, res) => {
             if (!groupedVertical.has(key)) groupedVertical.set(key, { key, name: categoryName, criteria: {} });
           }
           const field = fieldForCombination(row[criteriaIndex]);
-          const value = String(row[valueIndex] ?? '').trim();
+          const value = String(row[valueIndex] ?? '')
+            .split(/\r?\n/)
+            .map(line => line.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim())
+            .filter(Boolean)
+            .join('\n');
           if (!categoryName || !field || !value || value === '_') continue;
           const key = ruleKey(categoryName);
           const rule = groupedVertical.get(key);
@@ -274,17 +278,20 @@ router.post('/logic/parse', logicWorkbookUpload.single('file'), (req, res) => {
   for (const row of rulesRows) {
     const name = row.name || previousName;
     const key = (row.key || (row.name ? ruleKey(row.name) : previousKey || ruleKey(name))).toLowerCase();
-    const criteria = {
-      mt: row.mt || '', fr: row.fr || '', to: row.to || '', st: row.st || '', pc: row.pc || ''
-    };
-    if (!key && !name && !Object.values(criteria).some(Boolean)) continue;
+    // vertical-layout rules already carry their criteria in row.rows; flat tables carry them on the row itself
+    const criteriaList = (Array.isArray(row.rows) ? row.rows : [row]).map(src => ({
+      mt: src.mt || '', fr: src.fr || '', to: src.to || '', st: src.st || '', pc: src.pc || ''
+    }));
+    if (!key && !name && !criteriaList.some(c => Object.values(c).some(Boolean))) continue;
     const ruleName = name || key;
     if (!/^[a-z0-9_-]{2,64}$/i.test(key) || !ruleName) throw httpError(400, 'Each movement rule needs a category or rule name');
     if (!grouped.has(key)) grouped.set(key, { key, name, rows: [] });
     const rule = grouped.get(key);
     if (!rule.name) rule.name = ruleName;
     if (rule.name !== ruleName) throw httpError(400, `Rule "${key}" has more than one category name`);
-    if (Object.values(criteria).some(Boolean)) rule.rows.push(criteria);
+    criteriaList.forEach(criteria => {
+      if (Object.values(criteria).some(Boolean)) rule.rows.push(criteria);
+    });
     previousKey = key;
     previousName = ruleName;
   }
