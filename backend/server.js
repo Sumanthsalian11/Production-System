@@ -132,6 +132,10 @@ app.use("/api/raw-material-indent", rawMaterialIndentRoutes);
 app.use("/api/messenger", require("./routes/Chatmessenger"));
 app.use("/api/paper-group", require("./routes/paperGroup"));
 app.use("/api/form-responses", require("./routes/formResponses"));
+app.use("/api/card-tracker", require("./routes/cardTracker"));
+app.use("/api/sap-upload", require("./routes/sapUpload"));
+app.use("/api/sap-reports", require("./routes/sapReports"));
+app.use("/api/sap-admin", require("./routes/sapAdmin"));
 // ================== START SERVER ==================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => 

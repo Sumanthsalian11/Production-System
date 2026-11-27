@@ -452,6 +452,688 @@ function SearchableSelect({ value, onChange, options, placeholder = "Select" }) 
   );
 }
 
+/* =====================================================================================
+   STOCK REPORTS ADMIN  (Logic & Thresholds, Variant Maps, Report Templates, Audit Trail, Backup & Plant)
+   Uses the dashboard's own look, showAlert() and askConfirm(); talks to /api/sap-admin
+   ===================================================================================== */
+const sapApi = (token) => {
+  const cfg = { headers: { Authorization: `Bearer ${token}` } };
+  const base = `${BASE_URL}/api/sap-admin`;
+  return {
+    get: (p) => axios.get(base + p, cfg).then((r) => r.data),
+    post: (p, b) => axios.post(base + p, b, cfg).then((r) => r.data),
+    put: (p, b) => axios.put(base + p, b, cfg).then((r) => r.data),
+    del: (p) => axios.delete(base + p, cfg).then((r) => r.data),
+    upload: (p, f) => axios.post(base + p, f, cfg).then((r) => r.data),
+    async download(p, fallback) {
+      const res = await axios.get(base + p, { ...cfg, responseType: "blob" });
+      const m = String(res.headers["content-disposition"] || "").match(/filename="([^"]+)"/);
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = m ? m[1] : fallback;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  };
+};
+const sapErr = (e) =>
+  `Failed: ${e?.response?.data?.error || e?.response?.data?.message || e?.message || "request failed"}`;
+
+const sapBox = { background: "rgba(255,255,255,0.7)", border: "1px solid #cfe8f6", borderRadius: 16, padding: "12px 14px", margin: "10px 0" };
+const sapGrid = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 };
+const sapLbl = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, fontWeight: 800, color: "#0a4f8c" };
+const sapTh = { padding: "8px 10px", border: "1px solid #7fbfe4", textAlign: "left", color: "#08406b", background: "linear-gradient(180deg, #c9eafb 0%, #96d3f2 100%)", position: "sticky", top: 0, zIndex: 1 };
+const sapTd = { padding: "6px 8px", border: "1px solid #d3e8f4", verticalAlign: "top" };
+const sapScroll = { maxHeight: 380, overflow: "auto", border: "1px solid #a9d9f2", borderRadius: 16, background: "#fff", marginTop: 10 };
+const sapHint = { fontSize: 13, color: "#4a6f8c", fontWeight: 600, margin: "6px 0" };
+const sapRow = { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" };
+
+const SapField = ({ label, children }) => <label style={sapLbl}>{label}{children}</label>;
+const SapCheck = ({ label, checked, onChange }) => (
+  <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: "#0b2f4f" }}>
+    <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />
+    {label}
+  </label>
+);
+const SapLoading = () => <div style={{ padding: 30, textAlign: "center", color: "#4a6f8c", fontWeight: 700 }}>Loading…</div>;
+
+/* ---------------------------- Logic & thresholds ---------------------------- */
+function SapLogicPanel({ token, showAlert, askConfirm }) {
+  const api = useMemo(() => sapApi(token), [token]);
+  const [rules, setRules] = useState(null);
+  const [s, setS] = useState(null);
+  const [selectedRule, setSelectedRule] = useState(null);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [customized, setCustomized] = useState(false);
+  const [showAddBank, setShowAddBank] = useState(false);
+  const [newBankName, setNewBankName] = useState("");
+  const [logicFile, setLogicFile] = useState(null);
+  const [creatingBank, setCreatingBank] = useState(false);
+  const [editingBank, setEditingBank] = useState(false);
+  const [editedBankName, setEditedBankName] = useState("");
+  const [editedCustomerMatch, setEditedCustomerMatch] = useState("");
+
+  const normalizeRules = (rows) =>
+    rows.map((rule) => {
+      const criteria = rule.rows?.length
+        ? rule.rows
+        : rule.criteria_rows?.length
+        ? rule.criteria_rows
+        : [{ mt: rule.mt || "", fr: rule.fr || "", to: rule.to || "", st: rule.st || "" }];
+      return { ...rule, rows: criteria };
+    });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [t, st] = await Promise.all([api.get("/templates"), api.get("/settings")]);
+        setTemplates(t.templates);
+        setS(st);
+        if (t.templates.length) {
+          const id = String(t.templates[0].id);
+          setSelectedTemplate(id);
+          const profile = await api.get("/rules/template/" + id);
+          setRules(normalizeRules(profile.rules));
+          setCustomized(profile.customized);
+        } else {
+          const r = await api.get("/rules");
+          setRules(normalizeRules(r.rules));
+        }
+      } catch (e) {
+        showAlert(sapErr(e));
+      }
+    })();
+  }, []); // eslint-disable-line
+
+  if (!rules || !s) return <SapLoading />;
+
+  const setR = (i, k, v) => setRules(rules.map((r, x) => (x === i ? { ...r, [k]: v } : r)));
+  const setRuleRow = (i, rowIndex, key, value) =>
+    setRules(rules.map((r, x) => (x === i ? { ...r, rows: r.rows.map((row, y) => (y === rowIndex ? { ...row, [key]: value } : row)) } : r)));
+  const setO = (k, v) => setS({ ...s, options: { ...s.options, [k]: v } });
+  const setM = (k, v) => setS({ ...s, meta: { ...s.meta, [k]: v } });
+  const selectedBank = templates.find((t) => String(t.id) === String(selectedTemplate));
+
+  const loadTemplateRules = async (id) => {
+    const profile = await api.get("/rules/template/" + id);
+    setRules(normalizeRules(profile.rules));
+    setCustomized(profile.customized);
+  };
+
+  const selectTemplate = async (id) => {
+    setSelectedTemplate(id);
+    setSelectedRule(null);
+    setEditingBank(false);
+    try { await loadTemplateRules(id); } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  const editBank = async () => {
+    const name = editedBankName.trim();
+    if (!name) return showAlert("Enter a bank / product name");
+    if (!selectedBank) return;
+    try {
+      await api.put("/templates/" + selectedBank.id, { ...selectedBank, name, cust: editedCustomerMatch });
+      setTemplates((await api.get("/templates")).templates);
+      setEditingBank(false);
+      showAlert(`Updated ${name} successfully`);
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  const deleteBank = async () => {
+    if (!selectedBank) return;
+    if (!(await askConfirm(`Delete "${selectedBank.name}" and its saved movement logic? Uploaded datasets linked to this bank will lose that logic selection.`))) return;
+    try {
+      await api.del("/templates/" + selectedBank.id);
+      const result = await api.get("/templates");
+      setTemplates(result.templates);
+      setEditingBank(false);
+      setSelectedRule(null);
+      if (result.templates.length) {
+        const next = result.templates[0];
+        setSelectedTemplate(String(next.id));
+        await loadTemplateRules(next.id);
+      } else {
+        setSelectedTemplate("");
+        setRules(normalizeRules((await api.get("/rules")).rules));
+        setCustomized(false);
+      }
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  const addBankProduct = async () => {
+    const name = newBankName.trim();
+    if (!name) return showAlert("Enter a bank / product name");
+    let importedRules = null;
+    let importedMap = null;
+    if (logicFile) {
+      try {
+        const form = new FormData();
+        form.append("file", logicFile);
+        const parsed = await api.upload("/logic/parse", form);
+        importedRules = normalizeRules(parsed.rules);
+        importedMap = parsed.map;
+      } catch (e) { return showAlert(sapErr(e)); }
+    }
+    setCreatingBank(true);
+    try {
+      let mapId = null;
+      if (importedMap?.rows?.length) {
+        const mapName = `${name} Variant Map`;
+        const map = await api.post("/maps", { name: mapName });
+        mapId = map.id;
+        await api.put("/maps/" + mapId, { name: mapName, rows: importedMap.rows });
+      }
+      const created = await api.post("/templates", { name, cust: name, mapId });
+      if (importedRules) await api.put("/rules/template/" + created.id, { rules: importedRules });
+      setTemplates((await api.get("/templates")).templates);
+      setSelectedTemplate(String(created.id));
+      await loadTemplateRules(created.id);
+      setSelectedRule(null);
+      setNewBankName("");
+      setLogicFile(null);
+      setShowAddBank(false);
+      showAlert(importedRules ? `Added ${name} with uploaded movement logic${mapId ? " and variant map" : ""} successfully` : `Added ${name} successfully. Add its movement rules below.`);
+    } catch (e) { showAlert(sapErr(e)); }
+    finally { setCreatingBank(false); }
+  };
+
+  const addMovementRule = () => {
+    const key = `rule_${Date.now()}`;
+    setRules([...rules, { key, name: "New Movement Rule", mt: "", fr: "", to: "", st: "", rows: [{ mt: "", fr: "", to: "", st: "", pc: "" }] }]);
+    setSelectedRule(key);
+  };
+
+  const save = async () => {
+    const builtIn = ["rc", "dg", "wa", "tr"];
+    if (rules.some((r) => !builtIn.includes(r.key) && !r.rows.some((row) => [row.mt, row.fr, row.to, row.st].some((v) => String(v || "").trim())))) {
+      return showAlert("Add at least one matching value before saving a new movement rule");
+    }
+    try {
+      if (selectedTemplate) await api.put("/rules/template/" + selectedTemplate, { rules });
+      else await api.put("/rules", { rules });
+      await api.put("/settings", { meta: { maxWastePct: s.meta.maxWastePct, requireAckOnWarn: s.meta.requireAckOnWarn }, options: s.options });
+      setCustomized(true);
+      showAlert("Logic rules & thresholds saved successfully");
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  return (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Layers size={18} /> Stock: Logic &amp; Thresholds</span>
+      </div>
+
+      <div style={sapBox}>
+        <div style={sapRow}>
+          {templates.length > 0 && (
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <SapField label="Bank / Product">
+                <select className="pro-input" value={selectedTemplate} onChange={(e) => selectTemplate(e.target.value)}>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </SapField>
+            </div>
+          )}
+          {selectedBank && (
+            <>
+              <button className="pro-btn" onClick={() => { setEditedBankName(selectedBank.name); setEditedCustomerMatch(selectedBank.cust || ""); setEditingBank((o) => !o); }}>Edit</button>
+              <button className="pro-btn" onClick={deleteBank}>Delete</button>
+            </>
+          )}
+          <button className="pro-btn primary" onClick={() => setShowAddBank((v) => !v)}><PlusCircle size={16} /> Add Bank / Product</button>
+        </div>
+
+        {editingBank && selectedBank && (
+          <div style={{ ...sapBox, ...sapRow }}>
+            <div style={{ flex: 1, minWidth: 220 }}><SapField label="Bank / product name"><input className="pro-input" value={editedBankName} onChange={(e) => setEditedBankName(e.target.value)} /></SapField></div>
+            <div style={{ flex: 1, minWidth: 220 }}><SapField label="Raw customer name contains"><input className="pro-input" value={editedCustomerMatch} onChange={(e) => setEditedCustomerMatch(e.target.value)} /></SapField></div>
+            <button className="pro-btn primary" onClick={editBank}>Save changes</button>
+            <button className="pro-btn" onClick={() => setEditingBank(false)}>Cancel</button>
+          </div>
+        )}
+
+        {templates.length > 0 && (
+          <p style={sapHint}>Each bank or product has its own movement logic. {customized ? "This entry has saved rules." : "This entry is using shared defaults; saving creates its own copy."}</p>
+        )}
+
+        {showAddBank && (
+          <div style={sapBox}>
+            <div style={sapGrid}>
+              <SapField label="Bank / product name"><input className="pro-input" placeholder="For example, ICICI Bank Credit" value={newBankName} onChange={(e) => setNewBankName(e.target.value)} /></SapField>
+              <SapField label="Upload your Excel logic workbook (optional)">
+                <input className="pro-input" type="file" accept=".xlsx,.xlsm,.xls" disabled={creatingBank} onChange={(e) => setLogicFile(e.target.files?.[0] || null)} />
+              </SapField>
+            </div>
+            <p style={sapHint}>The importer reads report category names from the Data column and movement criteria from Combination rows, including product category. A variant mapping sheet is optional.</p>
+            <div style={sapRow}>
+              <button className="pro-btn primary" disabled={creatingBank} onClick={addBankProduct}>{creatingBank ? "Adding…" : "Add Bank / Product"}</button>
+              <button className="pro-btn" onClick={() => { setShowAddBank(false); setLogicFile(null); }}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={sapRow}>
+        <button className="pro-btn primary" onClick={addMovementRule}><PlusCircle size={16} /> Add New Movement Rule</button>
+      </div>
+      <p style={sapHint}>Rules are evaluated from top to bottom. Each rule has its own report category. Unmatched movements land in <em>Other / Unmapped</em>.</p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 380px), 1fr))", gap: 12, alignItems: "start" }}>
+        {rules.map((r, i) => (
+          <div key={r.key} style={{ ...sapBox, margin: 0, padding: 0 }}>
+            <button
+              type="button"
+              onClick={() => setSelectedRule(selectedRule === r.key ? null : r.key)}
+              style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", padding: "10px 14px", display: "flex", justifyContent: "space-between", fontWeight: 800, color: "#0a4f8c", fontFamily: "inherit" }}
+            >
+              <span>{i + 1}. {r.name}</span>
+              <span>{selectedRule === r.key ? "Close ▲" : "Edit ▼"}</span>
+            </button>
+            {selectedRule === r.key && (
+              <div style={{ padding: "0 14px 14px" }}>
+                <SapField label="Report category name"><input className="pro-input" value={r.name} onChange={(e) => setR(i, "name", e.target.value)} /></SapField>
+                <div style={sapScroll}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {["Movement Type Name", "From Location", "To Location", "Stock Type", "Product Category", ""].map((h, k) => <th key={k} style={sapTh}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {r.rows.map((row, rowIndex) => (
+                        <tr key={`${r.key}-${rowIndex}`}>
+                          {["mt", "fr", "to", "st", "pc"].map((field, j) => (
+                            <td key={field} style={sapTd}>
+                              <textarea
+                                className="pro-input"
+                                rows={2}
+                                style={{ minWidth: 130 }}
+                                placeholder={["Movement type", "From location", "To location", "Stock type", "Product category"][j]}
+                                value={row[field] || ""}
+                                onChange={(e) => setRuleRow(i, rowIndex, field, e.target.value)}
+                              />
+                            </td>
+                          ))}
+                          <td style={sapTd}>
+                            <button className="pro-btn" disabled={r.rows.length === 1} onClick={() => setR(i, "rows", r.rows.filter((_, x) => x !== rowIndex))}>Delete Row</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ ...sapRow, marginTop: 10 }}>
+                  <button className="pro-btn" onClick={() => setR(i, "rows", [...r.rows, { mt: "", fr: "", to: "", st: "", pc: "" }])}>+ Add New Row</button>
+                  <button
+                    className="pro-btn"
+                    onClick={async () => {
+                      if (!(await askConfirm(`Delete the ${r.name} rule? Matching movements will become Other / Unmapped.`))) return;
+                      setRules(rules.filter((_, x) => x !== i));
+                      setSelectedRule(null);
+                    }}
+                  >
+                    Delete Rule
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...sapBox, marginTop: 14 }}>
+        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Calculation &amp; Operational Control Options</div>
+        <div style={sapGrid}>
+          <SapCheck label="Dispatch = total dispatch − total wastage" checked={s.options.net} onChange={(v) => setO("net", v)} />
+          <SapCheck label="Reversals: match with From/To swapped" checked={s.options.flip} onChange={(v) => setO("flip", v)} />
+          <SapCheck label="Ignore rows with Deletion Indicator" checked={s.options.skipDel} onChange={(v) => setO("skipDel", v)} />
+          <SapCheck label="Hide variants with all-zero rows" checked={s.options.hideZero} onChange={(v) => setO("hideZero", v)} />
+          <SapCheck label="Require confirmation before Customer Export when warnings exist" checked={s.meta.requireAckOnWarn} onChange={(v) => setM("requireAckOnWarn", v)} />
+        </div>
+        <div style={{ ...sapGrid, marginTop: 12 }}>
+          <SapField label="Stock types counted in opening / closing (one per line or ; separated)"><input className="pro-input" value={s.options.closeSt ?? ""} onChange={(e) => setO("closeSt", e.target.value)} /></SapField>
+          <SapField label="Opening baseline date (ignore movements before)"><input className="pro-input" type="date" value={s.options.baseDate ?? ""} onChange={(e) => setO("baseDate", e.target.value)} /></SapField>
+          <SapField label="Wastage SLA alert threshold (%)"><input className="pro-input" type="number" step="0.1" min="0" value={s.meta.maxWastePct ?? ""} onChange={(e) => setM("maxWastePct", e.target.value)} /></SapField>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <SapField label="Opening baseline balances, one per line: variant or SAP variant, quantity (as on baseline date)">
+            <textarea className="pro-input" rows={4} value={s.options.base ?? ""} onChange={(e) => setO("base", e.target.value)} />
+          </SapField>
+        </div>
+      </div>
+
+      <button className="pro-btn primary" onClick={save}>Save logic &amp; operational thresholds</button>
+    </motion.div>
+  );
+}
+
+/* ------------------------------- Variant maps ------------------------------- */
+function SapMapCard({ m, reload, expanded, onToggle, api, showAlert, askConfirm }) {
+  const [name, setName] = useState(m.name);
+  const [rows, setRows] = useState(m.rows);
+  const [bulk, setBulk] = useState(null);
+  const setRow = (i, k, v) => setRows(rows.map((r, x) => (x === i ? { ...r, [k]: v } : r)));
+
+  const save = async () => {
+    try {
+      const r = await api.put("/maps/" + m.id, { name, rows });
+      showAlert(`Saved ${r.count} variants in map "${name}" successfully`);
+      reload();
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+  const remove = async () => {
+    if (!(await askConfirm(`Delete map "${m.name}"? Templates using it will have no map.`))) return;
+    try { await api.del("/maps/" + m.id); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+  const addBulk = () => {
+    const add = bulk
+      .split("\n")
+      .map((l) => (l.includes("\t") ? l.split("\t") : l.split(",")).map((x) => x.trim()))
+      .filter((p) => p[1])
+      .map((p) => ({ cv: p[0], sap: p[1], ct: p[2] || "Credit" }));
+    setRows([...rows, ...add]);
+    setBulk(null);
+    showAlert(`Added ${add.length} row(s). Press "Save map" to store them`);
+  };
+
+  return (
+    <div style={{ ...sapBox, margin: 0 }}>
+      <button type="button" onClick={onToggle} style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", fontWeight: 800, color: "#0a4f8c", fontFamily: "inherit", display: "flex", justifyContent: "space-between" }}>
+        <span>{m.name} • {m.rows.length} variants</span>
+        <span>{expanded ? "Close ▲" : "Open ▼"}</span>
+      </button>
+      {expanded && (
+        <div style={{ marginTop: 10 }}>
+          <SapField label="Map name"><input className="pro-input" value={name} onChange={(e) => setName(e.target.value)} /></SapField>
+          <div style={sapScroll}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={sapTh}>Customer stock variant</th>
+                  <th style={sapTh}>SAP variant (Card Description)</th>
+                  <th style={{ ...sapTh, width: 140 }}>Card type</th>
+                  <th style={{ ...sapTh, width: 44 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td style={sapTd}><input className="pro-input" placeholder="Customer Variant" value={r.cv} onChange={(e) => setRow(i, "cv", e.target.value)} /></td>
+                    <td style={sapTd}><input className="pro-input" placeholder="SAP Description" value={r.sap} onChange={(e) => setRow(i, "sap", e.target.value)} /></td>
+                    <td style={sapTd}><input className="pro-input" placeholder="Credit / Debit" value={r.ct} onChange={(e) => setRow(i, "ct", e.target.value)} /></td>
+                    <td style={sapTd}><button className="pro-btn" title="Remove variant" onClick={() => setRows(rows.filter((_, x) => x !== i))}>✕</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {bulk !== null && (
+            <div style={sapBox}>
+              <p style={sapHint}>One entry per line: Customer Variant [Tab or Comma] SAP Variant [Tab or Comma] Card Type</p>
+              <textarea className="pro-input" rows={6} placeholder="e.g. Master Gold, MAST-GLD-CARD, Credit" value={bulk} onChange={(e) => setBulk(e.target.value)} style={{ width: "100%" }} />
+              <div style={{ ...sapRow, marginTop: 8 }}>
+                <button className="pro-btn primary" onClick={addBulk}>Add parsed rows</button>
+                <button className="pro-btn" onClick={() => setBulk(null)}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ ...sapRow, marginTop: 12 }}>
+            <button className="pro-btn primary" onClick={save}>Save map</button>
+            <button className="pro-btn" onClick={() => setRows([...rows, { cv: "", sap: "", ct: "Credit" }])}>+ Add Row</button>
+            <button className="pro-btn" onClick={() => setBulk("")}>Bulk Paste Rows…</button>
+            <button className="pro-btn" onClick={remove}>Delete map</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SapMapsPanel({ token, showAlert, askConfirm }) {
+  const api = useMemo(() => sapApi(token), [token]);
+  const [maps, setMaps] = useState(null);
+  const [openId, setOpenId] = useState(null);
+  const reload = () => api.get("/maps").then((r) => setMaps(r.maps)).catch((e) => showAlert(sapErr(e)));
+  useEffect(() => { reload(); }, []); // eslint-disable-line
+  if (!maps) return <SapLoading />;
+
+  const add = async () => {
+    try { await api.post("/maps", { name: "New map " + (maps.length + 1) }); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  return (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Layers size={18} /> Stock: Variant Maps</span>
+      </div>
+      <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Variant Map</button>
+      <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        {maps.map((m) => (
+          <SapMapCard
+            key={m.id + m.name + m.rows.length}
+            m={m}
+            reload={reload}
+            expanded={openId === m.id}
+            onToggle={() => setOpenId(openId === m.id ? null : m.id)}
+            api={api}
+            showAlert={showAlert}
+            askConfirm={askConfirm}
+          />
+        ))}
+        {maps.length === 0 && <p style={sapHint}>No variant maps yet.</p>}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ------------------------------ Report templates ------------------------------ */
+function SapTplCard({ t, maps, reload, api, showAlert, askConfirm }) {
+  const [d, setD] = useState(t);
+  const up = (k, v) => setD({ ...d, [k]: v });
+  const setCol = (j, k, v) => up("cols", d.cols.map((c, x) => (x === j ? { ...c, [k]: v } : c)));
+  const move = (j, dir) => {
+    const n = j + dir;
+    if (n < 0 || n >= d.cols.length) return;
+    const c = [...d.cols];
+    [c[j], c[n]] = [c[n], c[j]];
+    up("cols", c);
+  };
+  const save = async () => {
+    try { await api.put("/templates/" + t.id, d); showAlert("Template saved successfully"); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+  const dup = async () => {
+    try { await api.post("/templates", { ...d, name: d.name + " (copy)" }); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+  const del = async () => {
+    if (!(await askConfirm(`Delete template "${t.name}"?`))) return;
+    try { await api.del("/templates/" + t.id); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  return (
+    <div style={sapBox}>
+      <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>
+        {t.name} • {d.internal ? "Internal Control Copy" : "Customer Release Copy"}
+      </div>
+      <div style={sapGrid}>
+        <SapField label="Template name"><input className="pro-input" value={d.name} onChange={(e) => up("name", e.target.value)} /></SapField>
+        <SapField label="Customer access label"><input className="pro-input" value={d.acc || ""} onChange={(e) => up("acc", e.target.value)} /></SapField>
+        <SapField label="Raw Customer Name contains"><input className="pro-input" value={d.cust || ""} onChange={(e) => up("cust", e.target.value)} /></SapField>
+        <SapField label="Variant map">
+          <select className="pro-input" value={d.mapId || ""} onChange={(e) => up("mapId", e.target.value || null)}>
+            <option value="">— none —</option>
+            {maps.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </SapField>
+        <SapField label="Report title"><input className="pro-input" value={d.title || ""} onChange={(e) => up("title", e.target.value)} /></SapField>
+        <SapField label="Footer note"><input className="pro-input" value={d.foot || ""} onChange={(e) => up("foot", e.target.value)} /></SapField>
+      </div>
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", margin: "12px 0" }}>
+        <SapCheck label="Internal control template (adds Exceptions & Audit sheet)" checked={d.internal} onChange={(v) => up("internal", v)} />
+        <SapCheck label="Add rack-wise closing sheet" checked={d.rack} onChange={(v) => up("rack", v)} />
+      </div>
+      <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 6, fontSize: 13 }}>
+        Columns &amp; Display Ordering ({d.cols.filter((c) => c.s).length} of {d.cols.length} enabled)
+      </div>
+      <div style={{ ...sapGrid, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
+        {d.cols.map((c, j) => (
+          <div key={c.k} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #cfe8f6", borderRadius: 12, padding: "4px 8px" }}>
+            <input type="checkbox" checked={!!c.s} onChange={(e) => setCol(j, "s", e.target.checked)} />
+            <input className="pro-input" style={{ flex: 1 }} value={c.l} onChange={(e) => setCol(j, "l", e.target.value)} />
+            <button className="pro-btn" title="Move up" onClick={() => move(j, -1)}>↑</button>
+            <button className="pro-btn" title="Move down" onClick={() => move(j, 1)}>↓</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...sapRow, marginTop: 12 }}>
+        <button className="pro-btn primary" onClick={save}>Save template</button>
+        <button className="pro-btn" onClick={dup}>Duplicate</button>
+        <button className="pro-btn" onClick={del}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
+function SapTemplatesPanel({ token, showAlert, askConfirm }) {
+  const api = useMemo(() => sapApi(token), [token]);
+  const [data, setData] = useState(null);
+  const reload = async () => {
+    try {
+      const [t, m] = await Promise.all([api.get("/templates"), api.get("/maps")]);
+      setData({ tpls: t.templates, maps: m.maps });
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+  useEffect(() => { reload(); }, []); // eslint-disable-line
+  if (!data) return <SapLoading />;
+
+  const add = async () => {
+    try { await api.post("/templates", { name: "New template", mapId: data.maps[0]?.id }); reload(); } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  return (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Layers size={18} /> Stock: Report Templates</span>
+      </div>
+      {data.tpls.map((t) => (
+        <SapTplCard key={t.id + t.name} t={t} maps={data.maps} reload={reload} api={api} showAlert={showAlert} askConfirm={askConfirm} />
+      ))}
+      {data.tpls.length === 0 && <p style={sapHint}>No templates yet. Add a bank / product in Logic &amp; Thresholds, or create one here.</p>}
+      <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Template</button>
+    </motion.div>
+  );
+}
+
+/* --------------------------------- Audit trail --------------------------------- */
+function SapAuditPanel({ token, showAlert }) {
+  const api = useMemo(() => sapApi(token), [token]);
+  const [rows, setRows] = useState(null);
+  const reload = () => api.get("/audit?limit=300").then((r) => setRows(r.rows)).catch((e) => showAlert(sapErr(e)));
+  useEffect(() => { reload(); }, []); // eslint-disable-line
+  if (!rows) return <SapLoading />;
+
+  return (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Activity size={18} /> Stock: Audit Trail</span>
+      </div>
+      <div style={sapRow}>
+        <button className="pro-btn" onClick={reload}>Refresh</button>
+        <button className="pro-btn primary" onClick={() => api.download("/audit.csv", "stock_portal_audit_log.csv").catch((e) => showAlert(sapErr(e)))}>Export Audit (.csv)</button>
+      </div>
+      <p style={sapHint}>Governance log of configuration changes (and uploads / report downloads if enabled). It cannot be edited or cleared here. Latest 300 shown.</p>
+      <div style={sapScroll}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...sapTh, width: 170 }}>Timestamp</th>
+              <th style={{ ...sapTh, width: 130 }}>User</th>
+              <th style={{ ...sapTh, width: 90 }}>Role</th>
+              <th style={{ ...sapTh, width: 170 }}>Action</th>
+              <th style={sapTh}>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((x) => (
+              <tr key={x.id}>
+                <td style={sapTd}>{new Date(x.ts).toLocaleString("en-IN")}</td>
+                <td style={{ ...sapTd, fontWeight: 700 }}>{x.username}</td>
+                <td style={sapTd}>{x.role}</td>
+                <td style={sapTd}>{x.action}</td>
+                <td style={sapTd}>{x.detail}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={5} style={{ ...sapTd, textAlign: "center", color: "#4a6f8c" }}>No audit entries recorded yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ------------------------------- Backup & plant ------------------------------- */
+function SapBackupPanel({ token, showAlert }) {
+  const api = useMemo(() => sapApi(token), [token]);
+  const [meta, setMeta] = useState(null);
+  useEffect(() => {
+    api.get("/settings").then((r) => setMeta(r.meta)).catch((e) => showAlert(sapErr(e)));
+  }, []); // eslint-disable-line
+  if (!meta) return <SapLoading />;
+
+  const savePlant = async () => {
+    try {
+      await api.put("/settings", { meta: { plantName: meta.plantName, defaultSheet: meta.defaultSheet } });
+      showAlert("Plant settings saved successfully");
+    } catch (e) { showAlert(sapErr(e)); }
+  };
+
+  const importFile = async (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    try {
+      const cfg = JSON.parse(await f.text());
+      if (!window.confirm("Import replaces all templates and updates rules, maps and settings. Continue?")) return;
+      await api.post("/config/import", cfg);
+      showAlert("Configuration imported successfully");
+    } catch (x) { showAlert(sapErr(x)); }
+  };
+
+  return (
+    <motion.div className="pro-card">
+      <div className="pro-card-header">
+        <span><Layers size={18} /> Stock: Backup &amp; Plant</span>
+      </div>
+
+      <div style={sapBox}>
+        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Plant Identity &amp; SAP Defaults</div>
+        <div style={sapGrid}>
+          <SapField label="Plant Display Name (report footers)"><input className="pro-input" value={meta.plantName ?? ""} onChange={(e) => setMeta({ ...meta, plantName: e.target.value })} /></SapField>
+          <SapField label="Default SAP Worksheet Name"><input className="pro-input" value={meta.defaultSheet ?? ""} onChange={(e) => setMeta({ ...meta, defaultSheet: e.target.value })} /></SapField>
+        </div>
+        <div style={{ marginTop: 10 }}><button className="pro-btn primary" onClick={savePlant}>Save plant settings</button></div>
+      </div>
+
+      <div style={sapBox}>
+        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Configuration Backup &amp; Migration</div>
+        <p style={sapHint}>Export rules, variant maps, templates and settings as one JSON file (uploaded SAP data is not included). Import the file exported from the old stock portal to load its configuration.</p>
+        <div style={sapRow}>
+          <button className="pro-btn primary" onClick={() => api.download("/config/export", "stock_portal_config.json").catch((e) => showAlert(sapErr(e)))}>Export Configuration (.json)</button>
+          <label className="pro-btn" style={{ cursor: "pointer" }}>
+            Import Configuration (.json)…
+            <input type="file" accept=".json" style={{ display: "none" }} onChange={importFile} />
+          </label>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState(null); // which master form popup is open
@@ -1762,6 +2444,11 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "indentRouting", label: "Indent Routing", icon: MapPin },
     { id: "roles", label: "Roles", icon: Activity },
     { id: "plateReasons", label: "Plate Request Reasons", icon: Layers },
+    { id: "spLogic", label: "Stock: Logic & Thresholds", icon: Layers },
+    { id: "spMaps", label: "Stock: Variant Maps", icon: Layers },
+    { id: "spTemplates", label: "Stock: Report Templates", icon: Layers },
+    { id: "spAudit", label: "Stock: Audit Trail", icon: Activity },
+    { id: "spBackup", label: "Stock: Backup & Plant", icon: Layers },
   ];
 
   const MASTER_LISTS = {
@@ -3757,6 +4444,12 @@ const [supplierFilter, setSupplierFilter] = useState("");
           )}
         </motion.div>
       )}
+
+      {activeSection === "spLogic" && <SapLogicPanel token={token} showAlert={showAlert} askConfirm={askConfirm} />}
+      {activeSection === "spMaps" && <SapMapsPanel token={token} showAlert={showAlert} askConfirm={askConfirm} />}
+      {activeSection === "spTemplates" && <SapTemplatesPanel token={token} showAlert={showAlert} askConfirm={askConfirm} />}
+      {activeSection === "spAudit" && <SapAuditPanel token={token} showAlert={showAlert} />}
+      {activeSection === "spBackup" && <SapBackupPanel token={token} showAlert={showAlert} />}
 
       {/* PLATE REQUEST REASONS */}
       {activeSection === "plateReasons" && (

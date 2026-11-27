@@ -56,6 +56,9 @@ const CustomerOnboarding = lazy(() => import("./pages/Customeronboarding"));
 const JobValidation = lazy(() => import("./pages/Jobvalidation"));
 const RawMaterialIndent = lazy(()=> import("./pages/Rawmaterialindent"));
 const FormResponses = lazy(() => import("./pages/FormResponses"));
+const CardTracker = lazy(() => import("./pages/CardTracker"));
+const SapUpload = lazy(() => import("./pages/SapUpload"));
+const SapReports = lazy(() => import("./pages/SapReports"));
 
 /* SESSION HANDLING: refreshed tokens, background polling, forced logout */
 const BACKGROUND_URLS = ["/api/auth/announcement", "/api/messenger/unread"];
@@ -256,6 +259,32 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* STOCK / CARD TRACKER */}
+              <Route
+                path="/card-tracker"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <CardTracker />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sap-upload"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <SapUpload />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/sap-reports"
+                element={
+                  <ProtectedRoute allowedRoles={["ADMIN","KAS","PLANNER","ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <SapReports />
+                  </ProtectedRoute>
+                }
+              />
+
               {/* PLANNER */}
               <Route
                 path="/planner"

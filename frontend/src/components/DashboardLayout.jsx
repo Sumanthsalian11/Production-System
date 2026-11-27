@@ -30,7 +30,7 @@ const APP_CATEGORIES = [
     color: "#f59f00",
     bgLight: "#fff6e5",
     borderGlow: "#fde3a7",
-    routes: ["/new-in", "/artwork-repository", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report"]
+    routes: ["/new-in", "/artwork-repository", "/production", "/production-real", "/perso", "/ocr-scan", "/shredding", "/click-report", "/card-tracker"]
   },
   {
     title: "Reports & Analytics",
@@ -38,7 +38,7 @@ const APP_CATEGORIES = [
     color: "#6f42c1",
     bgLight: "#f2edfa",
     borderGlow: "#d6c7f0",
-    routes: ["/waste", "/summary", "/production-report", "/perso-report", "/perso-machine-report", "/billing-report", "/welcome-board", "/production-portal"]
+    routes: ["/waste", "/summary", "/production-report", "/perso-report", "/perso-machine-report", "/billing-report", "/welcome-board", "/production-portal", "/sap-upload", "/sap-reports"]
   },
   {
     title: "Inward & Quality Control",
