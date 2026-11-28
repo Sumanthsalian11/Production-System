@@ -144,6 +144,12 @@ const preprocessStyles = `
   .planned-workorders-table th,.planned-workorders-table td{overflow-wrap:anywhere;word-break:break-word}
   .empty-state{padding:42px!important;color:#5f6c7a!important;font-weight:600;text-align:center}
 
+  /* ---------- Plate request tables: let columns fit their headers ---------- */
+  .pr-auto-table .production-real-table{table-layout:auto;width:max-content;min-width:100%}
+  .pr-auto-table .production-real-table th,
+  .pr-auto-table .production-real-table td{overflow-wrap:normal;word-break:normal}
+  .pr-auto-table .production-real-table thead th{white-space:nowrap}
+
   /* ---------- Status pills ---------- */
   .status-pill{display:inline-block;padding:3px 10px;border-radius:4px;font-size:.7rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase}
   .status-pending{background:#fef3c7;color:#b45309;border:1px solid #fde68a}
@@ -1088,6 +1094,8 @@ function PreprocessDashboard() {
       "Activity": r.activities?.length ? r.activities.join(", ") : "-",
       "Machine": r.machineNames?.length ? r.machineNames.join(", ") : "-",
       "Impressions": r.impressions || "-",
+      "Plate": r.plate || "-",
+      "Qty": r.qty || "-",
       "Reason": r.reason || (r.reasons?.length ? r.reasons.join(", ") : "-"),
       "Remarks": r.remarks || "-",
       "Status": r.status,
@@ -1616,7 +1624,7 @@ function PreprocessDashboard() {
               title="Plate Requests Pending Approval"
               pill={`${displayedPlateRequests.length} pending`}
             />
-            <div className="production-real-table-wrap" style={{ maxHeight: 300, overflowY: "auto", overflow: "auto" }}>
+            <div className="production-real-table-wrap pr-auto-table" style={{ maxHeight: 300, overflowY: "auto", overflow: "auto" }}>
               <table className="production-real-table">
                 <thead>
                   <tr>
@@ -1626,6 +1634,8 @@ function PreprocessDashboard() {
                     <th>Activity</th>
                     <th>Machine</th>
                     <th>Impressions</th>
+                    <th>Plate</th>
+                    <th>Qty</th>
                     <th>Reason</th>
                     <th>Remarks</th>
                     <th>Requested By</th>
@@ -1635,9 +1645,9 @@ function PreprocessDashboard() {
                 </thead>
                 <tbody>
                   {plateRequestsLoading ? (
-                    <tr><td className="empty-state" colSpan="11">Loading...</td></tr>
+                    <tr><td className="empty-state" colSpan="13">Loading...</td></tr>
                   ) : displayedPlateRequests.length === 0 ? (
-                    <tr><td className="empty-state" colSpan="11">No Plate Requests Pending</td></tr>
+                    <tr><td className="empty-state" colSpan="13">No Plate Requests Pending</td></tr>
                   ) : (
                     displayedPlateRequests.map(req => (
                       <tr key={req._id}>
@@ -1647,6 +1657,8 @@ function PreprocessDashboard() {
                         <td>{req.activities?.length ? req.activities.join(", ") : "-"}</td>
                         <td>{req.machineNames?.length ? req.machineNames.join(", ") : "-"}</td>
                         <td>{req.impressions || "-"}</td>
+<td>{req.plate || "-"}</td>
+<td>{req.qty || "-"}</td>
                         <td>{req.reason || (req.reasons?.length ? req.reasons.join(", ") : "-")}</td>
                         <td>{req.remarks || "-"}</td>
                         <td>{req.requestedBy}</td>
@@ -1768,7 +1780,7 @@ function PreprocessDashboard() {
               </button>
             </div>
 
-            <div className="production-real-table-wrap" style={{ maxHeight: 400, overflowY: "auto", overflow: "auto" }}>
+            <div className="production-real-table-wrap pr-auto-table" style={{ maxHeight: 400, overflowY: "auto", overflow: "auto" }}>
               <table className="production-real-table">
                 <thead>
                   <tr>
@@ -1779,6 +1791,8 @@ function PreprocessDashboard() {
                     <th style={{ minWidth: "130px" }}>Activity</th>
                     <th style={{ minWidth: "130px" }}>Machine</th>
                     <th style={{ minWidth: "100px" }}>Impressions</th>
+                    <th style={{ minWidth: "130px" }}>Plate</th>
+                    <th style={{ minWidth: "70px" }}>Qty</th>
                     <th style={{ minWidth: "150px" }}>Reason</th>
                     <th style={{ minWidth: "130px" }}>Remarks</th>
                     <th style={{ width: "130px" }}>Status</th>
@@ -1790,9 +1804,9 @@ function PreprocessDashboard() {
                 </thead>
                 <tbody>
                   {allPlateRequestsLoading ? (
-                    <tr><td className="empty-state" colSpan="14">Loading...</td></tr>
+                    <tr><td className="empty-state" colSpan="16">Loading...</td></tr>
                   ) : displayedAllPlateRequests.length === 0 ? (
-                    <tr><td className="empty-state" colSpan="14">No Plate Requests Found</td></tr>
+                    <tr><td className="empty-state" colSpan="16">No Plate Requests Found</td></tr>
                   ) : (
                     displayedAllPlateRequests.map(req => (
                       <tr key={req._id}>
@@ -1827,6 +1841,8 @@ function PreprocessDashboard() {
                           {req.machineNames?.length ? req.machineNames.join(", ") : "-"}
                         </td>
                         <td>{req.impressions || "-"}</td>
+                        <td>{req.plate || "-"}</td>
+                        <td>{req.qty || "-"}</td>
                         <td
                           style={truncCellStyle(`${req._id}-pr-reason`)}
                           onClick={() => setExpandedCellKey(k => k === `${req._id}-pr-reason` ? null : `${req._id}-pr-reason`)}

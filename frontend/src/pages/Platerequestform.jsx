@@ -921,7 +921,8 @@ function PlateRequestForm() {
 
         /* table */
         .pr-table-wrap { border-radius: 8px; }
-        .pr-table { font-size: 12px; }
+        .pr-table { font-size: 12px; table-layout: auto !important; width: max-content; min-width: 100%; }
+        .pr-table thead th { white-space: nowrap; overflow: visible; text-overflow: clip; min-width: max-content; }
         .pr-table thead th {
           background: #a9d0d9; color: #000000; font-size: 10.5px; font-weight: 700;
           padding: 9px 12px; border: 1px solid #8fbcc7;
