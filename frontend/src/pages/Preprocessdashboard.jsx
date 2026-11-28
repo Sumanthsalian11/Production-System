@@ -447,7 +447,7 @@ function PreprocessDashboard() {
 
     // Auto-polling every 20 seconds to keep Plate Request notifications updated
     const interval = setInterval(() => {
-      fetchPlateRequests();
+      fetchPlateRequests(true);
       fetchPending(true); // quiet refresh: re-sent work orders and planner replies show up by themselves
     }, 20000);
 
@@ -710,8 +710,8 @@ function PreprocessDashboard() {
     XLSX.writeFile(wb, `Production_Log_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  const fetchPlateRequests = async () => {
-    setPlateRequestsLoading(true);
+  const fetchPlateRequests = async (silent = false) => {
+    if (!silent) setPlateRequestsLoading(true);
     try {
       const res = await axios.get(`${BASE_URL}/api/platerequest/pending`, {
         headers: { Authorization: `Bearer ${token}` }
