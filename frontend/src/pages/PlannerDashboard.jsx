@@ -160,6 +160,7 @@ function PlannerDashboard() {
   // ===== Work orders rejected by Prepress (bell at the top) =====
   const [rejectedList, setRejectedList] = useState([]);
   const [showRejected, setShowRejected] = useState(false);
+  const [replyDraft, setReplyDraft] = useState({}); // reply typed per rejected work order
   const [prepressSent, setPrepressSent] = useState(false); // a NEW work order must be sent to Prepress before it can be saved
 
   // latest saved artwork (else the old PDF) for each item code, from the Items master
@@ -564,6 +565,38 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     const t = setInterval(fetchRejected, 30000);
     return () => clearInterval(t);
   }, []);
+
+  // opening the bell = the planner has seen the rejections (bell goes back to normal)
+  const markRejectedSeen = async () => {
+    if (!rejectedList.some((w) => w.rejectUnseenByPlanner)) return;
+    setRejectedList((list) => list.map((w) => ({ ...w, rejectUnseenByPlanner: false })));
+    try {
+      await axios.post(`${BASE_URL}/api/workorders/prepress-rejected/seen`, {}, { headers: authHeaders() });
+    } catch (err) {
+      console.error("Error marking rejections as seen:", err);
+    }
+  };
+
+  // reply to Prepress and send the work order again
+  const resendWithReply = async (wo) => {
+    try {
+      await axios.post(
+        `${BASE_URL}/api/workorders/${wo._id}/prepress-resend`,
+        { text: replyDraft[wo._id] || "" },
+        { headers: authHeaders() }
+      );
+      setReplyDraft((d) => {
+        const n = { ...d };
+        delete n[wo._id];
+        return n;
+      });
+      showAlert("Sent to Prepress ✅", `WO ${wo.efiWoNumber}`, "success");
+      fetchRejected();
+    } catch (err) {
+      console.error("Error sending to prepress:", err);
+      showAlert("Error", err.response?.data?.message || "Error sending to Prepress", "error");
+    }
+  };
 
   // send a rejected work order to Prepress again without opening the form
   const resendToPrepress = async (wo) => {
@@ -3947,12 +3980,12 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
             <button
               type="button"
               className="btn-3d btn-3d-secondary quick-nav-cta"
-              onClick={() => setShowRejected((s) => !s)}
+              onClick={() => { if (!showRejected) markRejectedSeen(); setShowRejected((s) => !s); }}
               title="Work orders rejected by Prepress"
               style={{ position: "relative" }}
             >
-              <i className="bi bi-bell-fill" style={{ color: rejectedList.length ? "#d64545" : "inherit" }}></i>
-              {rejectedList.length > 0 && (
+              <i className="bi bi-bell-fill" style={{ color: rejectedList.some((w) => w.rejectUnseenByPlanner) ? "#d64545" : "inherit" }}></i>
+              {rejectedList.some((w) => w.rejectUnseenByPlanner) && (
                 <span
                   style={{
                     position: "absolute", top: -7, right: -7, minWidth: 18, height: 18, borderRadius: 9,
@@ -3960,7 +3993,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                     lineHeight: "18px", textAlign: "center"
                   }}
                 >
-                  {rejectedList.length}
+                  {rejectedList.filter((w) => w.rejectUnseenByPlanner).length}
                 </span>
               )}
             </button>
@@ -3991,10 +4024,34 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                           </span>
                         </div>
                         <div className="small">{wo.customer?.name || wo.customer} • {wo.productName || "-"}</div>
-                        <div style={{ margin: "4px 0", fontSize: 12.5, color: "#a71d2a", fontWeight: 600 }}>
-                          Reason: {wo.prepressRejectReason || "-"}
+                        {/* chat: Prepress reason + replies (scrolls when long; older rejections show their reason) */}
+                        <div
+                          className="rj-thread"
+                          ref={(el) => { if (el && !el.dataset.sc) { el.dataset.sc = "1"; el.scrollTop = el.scrollHeight; } }}
+                          style={{ maxHeight: 120, overflowY: "auto", background: "#fff", border: "1px solid #f0d4d4", borderRadius: 6, padding: 6, margin: "6px 0" }}
+                        >
+                          {(wo.prepressChat?.length
+                            ? wo.prepressChat
+                            : [{ from: "PREPRESS", name: wo.prepressRejectedBy, text: wo.prepressRejectReason, at: wo.prepressRejectedAt }]
+                          ).map((m, i) => (
+                            <div key={i} style={{ display: "flex", justifyContent: m.from === "PLANNER" ? "flex-end" : "flex-start", marginBottom: 4 }}>
+                              <div style={{ maxWidth: "88%", padding: "4px 8px", borderRadius: 8, fontSize: 12, background: m.from === "PLANNER" ? "#d9f2e6" : "#fbdcdc" }}>
+                                <div style={{ fontSize: 10, fontWeight: 700 }}>
+                                  {m.name || "-"} • {m.at ? new Date(m.at).toLocaleString("en-IN") : ""}
+                                </div>
+                                {m.text || "-"}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="small" style={{ marginBottom: 6 }}>Rejected by {wo.prepressRejectedBy || "-"}</div>
+                        <textarea
+                          rows={2}
+                          className="form-control"
+                          placeholder="Reply to Prepress (optional)"
+                          value={replyDraft[wo._id] || ""}
+                          onChange={(e) => setReplyDraft((d) => ({ ...d, [wo._id]: e.target.value }))}
+                          style={{ fontSize: 12, marginBottom: 6 }}
+                        />
                         <div className="d-flex gap-2">
                           <button
                             type="button"
@@ -4008,9 +4065,9 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                             type="button"
                             className="btn-3d btn-3d-primary btn-sm"
                             style={{ padding: "3px 10px", fontSize: 11 }}
-                            onClick={() => resendToPrepress(wo)}
+                            onClick={() => resendWithReply(wo)}
                           >
-                            Send to Prepress again
+                            Reply &amp; send again
                           </button>
                         </div>
                       </div>

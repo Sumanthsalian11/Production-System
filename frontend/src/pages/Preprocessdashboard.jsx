@@ -392,6 +392,7 @@ function PreprocessDashboard() {
   const [editingProductionId, setEditingProductionId] = useState(null);
   const [expandedCellKey, setExpandedCellKey] = useState(null); // "<rowId>-<field>" | null
   const [itemFileMap, setItemFileMap] = useState({}); // latest saved artwork (else old PDF) per product code, same as the Planner page
+  const [chatWoId, setChatWoId] = useState(null); // work order whose chat with the planner is open
 
   // Filters
   const [filterWoNo, setFilterWoNo] = useState("");
@@ -441,6 +442,7 @@ function PreprocessDashboard() {
     // Auto-polling every 20 seconds to keep Plate Request notifications updated
     const interval = setInterval(() => {
       fetchPlateRequests();
+      fetchPending(true); // quiet refresh: re-sent work orders and planner replies show up by themselves
     }, 20000);
 
     return () => clearInterval(interval);
@@ -529,8 +531,8 @@ function PreprocessDashboard() {
     fetchCompletedCustomers();
   }, [workOrders.length]);
 
-  const fetchPending = async () => {
-    setLoading(true);
+  const fetchPending = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await axios.get(`${BASE_URL}/api/preprocess/pending`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -820,6 +822,22 @@ function PreprocessDashboard() {
         err.response?.data?.message || "Error marking work order done",
         "error"
       );
+    }
+  };
+
+  // ===== chat with the planner (opening a thread marks the planner's reply as read) =====
+  const openChat = async (wo) => {
+    setChatWoId(wo._id);
+    if (!wo.replyUnseenByPrepress) return;
+    setWorkOrders(prev => prev.map(w => (w._id === wo._id ? { ...w, replyUnseenByPrepress: false } : w)));
+    try {
+      await axios.post(
+        `${BASE_URL}/api/preprocess/seen`,
+        { workOrderId: wo._id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (err) {
+      console.error("Error marking reply as seen:", err);
     }
   };
 
@@ -1114,6 +1132,43 @@ function PreprocessDashboard() {
   return (
     <div style={{ width: "100%", padding: 0, margin: 0 }}>
       <style>{preprocessStyles}</style>
+      {/* Chat with the planner (read-only thread) */}
+      {chatWoId && (() => {
+        const cw = workOrders.find(w => w._id === chatWoId);
+        if (!cw) return null;
+        return (
+          <div className="pp-overlay" onClick={() => setChatWoId(null)}>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 520, background: "#fff", borderRadius: 10, padding: 16, boxShadow: "0 24px 60px rgba(16,24,40,.28)" }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>WO {cw.efiWoNumber} • Chat with {cw.planningUser || "planner"}</div>
+                  <div style={{ fontSize: 12 }}>{cw.customer?.name || cw.customer}</div>
+                </div>
+                <button type="button" className="btn btn-sm btn-secondary" onClick={() => setChatWoId(null)}>Close</button>
+              </div>
+              <div
+                className="pp-chat-thread"
+                ref={(el) => { if (el && !el.dataset.sc) { el.dataset.sc = "1"; el.scrollTop = el.scrollHeight; } }}
+                style={{ maxHeight: 320, overflowY: "auto", background: "#f7f9fb", border: "1px solid #e3e7ec", borderRadius: 8, padding: 10 }}
+              >
+                {(cw.prepressChat || []).map((m, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: m.from === "PREPRESS" ? "flex-end" : "flex-start", marginBottom: 6 }}>
+                    <div style={{ maxWidth: "85%", padding: "6px 10px", borderRadius: 10, fontSize: 12.5, background: m.from === "PREPRESS" ? "#fbdcdc" : "#d9f2e6" }}>
+                      <div style={{ fontSize: 10.5, fontWeight: 700 }}>
+                        {m.from === "PREPRESS" ? "Prepress" : "Planner"} • {m.name || "-"} • {m.at ? new Date(m.at).toLocaleString("en-IN") : ""}
+                      </div>
+                      {m.text || "-"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="dashboard-container">
         
         {/* ===== GLOSSY HERO HEADER WITH VISIBLE PLATE NOTIFICATION SYSTEM ===== */}
@@ -1134,6 +1189,38 @@ function PreprocessDashboard() {
           </div>
 
           <div className="d-flex align-items-center gap-3 flex-wrap">
+            {/* Planner replies you have not read yet (click = open the next unread chat) */}
+            {workOrders.some(w => w.replyUnseenByPrepress) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const w = workOrders.find(x => x.replyUnseenByPrepress);
+                  if (w) { setActiveView("workorders"); openChat(w); }
+                }}
+                className="d-flex align-items-center gap-2 border-0 shadow-sm"
+                style={{
+                  background: "#fff3d6",
+                  color: "#000",
+                  borderRadius: "30px",
+                  padding: "8px 16px",
+                  fontWeight: "700",
+                  fontSize: ".82rem",
+                  cursor: "pointer",
+                  animation: "pulseNotification 2s infinite"
+                }}
+                title="Click to read the planner's reply"
+              >
+                <span style={{ fontSize: "14px" }}>💬</span>
+                <span>Planner Replies</span>
+                <span
+                  className="badge rounded-pill bg-white"
+                  style={{ color: "#000", fontWeight: "800", fontSize: "11px", padding: "3px 8px" }}
+                >
+                  {workOrders.filter(w => w.replyUnseenByPrepress).length}
+                </span>
+              </button>
+            )}
+
             {/* Header Notification Badge for Plate Requests */}
             {pendingPlateCount > 0 && (
               <button
@@ -1275,7 +1362,7 @@ function PreprocessDashboard() {
                     <th style={{ minWidth: "110px", textAlign: "right", paddingRight: "18px" }}>Order Qty</th>
                     <th style={{ width: "95px", textAlign: "center" }}>View PDF</th>
                     <th style={{ minWidth: "160px", textAlign: "left" }}>Planning</th>
-                    <th style={{ width: "170px", textAlign: "center" }}>Action</th>
+                    <th style={{ width: "230px", textAlign: "center" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1330,6 +1417,24 @@ function PreprocessDashboard() {
                               >
                                 Reject
                               </button>
+                              {wo.prepressChat?.length > 0 && (
+                                <button
+                                  className="btn btn-sm btn-info"
+                                  onClick={() => openChat(wo)}
+                                  title="Chat with the planner"
+                                  style={{ position: "relative" }}
+                                >
+                                  💬
+                                  {wo.replyUnseenByPrepress && (
+                                    <span
+                                      style={{
+                                        position: "absolute", top: -4, right: -4, width: 10, height: 10,
+                                        borderRadius: "50%", background: "#d64545", border: "1px solid #fff"
+                                      }}
+                                    />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

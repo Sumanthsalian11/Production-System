@@ -619,4 +619,59 @@ router.get("/prepress-rejected", authMiddleware, async (req, res) => {
   }
 });
 
+// =============================================
+// PLANNER HAS OPENED THE BELL (rejections are now "seen")
+// =============================================
+router.post("/prepress-rejected/seen", authMiddleware, async (req, res) => {
+  try {
+    await WorkOrder.updateMany(
+      { planningUser: req.user.name, prepressRejected: true, rejectUnseenByPlanner: true },
+      { $set: { rejectUnseenByPlanner: false } }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("PREPRESS SEEN (PLANNER) ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// PLANNER REPLIES AND SENDS THE WORK ORDER TO PREPRESS AGAIN
+// =============================================
+router.post("/:id/prepress-resend", authMiddleware, async (req, res) => {
+  try {
+    const text = String(req.body?.text || "").trim().slice(0, 1000);
+    const update = {
+      $set: {
+        sentToPrepress: true,
+        prepressRejected: false,
+        rejectUnseenByPlanner: false,
+        replyUnseenByPrepress: !!text
+      }
+    };
+    if (text) {
+      update.$push = { prepressChat: { from: "PLANNER", name: req.user.name, text, at: new Date() } };
+    }
+
+    const wo = await WorkOrder.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        status: "PLANNED",
+        planningUser: req.user.name,
+        prepressRejected: true,
+        sentToPrepress: false
+      },
+      update,
+      { new: true }
+    );
+    if (!wo) {
+      return res.status(404).json({ message: "This work order is not waiting for your reply" });
+    }
+    res.json({ ok: true, efiWoNumber: wo.efiWoNumber });
+  } catch (err) {
+    console.error("PREPRESS RESEND ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

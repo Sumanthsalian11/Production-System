@@ -260,11 +260,18 @@ router.post("/reject", authMiddleware, async (req, res) => {
     const wo = await WorkOrder.findOneAndUpdate(
       { _id: workOrderId, status: "PLANNED", sentToPrepress: true },
       {
-        sentToPrepress: false,
-        prepressRejected: true,
-        prepressRejectReason: why.slice(0, 500),
-        prepressRejectedBy: req.user.name,
-        prepressRejectedAt: new Date()
+        $set: {
+          sentToPrepress: false,
+          prepressRejected: true,
+          prepressRejectReason: why.slice(0, 500),
+          prepressRejectedBy: req.user.name,
+          prepressRejectedAt: new Date(),
+          rejectUnseenByPlanner: true,
+          replyUnseenByPrepress: false
+        },
+        $push: {
+          prepressChat: { from: "PREPRESS", name: req.user.name, text: why.slice(0, 500), at: new Date() }
+        }
       },
       { new: true }
     );
@@ -275,6 +282,26 @@ router.post("/reject", authMiddleware, async (req, res) => {
     res.json({ ok: true, efiWoNumber: wo.efiWoNumber });
   } catch (err) {
     console.error("REJECT PREPROCESS ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// PREPRESS HAS READ THE PLANNER'S REPLY
+// =============================================
+router.post("/seen", authMiddleware, async (req, res) => {
+  try {
+    const { workOrderId } = req.body;
+    if (!workOrderId) {
+      return res.status(400).json({ message: "workOrderId is required" });
+    }
+    await WorkOrder.updateOne(
+      { _id: workOrderId, replyUnseenByPrepress: true },
+      { $set: { replyUnseenByPrepress: false } }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("PREPRESS SEEN ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });

@@ -99,6 +99,17 @@ const workOrderSchema = new mongoose.Schema(
     prepressRejectReason: { type: String, default: "" },
     prepressRejectedBy: { type: String, default: "" },
     prepressRejectedAt: { type: Date, default: null },
+    prepressChat: [
+      {
+        _id: false,
+        from: { type: String, enum: ["PREPRESS", "PLANNER"] },
+        name: { type: String, default: "" },
+        text: { type: String, default: "" },
+        at: { type: Date, default: Date.now }
+      }
+    ],
+    rejectUnseenByPlanner: { type: Boolean, default: false },
+    replyUnseenByPrepress: { type: Boolean, default: false },
     itemPdfPath: { type: String, default: "" },
     status: {
       type: String,
