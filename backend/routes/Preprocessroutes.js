@@ -236,4 +236,47 @@ router.delete("/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// =============================================
+// REJECT A WORK ORDER (goes back to the planner with a reason)
+// =============================================
+router.post("/reject", authMiddleware, async (req, res) => {
+  try {
+    const { workOrderId, reason } = req.body;
+
+    if (!workOrderId) {
+      return res.status(400).json({ message: "workOrderId is required" });
+    }
+    const why = String(reason || "").trim();
+    if (!why) {
+      return res.status(400).json({ message: "Rejection reason is required" });
+    }
+
+    const done = await Preprocess.findOne({ workOrderId });
+    if (done) {
+      return res.status(400).json({ message: "This work order is already marked done" });
+    }
+
+    // only a work order that is waiting in Prepress can be rejected
+    const wo = await WorkOrder.findOneAndUpdate(
+      { _id: workOrderId, status: "PLANNED", sentToPrepress: true },
+      {
+        sentToPrepress: false,
+        prepressRejected: true,
+        prepressRejectReason: why.slice(0, 500),
+        prepressRejectedBy: req.user.name,
+        prepressRejectedAt: new Date()
+      },
+      { new: true }
+    );
+    if (!wo) {
+      return res.status(404).json({ message: "This work order is not pending in Prepress" });
+    }
+
+    res.json({ ok: true, efiWoNumber: wo.efiWoNumber });
+  } catch (err) {
+    console.error("REJECT PREPROCESS ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

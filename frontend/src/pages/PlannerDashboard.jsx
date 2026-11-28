@@ -157,6 +157,10 @@ function PlannerDashboard() {
   const [printingOrders, setPrintingOrders] = useState([]);
   const [orders, setOrders] = useState([]);
   const [artPreview, setArtPreview] = useState(null);
+  // ===== Work orders rejected by Prepress (bell at the top) =====
+  const [rejectedList, setRejectedList] = useState([]);
+  const [showRejected, setShowRejected] = useState(false);
+  const [prepressSent, setPrepressSent] = useState(false); // a NEW work order must be sent to Prepress before it can be saved
 
   // latest saved artwork (else the old PDF) for each item code, from the Items master
   const [itemFileMap, setItemFileMap] = useState({});
@@ -545,6 +549,34 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
     }
   };
 
+  // ===== Work orders rejected by Prepress (bell at the top) =====
+  const fetchRejected = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/workorders/prepress-rejected`, { headers: authHeaders() });
+      setRejectedList(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Error fetching rejected work orders:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchRejected();
+    const t = setInterval(fetchRejected, 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // send a rejected work order to Prepress again without opening the form
+  const resendToPrepress = async (wo) => {
+    try {
+      await axios.patch(`${BASE_URL}/api/workorders/${wo._id}/send-to-prepress`, {}, { headers: authHeaders() });
+      showAlert("Sent to Prepress ✅", `WO ${wo.efiWoNumber}`, "success");
+      fetchRejected();
+    } catch (err) {
+      console.error("Error sending to prepress:", err);
+      showAlert("Error sending to Prepress", "", "error");
+    }
+  };
+
   const handleFetchWoForLabel = async () => {
     const no = outerLabelWoInput.trim();
     if (!no) {
@@ -848,6 +880,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
   };
 
   const handleEditWorkOrder = (wo) => {
+    setPrepressSent(!!wo.sentToPrepress);
     setSelectedOrder({
       _id: wo._id,
       poDate: wo.poDate,
@@ -1285,6 +1318,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
   };
 
   const handleSelectOrder = (order) => {
+    setPrepressSent(false);
     setHiddenOrders(prev => [...prev, order._id]);
 
     setSelectedOrder({
@@ -1510,10 +1544,17 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       }
     }
 
+    // a NEW work order cannot be completed without "Send to Prepress"
+    if (!(selectedOrder._id && selectedOrder.status === "PLANNED") && !prepressSent) {
+      showAlert("Send to Prepress first", 'Click "Send to Prepress" before saving the work order.');
+      return;
+    }
+
     submitLock.current = true;
     setIsSubmitting(true);
     try {
       const payload = {
+        sentToPrepress: prepressSent,
         customerOrderId: selectedOrder.isPrinting ? null : selectedOrder.customerOrderId,
         printingId: selectedOrder.isPrinting ? (selectedOrder.printingId || selectedOrder._id) : null,
         slNo: selectedOrder.slNo || 0,
@@ -1638,7 +1679,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
       const printingRes = await axios.get(`${BASE_URL}/api/printing-instructions`);
       setPrintingOrders(printingRes.data.filter(p => p.status === "ORDER_RECEIVED") || []);
 
-      await Promise.all([fetchWorkOrders(), fetchMeta()]);
+      await Promise.all([fetchWorkOrders(), fetchMeta(), fetchRejected()]);
     } catch (err) {
       console.error("Error creating Work Order:", err.response?.data || err);
       showAlert("Error", "Error creating Work Order", "error");
@@ -3902,9 +3943,87 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
             </button>
           </div>
 
-          <button type="button" onClick={cust} className="btn-3d btn-3d-primary quick-nav-cta">
-            <Icons.Cart /> Purchase Order Entry
-          </button>
+          <div className="d-flex align-items-center gap-2" style={{ position: "relative" }}>
+            <button
+              type="button"
+              className="btn-3d btn-3d-secondary quick-nav-cta"
+              onClick={() => setShowRejected((s) => !s)}
+              title="Work orders rejected by Prepress"
+              style={{ position: "relative" }}
+            >
+              <i className="bi bi-bell-fill" style={{ color: rejectedList.length ? "#d64545" : "inherit" }}></i>
+              {rejectedList.length > 0 && (
+                <span
+                  style={{
+                    position: "absolute", top: -7, right: -7, minWidth: 18, height: 18, borderRadius: 9,
+                    padding: "0 5px", background: "#d64545", color: "#fff", fontSize: 10, fontWeight: 700,
+                    lineHeight: "18px", textAlign: "center"
+                  }}
+                >
+                  {rejectedList.length}
+                </span>
+              )}
+            </button>
+
+            {showRejected && (
+              <>
+                <div style={{ position: "fixed", inset: 0, zIndex: 1199 }} onClick={() => setShowRejected(false)} />
+                <div
+                  style={{
+                    position: "absolute", top: "115%", right: 0, width: 400, maxWidth: "92vw", maxHeight: 440,
+                    overflowY: "auto", zIndex: 1200, background: "#fff", border: "1px solid #e3e7ec",
+                    borderRadius: 8, boxShadow: "0 10px 24px rgba(16,24,40,.18)", padding: 10
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Rejected by Prepress</div>
+                  {rejectedList.length === 0 ? (
+                    <div className="small" style={{ padding: "8px 2px" }}>No rejected work orders.</div>
+                  ) : (
+                    rejectedList.map((wo) => (
+                      <div
+                        key={wo._id}
+                        style={{ border: "1px solid #f0b4b4", background: "#fff6f6", borderRadius: 6, padding: "8px 10px", marginBottom: 8 }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                          <b>WO {wo.efiWoNumber}</b>
+                          <span className="small">
+                            {wo.prepressRejectedAt ? new Date(wo.prepressRejectedAt).toLocaleString("en-IN") : ""}
+                          </span>
+                        </div>
+                        <div className="small">{wo.customer?.name || wo.customer} • {wo.productName || "-"}</div>
+                        <div style={{ margin: "4px 0", fontSize: 12.5, color: "#a71d2a", fontWeight: 600 }}>
+                          Reason: {wo.prepressRejectReason || "-"}
+                        </div>
+                        <div className="small" style={{ marginBottom: 6 }}>Rejected by {wo.prepressRejectedBy || "-"}</div>
+                        <div className="d-flex gap-2">
+                          <button
+                            type="button"
+                            className="btn-3d btn-3d-warning btn-sm"
+                            style={{ padding: "3px 10px", fontSize: 11 }}
+                            onClick={() => { setPlannerViewMode("main"); setShowRejected(false); handleEditWorkOrder(wo); }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-3d btn-3d-primary btn-sm"
+                            style={{ padding: "3px 10px", fontSize: 11 }}
+                            onClick={() => resendToPrepress(wo)}
+                          >
+                            Send to Prepress again
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+
+            <button type="button" onClick={cust} className="btn-3d btn-3d-primary quick-nav-cta">
+              <Icons.Cart /> Purchase Order Entry
+            </button>
+          </div>
         </div>
 
         {/* ========================================================================= */}
@@ -4796,6 +4915,15 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                     >
                       Cancel
                     </button>
+                    {prepressSent ? (
+                      <button type="button" className="wo-btn wo-btn-ghost" disabled>
+                        ✔ Sent to Prepress
+                      </button>
+                    ) : (
+                      <button type="button" className="wo-btn wo-btn-soft" onClick={() => setPrepressSent(true)}>
+                        Send to Prepress
+                      </button>
+                    )}
                     <button type="submit" className="wo-btn wo-btn-primary" disabled={isSubmitting}>
                       {isSubmitting ? "Saving..." : selectedOrder.status === "PLANNED" ? "Update work order" : "Save work order"}
                     </button>
@@ -5449,7 +5577,6 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                         <th>Dispatch Location</th>
                         <th>Quantity in Box</th>
                         <th>View PDF</th>
-                        <th>Prepress</th>
                         <th>Planning</th>
                         <th>User Locations</th>
                         <th>Edit</th>
@@ -5634,23 +5761,7 @@ const getLabelData = async () => (hasFilter() ? await fetchPdfData() : workOrder
                               </a>
                             ) : "-"}
                           </td>
-                          <td className="text-center">
-                            {wo.sentToPrepress ? (
-                              <span className="badge-3d badge-3d-success">Sent</span>
-                            ) : loggedInUser &&
-                              wo.planningUser &&
-                              wo.planningUser.trim() === loggedInUser.trim() ? (
-                              <button
-                                className="btn-3d btn-3d-primary btn-sm"
-                                style={{ padding: "3px 10px", fontSize: "11px" }}
-                                onClick={() => handleSendToPrepress(wo._id)}
-                              >
-                                Send
-                              </button>
-                            ) : (
-                              "-"
-                            )}
-                          </td>
+
                           <td className="small">
                             {wo.planningUser
                               ? `${wo.planningUser} - ${new Date(wo.createdAt).toLocaleDateString("en-IN")}`

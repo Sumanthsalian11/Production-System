@@ -391,6 +391,7 @@ function PreprocessDashboard() {
   const [productionFilterToDate, setProductionFilterToDate] = useState("");
   const [editingProductionId, setEditingProductionId] = useState(null);
   const [expandedCellKey, setExpandedCellKey] = useState(null); // "<rowId>-<field>" | null
+  const [itemFileMap, setItemFileMap] = useState({}); // latest saved artwork (else old PDF) per product code, same as the Planner page
 
   // Filters
   const [filterWoNo, setFilterWoNo] = useState("");
@@ -444,6 +445,23 @@ function PreprocessDashboard() {
 
     return () => clearInterval(interval);
   }, []);
+
+  // latest saved artwork (else the old PDF) for each item code, from the Items master (same source as the Planner page)
+  useEffect(() => {
+    axios
+      .get(`${BASE_URL}/api/master/items`)
+      .then((res) => {
+        const m = {};
+        (Array.isArray(res.data) ? res.data : []).forEach((it) => {
+          const av = it.artworkVersions || [];
+          const p = av.length ? av[av.length - 1].filePath : it.pdfPath;
+          if (p) m[String(it.itemCode)] = p;
+        });
+        setItemFileMap(m);
+      })
+      .catch(() => {});
+  }, []);
+  const itemFileOf = (o) => itemFileMap[String(o.productCode || "")] || o.itemPdfPath || "";
 
   const buildCompletedParams = () => {
     const p = {};
@@ -802,6 +820,38 @@ function PreprocessDashboard() {
         err.response?.data?.message || "Error marking work order done",
         "error"
       );
+    }
+  };
+
+  // ===== "Reject" clicked on a row -> goes back to the planner with a reason =====
+  const handleReject = async (wo) => {
+    const result = await Swal.fire({
+      title: "Reject this work order?",
+      text: `WO ${wo.efiWoNumber} goes back to the planner (${wo.planningUser || "-"}) with your reason.`,
+      icon: "warning",
+      input: "textarea",
+      inputPlaceholder: "Reason for rejection (required)",
+      inputValidator: (v) => (!String(v || "").trim() ? "Please enter the reason" : undefined),
+      showCancelButton: true,
+      confirmButtonColor: "#d64545",
+      cancelButtonColor: "#5f6c7a",
+      confirmButtonText: "Yes, reject",
+      width: "380px"
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      await axios.post(
+        `${BASE_URL}/api/preprocess/reject`,
+        { workOrderId: wo._id, reason: String(result.value).trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setWorkOrders(prev => prev.filter(w => w._id !== wo._id));
+      showAlert("Rejected", `Work Order ${wo.efiWoNumber} sent back to the planner`, "success");
+    } catch (err) {
+      console.error("Error rejecting work order:", err.response?.data || err);
+      showAlert("Error", err.response?.data?.message || "Error rejecting work order", "error");
     }
   };
 
@@ -1225,7 +1275,7 @@ function PreprocessDashboard() {
                     <th style={{ minWidth: "110px", textAlign: "right", paddingRight: "18px" }}>Order Qty</th>
                     <th style={{ width: "95px", textAlign: "center" }}>View PDF</th>
                     <th style={{ minWidth: "160px", textAlign: "left" }}>Planning</th>
-                    <th style={{ width: "90px", textAlign: "center" }}>Action</th>
+                    <th style={{ width: "170px", textAlign: "center" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1250,9 +1300,9 @@ function PreprocessDashboard() {
                           </td>
                           <td style={{ textAlign: "right", paddingRight: "18px", fontWeight: "700" }}>{wo.orderQty}</td>
                           <td style={{ textAlign: "center" }}>
-                            {wo.itemPdfPath ? (
+                            {itemFileOf(wo) ? (
                               <a
-                                href={`${BASE_URL}${wo.itemPdfPath}`}
+                                href={`${BASE_URL}${itemFileOf(wo)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="btn btn-sm btn-info"
@@ -1267,12 +1317,20 @@ function PreprocessDashboard() {
                               : "-"}
                           </td>
                           <td style={{ textAlign: "center" }}>
-                            <button
-                              className="btn btn-sm btn-success"
-                              onClick={() => handleDone(wo)}
-                            >
-                              Done
-                            </button>
+                            <div style={{ display: "flex", gap: "6px", justifyContent: "center" }}>
+                              <button
+                                className="btn btn-sm btn-success"
+                                onClick={() => handleDone(wo)}
+                              >
+                                Done
+                              </button>
+                              <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleReject(wo)}
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1399,9 +1457,9 @@ function PreprocessDashboard() {
                             {rec.orderQty ? Number(rec.orderQty).toLocaleString("en-IN") : "-"}
                           </td>
                           <td style={{ textAlign: "center" }}>
-                            {rec.itemPdfPath ? (
+                            {itemFileOf(rec) ? (
                               <a
-                                href={`${BASE_URL}${rec.itemPdfPath}`}
+                                href={`${BASE_URL}${itemFileOf(rec)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="btn btn-sm btn-info px-2 py-1"

@@ -269,7 +269,8 @@ router.post("/create", authMiddleware, async (req, res) => {
       totalImp,
       inkDetails,
       remarks,
-      itemPdfPath
+      itemPdfPath,
+      sentToPrepress
     } = req.body;
 
     let expectedDate = null;
@@ -352,6 +353,7 @@ router.post("/create", authMiddleware, async (req, res) => {
       inkDetails,
       remarks,
       itemPdfPath: itemPdfPath || "",
+      sentToPrepress: !!sentToPrepress,
       locationSplits,
       planningUser: plannerName,
       userLocations: plannerLocations,
@@ -442,7 +444,7 @@ router.patch("/:id/send-to-prepress", authMiddleware, async (req, res) => {
   try {
     const workOrder = await WorkOrder.findByIdAndUpdate(
       req.params.id,
-      { sentToPrepress: true },
+      { sentToPrepress: true, prepressRejected: false },
       { new: true }
     );
     if (!workOrder) return res.status(404).json({ message: "Work Order not found" });
@@ -592,6 +594,28 @@ router.patch("/:id/scheduler-hide", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Failed to remove Work Order" });
+  }
+});
+
+// =============================================
+// WORK ORDERS REJECTED BY PREPRESS (bell on the planner page)
+// =============================================
+router.get("/prepress-rejected", authMiddleware, async (req, res) => {
+  try {
+    const rows = await WorkOrder.find({
+      planningUser: req.user.name,
+      status: "PLANNED",
+      prepressRejected: true,
+      sentToPrepress: false
+    })
+      .sort({ prepressRejectedAt: -1 })
+      .limit(100)
+      .populate(populateOpts)
+      .lean();
+    res.json(rows);
+  } catch (err) {
+    console.error("PREPRESS REJECTED LIST ERROR:", err);
+    res.status(500).json({ message: err.message });
   }
 });
 

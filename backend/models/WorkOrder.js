@@ -95,6 +95,10 @@ const workOrderSchema = new mongoose.Schema(
       ref: "PrintingInstruction"
     },
     sentToPrepress: { type: Boolean, default: false },
+    prepressRejected: { type: Boolean, default: false },
+    prepressRejectReason: { type: String, default: "" },
+    prepressRejectedBy: { type: String, default: "" },
+    prepressRejectedAt: { type: Date, default: null },
     itemPdfPath: { type: String, default: "" },
     status: {
       type: String,
@@ -116,5 +120,6 @@ workOrderSchema.index({ createdAt: -1 });
 workOrderSchema.index({ customerOrderId: 1 });
 workOrderSchema.index({ printingId: 1 });
 workOrderSchema.index({ slNo: -1 });
+workOrderSchema.index({ planningUser: 1, prepressRejected: 1 });
 
 module.exports = mongoose.model("WorkOrder", workOrderSchema);
