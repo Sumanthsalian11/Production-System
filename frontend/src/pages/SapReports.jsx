@@ -385,7 +385,7 @@ function Report({ out, user, regenerate }) {
           Show anomalies only
         </label>
         <span className="mt">
-          Viewing: <strong>{s?.n}</strong> · {out.tpl.internal ? 'Internal Control Copy' : 'Customer Release Copy'}
+          Viewing: <strong>{s?.n}</strong>{out.tpl.internal ? ' · Internal Control Copy' : ''}
         </span>
       </div>
 
@@ -503,7 +503,7 @@ function Generate({ user, boot }) {
               <select value={G.t} onChange={e => { set('t', e.target.value); setOut(null); }}>
                 {boot.templates.map(t => (
                   <option key={t.id} value={t.id}>
-                    {t.name} {t.internal ? '· [Internal Control]' : '· [Customer Release]'}
+                    {t.name} {t.internal ? '· [Internal Control]' : ''}
                   </option>
                 ))}
               </select>

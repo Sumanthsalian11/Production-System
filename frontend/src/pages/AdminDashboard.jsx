@@ -669,8 +669,8 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
         <span><Layers size={18} /> Stock: Logic &amp; Thresholds</span>
       </div>
 
-      <div style={sapBox}>
-        <div style={sapRow}>
+      <div style={{ ...sapBox, padding: 18, marginTop: 14 }}>
+        <div style={{ ...sapRow, gap: 12 }}>
           {templates.length > 0 && (
             <div style={{ flex: 1, minWidth: 220 }}>
               <SapField label="Bank / Product">
@@ -690,7 +690,7 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
         </div>
 
         {editingBank && selectedBank && (
-          <div style={{ ...sapBox, ...sapRow }}>
+          <div style={{ ...sapBox, ...sapRow, padding: 16, gap: 12, alignItems: "flex-end" }}>
             <div style={{ flex: 1, minWidth: 220 }}><SapField label="Bank / product name"><input className="pro-input" value={editedBankName} onChange={(e) => setEditedBankName(e.target.value)} /></SapField></div>
             <div style={{ flex: 1, minWidth: 220 }}><SapField label="Raw customer name contains"><input className="pro-input" value={editedCustomerMatch} onChange={(e) => setEditedCustomerMatch(e.target.value)} /></SapField></div>
             <button className="pro-btn primary" onClick={editBank}>Save changes</button>
@@ -703,7 +703,7 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
         )}
 
         {showAddBank && (
-          <div style={sapBox}>
+          <div style={{ ...sapBox, padding: 16 }}>
             <div style={sapGrid}>
               <SapField label="Bank / product name"><input className="pro-input" placeholder="For example, ICICI Bank Credit" value={newBankName} onChange={(e) => setNewBankName(e.target.value)} /></SapField>
               <SapField label="Upload your Excel logic workbook (optional)">
@@ -724,22 +724,22 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
       </div>
       <p style={sapHint}>Rules are evaluated from top to bottom. Each rule has its own report category. Unmatched movements land in <em>Other / Unmapped</em>.</p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 720px), 1fr))", gap: 12, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, alignItems: "start", marginTop: 14 }}>
         {rules.map((r, i) => (
-          <div key={r.key} style={{ ...sapBox, margin: 0, padding: 0 }}>
+          <div key={r.key} style={{ ...sapBox, margin: 0, padding: 0, overflow: "hidden" }}>
             <button
               type="button"
               onClick={() => setSelectedRule(selectedRule === r.key ? null : r.key)}
-              style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", padding: "10px 14px", display: "flex", justifyContent: "space-between", fontWeight: 800, color: "#0a4f8c", fontFamily: "inherit" }}
+              style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, fontWeight: 800, color: "#0a4f8c", fontFamily: "inherit" }}
             >
               <span>{i + 1}. {r.name}</span>
               <span>{selectedRule === r.key ? "Close ▲" : "Edit ▼"}</span>
             </button>
             {selectedRule === r.key && (
-              <div style={{ padding: "0 14px 14px" }}>
+              <div style={{ padding: "0 16px 16px" }}>
                 <SapField label="Report category name"><input className="pro-input" value={r.name} onChange={(e) => setR(i, "name", e.target.value)} /></SapField>
-                <div style={sapScroll}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ ...sapScroll, maxHeight: 340, overflowX: "auto", marginTop: 12 }}>
+                  <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse" }}>
                     <thead>
                       <tr>
                         {["Movement Type Name", "From Location", "To Location", "Stock Type", "Product Category", ""].map((h, k) => <th key={k} style={sapTh}>{h}</th>)}
@@ -787,8 +787,8 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
         ))}
       </div>
 
-      <div style={{ ...sapBox, marginTop: 14 }}>
-        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>Calculation &amp; Operational Control Options</div>
+      <div style={{ ...sapBox, marginTop: 16, padding: 18 }}>
+        <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 14, fontSize: 15 }}>Calculation &amp; Operational Control Options</div>
         <div style={sapGrid}>
           <SapCheck label="Dispatch = total dispatch − total wastage" checked={s.options.net} onChange={(v) => setO("net", v)} />
           <SapCheck label="Reversals: match with From/To swapped" checked={s.options.flip} onChange={(v) => setO("flip", v)} />
@@ -808,7 +808,9 @@ function SapLogicPanel({ token, showAlert, askConfirm }) {
         </div>
       </div>
 
-      <button className="pro-btn primary" onClick={save}>Save logic &amp; operational thresholds</button>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+        <button className="pro-btn primary" onClick={save}>Save logic &amp; operational thresholds</button>
+      </div>
     </motion.div>
   );
 }
@@ -819,6 +821,39 @@ function SapMapCard({ m, reload, expanded, onToggle, api, showAlert, askConfirm 
   const [rows, setRows] = useState(m.rows);
   const [bulk, setBulk] = useState(null);
   const setRow = (i, k, v) => setRows(rows.map((r, x) => (x === i ? { ...r, [k]: v } : r)));
+
+  // ---- opening stock (one-time upload, stored per variant) ----
+  const [opening, setOpening] = useState(null); // { count }
+  const openUrl = `${BASE_URL}/api/sap-reports/opening-stock/${m.id}`;
+  const openCfg = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+  const loadOpening = () => axios.get(openUrl, openCfg()).then((r) => setOpening(r.data)).catch(() => setOpening(null));
+  useEffect(() => { if (expanded) loadOpening(); }, [expanded]); // eslint-disable-line
+
+  const uploadOpening = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: "" });
+      const list = data
+        .map((r) => ({ variant: String(r[0] ?? "").trim(), qty: parseFloat(String(r[1]).replace(/,/g, "")) }))
+        .filter((r) => r.variant && Number.isFinite(r.qty)); // header row drops out here
+      if (!list.length) return showAlert("No rows found. Column A = Customer Stock Variant, Column B = Opening Stock");
+      const res = await axios.post(openUrl, { rows: list }, openCfg());
+      const miss = res.data.unmatched || [];
+      showAlert(
+        `Opening stock saved successfully for ${res.data.saved} variant(s).` +
+        (miss.length ? ` Not found in this map (${miss.length}): ${miss.slice(0, 5).join("; ")}${miss.length > 5 ? "…" : ""}` : "")
+      );
+      loadOpening();
+    } catch (err) { showAlert(sapErr(err)); }
+  };
+
+  const clearOpening = async () => {
+    if (!(await askConfirm(`Remove all stored opening stock of map "${m.name}"?`))) return;
+    try { await axios.delete(openUrl, openCfg()); loadOpening(); } catch (err) { showAlert(sapErr(err)); }
+  };
 
   const save = async () => {
     try {
@@ -843,7 +878,10 @@ function SapMapCard({ m, reload, expanded, onToggle, api, showAlert, askConfirm 
   };
 
   return (
-    <div style={{ ...sapBox, margin: 0 }}>
+    <div
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 20px rgba(10, 79, 140, 0.18)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(10, 79, 140, 0.10)"; e.currentTarget.style.transform = "translateY(0)"; }}
+      style={{ ...sapBox, margin: 0, boxShadow: "0 2px 8px rgba(10, 79, 140, 0.10)", transition: "box-shadow 160ms ease, transform 160ms ease" }}>
       <button type="button" onClick={onToggle} style={{ width: "100%", textAlign: "left", border: 0, background: "transparent", cursor: "pointer", fontWeight: 800, color: "#0a4f8c", fontFamily: "inherit", display: "flex", justifyContent: "space-between" }}>
         <span>{m.name} • {m.rows.length} variants</span>
         <span>{expanded ? "Close ▲" : "Open ▼"}</span>
@@ -891,6 +929,22 @@ function SapMapCard({ m, reload, expanded, onToggle, api, showAlert, askConfirm 
             <button className="pro-btn" onClick={() => setBulk("")}>Bulk Paste Rows…</button>
             <button className="pro-btn" onClick={remove}>Delete map</button>
           </div>
+
+          <div style={{ ...sapBox, marginTop: 12 }}>
+            <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 6 }}>Opening Stock (one-time upload)</div>
+            <p style={sapHint}>
+              Excel: Column A = Customer Stock Variant, Column B = Opening Stock. Stored per variant and used automatically
+              by the report. Uploading again updates the variants in the file.{" "}
+              <b>{opening ? `${opening.count} variant(s) stored.` : ""}</b>
+            </p>
+            <div style={sapRow}>
+              <label className="pro-btn" style={{ cursor: "pointer" }}>
+                📥 Upload Opening Stock
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }} onChange={uploadOpening} />
+              </label>
+              {opening?.count > 0 && <button className="pro-btn" onClick={clearOpening}>Clear opening stock</button>}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -914,28 +968,36 @@ function SapMapsPanel({ token, showAlert, askConfirm }) {
       <div className="pro-card-header">
         <span><Layers size={18} /> Stock: Variant Maps</span>
       </div>
-      <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Variant Map</button>
-      <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-        {maps.map((m) => (
-          <SapMapCard
-            key={m.id + m.name + m.rows.length}
-            m={m}
-            reload={reload}
-            expanded={openId === m.id}
-            onToggle={() => setOpenId(openId === m.id ? null : m.id)}
-            api={api}
-            showAlert={showAlert}
-            askConfirm={askConfirm}
-          />
-        ))}
-        {maps.length === 0 && <p style={sapHint}>No variant maps yet.</p>}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Variant Map</button>
       </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
+        {maps.map((m) => (
+          <button key={m.id + m.name + m.rows.length} type="button" onClick={() => setOpenId(m.id)}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 20px rgba(10, 79, 140, 0.18)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(10, 79, 140, 0.10)"; e.currentTarget.style.transform = "translateY(0)"; }}
+            style={{ ...sapBox, margin: 0, minHeight: 72, cursor: "pointer", textAlign: "left", fontWeight: 800, color: "#0a4f8c", fontSize: 14, boxShadow: "0 2px 8px rgba(10, 79, 140, 0.10)", transition: "box-shadow 160ms ease, transform 160ms ease" }}>
+            <span>{m.name}</span><br /><small style={{ fontWeight: 600, color: "#4a6f8c" }}>{m.rows.length} variants</small>
+          </button>
+        ))}
+      </div>
+      {maps.length === 0 && <p style={sapHint}>No variant maps yet.</p>}
+      {openId !== null && (() => {
+        const selected = maps.find((m) => String(m.id) === String(openId));
+        return selected ? (
+          <div onClick={() => setOpenId(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5, 25, 42, 0.58)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div role="dialog" aria-modal="true" aria-label={`Edit ${selected.name}`} onClick={(e) => e.stopPropagation()} style={{ width: "min(1100px, 100%)", maxHeight: "90vh", overflowY: "auto", background: "#f5fbff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+              <SapMapCard key={selected.id + selected.name + selected.rows.length} m={selected} reload={reload} expanded onToggle={() => setOpenId(null)} api={api} showAlert={showAlert} askConfirm={askConfirm} />
+            </div>
+          </div>
+        ) : null;
+      })()}
     </motion.div>
   );
 }
 
 /* ------------------------------ Report templates ------------------------------ */
-function SapTplCard({ t, maps, reload, api, showAlert, askConfirm }) {
+function SapTplCard({ t, maps, reload, api, showAlert, askConfirm, onClose }) {
   const [d, setD] = useState(t);
   const up = (k, v) => setD({ ...d, [k]: v });
   const setCol = (j, k, v) => up("cols", d.cols.map((c, x) => (x === j ? { ...c, [k]: v } : c)));
@@ -958,9 +1020,10 @@ function SapTplCard({ t, maps, reload, api, showAlert, askConfirm }) {
   };
 
   return (
-    <div style={sapBox}>
-      <div style={{ fontWeight: 800, color: "#0a4f8c", marginBottom: 8 }}>
-        {t.name} • {d.internal ? "Internal Control Copy" : "Customer Release Copy"}
+    <div style={{ ...sapBox, margin: 0, padding: 18, maxHeight: "88vh", overflowY: "auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <strong style={{ color: "#0a4f8c", fontSize: 17 }}>{t.name}</strong>
+        <button type="button" className="pro-btn" onClick={onClose}>Close</button>
       </div>
       <div style={sapGrid}>
         <SapField label="Template name"><input className="pro-input" value={d.name} onChange={(e) => up("name", e.target.value)} /></SapField>
@@ -1004,6 +1067,7 @@ function SapTplCard({ t, maps, reload, api, showAlert, askConfirm }) {
 function SapTemplatesPanel({ token, showAlert, askConfirm }) {
   const api = useMemo(() => sapApi(token), [token]);
   const [data, setData] = useState(null);
+  const [openId, setOpenId] = useState(null);
   const reload = async () => {
     try {
       const [t, m] = await Promise.all([api.get("/templates"), api.get("/maps")]);
@@ -1022,11 +1086,30 @@ function SapTemplatesPanel({ token, showAlert, askConfirm }) {
       <div className="pro-card-header">
         <span><Layers size={18} /> Stock: Report Templates</span>
       </div>
-      {data.tpls.map((t) => (
-        <SapTplCard key={t.id + t.name} t={t} maps={data.maps} reload={reload} api={api} showAlert={showAlert} askConfirm={askConfirm} />
-      ))}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Template</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 12 }}>
+        {data.tpls.map((t) => (
+          <button key={t.id + t.name} type="button" onClick={() => setOpenId(t.id)}
+            onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 8px 20px rgba(10, 79, 140, 0.18)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 2px 8px rgba(10, 79, 140, 0.10)"; e.currentTarget.style.transform = "translateY(0)"; }}
+            style={{ ...sapBox, margin: 0, minHeight: 72, cursor: "pointer", textAlign: "left", fontWeight: 800, color: "#0a4f8c", fontSize: 14, boxShadow: "0 2px 8px rgba(10, 79, 140, 0.10)", transition: "box-shadow 160ms ease, transform 160ms ease" }}>
+            {t.name}
+          </button>
+        ))}
+      </div>
       {data.tpls.length === 0 && <p style={sapHint}>No templates yet. Add a bank / product in Logic &amp; Thresholds, or create one here.</p>}
-      <button className="pro-btn primary" onClick={add}><PlusCircle size={16} /> New Template</button>
+      {openId !== null && (() => {
+        const selected = data.tpls.find((t) => String(t.id) === String(openId));
+        return selected ? (
+          <div onClick={() => setOpenId(null)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(5, 25, 42, 0.58)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+            <div role="dialog" aria-modal="true" aria-label={`Edit ${selected.name}`} onClick={(e) => e.stopPropagation()} style={{ width: "min(1100px, 100%)", maxHeight: "90vh", overflowY: "auto", background: "#f5fbff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+              <SapTplCard t={selected} maps={data.maps} reload={reload} api={api} showAlert={showAlert} askConfirm={askConfirm} onClose={() => setOpenId(null)} />
+            </div>
+          </div>
+        ) : null;
+      })()}
     </motion.div>
   );
 }

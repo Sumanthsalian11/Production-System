@@ -13,6 +13,7 @@ const SapTemplate = require("../models/SapTemplate");
 const SapRule = require("../models/SapRule");
 const SapVariantMap = require("../models/SapVariantMap");
 const SapSetting = require("../models/SapSetting");
+const SapOpeningStock = require("../models/SapOpeningStock");
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -191,13 +192,15 @@ async function aggregate({ user, dataset, tpl, mapRows, cfg, to }) {
   mapRows.forEach(r => {
     const k = norm(r.sap_variant);
     if (k && !ix.has(k)) {
-      const v = { id: V.length, name: r.customer_variant, sap: r.sap_variant, type: r.card_type, base: 0 };
+      const hasOpen = Number.isFinite(r.open);
+      const v = { id: V.length, name: r.customer_variant, sap: r.sap_variant, type: r.card_type, base: hasOpen ? r.open : 0, hasOpen };
       ix.set(k, v); V.push(v);
     }
   });
   const bl = {};
   String(o.base || '').split('\n').forEach(l => { const p = l.split(/[,\t]/); if (p.length > 1) bl[norm(p[0])] = +p[1] || 0; });
-  V.forEach(v => { v.base = bl[norm(v.sap)] ?? bl[norm(v.name)] ?? 0; });
+  // uploaded opening stock wins; the old textarea baseline is only the fallback
+  V.forEach(v => { if (!v.hasOpen) v.base = bl[norm(v.sap)] ?? bl[norm(v.name)] ?? 0; });
 
   // Same filters the SQL WHERE clause had, now a MongoDB $match on sp_movements.
   const cu = norm(tpl.customer_match);
@@ -444,7 +447,11 @@ async function runReport(user, body) {
   if (!tpl) throw httpError(404, "Template not found");
 
   const map = tpl.mapId ? await SapVariantMap.findById(tpl.mapId).lean() : null;
-  const mapRows = (map?.rows || []).map((r) => ({ customer_variant: r.cv, sap_variant: r.sap, card_type: r.ct }));
+  const openRows = tpl.mapId ? await SapOpeningStock.find({ mapId: tpl.mapId }).lean() : [];
+  const openBySap = new Map(openRows.map((o) => [o.sap, o.qty]));
+  const mapRows = (map?.rows || []).map((r) => ({
+    customer_variant: r.cv, sap_variant: r.sap, card_type: r.ct, open: openBySap.get(norm(r.sap)),
+  }));
   if (!tpl.mapId) throw httpError(400, `Template "${tpl.name}" has no variant map. Open Admin > Stock: Report Templates, select the variant map and save.`);
   if (!map) throw httpError(400, `The variant map of template "${tpl.name}" no longer exists. Select a map again in Stock: Report Templates.`);
   if (!mapRows.length) throw httpError(400, `The variant map "${map.name}" has no rows.`);
@@ -514,6 +521,50 @@ router.get("/config/export", needAdmin, ah(async (req, res) => {
 router.post("/config/import", needAdmin, ah(async (req, res) => {
   await importConfig(req.body);
   res.json({ ok: true, maps: req.body.maps.length, templates: req.body.templates.length, rules: req.body.rules.length });
+}));
+
+/* ---------- Opening stock per Customer Stock Variant (one-time upload, admin) ---------- */
+router.get("/opening-stock/:mapId", needAdmin, ah(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.mapId)) throw httpError(404, "Map not found");
+  const rows = await SapOpeningStock.find({ mapId: req.params.mapId }).sort({ variant: 1 }).lean();
+  res.json({ count: rows.length, rows: rows.map((r) => ({ variant: r.variant, sap: r.sap, qty: r.qty })) });
+}));
+
+router.post("/opening-stock/:mapId", needAdmin, ah(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.mapId)) throw httpError(404, "Map not found");
+  const map = await SapVariantMap.findById(req.params.mapId).lean();
+  if (!map) throw httpError(404, "Map not found");
+  const list = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!list.length) throw httpError(400, "No rows received");
+
+  // match the uploaded name to the map by Customer Stock Variant, or by SAP variant
+  const lookup = new Map();
+  (map.rows || []).forEach((r) => {
+    if (norm(r.sap)) lookup.set(norm(r.sap), r);
+    if (norm(r.cv) && !lookup.has(norm(r.cv))) lookup.set(norm(r.cv), r);
+  });
+
+  const ops = [], unmatched = [];
+  list.forEach((x) => {
+    const hit = lookup.get(norm(x.variant));
+    const qty = Number(x.qty);
+    if (!hit || !Number.isFinite(qty)) { unmatched.push(String(x.variant || "").trim()); return; }
+    ops.push({
+      updateOne: {
+        filter: { mapId: map._id, sap: norm(hit.sap) },
+        update: { $set: { variant: hit.cv, qty } },
+        upsert: true,
+      },
+    });
+  });
+  if (ops.length) await SapOpeningStock.bulkWrite(ops);
+  res.json({ saved: ops.length, unmatched });
+}));
+
+router.delete("/opening-stock/:mapId", needAdmin, ah(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.mapId)) throw httpError(404, "Map not found");
+  await SapOpeningStock.deleteMany({ mapId: req.params.mapId });
+  res.json({ ok: true });
 }));
 
 // JSON errors for this router only
