@@ -38,5 +38,7 @@ const plateRequestSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+plateRequestSchema.index({ createdAt: -1 });
+plateRequestSchema.index({ userLocations: 1, createdAt: -1 });
+plateRequestSchema.index({ status: 1, createdAt: -1 });
 module.exports = mongoose.model("PlateRequest", plateRequestSchema);

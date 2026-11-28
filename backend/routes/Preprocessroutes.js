@@ -4,6 +4,20 @@ const Preprocess = require("../models/Preprocess");
 const WorkOrder = require("../models/WorkOrder");
 const authMiddleware = require("../middleware/authMiddleware");
 
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Distinct customers of completed records (for the filter dropdowns)
+router.get("/customers", authMiddleware, async (req, res) => {
+  try {
+    const customers = await Preprocess.distinct("customer");
+    res.json(
+      customers.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b)))
+    );
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // =============================================
 // GET WORK ORDERS PENDING PREPRESS ASSIGNMENT
 // (Used to populate the Preprocess page table —
@@ -45,10 +59,68 @@ router.get("/pending", authMiddleware, async (req, res) => {
 // =============================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const records = await Preprocess.find()
-      .populate("workOrderId")
-      .sort({ createdAt: -1 });
-    res.json(records);
+    // Old behaviour (no params) - unchanged
+    if (!req.query.limit && !req.query.all) {
+      const records = await Preprocess.find()
+        .populate("workOrderId")
+        .sort({ createdAt: -1 });
+      return res.json(records);
+    }
+
+    // New: server-side filter (+ limit)
+    const and = [];
+    const woClause = (v) => ({
+      $expr: {
+        $regexMatch: {
+          input: { $toString: "$efiWoNumber" },
+          regex: escapeRegex(String(v).trim()),
+          options: "i"
+        }
+      }
+    });
+    if (req.query.woNo && String(req.query.woNo).trim()) and.push(woClause(req.query.woNo));
+    if (req.query.woNo2 && String(req.query.woNo2).trim()) and.push(woClause(req.query.woNo2));
+    if (req.query.customer) and.push({ customer: req.query.customer });
+    if (req.query.customer2) and.push({ customer: req.query.customer2 });
+    if (req.query.productCode && String(req.query.productCode).trim()) {
+      and.push({ productCode: new RegExp(escapeRegex(String(req.query.productCode).trim()), "i") });
+    }
+
+    const range = {};
+    const from = req.query.from ? new Date(req.query.from) : null;
+    const to = req.query.to ? new Date(req.query.to) : null;
+    if (from && !isNaN(from)) range.$gte = from;
+    if (to && !isNaN(to)) range.$lte = to;
+    if (Object.keys(range).length) and.push({ createdAt: range });
+
+    const q = and.length ? { $and: and } : {};
+    const fields =
+      "slNo efiWoNumber productCode customer orderQty itemPdfPath planningUser assignedBy createdAt";
+
+    if (req.query.all) {
+      const rows = await Preprocess.find(q).select(fields).sort({ createdAt: -1 }).lean();
+      return res.json(rows);
+    }
+
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+
+    // Paged mode (used by the dashboard so old records are reachable)
+    if (req.query.page) {
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const [rows, total] = await Promise.all([
+        Preprocess.find(q)
+          .select(fields)
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        Preprocess.countDocuments(q)
+      ]);
+      return res.json({ rows, total, page, limit });
+    }
+
+    const rows = await Preprocess.find(q).select(fields).sort({ createdAt: -1 }).limit(limit).lean();
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

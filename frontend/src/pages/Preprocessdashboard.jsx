@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { jwtDecode } from "jwt-decode";
 import BASE_URL from "../config/api";
 import * as XLSX from "xlsx";
 import { Plus } from "lucide-react";
-import PrepressArtworkDashboard from "./Prepressartworkdashboard";
+
 
 // ============================================================================
 // 🎨 Embedded vector icons (same set as the Reel Register page – no extra deps)
@@ -397,6 +397,25 @@ function PreprocessDashboard() {
   const [filterCustomer, setFilterCustomer] = useState("");
   const [filterMachine, setFilterMachine] = useState("");
 
+  // Completed Prepress Records filters
+  const [cpFilterWoNo, setCpFilterWoNo] = useState("");
+  const [cpFilterProductCode, setCpFilterProductCode] = useState("");
+  const [cpFilterCustomer, setCpFilterCustomer] = useState("");
+  const [cpFilterFromDate, setCpFilterFromDate] = useState("");
+  const [cpFilterToDate, setCpFilterToDate] = useState("");
+
+  // Server-side paging / options
+  const PR_PAGE_SIZE = 100;
+  const [prPage, setPrPage] = useState(1);
+  const [prTotal, setPrTotal] = useState(0);
+  const [prOptions, setPrOptions] = useState({ customers: [], productTypes: [] });
+  const [completedCustomers, setCompletedCustomers] = useState([]);
+  const prReqId = useRef(0);
+  const completedReqId = useRef(0);
+  const CP_PAGE_SIZE = 50;
+  const [cpPage, setCpPage] = useState(1);
+  const [cpTotal, setCpTotal] = useState(0);
+
   const showAlert = (title, text = "", icon = "warning") => {
     Swal.fire({
       title,
@@ -415,9 +434,7 @@ function PreprocessDashboard() {
     }
     fetchPending();
     fetchMachines();
-    fetchCompleted();
     fetchPlateRequests();
-    fetchAllPlateRequests();
     fetchProduction();
 
     // Auto-polling every 20 seconds to keep Plate Request notifications updated
@@ -428,19 +445,71 @@ function PreprocessDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  const buildCompletedParams = () => {
+    const p = {};
+    if (filterWoNo.trim()) p.woNo = filterWoNo.trim();
+    if (cpFilterWoNo.trim()) p.woNo2 = cpFilterWoNo.trim();
+    if (filterCustomer) p.customer = filterCustomer;
+    if (cpFilterCustomer) p.customer2 = cpFilterCustomer;
+    if (cpFilterProductCode.trim()) p.productCode = cpFilterProductCode.trim();
+    if (cpFilterFromDate) {
+      const d = new Date(cpFilterFromDate);
+      d.setHours(0, 0, 0, 0);
+      p.from = d.toISOString();
+    }
+    if (cpFilterToDate) {
+      const d = new Date(cpFilterToDate);
+      d.setHours(23, 59, 59, 999);
+      p.to = d.toISOString();
+    }
+    return p;
+  };
+
   const fetchCompleted = async () => {
+    const myId = ++completedReqId.current;
     setCompletedLoading(true);
     try {
       const res = await axios.get(`${BASE_URL}/api/preprocess`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { ...buildCompletedParams(), page: cpPage, limit: CP_PAGE_SIZE }
       });
-      setCompletedRecords(res.data || []);
+      if (myId !== completedReqId.current) return;
+      setCompletedRecords(res.data?.rows || []);
+      setCpTotal(res.data?.total || 0);
     } catch (err) {
       console.error("Error fetching completed records:", err);
+      if (myId !== completedReqId.current) return;
       setCompletedRecords([]);
     }
-    setCompletedLoading(false);
+    if (myId === completedReqId.current) setCompletedLoading(false);
   };
+
+  const fetchCompletedCustomers = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/preprocess/customers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCompletedCustomers(res.data || []);
+    } catch (err) {
+      console.error("Error fetching completed customers:", err);
+    }
+  };
+
+  // Re-fetch completed records when any of its filters change (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => { fetchCompleted(); }, 400);
+    return () => clearTimeout(t);
+  }, [cpPage, filterWoNo, filterCustomer, cpFilterWoNo, cpFilterProductCode, cpFilterCustomer, cpFilterFromDate, cpFilterToDate]);
+
+  // Any completed-records filter change -> back to page 1
+  useEffect(() => {
+    setCpPage(1);
+  }, [filterWoNo, filterCustomer, cpFilterWoNo, cpFilterProductCode, cpFilterCustomer, cpFilterFromDate, cpFilterToDate]);
+
+  // Customer dropdown list (refreshes when a work order is marked done)
+  useEffect(() => {
+    fetchCompletedCustomers();
+  }, [workOrders.length]);
 
   const fetchPending = async () => {
     setLoading(true);
@@ -629,19 +698,74 @@ function PreprocessDashboard() {
     setPlateRequestsLoading(false);
   };
 
+  const buildPrParams = () => {
+    const p = { locations: userLocations.join(",") };
+    if (prFilterWoNo.trim()) p.woNo = prFilterWoNo.trim();
+    if (prFilterCustomer) p.customer = prFilterCustomer;
+    if (prFilterProductType) p.productType = prFilterProductType;
+    if (prFilterStatus) p.status = prFilterStatus;
+    if (prFilterFromDate) {
+      const d = new Date(prFilterFromDate);
+      d.setHours(0, 0, 0, 0);
+      p.from = d.toISOString();
+    }
+    if (prFilterToDate) {
+      const d = new Date(prFilterToDate);
+      d.setHours(23, 59, 59, 999);
+      p.to = d.toISOString();
+    }
+    return p;
+  };
+
   const fetchAllPlateRequests = async () => {
+    const myId = ++prReqId.current;
     setAllPlateRequestsLoading(true);
     try {
       const res = await axios.get(`${BASE_URL}/api/platerequest`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        params: { ...buildPrParams(), page: prPage, limit: PR_PAGE_SIZE }
       });
-      setAllPlateRequests(res.data || []);
+      if (myId !== prReqId.current) return;
+      setAllPlateRequests(res.data?.rows || []);
+      setPrTotal(res.data?.total || 0);
     } catch (err) {
       console.error("Error fetching plate request history:", err);
+      if (myId !== prReqId.current) return;
       setAllPlateRequests([]);
+      setPrTotal(0);
     }
-    setAllPlateRequestsLoading(false);
+    if (myId === prReqId.current) setAllPlateRequestsLoading(false);
   };
+
+  const fetchPrOptions = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/platerequest/filter-options`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { locations: userLocations.join(",") }
+      });
+      setPrOptions({
+        customers: res.data?.customers || [],
+        productTypes: res.data?.productTypes || []
+      });
+    } catch (err) {
+      console.error("Error fetching plate request filter options:", err);
+    }
+  };
+
+  // Any filter change -> back to page 1
+  useEffect(() => {
+    setPrPage(1);
+  }, [prFilterWoNo, prFilterCustomer, prFilterProductType, prFilterStatus, prFilterFromDate, prFilterToDate]);
+
+  // Fetch the current page whenever page / filters / locations change (debounced)
+  useEffect(() => {
+    const t = setTimeout(() => { fetchAllPlateRequests(); }, 400);
+    return () => clearTimeout(t);
+  }, [prPage, prFilterWoNo, prFilterCustomer, prFilterProductType, prFilterStatus, prFilterFromDate, prFilterToDate, userLocations]);
+
+  useEffect(() => {
+    fetchPrOptions();
+  }, [userLocations]);
 
   // ===== "Done" clicked on a row -> saves snapshot to Preprocess table =====
   const handleDone = async (wo) => {
@@ -731,7 +855,7 @@ function PreprocessDashboard() {
   const customerOptions = [
     ...new Set([
       ...workOrders.map(wo => wo.customer?.name || wo.customer),
-      ...completedRecords.map(rec => rec.customer)
+      ...completedCustomers
     ].filter(Boolean))
   ].sort((a, b) => String(a).localeCompare(String(b)));
 
@@ -760,6 +884,74 @@ function PreprocessDashboard() {
     })
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
+  // Extra filters for Completed Prepress Records (applied on top of the existing list)
+  const cpCustomerOptions = [
+    ...new Set(completedCustomers.filter(Boolean))
+  ].sort((a, b) => String(a).localeCompare(String(b)));
+
+  const filteredCompletedRecords = displayedCompletedRecords.filter(rec => {
+    const matchWo =
+      cpFilterWoNo === "" ||
+      String(rec.efiWoNumber).toLowerCase().includes(cpFilterWoNo.trim().toLowerCase());
+    const matchProduct =
+      cpFilterProductCode === "" ||
+      String(rec.productCode || "").toLowerCase().includes(cpFilterProductCode.trim().toLowerCase());
+    const matchCustomer =
+      cpFilterCustomer === "" || (rec.customer || "") === cpFilterCustomer;
+
+    let matchDate = true;
+    if (cpFilterFromDate || cpFilterToDate) {
+      if (!rec.createdAt) {
+        matchDate = false;
+      } else {
+        const doneAt = new Date(rec.createdAt);
+        if (cpFilterFromDate) {
+          const from = new Date(cpFilterFromDate);
+          from.setHours(0, 0, 0, 0);
+          if (doneAt < from) matchDate = false;
+        }
+        if (cpFilterToDate) {
+          const to = new Date(cpFilterToDate);
+          to.setHours(23, 59, 59, 999);
+          if (doneAt > to) matchDate = false;
+        }
+      }
+    }
+
+    return matchWo && matchProduct && matchCustomer && matchDate;
+  });
+
+  const exportCompletedToExcel = async () => {
+    let exportRows = [];
+    try {
+      Swal.fire({ title: "Preparing Excel...", allowOutsideClick: false, width: "320px", didOpen: () => Swal.showLoading() });
+      const res = await axios.get(`${BASE_URL}/api/preprocess`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { ...buildCompletedParams(), all: 1 }
+      });
+      exportRows = res.data || [];
+      Swal.close();
+    } catch (err) {
+      console.error("Export error:", err);
+      showAlert("Error", "Could not prepare the Excel file", "error");
+      return;
+    }
+    const data = exportRows.map((rec, i) => ({
+      "Sl No": i + 1,
+      "WO No": rec.efiWoNumber,
+      "Product Code": rec.productCode || "-",
+      "Customer Name": rec.customer || "-",
+      "Order Qty": rec.orderQty ? Number(rec.orderQty) : "-",
+      "Planning": rec.planningUser || "-",
+      "Completed By": rec.assignedBy || "-",
+      "Completed At": rec.createdAt ? new Date(rec.createdAt).toLocaleString("en-IN") : "-",
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Completed Prepress");
+    XLSX.writeFile(wb, `Completed_Prepress_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const displayedPlateRequests = plateRequests
     .filter(r => !hiddenPlateRequests.includes(r._id))
     .filter(r => r.userLocations?.some(loc => userLocations.includes(loc)));
@@ -775,12 +967,8 @@ function PreprocessDashboard() {
       ? { maxWidth: 260, whiteSpace: "normal", wordBreak: "break-word", cursor: "pointer" }
       : { maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" };
 
-  const prCustomerOptions = [
-    ...new Set(allPlateRequests.map(r => r.customerName).filter(Boolean))
-  ];
-  const prProductTypeOptions = [
-    ...new Set(allPlateRequests.map(r => r.productType).filter(Boolean))
-  ];
+  const prCustomerOptions = prOptions.customers;
+  const prProductTypeOptions = prOptions.productTypes;
 
   const displayedAllPlateRequests = allPlateRequests
     .filter(r => r.userLocations?.some(loc => userLocations.includes(loc)))
@@ -808,8 +996,22 @@ function PreprocessDashboard() {
     return matchWo && matchCustomer && matchProductType && matchStatus && matchDate;
   });
 
-  const exportPlateRequestsToExcel = () => {
-    const data = displayedAllPlateRequests.map((r, i) => ({
+  const exportPlateRequestsToExcel = async () => {
+    let exportRows = [];
+    try {
+      Swal.fire({ title: "Preparing Excel...", allowOutsideClick: false, width: "320px", didOpen: () => Swal.showLoading() });
+      const res = await axios.get(`${BASE_URL}/api/platerequest`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { ...buildPrParams(), all: 1 }
+      });
+      exportRows = res.data || [];
+      Swal.close();
+    } catch (err) {
+      console.error("Export error:", err);
+      showAlert("Error", "Could not prepare the Excel file", "error");
+      return;
+    }
+    const data = exportRows.map((r, i) => ({
       "Sl No": i + 1,
       "WO No": r.efiWoNumber,
       "Customer": r.customerName || "-",
@@ -817,6 +1019,8 @@ function PreprocessDashboard() {
       "Product Type": r.productType || "-",
       "Activity": r.activities?.length ? r.activities.join(", ") : "-",
       "Machine": r.machineNames?.length ? r.machineNames.join(", ") : "-",
+      "Impressions": r.impressions || "-",
+      "Reason": r.reason || (r.reasons?.length ? r.reasons.join(", ") : "-"),
       "Remarks": r.remarks || "-",
       "Status": r.status,
       "Requested By": r.requestedBy || "-",
@@ -874,7 +1078,7 @@ function PreprocessDashboard() {
                 {activeView === "workorders" && "Work orders pending prepress completion."}
                 {activeView === "platerequests" && "Plate requests pending approval."}
                 {activeView === "production" && "Production log for completed work orders."}
-                {activeView === "prepressartwork" && "Artwork docket for prepress."}
+
               </p>
             </div>
           </div>
@@ -941,7 +1145,7 @@ function PreprocessDashboard() {
                   Plate Requests {pendingPlateCount > 0 ? `(${pendingPlateCount})` : ""}
                 </option>
                 <option value="production" style={{ color: "#1f2d3a" }}>Plate Tracker</option>
-                <option value="prepressartwork" style={{ color: "#1f2d3a" }}>Prepress Artwork</option>
+
               </select>
 
               {/* Floating Alert Pill on Dropdown when viewing other tabs */}
@@ -1083,8 +1287,77 @@ function PreprocessDashboard() {
               icon={Icons.Factory}
               color="green"
               title="Completed Prepress Records"
-              pill="Top 50 Entries"
+              pill={`${cpTotal.toLocaleString("en-IN")} records`}
             />
+
+            <div className="filter-bar" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
+              <div className="pp-filter-title"><i className="bi bi-funnel"></i> Filters &amp; Downloads</div>
+              <PoField className="pp-ffield" icon="bi-search" label="WO Number" filled={has(cpFilterWoNo)}>
+                <input
+                  type="text"
+                  className="po-input"
+                  value={cpFilterWoNo}
+                  onChange={(e) => setCpFilterWoNo(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-upc-scan" label="Product Code" filled={has(cpFilterProductCode)}>
+                <input
+                  type="text"
+                  className="po-input"
+                  value={cpFilterProductCode}
+                  onChange={(e) => setCpFilterProductCode(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-person" label="Customer Name" alwaysFloat caret>
+                <select
+                  className="po-input"
+                  value={cpFilterCustomer}
+                  onChange={(e) => setCpFilterCustomer(e.target.value)}
+                >
+                  <option value="">All Customers</option>
+                  {cpCustomerOptions.map((c, i) => (
+                    <option key={i} value={c}>{c}</option>
+                  ))}
+                </select>
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-event" label="From Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={cpFilterFromDate}
+                  onChange={(e) => setCpFilterFromDate(e.target.value)}
+                />
+              </PoField>
+              <PoField className="pp-ffield" icon="bi-calendar-check" label="To Date" alwaysFloat>
+                <input
+                  type="date"
+                  className="po-input"
+                  value={cpFilterToDate}
+                  onChange={(e) => setCpFilterToDate(e.target.value)}
+                />
+              </PoField>
+              {(cpFilterWoNo || cpFilterProductCode || cpFilterCustomer || cpFilterFromDate || cpFilterToDate) && (
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => {
+                    setCpFilterWoNo("");
+                    setCpFilterProductCode("");
+                    setCpFilterCustomer("");
+                    setCpFilterFromDate("");
+                    setCpFilterToDate("");
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+              <button
+                className="btn btn-sm btn-success"
+                onClick={exportCompletedToExcel}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Export to Excel
+              </button>
+            </div>
 
             <div className="production-real-table-wrap" style={{ maxHeight: 360, overflowY: "auto", overflow: "auto" }}>
               <table className="production-real-table">
@@ -1104,10 +1377,10 @@ function PreprocessDashboard() {
                 <tbody>
                   {completedLoading ? (
                     <tr><td className="empty-state" colSpan="9">Loading...</td></tr>
-                  ) : displayedCompletedRecords.length === 0 ? (
+                  ) : filteredCompletedRecords.length === 0 ? (
                     <tr><td className="empty-state" colSpan="9">No Completed Records Found</td></tr>
                   ) : (
-                    displayedCompletedRecords.slice(0, 50).map((rec, i) => {
+                    filteredCompletedRecords.slice(0, 50).map((rec, i) => {
                       const custName = rec.customer || "-";
                       const rowKey = rec._id || `completed-${i}`;
                       return (
@@ -1150,6 +1423,26 @@ function PreprocessDashboard() {
                 </tbody>
               </table>
             </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>
+                Page {cpPage} of {Math.max(1, Math.ceil(cpTotal / CP_PAGE_SIZE))}
+              </span>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={cpPage <= 1 || completedLoading}
+                onClick={() => setCpPage(p => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={cpPage >= Math.ceil(cpTotal / CP_PAGE_SIZE) || completedLoading}
+                onClick={() => setCpPage(p => p + 1)}
+              >
+                Next
+              </button>
+            </div>
           </>
         ) : activeView === "platerequests" ? (
           <>
@@ -1169,6 +1462,8 @@ function PreprocessDashboard() {
                     <th>Job Description</th>
                     <th>Activity</th>
                     <th>Machine</th>
+                    <th>Impressions</th>
+                    <th>Reason</th>
                     <th>Remarks</th>
                     <th>Requested By</th>
                     <th>Requested At</th>
@@ -1177,9 +1472,9 @@ function PreprocessDashboard() {
                 </thead>
                 <tbody>
                   {plateRequestsLoading ? (
-                    <tr><td className="empty-state" colSpan="9">Loading...</td></tr>
+                    <tr><td className="empty-state" colSpan="11">Loading...</td></tr>
                   ) : displayedPlateRequests.length === 0 ? (
-                    <tr><td className="empty-state" colSpan="9">No Plate Requests Pending</td></tr>
+                    <tr><td className="empty-state" colSpan="11">No Plate Requests Pending</td></tr>
                   ) : (
                     displayedPlateRequests.map(req => (
                       <tr key={req._id}>
@@ -1188,6 +1483,8 @@ function PreprocessDashboard() {
                         <td>{req.jobName}</td>
                         <td>{req.activities?.length ? req.activities.join(", ") : "-"}</td>
                         <td>{req.machineNames?.length ? req.machineNames.join(", ") : "-"}</td>
+                        <td>{req.impressions || "-"}</td>
+                        <td>{req.reason || (req.reasons?.length ? req.reasons.join(", ") : "-")}</td>
                         <td>{req.remarks || "-"}</td>
                         <td>{req.requestedBy}</td>
                         <td>{new Date(req.createdAt).toLocaleString("en-IN")}</td>
@@ -1219,7 +1516,7 @@ function PreprocessDashboard() {
               icon={Icons.Search}
               color="purple"
               title="All Plate Requests"
-              pill={`${displayedAllPlateRequests.length} records`}
+              pill={`${prTotal.toLocaleString("en-IN")} records`}
             />
 
             <div className="filter-bar" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
@@ -1318,6 +1615,8 @@ function PreprocessDashboard() {
                     <th style={{ minWidth: "110px" }}>Product Type</th>
                     <th style={{ minWidth: "130px" }}>Activity</th>
                     <th style={{ minWidth: "130px" }}>Machine</th>
+                    <th style={{ minWidth: "100px" }}>Impressions</th>
+                    <th style={{ minWidth: "150px" }}>Reason</th>
                     <th style={{ minWidth: "130px" }}>Remarks</th>
                     <th style={{ width: "130px" }}>Status</th>
                     <th style={{ minWidth: "150px" }}>Requested By</th>
@@ -1328,9 +1627,9 @@ function PreprocessDashboard() {
                 </thead>
                 <tbody>
                   {allPlateRequestsLoading ? (
-                    <tr><td className="empty-state" colSpan="12">Loading...</td></tr>
+                    <tr><td className="empty-state" colSpan="14">Loading...</td></tr>
                   ) : displayedAllPlateRequests.length === 0 ? (
-                    <tr><td className="empty-state" colSpan="12">No Plate Requests Found</td></tr>
+                    <tr><td className="empty-state" colSpan="14">No Plate Requests Found</td></tr>
                   ) : (
                     displayedAllPlateRequests.map(req => (
                       <tr key={req._id}>
@@ -1363,6 +1662,14 @@ function PreprocessDashboard() {
                           title={req.machineNames?.join(", ")}
                         >
                           {req.machineNames?.length ? req.machineNames.join(", ") : "-"}
+                        </td>
+                        <td>{req.impressions || "-"}</td>
+                        <td
+                          style={truncCellStyle(`${req._id}-pr-reason`)}
+                          onClick={() => setExpandedCellKey(k => k === `${req._id}-pr-reason` ? null : `${req._id}-pr-reason`)}
+                          title={req.reason || req.reasons?.join(", ")}
+                        >
+                          {req.reason || (req.reasons?.length ? req.reasons.join(", ") : "-")}
                         </td>
                         <td
                           style={truncCellStyle(`${req._id}-pr-remarks`)}
@@ -1399,9 +1706,27 @@ function PreprocessDashboard() {
                 </tbody>
               </table>
             </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, marginTop: 10 }}>
+              <span style={{ fontSize: 12, fontWeight: 600 }}>
+                Page {prPage} of {Math.max(1, Math.ceil(prTotal / PR_PAGE_SIZE))}
+              </span>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={prPage <= 1 || allPlateRequestsLoading}
+                onClick={() => setPrPage(p => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={prPage >= Math.ceil(prTotal / PR_PAGE_SIZE) || allPlateRequestsLoading}
+                onClick={() => setPrPage(p => p + 1)}
+              >
+                Next
+              </button>
+            </div>
           </>
-        ) : activeView === "prepressartwork" ? (
-          <PrepressArtworkDashboard />
         ) : (
           <>
             {/* ===== PRODUCTION LOG ===== */}

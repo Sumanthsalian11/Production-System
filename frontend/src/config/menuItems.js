@@ -43,6 +43,7 @@ const menuItems = [
   { to: "/sap-upload", icon: "bi-cloud-upload", label: "SAP Data Upload", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"] },
   { to: "/sap-reports", icon: "bi-file-earmark-bar-graph", label: "Stock Reports", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"] },
   { to: "/card-tracker", icon: "bi-credit-card-2-front", label: "Card Job Tracker", roles: ["admin", "kas", "planner", "order management", "supervisor","dispatch","production"] },
+  { to: "/prepress-artwork", icon: "bi-file-earmark-image", label: "Prepress Artwork", roles: ["admin", "prepress", "kas", "planner", "order management", "supervisor","dispatch","production"] },
 ];
 
 export const BASE_ROLES = [

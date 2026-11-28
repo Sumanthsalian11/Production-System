@@ -59,6 +59,7 @@ const FormResponses = lazy(() => import("./pages/FormResponses"));
 const CardTracker = lazy(() => import("./pages/CardTracker"));
 const SapUpload = lazy(() => import("./pages/SapUpload"));
 const SapReports = lazy(() => import("./pages/SapReports"));
+const PrepressArtworkDashboard = lazy(() => import("./pages/Prepressartworkdashboard"));
 
 /* SESSION HANDLING: refreshed tokens, background polling, forced logout */
 const BACKGROUND_URLS = ["/api/auth/announcement", "/api/messenger/unread"];
@@ -412,6 +413,15 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={["ADMIN", "KAS","PLANNER", "ORDER MANAGEMENT","PRODUCTION","DISPATCH","SUPERVISOR"]}>
                     <BillingCountReport />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/prepress-artwork"
+                element={
+                  <ProtectedRoute allowedRoles={["PREPRESS", "ADMIN","KAS","PLANNER", "ORDER MANAGEMENT","SCANNER","PRODUCTION","DISPATCH","SUPERVISOR"]}>
+                    <PrepressArtworkDashboard />
                   </ProtectedRoute>
                 }
               />

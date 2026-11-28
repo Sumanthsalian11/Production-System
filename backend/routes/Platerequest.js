@@ -5,6 +5,28 @@ const WorkOrder = require("../models/WorkOrder");
 const PlateReason = require("../models/PlateReason");
 const authMiddleware = require("../middleware/authMiddleware");
 
+const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Distinct dropdown values (customer / product type) for the filters
+router.get("/filter-options", authMiddleware, async (req, res) => {
+  try {
+    const locs = String(req.query.locations || "")
+      .split(",").map(s => s.trim()).filter(Boolean);
+    const base = { userLocations: { $in: locs } };
+    const [customers, productTypes] = await Promise.all([
+      PlateRequest.distinct("customerName", base),
+      PlateRequest.distinct("productType", base)
+    ]);
+    res.json({
+      customers: customers.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b))),
+      productTypes: productTypes.filter(Boolean).sort((a, b) => String(a).localeCompare(String(b)))
+    });
+  } catch (err) {
+    console.error("PLATE REQUEST FILTER OPTIONS ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // =============================================
 // FETCH A SINGLE WORK ORDER BY EFI NUMBER
 // (for the plate request form's "Fetch" flow;
@@ -72,10 +94,63 @@ router.get("/pending", authMiddleware, async (req, res) => {
 // =============================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const requests = await PlateRequest.find()
-      .populate("workOrderId")
-      .sort({ createdAt: -1 });
-    res.json(requests);
+    // Old behaviour (no paging params) - unchanged
+    if (!req.query.page && !req.query.all) {
+      const requests = await PlateRequest.find()
+        .populate("workOrderId")
+        .sort({ createdAt: -1 });
+      return res.json(requests);
+    }
+
+    // New: server-side filter + paging
+    const locs = String(req.query.locations || "")
+      .split(",").map(s => s.trim()).filter(Boolean);
+
+    const q = { userLocations: { $in: locs } };
+    if (req.query.customer) q.customerName = req.query.customer;
+    if (req.query.productType) q.productType = req.query.productType;
+    if (req.query.status) q.status = req.query.status;
+
+    if (req.query.from || req.query.to) {
+      q.createdAt = {};
+      const from = req.query.from ? new Date(req.query.from) : null;
+      const to = req.query.to ? new Date(req.query.to) : null;
+      if (from && !isNaN(from)) q.createdAt.$gte = from;
+      if (to && !isNaN(to)) q.createdAt.$lte = to;
+      if (!Object.keys(q.createdAt).length) delete q.createdAt;
+    }
+
+    if (req.query.woNo && String(req.query.woNo).trim()) {
+      q.$and = [{
+        $expr: {
+          $regexMatch: {
+            input: { $toString: "$efiWoNumber" },
+            regex: escapeRegex(String(req.query.woNo).trim()),
+            options: "i"
+          }
+        }
+      }];
+    }
+
+    // Excel export: every matching row (light objects, no populate)
+    if (req.query.all) {
+      const rows = await PlateRequest.find(q).sort({ createdAt: -1 }).lean();
+      return res.json(rows);
+    }
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 100));
+
+    const [rows, total] = await Promise.all([
+      PlateRequest.find(q)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      PlateRequest.countDocuments(q)
+    ]);
+
+    res.json({ rows, total, page, limit });
   } catch (err) {
     console.error("FETCH PLATE REQUESTS ERROR:", err);
     res.status(500).json({ message: err.message });

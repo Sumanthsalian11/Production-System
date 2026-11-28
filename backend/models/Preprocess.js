@@ -79,5 +79,6 @@ const PreprocessSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
+PreprocessSchema.index({ createdAt: -1 });
+PreprocessSchema.index({ customer: 1 });
 module.exports = mongoose.model("Preprocess", PreprocessSchema);
