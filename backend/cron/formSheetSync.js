@@ -3,22 +3,19 @@ const FormResponse = require("../models/FormResponse");
 const EVERY_MS = 15 * 1000; // check every 15 seconds
 let running = false;
 
-// reads "25/11/2026 12:06:18" (dd/mm/yyyy) as well as normal date formats
+// reads "28/11/2026 10:14:35", "28/11/2026" (dd/mm/yyyy) as well as normal date formats
 function parseSheetDate(s) {
-  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +m[6] || 0);
+  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ ,]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +m[4] || 0, +m[5] || 0, +m[6] || 0);
   const d = new Date(s);
-  return isNaN(d) ? new Date() : d;
+  return isNaN(d) ? null : d;
 }
 
 async function syncOnce() {
   if (running) return; // don't overlap with a slow previous run
   const API = process.env.FORM_SHEET_API_URL;
   const KEY = process.env.FORM_SHEET_KEY;
-  if (!API || !KEY) {
-    // console.log("FORM SYNC: FORM_SHEET_API_URL / FORM_SHEET_KEY missing in .env");
-    return;
-  }
+  if (!API || !KEY) return;
   running = true;
   try {
     const res = await fetch(`${API}?key=${encodeURIComponent(KEY)}`);
@@ -30,34 +27,61 @@ async function syncOnce() {
     if (!rows.length) return; // nothing came back at all: don't touch the database
 
     const head = rows[0].map((h) => String(h).trim());
-    // match columns by keyword, so renaming a question still works
-    const find = (re, not) => head.findIndex((h) => re.test(h) && !(not && not.test(h)));
+    // match columns by keyword, so small wording changes in the form still work
+    const find = (re) => head.findIndex((h) => re.test(h));
     const iTime = find(/timestamp/i);
-    const iName = find(/name/i);
-    const iEmail = find(/e-?mail/i);
-    const iAddr = find(/address|location|city/i, /e-?mail/i);
-    const iPhone = find(/phone|mobile/i);
-    const iCom = find(/comment|message|remark|feedback/i);
     if (iTime < 0) {
       console.log("FORM SYNC: no 'Timestamp' column. Headers found:", head.join(", "));
       return;
     }
 
+    // ----- Customer Satisfaction Survey columns -----
+    const iCustomer = find(/customer\s*name/i);
+    const iSpoc = find(/spoc\s*name/i);
+    const iEmail = find(/spoc.*e-?mail/i);
+    const iPhone = find(/spoc.*(contact|phone|mobile)/i);
+    const iFbDate = find(/feedback\s*date/i);
+
+    // ----- old "Contact Information" columns (old rows stay in the same sheet) -----
+    const iOldName = find(/^\s*name\s*$/i);
+    const iOldEmail = find(/^\s*e-?mail\s*$/i);
+    const iOldPhone = find(/^\s*phone/i);
+    const iOldAddr = find(/^\s*(address|location|city)/i);
+    const iOldCom = find(/^\s*(comment|message|remark)/i);
+
+    // every numbered question that is not one of the 5 main fields = rating / choice answers
+    const main = new Set([iCustomer, iSpoc, iEmail, iPhone, iFbDate]);
+    const answerCols = head
+      .map((h, i) => ({ h, i }))
+      .filter(({ h, i }) => /^\s*\d+\s*\./.test(h) && !main.has(i));
+
+    const cell = (r, i) => (i >= 0 ? String(r[i] ?? "").trim() : "");
+
     let added = 0;
     const sheetKeys = new Set();
     for (const r of rows.slice(1)) {
-      const ts = String(r[iTime] || "").trim();
+      const ts = cell(r, iTime);
       if (!ts) continue;
-      const key = `${ts}|${String(r[iEmail] || "").trim().toLowerCase()}`;
+
+      const email = cell(r, iEmail) || cell(r, iOldEmail);
+      const key = `${ts}|${email.toLowerCase()}`; // same key format as before, so old rows are not duplicated
       sheetKeys.add(key);
+
+      const answers = answerCols
+        .map(({ h, i }) => ({ q: h, a: cell(r, i) }))
+        .filter((x) => x.a);
+
       try {
         await FormResponse.create({
-          name: r[iName] || "",
-          email: r[iEmail] || "",
-          address: r[iAddr] || "",
-          phone: String(r[iPhone] || ""),
-          comments: r[iCom] || "",
-          submittedAt: parseSheetDate(ts),
+          name: cell(r, iCustomer) || cell(r, iOldName),
+          spocName: cell(r, iSpoc),
+          email,
+          phone: cell(r, iPhone) || cell(r, iOldPhone),
+          feedbackDate: cell(r, iFbDate) ? parseSheetDate(cell(r, iFbDate)) || undefined : undefined,
+          answers,
+          address: cell(r, iOldAddr),
+          comments: cell(r, iOldCom),
+          submittedAt: parseSheetDate(ts) || new Date(),
           sheetKey: key,
         });
         added++;

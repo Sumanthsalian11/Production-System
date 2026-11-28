@@ -14,6 +14,9 @@ const fmt = (d) =>
       })
     : "";
 
+const fmtDay = (d) =>
+  d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
+
 const dayKey = (d) => {
   const x = new Date(d);
   const p = (n) => String(n).padStart(2, "0");
@@ -32,6 +35,32 @@ const initials = (n = "") =>
 const AV_COLORS = ["#3b7ddd", "#1cbb8c", "#6f42c1", "#e8590c", "#17a2b8", "#c2255c", "#f59f00"];
 const avColor = (n = "") => AV_COLORS[[...String(n)].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
 
+/* ---------- survey helpers ---------- */
+const SCORE = { "NOT SATISFIED": 1, SATISFIED: 2, GOOD: 3, "VERY GOOD": 4, EXCELLENT: 5 };
+const scoreOf = (a) => SCORE[String(a || "").trim().toUpperCase()] || 0;
+const qNo = (q) => {
+  const m = String(q || "").match(/^\s*(\d+)\s*\./);
+  return m ? Number(m[1]) : 0;
+};
+const answerOf = (r, no) => (r.answers || []).find((x) => qNo(x.q) === no)?.a || "";
+// questions 6, 7, 8 are the rating grids
+const gridAnswers = (r) => (r.answers || []).filter((x) => [6, 7, 8].includes(qNo(x.q)));
+const avgScore = (r) => {
+  const v = gridAnswers(r).map((x) => scoreOf(x.a)).filter(Boolean);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+};
+const tone = (score) =>
+  score == null ? { bg: "#eef1f5", fg: "#6c757d" }
+  : score >= 4 ? { bg: "#e6f7f1", fg: "#14916c" }
+  : score >= 3 ? { bg: "#eaf1fc", fg: "#2f64b1" }
+  : score >= 2 ? { bg: "#fff6e5", fg: "#b77700" }
+  : { bg: "#fdecee", fg: "#a71d2a" };
+// "6. SALES & MARKETING [PRESENTATION]" -> section "6. SALES & MARKETING", item "PRESENTATION"
+const splitQ = (q) => {
+  const m = String(q).match(/^(.*?)\s*\[(.*)\]\s*$/);
+  return m ? { section: m[1], item: m[2] } : { section: String(q), item: "" };
+};
+
 export default function FormResponses() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +68,7 @@ export default function FormResponses() {
   const [search, setSearch] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [detail, setDetail] = useState(null);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -64,7 +94,9 @@ export default function FormResponses() {
     const q = search.toLowerCase().trim();
     return rows.filter((r) => {
       if (q) {
-        const hay = [r.name, r.email, r.address, r.phone, r.comments].join(" ").toLowerCase();
+        const hay = [r.name, r.spocName, r.email, r.phone, r.address, r.comments, ...(r.answers || []).map((x) => x.a)]
+          .join(" ")
+          .toLowerCase();
         if (!hay.includes(q)) return false;
       }
       const k = r.submittedAt ? dayKey(r.submittedAt) : "";
@@ -82,13 +114,18 @@ export default function FormResponses() {
     const weekKey = dayKey(weekAgo);
     let today = 0;
     let week = 0;
+    let sum = 0;
+    let cnt = 0;
     rows.forEach((r) => {
-      if (!r.submittedAt) return;
-      const k = dayKey(r.submittedAt);
-      if (k === todayKey) today++;
-      if (k >= weekKey) week++;
+      if (r.submittedAt) {
+        const k = dayKey(r.submittedAt);
+        if (k === todayKey) today++;
+        if (k >= weekKey) week++;
+      }
+      const a = avgScore(r);
+      if (a != null) { sum += a; cnt++; }
     });
-    return { total: rows.length, today, week, latest: rows[0]?.submittedAt || null };
+    return { total: rows.length, today, week, avg: cnt ? sum / cnt : null, latest: rows[0]?.submittedAt || null };
   }, [rows]);
 
   const clearFilters = () => {
@@ -99,28 +136,29 @@ export default function FormResponses() {
 
   const exportExcel = () => {
     if (!filtered.length) return;
-    const data = filtered.map((r, i) => ({
-      "S.No": i + 1,
-      Name: r.name || "",
-      Email: r.email || "",
-      Address: r.address || "",
-      "Phone number": r.phone || "",
-      Comments: r.comments || "",
-      "Submitted At": fmt(r.submittedAt),
-    }));
+    // one column per question, in the order the questions first appear
+    const qs = [];
+    filtered.forEach((r) => (r.answers || []).forEach((x) => { if (!qs.includes(x.q)) qs.push(x.q); }));
+    qs.sort((a, b) => qNo(a) - qNo(b));
+
+    const data = filtered.map((r, i) => {
+      const row = {
+        "S.No": i + 1,
+        "Customer Name": r.name || "",
+        "SPOC Name": r.spocName || "",
+        "SPOC Email ID": r.email || "",
+        "SPOC Contact number": r.phone || "",
+        "Feedback Date": fmtDay(r.feedbackDate),
+      };
+      qs.forEach((q) => { row[q] = (r.answers || []).find((x) => x.q === q)?.a || ""; });
+      row["Submitted At"] = fmt(r.submittedAt);
+      return row;
+    });
     const ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [
-      { wch: 6 },
-      { wch: 24 },
-      { wch: 30 },
-      { wch: 40 },
-      { wch: 16 },
-      { wch: 40 },
-      { wch: 22 },
-    ];
+    ws["!cols"] = Object.keys(data[0]).map((k) => ({ wch: Math.min(Math.max(k.length + 2, 14), 40) }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Form Responses");
-    XLSX.writeFile(wb, `Form_Responses_${dayKey(new Date())}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Survey Responses");
+    XLSX.writeFile(wb, `Customer_Satisfaction_Responses_${dayKey(new Date())}.xlsx`);
   };
 
   const hasFilter = search || from || to;
@@ -129,15 +167,19 @@ export default function FormResponses() {
     { label: "Total Responses", value: stats.total, icon: "bi-inboxes-fill", color: "#3b7ddd", soft: "#eaf1fc" },
     { label: "Today", value: stats.today, icon: "bi-calendar-check-fill", color: "#1cbb8c", soft: "#e6f7f1" },
     { label: "Last 7 Days", value: stats.week, icon: "bi-graph-up-arrow", color: "#6f42c1", soft: "#f1ecfa" },
-    {
-      label: "Latest Response",
-      value: stats.latest ? fmt(stats.latest) : "None yet",
-      icon: "bi-clock-history",
-      color: "#e8590c",
-      soft: "#fdeee6",
-      small: true,
-    },
   ];
+
+  // detail popup content: group the grid answers by section
+  const detailGroups = useMemo(() => {
+    if (!detail) return [];
+    const map = new Map();
+    (detail.answers || []).forEach((x) => {
+      const { section, item } = splitQ(x.q);
+      if (!map.has(section)) map.set(section, []);
+      map.get(section).push({ item, a: x.a });
+    });
+    return [...map.entries()].sort((a, b) => qNo(a[0]) - qNo(b[0]));
+  }, [detail]);
 
   return (
     <div className="fr-page">
@@ -159,12 +201,12 @@ export default function FormResponses() {
         .fr-btn-light{background:#fff;color:#1f2d3d;border:1px solid #dbe2ec;border-radius:10px;font-weight:700;font-size:.83rem;padding:9px 16px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;transition:all .15s ease}
         .fr-btn-light:hover:not(:disabled){background:#f1f5fb;border-color:#b9c7dc}
         .fr-btn-light:disabled{opacity:.6;cursor:not-allowed}
+        .fr-btn-sm{padding:5px 12px;font-size:.76rem;border-radius:8px}
 
-        .fr-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:18px}
+        .fr-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
         .fr-stat{background:#fff;border:1px solid #e5eaf2;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 3px rgba(31,45,61,.05)}
         .fr-stat-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0}
         .fr-stat-val{font-size:1.45rem;font-weight:800;color:#1f2d3d;line-height:1.1}
-        .fr-stat-val.small{font-size:.92rem;line-height:1.3}
         .fr-stat-lbl{font-size:.72rem;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin-top:3px}
 
         .fr-card{background:#fff;border:1px solid #e5eaf2;border-radius:14px;box-shadow:0 2px 8px rgba(31,45,61,.06);overflow:hidden}
@@ -192,13 +234,28 @@ export default function FormResponses() {
         .fr-chip{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
         .fr-chip i{color:#8a97a8}
         .fr-date-pill{display:inline-flex;align-items:center;gap:6px;background:#f1ecfa;color:#5b34a8;border:1px solid #ddd0f3;border-radius:999px;padding:3px 11px;font-size:.76rem;font-weight:700;white-space:nowrap}
-        .fr-comment{color:#44566c;line-height:1.45}
+        .fr-pill{display:inline-block;border-radius:999px;padding:3px 11px;font-size:.74rem;font-weight:800;white-space:nowrap}
+        .fr-muted{color:#9aa6b6}
 
         .fr-empty{text-align:center;padding:56px 20px;color:#6c757d}
         .fr-empty i{font-size:2.6rem;color:#b9c7dc}
         .fr-empty b{display:block;color:#1f2d3d;margin-top:10px;font-size:.98rem}
         .fr-alert{margin:14px 18px;padding:10px 14px;border-radius:10px;background:#fdecee;border:1px solid #f5c2c7;color:#a71d2a;font-size:.84rem;font-weight:600;display:flex;align-items:center;gap:8px}
         .fr-loading{text-align:center;padding:56px 20px;color:#6c757d;font-size:.9rem}
+
+        .fr-modal-bg{position:fixed;inset:0;background:rgba(15,30,50,.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:18px}
+        .fr-modal{background:#fff;border-radius:16px;width:100%;max-width:760px;max-height:90vh;overflow:auto;box-shadow:0 24px 60px rgba(15,30,50,.35)}
+        .fr-modal-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;border-bottom:1px solid #e5eaf2;position:sticky;top:0;background:#fff;z-index:1}
+        .fr-modal-h h5{margin:0;font-size:1.05rem;font-weight:800;color:#1f2d3d}
+        .fr-modal-b{padding:16px 22px 22px}
+        .fr-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+        .fr-kv div{background:#f6f8fb;border:1px solid #e5eaf2;border-radius:10px;padding:8px 12px}
+        .fr-kv small{display:block;color:#6c757d;font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+        .fr-kv b{color:#1f2d3d;font-size:.88rem;word-break:break-word}
+        .fr-sec{margin-top:14px}
+        .fr-sec-t{font-size:.8rem;font-weight:800;color:#2f64b1;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+        .fr-qrow{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:7px 0;border-bottom:1px dashed #e5eaf2;font-size:.84rem}
+        .fr-qrow span:first-child{color:#44566c}
 
         @media (max-width:1100px){.fr-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media (max-width:600px){.fr-page{padding:16px 12px}.fr-stats{grid-template-columns:1fr}.fr-count{margin-left:0}}
@@ -210,10 +267,10 @@ export default function FormResponses() {
           <div className="fr-title-icon"><i className="bi bi-ui-checks" /></div>
           <div>
             <h4>
-              Form Responses
+              Customer Satisfaction Responses
               <span className="fr-live"><i />Live</span>
             </h4>
-            <p>Submissions from the contact form, updated automatically</p>
+            <p>Survey submissions from the Google Form, updated automatically</p>
           </div>
         </div>
         <div className="fr-actions">
@@ -234,7 +291,7 @@ export default function FormResponses() {
               <i className={`bi ${s.icon}`} />
             </div>
             <div>
-              <div className={`fr-stat-val ${s.small ? "small" : ""}`}>{s.value}</div>
+              <div className="fr-stat-val">{s.value}</div>
               <div className="fr-stat-lbl">{s.label}</div>
             </div>
           </div>
@@ -248,7 +305,7 @@ export default function FormResponses() {
             <i className="bi bi-search" />
             <input
               className="fr-input"
-              placeholder="Search name, email, address, phone, comments…"
+              placeholder="Search customer, SPOC, email, phone, answers…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -284,7 +341,7 @@ export default function FormResponses() {
               <i className="bi bi-inbox" />
               <b>{rows.length ? "No responses match your filters" : "No responses saved yet"}</b>
               <span className="small">
-                {rows.length ? "Try a different search or date range." : "New form submissions will appear here automatically."}
+                {rows.length ? "Try a different search or date range." : "New survey submissions will appear here automatically."}
               </span>
             </div>
           ) : (
@@ -292,43 +349,101 @@ export default function FormResponses() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Name</th>
-                  <th>Address</th>
+                  <th>Customer</th>
+                  <th>SPOC</th>
                   <th>Phone</th>
-                  <th>Comments</th>
+                  <th>Feedback Date</th>
+
+                  <th>Vs Competitors</th>
+                  <th>Use Again</th>
+                  <th>Overall</th>
                   <th>Submitted At</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r, i) => (
-                  <tr key={r._id}>
-                    <td className="fr-num">{i + 1}</td>
-                    <td>
-                      <div className="fr-person">
-                        <div className="fr-av" style={{ background: avColor(r.name) }}>{initials(r.name)}</div>
-                        <div>
-                          <div className="fr-name">{r.name}</div>
-                          <div className="fr-mail">{r.email}</div>
+                {filtered.map((r, i) => {
+
+                  const overall = answerOf(r, 11);
+                  const ot = tone(scoreOf(overall) || null);
+                  const again = answerOf(r, 10);
+                  return (
+                    <tr key={r._id}>
+                      <td className="fr-num">{i + 1}</td>
+                      <td>
+                        <div className="fr-person">
+                          <div className="fr-av" style={{ background: avColor(r.name) }}>{initials(r.name)}</div>
+                          <div>
+                            <div className="fr-name">{r.name}</div>
+                            <div className="fr-mail">{r.email}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td style={{ minWidth: 180 }}>
-                      <span className="fr-chip"><i className="bi bi-geo-alt-fill" />{r.address}</span>
-                    </td>
-                    <td>
-                      <span className="fr-chip"><i className="bi bi-telephone-fill" />{r.phone}</span>
-                    </td>
-                    <td className="fr-comment" style={{ minWidth: 200 }}>{r.comments}</td>
-                    <td>
-                      <span className="fr-date-pill"><i className="bi bi-calendar3" />{fmt(r.submittedAt)}</span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>{r.spocName || <span className="fr-muted">—</span>}</td>
+                      <td>
+                        {r.phone ? <span className="fr-chip"><i className="bi bi-telephone-fill" />{r.phone}</span> : <span className="fr-muted">—</span>}
+                      </td>
+                      <td>{r.feedbackDate ? <span className="fr-date-pill"><i className="bi bi-calendar3" />{fmtDay(r.feedbackDate)}</span> : <span className="fr-muted">—</span>}</td>
+
+                      <td style={{ minWidth: 150 }}>{answerOf(r, 9) || <span className="fr-muted">—</span>}</td>
+                      <td>
+                        {again ? <span className="fr-pill" style={{ background: again.toUpperCase() === "YES" ? "#e6f7f1" : "#fdecee", color: again.toUpperCase() === "YES" ? "#14916c" : "#a71d2a" }}>{again}</span> : <span className="fr-muted">—</span>}
+                      </td>
+                      <td>{overall ? <span className="fr-pill" style={{ background: ot.bg, color: ot.fg }}>{overall}</span> : <span className="fr-muted">—</span>}</td>
+                      <td><span className="fr-date-pill"><i className="bi bi-clock" />{fmt(r.submittedAt)}</span></td>
+                      <td>
+                        <button className="fr-btn-light fr-btn-sm" onClick={() => setDetail(r)}>
+                          <i className="bi bi-eye" /> View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
       </div>
+
+      {/* Detail popup: every answer of one survey */}
+      {detail && (
+        <div className="fr-modal-bg" onMouseDown={(e) => { if (e.target === e.currentTarget) setDetail(null); }}>
+          <div className="fr-modal">
+            <div className="fr-modal-h">
+              <h5>{detail.name || "Response"} • {fmt(detail.submittedAt)}</h5>
+              <button className="fr-btn-light fr-btn-sm" onClick={() => setDetail(null)}><i className="bi bi-x-lg" /> Close</button>
+            </div>
+            <div className="fr-modal-b">
+              <div className="fr-kv">
+                <div><small>Customer Name</small><b>{detail.name || "—"}</b></div>
+                <div><small>SPOC Name</small><b>{detail.spocName || "—"}</b></div>
+                <div><small>SPOC Email</small><b>{detail.email || "—"}</b></div>
+                <div><small>SPOC Contact</small><b>{detail.phone || "—"}</b></div>
+                <div><small>Feedback Date</small><b>{detail.feedbackDate ? fmtDay(detail.feedbackDate) : "—"}</b></div>
+
+                {detail.address ? <div><small>Address (old form)</small><b>{detail.address}</b></div> : null}
+                {detail.comments ? <div><small>Comments (old form)</small><b>{detail.comments}</b></div> : null}
+              </div>
+
+              {detailGroups.length === 0 && <div className="fr-muted">No rating answers (this response is from the old contact form).</div>}
+              {detailGroups.map(([section, items]) => (
+                <div className="fr-sec" key={section}>
+                  <div className="fr-sec-t">{section}</div>
+                  {items.map((x, k) => {
+                    const sc = tone(scoreOf(x.a) || null);
+                    return (
+                      <div className="fr-qrow" key={k}>
+                        <span>{x.item || ""}</span>
+                        <span className="fr-pill" style={{ background: sc.bg, color: sc.fg }}>{x.a}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
