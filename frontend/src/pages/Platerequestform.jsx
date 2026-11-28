@@ -146,6 +146,11 @@ function PlateRequestForm() {
   const [remarks, setRemarks] = useState("");
   const [impressions, setImpressions] = useState("");
   const [reasons, setReasons] = useState([]);
+  const [plate, setPlate] = useState("");
+  const [qty, setQty] = useState("");
+  const [plateMasters, setPlateMasters] = useState([]);
+  const [masterActivities, setMasterActivities] = useState([]);
+  const [masterMachines, setMasterMachines] = useState([]);
   const [plateReasons, setPlateReasons] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -206,6 +211,37 @@ function PlateRequestForm() {
     loadReasons();
   }, []);
 
+  useEffect(() => {
+    const loadPlates = async () => {
+      try {
+        const res = await axios.get(`${BASE_URL}/api/platerequest/plates`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setPlateMasters(res.data || []);
+      } catch (err) {
+        console.error("Error fetching plates:", err);
+      }
+    };
+    loadPlates();
+  }, []);
+
+  useEffect(() => {
+    const loadActivityMaster = async () => {
+      try {
+        const cfg = { headers: { Authorization: `Bearer ${token}` } };
+        const [act, mach] = await Promise.all([
+          axios.get(`${BASE_URL}/api/master/activities`, cfg),
+          axios.get(`${BASE_URL}/api/master/machines`, cfg)
+        ]);
+        setMasterActivities(act.data || []);
+        setMasterMachines(mach.data || []);
+      } catch (err) {
+        console.error("Error fetching activity master:", err);
+      }
+    };
+    loadActivityMaster();
+  }, []);
+
   const fetchWorkOrder = async () => {
     if (!woNumber.trim()) {
       Swal.fire({
@@ -254,15 +290,32 @@ function PlateRequestForm() {
     setMyRequestsLoading(false);
   };
 
-  const machinesForSelectedActivity = selectedActivity
-    ? [
-        ...new Set(
-          (selectedWoDetails?.machinePairs || [])
-            .filter((p) => p.activity === selectedActivity)
-            .map((p) => p.machine)
-        )
-      ]
-    : [];
+  const machinesForSelectedActivity = (() => {
+    if (!selectedActivity) return [];
+
+    // all machines mapped to this activity in the Activities master
+    const act = masterActivities.find(
+      (a) => (a.activityName || "").trim().toLowerCase() === selectedActivity.trim().toLowerCase()
+    );
+    const fromMaster = (act?.machines || [])
+      .map(
+        (m) =>
+          m?.machineName ||
+          masterMachines.find((x) => String(x._id) === String(m?._id || m))?.machineName
+      )
+      .filter(Boolean);
+
+    if (fromMaster.length) return [...new Set(fromMaster)];
+
+    // fallback: machines on the work order (previous behaviour)
+    return [
+      ...new Set(
+        (selectedWoDetails?.machinePairs || [])
+          .filter((p) => p.activity === selectedActivity)
+          .map((p) => p.machine)
+      )
+    ];
+  })();
 
   const handleActivityChange = (value) => {
     setSelectedActivity(value);
@@ -321,6 +374,8 @@ function PlateRequestForm() {
     setSelectedWoDetails(null);
     setRemarks("");
     setImpressions("");
+    setPlate("");
+    setQty("");
     setReasons([]);
     setSelectedActivity("");
     setSelectedMachine("");
@@ -373,6 +428,28 @@ function PlateRequestForm() {
       return;
     }
 
+    if (!plate) {
+      Swal.fire({
+        title: "Missing Plate",
+        text: "Please select a Plate.",
+        icon: "warning",
+        confirmButtonColor: "#043a45",
+        width: "360px"
+      });
+      return;
+    }
+
+    if (!qty || Number(qty) <= 0) {
+      Swal.fire({
+        title: "Missing Qty",
+        text: "Please enter a valid Qty.",
+        icon: "warning",
+        confirmButtonColor: "#043a45",
+        width: "360px"
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       await axios.post(
@@ -383,7 +460,9 @@ function PlateRequestForm() {
           activity: selectedActivity,
           machine: selectedMachine,
           impressions: impressions.trim(),
-          reasons: reasons
+          reasons: reasons,
+          plate: plate,
+          qty: Number(qty)
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -465,7 +544,8 @@ function PlateRequestForm() {
       ["Date:", req.createdAt ? new Date(req.createdAt).toLocaleDateString("en-IN") : "", "Dept.:", ""],
       ["Job Name:", req.jobDescription || req.jobName || "", "Shift:", ""],
       ["W.O. No.:", String(req.efiWoNumber || ""), "Incharge:", ""],
-      ["Machine:", (req.machineNames || []).join(", "), "No. of Impressions:", req.impressions || ""]
+      ["Machine:", (req.machineNames || []).join(", "), "No. of Impressions:", req.impressions || ""],
+      ["Plate:", req.plate || "", "Qty:", req.qty ?? ""]
     ];
     rows.forEach(([l1, v1, l2, v2]) => {
       cell(L, y, 25, 8, l1, true);
@@ -571,6 +651,8 @@ function PlateRequestForm() {
       "Activity": r.activities?.length ? r.activities.join(", ") : "-",
       "Machine": r.machineNames?.length ? r.machineNames.join(", ") : "-",
       "Impressions": r.impressions || "-",
+      "Plate": r.plate || "-",
+      "Qty": r.qty || "-",
       "Reason": r.reason || "-",
       "Remarks": r.remarks || "-",
       "Status": r.status,
@@ -1174,6 +1256,32 @@ function PlateRequestForm() {
                     />
                   </PoField>
 
+                  <PoField icon="bi-layers" label="Plate" required alwaysFloat caret>
+                    <select
+                      className="po-input"
+                      value={plate}
+                      onChange={(e) => setPlate(e.target.value)}
+                      required
+                    >
+                      <option value="">Select Plate</option>
+                      {plateMasters.map((p) => (
+                        <option key={p._id} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </PoField>
+
+                  <PoField icon="bi-hash" label="Qty" required alwaysFloat>
+                    <input
+                      type="number"
+                      min="1"
+                      className="po-input"
+                      placeholder="Enter qty"
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                      required
+                    />
+                  </PoField>
+
                   <PoField icon="bi-chat-left-text" label="Remarks / Notes" alwaysFloat>
                     <input
                       type="text"
@@ -1381,6 +1489,8 @@ function PlateRequestForm() {
                   <th>Activity</th>
                   <th>Machine</th>
                   <th>Impressions</th>
+                  <th>Plate</th>
+                  <th>Qty</th>
                   <th>Reason</th>
                   <th>Remarks</th>
                   <th>Status</th>
@@ -1393,13 +1503,13 @@ function PlateRequestForm() {
               <tbody>
                 {myRequestsLoading ? (
                   <tr>
-                    <td colSpan="14" className="pr-empty">
+                    <td colSpan="16" className="pr-empty">
                       Loading plate requests...
                     </td>
                   </tr>
                 ) : displayedRequests.length === 0 ? (
                   <tr>
-                    <td colSpan="14" className="pr-empty">
+                    <td colSpan="16" className="pr-empty">
                       No Plate Requests Found
                     </td>
                   </tr>
@@ -1450,6 +1560,8 @@ function PlateRequestForm() {
                       </td>
                      
                       <td className="pr-center">{req.impressions || "-"}</td>
+                      <td>{req.plate || "-"}</td>
+                      <td className="pr-center">{req.qty || "-"}</td>
                       <td>{req.reason || "-"}</td>
                        <td
                         style={truncCellStyle(`${req._id}-remarks`)}

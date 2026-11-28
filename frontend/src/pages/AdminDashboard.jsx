@@ -1193,6 +1193,8 @@ const [suppliers, setSuppliers] = useState([]);
 const [newSupplier, setNewSupplier] = useState("");
 const [plateReasons, setPlateReasons] = useState([]);
 const [newPlateReason, setNewPlateReason] = useState("");
+const [plateMasters, setPlateMasters] = useState([]);
+const [newPlateMaster, setNewPlateMaster] = useState("");
 const [showSupplierList, setShowSupplierList] = useState(false);
 const [supplierFilter, setSupplierFilter] = useState("");
   const [newPriority, setNewPriority] = useState("");
@@ -1718,7 +1720,65 @@ const [supplierFilter, setSupplierFilter] = useState("");
       setNewPlateReason("");
       fetchPlateReasons();
     }
+    if (activeSection === "plateMaster") {
+      setNewPlateMaster("");
+      fetchPlateMasters();
+    }
   }, [activeSection]);
+
+  const fetchPlateMasters = async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/platerequest/plates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPlateMasters(res.data || []);
+    } catch (err) {
+      console.error("Error fetching plates:", err);
+    }
+  };
+
+  const addPlateMaster = async () => {
+    if (!newPlateMaster.trim()) return showAlert("Enter a plate");
+    try {
+      await axios.post(
+        `${BASE_URL}/api/platerequest/plates`,
+        { name: newPlateMaster.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewPlateMaster("");
+      fetchPlateMasters();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to save plate");
+    }
+  };
+
+  const savePlateMaster = async (id) => {
+    if (!editingValue.trim()) return showAlert("Plate cannot be empty");
+    try {
+      await axios.put(
+        `${BASE_URL}/api/platerequest/plates/${id}`,
+        { name: editingValue.trim() },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditingId(null);
+      setEditingValue("");
+      fetchPlateMasters();
+    } catch (err) {
+      showAlert(err.response?.data?.message || "Failed to update plate");
+    }
+  };
+
+  const deletePlateMaster = async (id) => {
+    if (!(await askConfirm("Are you sure you want to delete?"))) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/platerequest/plates/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchPlateMasters();
+    } catch (err) {
+      showAlert("Failed to delete");
+    }
+  };
 
   const fetchRoles = async () => {
     try {
@@ -2471,6 +2531,7 @@ const [supplierFilter, setSupplierFilter] = useState("");
     { id: "indentRouting", label: "Indent Routing", icon: MapPin },
     { id: "roles", label: "Roles", icon: Activity },
     { id: "plateReasons", label: "Plate Request Reasons", icon: Layers },
+    { id: "plateMaster", label: "Plate Master", icon: Layers },
     { id: "spLogic", label: "Stock: Logic & Thresholds", icon: Layers },
     { id: "spMaps", label: "Stock: Variant Maps", icon: Layers },
     { id: "spTemplates", label: "Stock: Report Templates", icon: Layers },
@@ -4537,6 +4598,74 @@ const [supplierFilter, setSupplierFilter] = useState("");
               {plateReasons.length === 0 && (
                 <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
                   No reasons added yet
+                </li>
+              )}
+            </ul>
+          </div>
+        </motion.div>
+      )}
+
+      {/* PLATE MASTER */}
+      {activeSection === "plateMaster" && (
+        <motion.div className="pro-card">
+          <div className="pro-card-header">
+            <span><Layers size={18} /> Plate Master</span>
+          </div>
+
+          <div className="pro-form-row">
+            <input
+              className="pro-input"
+              placeholder="Plate (e.g. A3 CTP Plate)"
+              value={newPlateMaster}
+              onChange={(e) => setNewPlateMaster(e.target.value)}
+            />
+            <button className="pro-btn primary" onClick={addPlateMaster}>
+              <PlusCircle size={16} /> Add
+            </button>
+          </div>
+
+          <div style={scrollContainerStyle}>
+            <ul className="pro-list" style={{ margin: 0, padding: 0 }}>
+              {plateMasters.map((p) => (
+                <li key={p._id} className="d-flex justify-content-between align-items-center">
+                  {editingId === p._id ? (
+                    <>
+                      <input
+                        className="pro-input"
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                      />
+                      <button className="pro-btn primary" onClick={() => savePlateMaster(p._id)}>
+                        Save
+                      </button>
+                      <button
+                        className="pro-btn"
+                        onClick={() => { setEditingId(null); setEditingValue(""); }}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span>{p.name}</span>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          className="pro-btn"
+                          onClick={() => { setEditingId(p._id); setEditingValue(p.name); }}
+                        >
+                          Edit
+                        </button>
+                        <button className="pro-btn" onClick={() => deletePlateMaster(p._id)}>
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+              {plateMasters.length === 0 && (
+                <li style={{ padding: "10px", color: "#4a6f8c", textAlign: "center" }}>
+                  No plates added yet
                 </li>
               )}
             </ul>

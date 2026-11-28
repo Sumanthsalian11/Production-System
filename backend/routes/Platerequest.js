@@ -3,6 +3,7 @@ const router = express.Router();
 const PlateRequest = require("../models/Platerequest");
 const WorkOrder = require("../models/WorkOrder");
 const PlateReason = require("../models/PlateReason");
+const PlateMaster = require("../models/PlateMaster");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -162,13 +163,19 @@ router.get("/", authMiddleware, async (req, res) => {
 // =============================================
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { workOrderId, remarks, activity, machine, impressions, reasons } = req.body;
+    const { workOrderId, remarks, activity, machine, impressions, reasons, plate, qty } = req.body;
 
     if (!impressions || !String(impressions).trim()) {
       return res.status(400).json({ message: "Please enter No. of Impressions" });
     }
     if (!Array.isArray(reasons) || reasons.length === 0) {
       return res.status(400).json({ message: "Please select a Reason" });
+    }
+    if (!plate || !String(plate).trim()) {
+      return res.status(400).json({ message: "Please select a Plate" });
+    }
+    if (!qty || Number(qty) <= 0) {
+      return res.status(400).json({ message: "Please enter a valid Qty" });
     }
 
     if (!workOrderId) {
@@ -195,6 +202,8 @@ router.post("/", authMiddleware, async (req, res) => {
       machineNames: [machine],
       userLocations: workOrder.userLocations || [],
       impressions: String(impressions).trim(),
+      plate: String(plate).trim(),
+      qty: Number(qty),
       reasons: reasons,
       reason: reasons.join(", "),
       remarks: remarks || "",
@@ -312,6 +321,65 @@ router.delete("/reasons/:id", authMiddleware, async (req, res) => {
     res.json({ message: "Deleted" });
   } catch (err) {
     console.error("DELETE PLATE REASON ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// =============================================
+// PLATE MASTER (maintained in Admin Dashboard)
+// =============================================
+router.get("/plates", authMiddleware, async (req, res) => {
+  try {
+    const plates = await PlateMaster.find().sort({ name: 1 });
+    res.json(plates);
+  } catch (err) {
+    console.error("FETCH PLATE MASTER ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/plates", authMiddleware, async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Plate is required" });
+
+    const exists = await PlateMaster.findOne({
+      name: new RegExp(`^${escapeRegex(name)}$`, "i")
+    });
+    if (exists) return res.status(400).json({ message: "Plate already exists" });
+
+    const plate = await PlateMaster.create({ name });
+    res.status(201).json(plate);
+  } catch (err) {
+    console.error("CREATE PLATE MASTER ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put("/plates/:id", authMiddleware, async (req, res) => {
+  try {
+    const name = (req.body.name || "").trim();
+    if (!name) return res.status(400).json({ message: "Plate is required" });
+
+    const plate = await PlateMaster.findByIdAndUpdate(
+      req.params.id,
+      { name },
+      { new: true }
+    );
+    if (!plate) return res.status(404).json({ message: "Plate not found" });
+    res.json(plate);
+  } catch (err) {
+    console.error("UPDATE PLATE MASTER ERROR:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete("/plates/:id", authMiddleware, async (req, res) => {
+  try {
+    await PlateMaster.findByIdAndDelete(req.params.id);
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    console.error("DELETE PLATE MASTER ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 });
