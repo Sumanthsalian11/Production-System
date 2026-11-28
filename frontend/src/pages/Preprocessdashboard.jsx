@@ -803,6 +803,8 @@ function PreprocessDashboard() {
       confirmButtonColor: "#2f9e60",
       cancelButtonColor: "#5f6c7a",
       confirmButtonText: "Yes, done",
+      input: "text",
+      inputPlaceholder: "Optional remarks",
       width: "350px"
     });
 
@@ -817,7 +819,42 @@ function PreprocessDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      showAlert("Success", `Work Order ${wo.efiWoNumber} marked done`, "success");
+      // Auto-log in Plate Tracker: Fresh plate = Color Front + Color Back
+      const freshPlates = (Number(wo.colorFront) || 0) + (Number(wo.colorBack) || 0);
+      let trackerOk = true;
+      if (freshPlates > 0) {
+        try {
+          await axios.post(
+            `${BASE_URL}/api/production-log`,
+            {
+              date: new Date().toISOString().slice(0, 10),
+              woNumber: String(wo.efiWoNumber || "").trim(),
+              customerName: wo.customer?.name || wo.customer || "-",
+              jobName: wo.productName || "-",
+              machine: (wo.machines || [])
+                .map(m => m.machineId?.machineName)
+                .filter(Boolean),
+              producedQty: freshPlates,          // Fresh plate
+              wastageQty: 0,
+              reason: "",
+              remark: (result.value || "").trim(),
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          fetchProduction();
+        } catch (logErr) {
+          trackerOk = false;
+          console.error("Plate Tracker auto-entry failed:", logErr.response?.data || logErr);
+        }
+      }
+
+      showAlert(
+        trackerOk ? "Success" : "Marked done, but tracker entry failed",
+        trackerOk
+          ? `Work Order ${wo.efiWoNumber} marked done${freshPlates > 0 ? " and added to Plate Tracker" : ""}`
+          : "The work order is done, but it could not be added to Plate Tracker. Please add it manually.",
+        trackerOk ? "success" : "warning"
+      );
       fetchPending();
       fetchCompleted();
     } catch (err) {
@@ -907,10 +944,38 @@ function PreprocessDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // Approved -> auto-log in Plate Tracker (qty goes to Wastage plate)
+      let trackerOk = true;
+      if (isApprove) {
+        try {
+          await axios.post(
+            `${BASE_URL}/api/production-log`,
+            {
+              date: new Date().toISOString().slice(0, 10),
+              woNumber: String(request.efiWoNumber || "").trim(),
+              customerName: request.customerName || "-",
+              jobName: request.jobDescription || request.jobName || "-",
+              machine: request.machineNames || [],
+              producedQty: 0,
+              wastageQty: Number(request.qty) || 0,
+              reason: request.reason || (request.reasons?.length ? request.reasons.join(", ") : ""),
+              remark: (result.value || "").trim(),
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          fetchProduction();
+        } catch (logErr) {
+          trackerOk = false;
+          console.error("Plate Tracker auto-entry failed:", logErr.response?.data || logErr);
+        }
+      }
+
       showAlert(
-        "Success",
-        `Plate request ${isApprove ? "approved" : "rejected"}`,
-        "success"
+        trackerOk ? "Success" : "Approved, but tracker entry failed",
+        trackerOk
+          ? `Plate request ${isApprove ? "approved and added to Plate Tracker" : "rejected"}`
+          : "The request was approved, but it could not be added to Plate Tracker. Please add it manually.",
+        trackerOk ? "success" : "warning"
       );
       fetchPlateRequests();
       fetchAllPlateRequests();
@@ -1368,6 +1433,8 @@ function PreprocessDashboard() {
                     <th style={{ minWidth: "120px", textAlign: "left" }}>Product Code</th>
                     <th style={{ minWidth: "220px", textAlign: "left" }}>Customer Name</th>
                     <th style={{ minWidth: "110px", textAlign: "right", paddingRight: "18px" }}>Order Qty</th>
+                    <th style={{ width: "90px", textAlign: "center" }}>Color Front</th>
+                    <th style={{ width: "90px", textAlign: "center" }}>Color Back</th>
                     <th style={{ width: "95px", textAlign: "center" }}>View PDF</th>
                     <th style={{ minWidth: "160px", textAlign: "left" }}>Planning</th>
                     <th style={{ width: "230px", textAlign: "center" }}>Action</th>
@@ -1375,9 +1442,9 @@ function PreprocessDashboard() {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td className="empty-state" colSpan="8">Loading...</td></tr>
+                    <tr><td className="empty-state" colSpan="10">Loading...</td></tr>
                   ) : displayedWorkOrders.length === 0 ? (
-                    <tr><td className="empty-state" colSpan="8">No Work Orders Pending for Prepress</td></tr>
+                    <tr><td className="empty-state" colSpan="10">No Work Orders Pending for Prepress</td></tr>
                   ) : (
                     displayedWorkOrders.map(wo => {
                       const custName = wo.customer?.name || wo.customer || "-";
@@ -1394,6 +1461,8 @@ function PreprocessDashboard() {
                             {custName}
                           </td>
                           <td style={{ textAlign: "right", paddingRight: "18px", fontWeight: "700" }}>{wo.orderQty}</td>
+                          <td style={{ textAlign: "center", fontWeight: "700" }}>{wo.colorFront ?? "-"}</td>
+                          <td style={{ textAlign: "center", fontWeight: "700" }}>{wo.colorBack ?? "-"}</td>
                           <td style={{ textAlign: "center" }}>
                             {itemFileOf(wo) ? (
                               <a
